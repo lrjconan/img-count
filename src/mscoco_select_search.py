@@ -134,7 +134,7 @@ def run_selective_search(image_list, batch_size=10):
         log.error('Did not process {0}'.format(img))
 
     # Pack into numpy format.
-    boxes = numpy.array(boxes, dtype='object'))
+    boxes = numpy.array(boxes, dtype='object')
     return boxes, processed_images, error_images
 
 
@@ -160,6 +160,7 @@ def load_boxes(output_file):
     return numpy.load(output_file)
 
 if __name__ == '__main__':
+    log.log_args()
     parser=argparse.ArgumentParser(
         description = 'Compute selective search boxes on MS-COCO')
     parser.add_argument(

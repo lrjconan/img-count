@@ -20,6 +20,7 @@ from __future__ import print_function
 import datetime
 import inspect
 import os
+import sys
 
 terminal = {
     'normal': '\033[0m',
@@ -177,3 +178,6 @@ class Logger(object):
         self.log(message, typ='fatal', verbose=verbose)
         sys.exit(0)
         pass
+
+    def log_args(self, verbose=0):
+        self.info('Command: {}'.format(' '.join(sys.argv)))
