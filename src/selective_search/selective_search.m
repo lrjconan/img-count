@@ -1,4 +1,4 @@
-function all_boxes = selective_search(image_filenames, output_filename)
+function all_boxes = selective_search_2(image_filenames, output_filename)
 
 addpath('Dependencies');
 
@@ -15,7 +15,8 @@ if(~exist('mexFelzenSegmentIndex'))
 end
 
 colorTypes = {'Hsv', 'Lab', 'RGI', 'H', 'Intensity'};
-colorType = colorTypes{1}; % Single color space for demo
+colorType = colorTypes{1};
+%colorType = colorTypes{1}; % Single color space for demo
 
 % Here you specify which similarity functions to use in merging
 simFunctionHandles = {@SSSimColourTextureSizeFillOrig, @SSSimTextureSizeFill, @SSSimBoxFillOrig, @SSSimSize};
@@ -31,6 +32,10 @@ sigma = 0.8;
 all_boxes = {};
 for i=1:length(image_filenames)
     im = imread(image_filenames{i});
+    % Handle gray scale
+    if ndims(im) == 2
+        im = repmat(reshape(im, [size(im, 1), size(im, 2), 1]), [1, 1, 3]);
+    end
     [boxes blobIndIm blobBoxes hierarchy] = Image2HierarchicalGrouping(im, sigma, k, minSize, colorType, simFunctionHandles);
     all_boxes{i} = BoxRemoveDuplicates(boxes);
 end
