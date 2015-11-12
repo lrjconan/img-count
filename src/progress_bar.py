@@ -1,3 +1,17 @@
+"""
+A python progress bar
+
+Usage:
+    import progress_bar
+
+    N = 1000
+    pb = progress_bar.get(N)
+    
+    for i in xrange(N):
+        pb.increment()
+"""
+
+
 from __future__ import division
 import sys
 
