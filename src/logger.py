@@ -16,7 +16,6 @@ Usage:
     log.fatal('Failed.')
 """
 
-
 from __future__ import print_function
 import datetime
 import inspect
@@ -90,9 +89,9 @@ class Logger(object):
         Args:
             message: string, message content.
             typ: string, type of the message. info, warning, error, or fatal.
-            verbose: int, verbose level of the message. If the verbose level is 
-            lower than the environment variable, then the message will be 
-            logged to standard output and log output file (if set).
+            verbose: number, verbose level of the message. If lower than the 
+            environment variable, then the message will be logged to standard 
+            output and log output file (if set).
         """
         if typ == 'info':
             typstr_print = '{0}INFO:{1}'.format(
@@ -140,7 +139,7 @@ class Logger(object):
 
         Args:
             message: string, message content.
-            verbose: int, verbose level.
+            verbose: number, verbose level.
         """
         self.log(message, typ='info', verbose=verbose)
         pass
@@ -151,7 +150,7 @@ class Logger(object):
 
         Args:
             message: string, message content.
-            verbose: int, verbose level.
+            verbose: number, verbose level.
         """
         self.log(message, typ='warning', verbose=verbose)
         pass
@@ -162,7 +161,7 @@ class Logger(object):
 
         Args:
             message: string, message content.
-            verbose: int, verbose level.
+            verbose: number, verbose level.
         """
         self.log(message, typ='error', verbose=verbose)
         pass
@@ -173,7 +172,7 @@ class Logger(object):
 
         Args:
             message: string, message content.
-            verbose: int, verbose level.
+            verbose: number, verbose level.
         """
         self.log(message, typ='fatal', verbose=verbose)
         sys.exit(0)

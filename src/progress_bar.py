@@ -16,20 +16,42 @@ from __future__ import division
 import sys
 
 def get(length):
+    """
+    Returns a ProgressBar object.
+
+    Args:
+        length: number, total number of objects to count.
+    """
     return ProgressBar(length)
 
 class ProgressBar(object):
+    """
+    Prints a dotted line in a standard terminal.
+    """
 
-    def __init__(self, length):
+    def __init__(self, length, width=80):
+        """
+        Constructs a ProgressBar object.
+
+        Args:
+            length: number, total number of objects to count.
+            width: number, width of the progress bar.
+        """
         self.length = length
         self.value = 0
         self.progress = 0
-        self.width = 80
+        self.width = width
         self.finished = False
         pass
 
-    def increment(self):
-        self.value += 1
+    def increment(self, value=1):
+        """
+        Increments the progress bar.
+
+        Args:
+            value: number, value to be incremented, default 1.
+        """
+        self.value += value
         while self.value / self.length > self.progress / self.width:
             sys.stdout.write('.')
             sys.stdout.flush()

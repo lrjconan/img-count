@@ -1,3 +1,28 @@
+"""
+Runs selective search on a list of images.
+
+Usage:
+    python mscoco_select_search.py \
+            -list {image list} \
+            -out {output file} \
+            [-old {old file}] \
+            [-patch {patch list}] \
+            [-batch {batch size}]
+
+Examples:
+    # Run new
+    python mscoco_select_search.py \
+            -list mylist.txt \
+            -out boxes.npy
+
+    # Run patches
+    python mscoco_select_search.py \
+            -list mylist.txt \
+            -old boxes.npy \
+            -out boxes_patch.npy \
+            -patch error_list.txt
+"""
+
 from __future__ import print_function
 import argparse
 import cv2
@@ -135,16 +160,6 @@ def load_boxes(output_file):
     return numpy.load(output_file)
 
 if __name__ == '__main__':
-    """
-    Runs selective search on a list of images.
-
-    Usage: python mscoco_select_search.py \
-            -list {image list} \
-            -out {output file} \
-            [-old {old file}] \
-            [-patch {patch list}] \
-            [-batch {batch size}]
-    """
     parser=argparse.ArgumentParser(
         description = 'Compute selective search boxes on MS-COCO')
     parser.add_argument(
