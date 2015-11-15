@@ -35,7 +35,7 @@ import selective_search
 import sys
 
 gobi = '/ais/gobi3/u/mren/data/mscoco'
-log = utils.logger.get('../logs/mscoco_select_search')
+log = utils.logger.get('../log/mscoco_select_search')
 
 
 def patch(original_boxes, error_image_list, full_image_list, batch_size=10):

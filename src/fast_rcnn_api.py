@@ -5,15 +5,20 @@ Command-line usage:
     python fast_rcnn_api.py -image {image file}
                             -image_list {image list file}
                             -dataset {dataset name}
-                            -net {network name}
+                            -datadir {dataset directory}
+                            -net {network definition path}
+                            -weights {weights path}
                             -gpu {gpu ID}
                             -cpu {cpu mode}
+                            -conf {confidence threshold}
+                            -nms {NMS threshold}
                             -proposal {proposal file}
+                            -output {output file}
 """
 from data_api import Mscoco
 from fast_rcnn.test import im_detect
 from fast_rcnn_model import FastRCNNModel
-from fast_rcnn_utils.cython_nms import nms
+from fast_rcnn_utils.nms import nms
 from fast_rcnn_utils.timer import Timer
 from utils import logger
 from utils import list_reader
@@ -48,23 +53,24 @@ class FastRcnnApi():
         dataset:
     """
 
-    def __init__(self, model_name, dataset_name):
-        if args.dataset == 'coco':
-            self.dataset = Mscoco(base_dir='../data/mscoco', set_name='valid')
+    def __init__(self, model_def_fname, weights_fname, 
+                 dataset_name, dataset_dir, gpu=True, gpu_id=0):
+        if args.dataset == 'mscoco':
+            self.dataset = Mscoco(base_dir=dataset_dir, set_name='valid')
         else:
             raise Exception('Unknown dataset: {}.'.format(dataset))
 
-        prototxt = os.path.join('../lib/fast-rcnn/models', NETS[model_name][0])
-        caffemodel = os.path.join('../lib/fast-rcnn/data', 'fast_rcnn_models',
-                                  NETS[model_name][1])
+        if not os.path.isfile(model_def_fname):
+            raise IOError('Model definition file not found: {}'.format(
+                weights_fname))
+        if not os.path.isfile(weights_fname):
+            raise IOError('Weights file not found: {}'.format(weights_fname))
 
-        if not os.path.isfile(caffemodel):
-            raise IOError(('{:s} not found.\nDid you run ./data/script/'
-                           'fetch_fast_rcnn_models.sh?').format(caffemodel))
-
-        self.model = FastRCNNModel(model_name, model_def_fname=prototxt,
-                                   weights_fname=caffemodel,
-                                   gpu=not args.cpu_mode)
+        self.model = FastRCNNModel(name=model_def_fname, 
+                                   model_def_fname=model_def_fname,
+                                   weights_fname=weights_fname,
+                                   gpu=gpu,
+                                   gpu_id=gpu_id)
         pass
 
     def run_detector_with_proposal(self, image_fname):
@@ -206,14 +212,20 @@ def parse_args():
     parser.add_argument('-cpu', dest='cpu_mode',
                         help='Use CPU mode (overrides --gpu)',
                         action='store_true')
-    parser.add_argument('-net', dest='demo_net', help='Network to use [vgg16]',
-                        choices=NETS.keys(), default='vgg16')
-    parser.add_argument('-dataset', default='coco', help='Dataset to use')
+    parser.add_argument('-net', help='Path to network definition',
+                        default=('../lib/fast-rcnn/'
+                                 'models/VGG16/coco/test.prototxt'))
+    parser.add_argument('-weights', help='Path to weights file',
+                        default=('../lib/fast-rcnn/data/fast_rcnn_models/',
+                                 'coco_vgg16_fast_rcnn_iter_240000.caffemodel'))
+    parser.add_argument('-dataset', default='mscoco', help='Dataset to use')
+    parser.add_argument('-datadir', default='../data/mscoco', 
+                        help='Dataset directory')
     parser.add_argument('-image', help='Image')
-    # parser.add_argument('-conf', default=0.8, type=float,
-    #                     help='Confidence threshold')
-    # parser.add_argument('-nms', default=0.3, type=float,
-    #                     help='NMS threshold')
+    parser.add_argument('-conf', default=0.8, type=float,
+                        help='Confidence threshold')
+    parser.add_argument('-nms', default=0.3, type=float,
+                        help='NMS threshold')
     parser.add_argument('-image_list', help='Image list to run in batch')
     parser.add_argument('-output', help='Output of the extracted boxes')
     parser.add_argument('-proposal', help='Proposals file')
@@ -221,6 +233,48 @@ def parse_args():
     args = parser.parse_args()
 
     return args
+
+
+def num_boxes(det_dict):
+    """Count the number of boxes in the thresholded dictionary."""
+    N = 0
+    for k in det_dict.iterkeys():
+        N += det_dict[k].shape[0]
+    return N
+
+
+def assemble_boxes(det_dict):
+    """Assemble the boxes into int16 array
+    
+    Returns:
+        boxes: numpy.ndarray, (N, 6) dimension. N is the number of boxes.
+        6 dimensions are (x1, y1, x2, y2, class_id, score). 
+        co-ordinates are un-normalized. class_id is 1-based. score is quantized 
+        in 0 - 100.
+    """
+    N = num_boxes(det_dict)
+    results = np.zeros((N, 6), dtype='int16')
+    idx = 0
+    for cls_id in det_dict.iterkeys():
+        cls_boxes = det_dict[cls_id]
+        num_cb = cls_boxes.shape[0]
+        results[idx: idx + num_cb, :4] = np.floor(cls_boxes[:, :4])
+        results[idx: idx + num_cb, 4] = cls_id
+        results[idx: idx + num_cb, 5] = np.floor(cls_boxes[:, 4] * 100)
+        idx += num_cb
+    return results
+
+
+def save_boxes(results, output):
+    output_dir = os.path.dirname(output)
+    if output_dir != '':
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+    array = np.array(results, dtype=object)
+    log.info(array)
+    np.save(output, array)
+    return
+
 
 if __name__ == '__main__':
     args = parse_args()
@@ -236,41 +290,54 @@ if __name__ == '__main__':
         image_list = list_reader.read_file_list(args.image_list, check=True)
     else:
         log.fatal('You need to specify input through -image or -image_list.')
+    if args.output:
+        log.info('Writing output to {}'.format(args.output))
 
-    api = FastRcnnApi(args.demo_net, args.dataset)
+    log.info('Confidence threshold: {:.2f}'.format(args.conf))
+    log.info('NMS threshold: {:.2f}'.format(args.nms))
+
+    log.info('Caffe network definition: {}'.format(args.net))
+    log.info('Caffe network weights: {}'.format(args.weights))
+
+    api = FastRcnnApi(args.net, args.weights, args.dataset, args.datadir, 
+                      not args.cpu_mode, args.gpu_id)
 
     if args.proposal:
-        proposal_list = numpy.load(args.proposal)
+        log.info('Loading pre-computed proposals')
+        proposal_list = np.load(args.proposal)
 
     if args.image:
         if args.proposal:
             raise Exception('Not implemented')
         else:
-            results = api.run_detector_with_proposal(args.image)
+            det_boxes = api.run_detector_with_proposal(args.image)
+            det_dict = api.threshold(det_boxes, args.conf, args.nms)
+            results = assemble_boxes(det_dict)
     elif args.image_list:
         results = []
         for i, img_fname in enumerate(image_list):
-            log.info('Running {}'.format(img_fname))
+            log.info('Running {:d}/{:d}: {}'.format(
+                i + 1, len(image_list), img_fname))
             im = cv2.imread(img_fname)
             if args.proposal:
                 obj_proposals = proposal_list[i]
                 det_boxes = api.run_detector(im, obj_proposals)
             else:
                 det_boxes = api.run_detector_with_proposal(img_fname)
-            det_dict = api.threshold(det_boxes, 0.8, 0.3)
-            # api.vis_all(im, det_dict)
-            print (det_boxes[:, :, -1] > 0.5).astype(int).sum()
-            print (det_boxes[:, :, -1] > 0.4).astype(int).sum()
-            print (det_boxes[:, :, -1] > 0.3).astype(int).sum()
-            print (det_boxes[:, :, -1] > 0.2).astype(int).sum()
-            print (det_boxes[:, :, -1] > 0.1).astype(int).sum()
-            print (det_boxes[:, :, -1] > 0.05).astype(int).sum()
-            print (det_boxes[:, :, -1] > 0.01).astype(int).sum()
-            results.append(det_boxes)
+            # conf_list = [0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2]
+            # nms_list = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+            # for conf_i, nms_i in zip(conf_list, nms_list):
+            #     det_dict = api.threshold(det_boxes, conf_i, nms_i)
+            #     del det_dict[0]
+            #     log.info('conf {:.2f} nms {:.2f} num boxes {:d}'.format(
+            #         conf_i, nms_i,
+            #         num_boxes(det_dict)))
+            det_dict = api.threshold(det_boxes, args.conf, args.nms)
+            del det_dict[0]
+            final_boxes = assemble_boxes(det_dict)
+            results.append(assemble_boxes(det_dict))
+            log.info('After threshold: {:d} boxes'.format(results[-1].shape[0]))
 
     # Save the results.
     if args.output:
-        output_dir = os.path.dirname(args.output)
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        numpy.save(results, args.output)
+        save_boxes(results, args.output)

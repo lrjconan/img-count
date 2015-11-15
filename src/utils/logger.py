@@ -37,15 +37,21 @@ terminal = {
     'default': '\033[39m'
 }
 
+log = None
+
 
 def get(filename=None):
     """
     Returns a logger instance, with optional log file output.
     """
+    global log
+    if log is not None:
+        return log
     fname = os.environ.get('LOGTO', None)
     if fname is None:
         fname = filename
-    return Logger(filename)
+    log = Logger(fname)
+    return log
 
 
 class Logger(object):
@@ -70,6 +76,8 @@ class Logger(object):
             if not os.path.exists(dirname):
                 os.makedirs(dirname)
             open(self.filename, 'w').close()
+            self.info('Log written to {}'.format(
+                os.path.abspath(self.filename)))
         else:
             self.filename = None
         pass
