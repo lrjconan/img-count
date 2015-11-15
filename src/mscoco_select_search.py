@@ -26,40 +26,16 @@ Examples:
 from __future__ import print_function
 import argparse
 import cv2
-import logger
+import utils.logger
 import numpy
 import os
-import progress_bar
+import utils.progress_bar
+import utils.list_reader
 import selective_search
 import sys
 
 gobi = '/ais/gobi3/u/mren/data/mscoco'
-log_path = os.environ.get('LOG_OUTPUT', '../logs/mscoco_select_search')
-log = logger.get(log_path)
-
-
-def read_image_list(image_list_file):
-    """
-    Reads image file names in a plain text file.
-
-    Args:
-        image_list_file: string, path to line delimited image id file.
-    Returns:
-        image_list: list, list of image file names in string.
-    Raises:
-        Exception: image file name does not exists.
-    """
-
-    log.info('Checking all images')
-    image_list = list(open(image_list_file))
-    N = len(image_list)
-    pb = progress_bar.get(N)
-    for i in xrange(N):
-        image_list[i] = image_list[i].strip()
-        if not os.path.exists(image_list[i]):
-            raise Exception('Image not found: {0}'.format(image_list[i]))
-        pb.increment()
-    return image_list
+log = utils.logger.get('../logs/mscoco_select_search')
 
 
 def patch(original_boxes, error_image_list, full_image_list, batch_size=10):
@@ -161,57 +137,57 @@ def load_boxes(output_file):
 
 if __name__ == '__main__':
     log.log_args()
-    parser=argparse.ArgumentParser(
-        description = 'Compute selective search boxes on MS-COCO')
+    parser = argparse.ArgumentParser(
+        description='Compute selective search boxes on MS-COCO')
     parser.add_argument(
         '-list',
-        dest = 'image_list',
-        default = os.path.join(gobi, 'image_list_train.txt'),
-        help = 'image list text file')
+        dest='image_list',
+        default=os.path.join(gobi, 'image_list_train.txt'),
+        help='image list text file')
     parser.add_argument(
         '-out',
-        dest = 'output_file',
-        default = os.path.join(gobi, 'select_search_train.npy'),
-        help = 'output numpy file')
+        dest='output_file',
+        default=os.path.join(gobi, 'select_search_train.npy'),
+        help='output numpy file')
     parser.add_argument(
         '-old',
-        dest = 'to_patch_file',
-        default = None,
-        help = 'file to be patched')
+        dest='to_patch_file',
+        default=None,
+        help='file to be patched')
     parser.add_argument(
         '-patch',
-        dest = 'patch_list',
-        default = None,
-        help = 'list of images that needs to be patched')
+        dest='patch_list',
+        default=None,
+        help='list of images that needs to be patched')
     parser.add_argument(
         '-batch',
-        dest = 'batch_size',
-        type = int,
-        default = 10,
-        help = 'batch size')
-    args=parser.parse_args()
+        dest='batch_size',
+        type=int,
+        default=10,
+        help='batch size')
+    args = parser.parse_args()
     log.info('Input list: {0}'.format(args.image_list))
     log.info('Output file: {0}'.format(args.output_file))
-    image_list=read_image_list(args.image_list)
+    image_list = list_reader.read_file_list(args.image_list, check=True)
     if args.patch_list is not None:
         if args.to_patch_file is None:
             raise Exception('Need to specify the file to be patched')
         log.info('File to be patched: {0}'.format(args.to_patch_file))
         log.info('Patch list: {0}'.format(args.patch_list))
-        patch_list=read_image_list(args.patch_list)
-        boxes=load_boxes(args.to_patch_file)
-        boxes=patch(boxes, patch_list, image_list,
-                      batch_size = args.batch_size)
+        patch_list = list_reader.read_file_list(args.patch_list, check=True)
+        boxes = load_boxes(args.to_patch_file)
+        boxes = patch(boxes, patch_list, image_list,
+                      batch_size=args.batch_size)
     else:
-        boxes, processed, error=run_selective_search(
+        boxes, processed, error = run_selective_search(
             image_list, batch_size=args.batch_size)
         save_boxes(args.output_file, boxes)
     dirname = os.path.dirname(args.output_file)
     timestr = log.get_time_str()
     processed_filename = os.path.join(dirname,
-                            'select_search_processed_{0}.txt'.format(timestr))
+                                      'select_search_processed_{0}.txt'.format(timestr))
     error_filename = os.path.join(dirname,
-                            'select_search_error_{0}.txt'.format(timestr))
+                                  'select_search_error_{0}.txt'.format(timestr))
     with open(processed_filename, 'w') as f:
         f.write('\n'.join(processed))
     with open(error_filename, 'w') as f:

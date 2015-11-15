@@ -42,6 +42,9 @@ def get(filename=None):
     """
     Returns a logger instance, with optional log file output.
     """
+    fname = os.environ.get('LOGTO', None)
+    if fname is None:
+        fname = filename
     return Logger(filename)
 
 
