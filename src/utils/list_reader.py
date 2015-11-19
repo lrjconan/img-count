@@ -25,6 +25,6 @@ def read_file_list(fname, check=False):
         pb = progress_bar.get(N)
         for i, f in enumerate(file_list):
             if not os.path.exists(f):
-                raise Exception('File not found: {0}'.format(f))
+                log.fatal('File not found: {0}'.format(f))
             pb.increment()
     return file_list

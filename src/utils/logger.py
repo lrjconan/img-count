@@ -83,15 +83,19 @@ class Logger(object):
         pass
 
     @staticmethod
-    def get_time_str(t=datetime.datetime.now()):
+    def get_time_str(t=None):
         """
         Returns a formatted time string.
 
         Args:
             t: datetime, default now.
         """
+        if t is None:
+            t = datetime.datetime.now()
+
         timestr = '{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}'.format(
             t.year, t.month, t.day, t.hour, t.minute, t.second)
+        
         return timestr
 
     def log(self, message, typ='info', verbose=0):

@@ -7,8 +7,11 @@ LOGTO="log/fast_rcnn_api" python src/fast_rcnn_api.py \
     -gpu 2 \
     -conf 0.3 \
     -nms 0.8 \
+    -local_feat \
+    -feat_layer "fc7" \
     -proposal "/ais/gobi3/u/mren/data/mscoco/select_search_train.npy" \
-    -output "/ais/gobi3/u/mren/data/mscoco/fast_rcnn_train_c3n8.npy"
+    -output "/ais/gobi3/u/mren/data/mscoco/fast_rcnn_train_c3n8_fc7.h5" \
+    -sparse
 
 LOGTO="log/fast_rcnn_api" python src/fast_rcnn_api.py \
     -image_list "/ais/gobi3/u/mren/data/mscoco/image_list_valid.txt" \
@@ -19,6 +22,9 @@ LOGTO="log/fast_rcnn_api" python src/fast_rcnn_api.py \
     -gpu 2 \
     -conf 0.3 \
     -nms 0.8 \
+    -local_feat \
+    -feat_layer "fc7" \
     -proposal "/ais/gobi3/u/mren/data/mscoco/select_search_valid.npy" \
-    -output "/ais/gobi3/u/mren/data/mscoco/fast_rcnn_valid_c3n8.npy"
+    -output "/ais/gobi3/u/mren/data/mscoco/fast_rcnn_valid_c3n8_fc7.h5" \
+    -sparse
 

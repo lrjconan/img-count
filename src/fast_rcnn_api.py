@@ -26,10 +26,13 @@ import argparse
 import caffe
 import cv2
 import fast_rcnn_init
+import gc
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 import scipy.io as sio
+import scipy.sparse
 import selective_search
 import sys
 
@@ -53,7 +56,7 @@ class FastRcnnApi():
         dataset:
     """
 
-    def __init__(self, model_def_fname, weights_fname, 
+    def __init__(self, model_def_fname, weights_fname,
                  dataset_name, dataset_dir, gpu=True, gpu_id=0):
         if args.dataset == 'mscoco':
             self.dataset = Mscoco(base_dir=dataset_dir, set_name='valid')
@@ -66,31 +69,36 @@ class FastRcnnApi():
         if not os.path.isfile(weights_fname):
             raise IOError('Weights file not found: {}'.format(weights_fname))
 
-        self.model = FastRCNNModel(name=model_def_fname, 
+        self.model = FastRCNNModel(name=model_def_fname,
                                    model_def_fname=model_def_fname,
                                    weights_fname=weights_fname,
                                    gpu=gpu,
                                    gpu_id=gpu_id)
         pass
 
-    def run_detector_with_proposal(self, image_fname):
+    def run_detector_with_proposal(self, image_fname, get_local_feat=False,
+                                   feat_layer='fc7'):
         """Run Fast-RCNN on a single image, without pre-computed proposals.
         """
         obj_proposals = self.compute_obj_proposals(image_fname)
         obj_proposals = self.shift_obj_proposals(obj_proposals)
         im = cv2.imread(image_fname)
-        return self.run_detector(im, obj_proposals)
+        return self.run_detector(im, obj_proposals,
+                                 get_local_feat=get_local_feat,
+                                 feat_layer=feat_layer)
 
-    def run_detector(self, im, obj_proposals):
+    def run_detector(self, im, obj_proposals, get_local_feat=False,
+                     feat_layer='fc7'):
         """Run Fast-RCNN on a single image, with pre-computed proposals.
         
         Args:
             im: numpy.ndarray, image pixels.
             obj_proposals: numpy.ndarray, 
-        
         Returns:
             results: numpy.ndarray, N x 5, N is the number of proposals.
             5 dimensions are (x1, y1, x2, y2, confidence).
+            local_feat: (optional) numpy.ndarray, N x D, N is the number of i
+            proposals, D is the dimension of the feature layer.
         """
         # Detect all object classes and regress object bounds
         timer = Timer()
@@ -100,7 +108,8 @@ class FastRcnnApi():
         # N is the number of proposals
         # scores = (N, K)
         # boxes = (N, K x 4)
-        scores, boxes = im_detect(self.model.net, im, obj_proposals)
+        scores, boxes, inv_index = \
+            im_detect(self.model.net, im, obj_proposals)
         timer.toc()
         log.info(('Detection took {:.3f}s for '
                   '{:d} object proposals').format(
@@ -108,36 +117,45 @@ class FastRcnnApi():
         boxes = boxes.reshape(boxes.shape[0], boxes.shape[1] / 4, 4)
         scores = scores.reshape(scores.shape[0], scores.shape[1], 1)
         results = np.concatenate((boxes, scores), axis=-1)
-        return results
 
-    def threshold(self, det_results, conf_thresh=0.8, nms_thresh=0.3):
+        if get_local_feat:
+            local_feat = self.model.net.blobs[feat_layer].data
+            # Average-pooling on convolutional layers.
+            if feat_layer == 'pool5':
+                local_feat = local_feat.mean(axis=-1).mean(axis=-1)
+            local_feat = local_feat[inv_index]
+            return results, local_feat
+        else:
+            return results
+
+    def threshold(self, det_boxes, conf_thresh=0.8, nms_thresh=0.3):
         """Run thresholding on the boxes
         
         Args:
-            det_results: numpy.ndarray, N x 5, N is the number of proposals. 
-            5 dimensions are (x1, y1, x2, y2, confidence).
+            det_boxes: numpy.ndarray, N x K x 5, N is the number of proposals. 
+            K is the number of categories. 5 dimensions are 
+            (x1, y1, x2, y2, confidence).
             conf_thresh: number, threshold for confidence value, <0.8 gives more
             boxes.
             nms_thresh: number, threshold for NMS, >0.3 gives more boxes.
         Returns:
-            det_dict: dict, keys are class index, values are M x 5 
-            numpy.ndarray, M is the number of proposals for the class
+            thresh: numpy.ndarray, N x K boolean mask.
         """
-        classes = self.dataset.get_cat_list()
-        det_dict = {}
+        N = det_boxes.shape[0]
+        K = det_boxes.shape[1]
+        thresh = np.zeros((N, K), dtype='bool')
 
-        for cls_ind, cls in enumerate(classes):
-            cls_boxes = det_results[:, cls_ind, :4]
-            cls_scores = det_results[:, cls_ind, -1]
+        for cls_ind in xrange(K):
+            cls_boxes = det_boxes[:, cls_ind, :4]
+            cls_scores = det_boxes[:, cls_ind, 4]
             dets = np.hstack((cls_boxes,
                               cls_scores[:, np.newaxis])).astype(np.float32)
-            keep = nms(dets, nms_thresh)
-            dets = dets[keep, :]
-            dets = dets[dets[:, -1] > conf_thresh]
-            if dets.shape[0] > 0:
-                det_dict[cls_ind] = dets
+            keep = np.array(nms(dets, nms_thresh), dtype='int64')
+            thresh[keep, cls_ind] = True
+            throw = dets[:, 4] <= conf_thresh
+            thresh[throw, cls_ind] = False
 
-        return det_dict
+        return thresh
 
     def detect_single(self, im, obj_proposals,
                       conf_thresh=0.8, nms_thresh=0.3):
@@ -168,13 +186,14 @@ class FastRcnnApi():
         log.info('Selective search boxes shape: {:s}'.format(boxes[0].shape))
         return boxes[0]
 
-    def vis_all(self, im, det_dict):
+    def vis_all(self, im, results):
         """Visualize detected bounding boxes of all classes"""
         classes = self.dataset.get_cat_list()
-        for cls_id in det_dict.iterkeys():
+        for cls_id in xrange(len(classes)):
             cls = classes[cls_id]
-            dets = det_dict[cls_id]
-            self.vis_detections(im, cls, dets)
+            dets = results[results[:, 4] == cls_id]
+            if dets.size > 0:
+                self.vis_detections(im, cls, dets)
         plt.show()
         return
 
@@ -185,8 +204,7 @@ class FastRcnnApi():
         ax.imshow(im, aspect='equal')
         for i in xrange(dets.shape[0]):
             bbox = dets[i, :4]
-            score = dets[i, -1]
-
+            score = dets[i, 5]
             ax.add_patch(
                 plt.Rectangle((bbox[0], bbox[1]),
                               bbox[2] - bbox[0],
@@ -216,10 +234,10 @@ def parse_args():
                         default=('../lib/fast-rcnn/'
                                  'models/VGG16/coco/test.prototxt'))
     parser.add_argument('-weights', help='Path to weights file',
-                        default=('../lib/fast-rcnn/data/fast_rcnn_models/',
+                        default=('../lib/fast-rcnn/data/fast_rcnn_models/'
                                  'coco_vgg16_fast_rcnn_iter_240000.caffemodel'))
     parser.add_argument('-dataset', default='mscoco', help='Dataset to use')
-    parser.add_argument('-datadir', default='../data/mscoco', 
+    parser.add_argument('-datadir', default='../data/mscoco',
                         help='Dataset directory')
     parser.add_argument('-image', help='Image')
     parser.add_argument('-conf', default=0.8, type=float,
@@ -229,52 +247,127 @@ def parse_args():
     parser.add_argument('-image_list', help='Image list to run in batch')
     parser.add_argument('-output', help='Output of the extracted boxes')
     parser.add_argument('-proposal', help='Proposals file')
+    parser.add_argument('-plot', action='store_true', help='Plot the result')
+    parser.add_argument('-local_feat', action='store_true',
+                        help='Whether to extract local feature')
+    parser.add_argument('-feat_layer',
+                        default='fc7',
+                        help='Layer name for extracting local feature')
+    parser.add_argument('-sparse', action='store_true',
+                        help='Whether to store sparse format')
 
     args = parser.parse_args()
 
     return args
 
 
-def num_boxes(det_dict):
-    """Count the number of boxes in the thresholded dictionary."""
-    N = 0
-    for k in det_dict.iterkeys():
-        N += det_dict[k].shape[0]
-    return N
-
-
-def assemble_boxes(det_dict):
+def assemble_boxes(boxes, thresh, local_feat=None):
     """Assemble the boxes into int16 array
     
     Returns:
-        boxes: numpy.ndarray, (N, 6) dimension. N is the number of boxes.
-        6 dimensions are (x1, y1, x2, y2, class_id, score). 
-        co-ordinates are un-normalized. class_id is 1-based. score is quantized 
-        in 0 - 100.
+        results: numpy.ndarray, (N, 6 + D) dimension. N is the number of boxes.
+        6 dimensions are (x1, y1, x2, y2, class_id, score),
+        D is the number of local feature dimension. 
+        co-ordinates are un-normalized. class_id is 1-based.
     """
-    N = num_boxes(det_dict)
-    results = np.zeros((N, 6), dtype='int16')
-    idx = 0
-    for cls_id in det_dict.iterkeys():
-        cls_boxes = det_dict[cls_id]
-        num_cb = cls_boxes.shape[0]
-        results[idx: idx + num_cb, :4] = np.floor(cls_boxes[:, :4])
-        results[idx: idx + num_cb, 4] = cls_id
-        results[idx: idx + num_cb, 5] = np.floor(cls_boxes[:, 4] * 100)
-        idx += num_cb
+    N = boxes.shape[0]
+    K = boxes.shape[1]
+    if local_feat is None:
+        D = 0
+    else:
+        D = local_feat.shape[-1]
+    results = []
+    for cls_id in xrange(K):
+        cls_boxes = boxes[thresh[:, cls_id], cls_id, :]
+        results_i = np.zeros((cls_boxes.shape[0], D + 6), dtype='float32')
+        results_i[:, :4] = cls_boxes[:, :4]
+        results_i[:, 4] = cls_id
+        results_i[:, 5] = cls_boxes[:, 4]
+        if local_feat is not None:
+            results_i[:, 6:] = local_feat[thresh[:, cls_id]]
+        results.append(results_i)
+    results = np.concatenate(results, axis=0)
     return results
 
 
-def save_boxes(results, output):
+def save_boxes(results, output, sparse=False):
+    """Save results to disk
+    
+    Args:
+        results: list of numpy.ndarray.
+        output: string, path to the output file.
+        sparse: bool, whether the format is sparse.
+    """
     output_dir = os.path.dirname(output)
     if output_dir != '':
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-    array = np.array(results, dtype=object)
-    log.info(array)
-    np.save(output, array)
+    log.info('Saving to {}'.format(os.path.abspath(output)))
+    if sparse:
+        log.info('Saving sparse matrix')
+
+        # Compute the separators
+        idx = 0
+        sep_indices = []
+        for i in xrange(len(results)):
+            idx += results[i].shape[0]
+            sep_indices.append(idx)
+        f = h5py.File(output, 'w')
+        results = np.concatenate(results, axis=0)
+        log.info('Final shape: {}'.format(results.shape))
+        results_sparse = scipy.sparse.csr_matrix(results)
+
+        f['sep'] = np.array(sep_indices, dtype='int64')
+        f['shape'] = results_sparse._shape
+        f['data'] = results_sparse.data
+        f['indices'] = results_sparse.indices
+        f['indptr'] = results_sparse.indptr
+        f.close()
+    else:
+        array = np.array(results, dtype=object)
+        np.save(output, array)
     return
 
+
+def run_image(fname, args, obj_proposals=None):
+    """Run a single image.
+    
+    Args:
+        fname: string, image file name.
+        args: command line arguments object.
+        obj_proposals: numpy.ndarray, pre-computed object proposals.
+    Returns:
+        results: numpy.ndarray, Nx(D+6). N is the number of filtered proposals.
+        D is the dimension of local features.
+    """
+    if args.proposal:
+        im = cv2.imread(fname)
+        det_results = api.run_detector(
+            im, obj_proposals,
+            get_local_feat=args.local_feat,
+            feat_layer=args.feat_layer)
+    else:
+        det_results = api.run_detector_with_proposal(
+            fname,
+            get_local_feat=args.local_feat,
+            feat_layer=args.feat_layer)
+
+    if args.local_feat:
+        det_boxes = det_results[0]
+        local_feat = det_results[1]
+    else:
+        det_boxes = det_results
+
+    thresh = api.threshold(det_boxes, args.conf, args.nms)
+    # disable background
+    thresh[:, 0] = False
+
+    if args.local_feat:
+        results = assemble_boxes(det_boxes, thresh, local_feat)
+    else:
+        results = assemble_boxes(det_boxes, thresh)
+
+    return results
 
 if __name__ == '__main__':
     args = parse_args()
@@ -282,6 +375,8 @@ if __name__ == '__main__':
     if args.image:
         log.info('Single file mode')
         log.info('Input image: {}'.format(args.image))
+        if not os.path.exists(args.image):
+            log.fatal('File not found {}'.format(args.image))
     elif args.image_list:
         log.info('Batch file mode')
         log.info('Input image list: {}'.format(args.image_list))
@@ -299,7 +394,7 @@ if __name__ == '__main__':
     log.info('Caffe network definition: {}'.format(args.net))
     log.info('Caffe network weights: {}'.format(args.weights))
 
-    api = FastRcnnApi(args.net, args.weights, args.dataset, args.datadir, 
+    api = FastRcnnApi(args.net, args.weights, args.dataset, args.datadir,
                       not args.cpu_mode, args.gpu_id)
 
     if args.proposal:
@@ -307,37 +402,48 @@ if __name__ == '__main__':
         proposal_list = np.load(args.proposal)
 
     if args.image:
-        if args.proposal:
-            raise Exception('Not implemented')
-        else:
-            det_boxes = api.run_detector_with_proposal(args.image)
-            det_dict = api.threshold(det_boxes, args.conf, args.nms)
-            results = assemble_boxes(det_dict)
+        results = run_image(args.image, args)
+        if args.plot:
+            im = cv2.imread(args.image)
+            api.vis_all(im, results)
     elif args.image_list:
         results = []
         for i, img_fname in enumerate(image_list):
             log.info('Running {:d}/{:d}: {}'.format(
                 i + 1, len(image_list), img_fname))
-            im = cv2.imread(img_fname)
-            if args.proposal:
-                obj_proposals = proposal_list[i]
-                det_boxes = api.run_detector(im, obj_proposals)
-            else:
-                det_boxes = api.run_detector_with_proposal(img_fname)
-            # conf_list = [0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2]
-            # nms_list = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-            # for conf_i, nms_i in zip(conf_list, nms_list):
-            #     det_dict = api.threshold(det_boxes, conf_i, nms_i)
-            #     del det_dict[0]
-            #     log.info('conf {:.2f} nms {:.2f} num boxes {:d}'.format(
-            #         conf_i, nms_i,
-            #         num_boxes(det_dict)))
-            det_dict = api.threshold(det_boxes, args.conf, args.nms)
-            del det_dict[0]
-            final_boxes = assemble_boxes(det_dict)
-            results.append(assemble_boxes(det_dict))
-            log.info('After threshold: {:d} boxes'.format(results[-1].shape[0]))
+            det_success = False
+            max_failure = 20
+            failure_counter = 0
+            while not det_success:
+                try:
+                    det_success = True
+                    if args.proposal:
+                        results_i = run_image(img_fname, args,
+                                              obj_proposals=proposal_list[i])
+                    else:
+                        results_i = run_image(img_fname, args)
+                except Exception as e:
+                    log.error(e)
+                    failure_counter += 1
+                    if failure_counter >= max_failure:
+                        det_success = True
+                        log.error(
+                            '{:d} fails, retrying'.format(failure_counter))
+                    else:
+                        det_success = False
+                        log.error(
+                            '{:d} fails, aborting'.format(failure_counter))
+                    # Re-initialize API
+                    log.error('Error occurred, re-initializing network')
+                    api = None
+                    gc.collect()
+                    api = FastRcnnApi(args.net, args.weights, args.dataset,
+                                      args.datadir, not args.cpu_mode,
+                                      args.gpu_id)
+            results.append(results_i)
+            log.info('After threshold: {:d} boxes'.format(
+                results[-1].shape[0]))
 
     # Save the results.
     if args.output:
-        save_boxes(results, args.output)
+        save_boxes(results, args.output, sparse=args.sparse)
