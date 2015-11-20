@@ -16,4 +16,10 @@ class Dataset(object):
             cat_list.append(cat)
         return cat_list
 
+    def get_cat_list_reverse(self):
+        cat_dict = self.get_cat_dict()
+        r = {}
+        for i, key in enumerate(cat_dict.iterkeys()):
+            r[key] = i
+        return r
     pass

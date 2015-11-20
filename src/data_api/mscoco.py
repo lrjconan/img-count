@@ -35,7 +35,7 @@ class Mscoco(Dataset):
     def get_image_ids(self):
         """
         """
-        return coco.getImgIds()
+        return self._coco.getImgIds()
 
     def to_zero_id(self):
         pass
@@ -43,5 +43,15 @@ class Mscoco(Dataset):
     def to_original_id(self):
         pass
 
-    def get_image_annotations(image_id):
-        return coco.imgToAnns[image_id]
+    def get_image_annotations(self, image_id):
+        """Get annotations of an image
+        
+        Args:
+            image_id: string, image ID.
+        Returns:
+            annotations: list, list of annotation dictionaries.
+        """
+        if image_id in self._coco.imgToAnns:
+            return self._coco.imgToAnns[image_id]
+        else:
+            return None

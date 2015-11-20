@@ -1,14 +1,18 @@
 """
-A python progress bar
+A python progress bar.
 
-Usage:
-    import progress_bar
-
+Example 1:
     N = 1000
     pb = progress_bar.get(N)
     
     for i in xrange(N):
+        do_something(i)
         pb.increment()
+
+Example 2:
+    N = 1000
+    for i in progress_bar.get(N, xrange(N)):
+        do_something(i)
 """
 
 

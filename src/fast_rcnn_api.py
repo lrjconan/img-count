@@ -36,7 +36,7 @@ import scipy.sparse
 import selective_search
 import sys
 
-log = logger.get('../log/fast_rcnn_api')
+log = logger.get()
 
 NETS = {'vgg16': ('VGG16.prototxt',
                   'vgg16_fast_rcnn_iter_40000.caffemodel'),
