@@ -17,8 +17,7 @@ def read_file_list(fname, check=False):
         Exception: image file name does not exists.
     """
     file_list = list(open(fname))
-    for i, f in enumerate(file_list):
-        file_list[i] = f.strip()
+    file_list = [f.strip() for f in file_list]
     if check:
         log.info('Checking all files exist')
         N = len(file_list)

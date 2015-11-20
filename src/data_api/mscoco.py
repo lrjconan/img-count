@@ -1,4 +1,3 @@
-from dataset import Dataset
 from pycocotools.coco import COCO
 import os.path
 
@@ -7,7 +6,7 @@ valid_annotation_fname = 'annotations/instances_val2014.json'
 train_image_id_fname = '/ais/gobi3/u/mren/data/mscoco/imgids_train.txt'
 train_image_id_fname = '/ais/gobi3/u/mren/data/mscoco/imgids_valid.txt'
 
-class Mscoco(Dataset):
+class Mscoco(object):
     """
     MS-COCO API
     """
@@ -55,3 +54,18 @@ class Mscoco(Dataset):
             return self._coco.imgToAnns[image_id]
         else:
             return None
+
+    def get_cat_list(self):
+        # Add background class to be consistent with Fast-RCNN encoding.
+        cat_dict = self.get_cat_dict()
+        cat_list = ['__background__']
+        for cat in cat_dict.itervalues():
+            cat_list.append(cat)
+        return cat_list
+
+    def get_cat_list_reverse(self):
+        cat_dict = self.get_cat_dict()
+        r = {}
+        for i, key in enumerate(cat_dict.iterkeys()):
+            r[key] = i
+        return r

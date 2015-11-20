@@ -10,6 +10,7 @@ Usage: python mscoco_gen_count_data.py
 """
 
 from data_api import Mscoco
+from data_api import Cocoqa
 from utils import logger
 from utils import progress_bar
 import argparse
@@ -61,6 +62,10 @@ def stat_count(counts_array):
 def apply_distribution(data, dist):
     """Apply a distribution on data. Reject too common labels.
     """
+    pass
+
+def stat_cocoqa():
+    """Run statistics on COCO-QA"""
     pass
 
 
