@@ -22,7 +22,7 @@ from fast_rcnn_utils.nms import nms
 from fast_rcnn_utils.timer import Timer
 from utils import logger
 from utils import list_reader
-from utils.sharded_hdf5 import SharededFile, ShardedFileWriter
+from utils.sharded_hdf5 import ShardedFile, ShardedFileWriter
 import argparse
 import caffe
 import cv2
@@ -77,7 +77,7 @@ class FastRcnnApi():
         pass
 
     def run_detector_with_proposal(self, image_fname, get_local_feat=False,
-                                   feat_layer=None):
+                                   feat_layers=None):
         """Run Fast-RCNN on a single image, without pre-computed proposals.
         """
         obj_proposals = self.compute_obj_proposals(image_fname)
@@ -85,10 +85,10 @@ class FastRcnnApi():
         im = cv2.imread(image_fname)
         return self.run_detector(im, obj_proposals,
                                  get_local_feat=get_local_feat,
-                                 feat_layer=feat_layer)
+                                 feat_layers=feat_layers)
 
     def run_detector(self, im, obj_proposals, get_local_feat=False,
-                     feat_layer=None):
+                     feat_layers=None):
         """Run Fast-RCNN on a single image, with pre-computed proposals.
 
         Args:
@@ -261,8 +261,11 @@ def parse_args():
                         default='fc7',
                         help=('Comma delimited list of layer names for '
                               'extracting local feature'))
-    parser.add_argument('-sparse', action='store_true',
-                        help='Whether to store sparse format')
+    #parser.add_argument('-sparse', action='store_true',
+    #                    help='Whether to store sparse format')
+    parser.add_argument('num_images_per_shard', type=int,
+                        default=10000,
+                        help='Number of images per shard')
 
     args = parser.parse_args()
 
@@ -284,7 +287,9 @@ def assemble_boxes(boxes, thresh, local_feat=None):
     """
     N = boxes.shape[0]
     K = boxes.shape[1]
-    results = []
+    boxes_remain = []
+    categories = []
+    scores = []
     feats = {}
 
     # Copy feature layer names.
@@ -294,72 +299,32 @@ def assemble_boxes(boxes, thresh, local_feat=None):
     # Extract for each class.
     for cls_id in xrange(K):
         cls_boxes = boxes[thresh[:, cls_id], cls_id, :]
-        results_i = np.zeros((cls_boxes.shape[0], 6), dtype='float32')
-        results_i[:, :4] = cls_boxes[:, :4]
-        results_i[:, 4] = cls_id
-        results_i[:, 5] = cls_boxes[:, 4]
-        results.append(results_i)
+        boxes_remain.append(cls_boxes[:, :4].astype('float32'))
+        num_boxes = cls_boxes.shape[0]
+        categories.append(np.array([cls_id] * num_boxes, dtype='int64'))
+        scores.append(cls_boxes[:, 4].astype('float32'))
         for key in local_feat.iterkeys():
             feats[key].append(local_feat[key][thresh[:, cls_id]])
 
     # Concatenate matrices
-    results = np.concatenate(results, axis=0)
+    boxes_remain = np.concatenate(boxes_remain, axis=0)
+    categories = np.concatenate(categories, axis=0)
+    scores = np.concatenate(scores, axis=0)
 
     for key in feats.iterkeys():
         feats[key] = np.concatenate(feats[key], axis=0)
 
     # Compile resulting dictionary.
     results_dict = {
-        'boxes': results[:, :4],
-        'categories': results[:, 4:5],
-        'scores': results[:, 5:6]
+        'boxes': boxes_remain,
+        'categories': categories,
+        'scores': scores
     }
 
     for key in feats.iterkeys():
         results_dict[key] = feats[key]
 
     return results_dict
-
-
-def serialize_sparse(result, output, sparse=False):
-    """Serialize results to disk
-
-    Args:
-        result: dict, single entry.
-        output: dict, path to the output file.
-        sparse: bool, whether the format is sparse.
-    """
-    # output_dir = os.path.dirname(output)
-    # if output_dir != '':
-    #     if not os.path.exists(output_dir):
-    #         os.makedirs(output_dir)
-    # log.info('Saving to {}'.format(os.path.abspath(output)))
-    # if sparse:
-    #     log.info('Saving sparse matrix')
-
-    #     # Compute the separators
-    #     idx = 0
-    #     sep_indices = []
-    #     for i in xrange(len(results)):
-    #         idx += results[i].shape[0]
-    #         sep_indices.append(idx)
-    #     f = h5py.File(output, 'w')
-    #     results = np.concatenate(results, axis=0)
-    #     log.info('Final shape: {}'.format(results.shape))
-    #     results_sparse = scipy.sparse.csr_matrix(results)
-
-    #     f['sep'] = np.array(sep_indices, dtype='int64')
-    #     f['shape'] = results_sparse._shape
-    #     f['data'] = results_sparse.data
-    #     f['indices'] = results_sparse.indices
-    #     f['indptr'] = results_sparse.indptr
-    #     f.close()
-    # else:
-    # array = np.array(results, dtype=object)
-    # np.save(output, array)
-    # Saving 10000 images results per shard.
-
-    return
 
 
 def run_image(fname, args, obj_proposals=None):
@@ -403,6 +368,11 @@ def run_image(fname, args, obj_proposals=None):
     else:
         results_dict = assemble_boxes(det_boxes, thresh)
 
+    for key in results_dict.iterkeys():
+        print key
+        print results_dict[key]
+        print results_dict[key].shape
+
     return results_dict
 
 if __name__ == '__main__':
@@ -423,6 +393,7 @@ if __name__ == '__main__':
         log.fatal('You need to specify input through -image or -image_list.')
     if args.output:
         log.info('Writing output to {}'.format(args.output))
+        log.info('Num images per shard: {:d}'.format(args.num_images_per_shard)
 
     log.info('Confidence threshold: {:.2f}'.format(args.conf))
     log.info('NMS threshold: {:.2f}'.format(args.nms))
@@ -438,50 +409,64 @@ if __name__ == '__main__':
         proposal_list = np.load(args.proposal)
 
     if args.image:
-        results_dict = run_image(args.image, args)
+        results = run_image(args.image, args)
         if args.plot:
             im = cv2.imread(args.image)
             api.vis_all(im, results_dict)
-        print results_dict
     elif args.image_list:
-        results = []
         num_images = len(image_list)
-        num_shards = np.ceil(num_images / float(10000))
-        output_file = ShardedFile(args.output, num_shards)
-        with ShardedFileWriter(f, num_objects=num_images):
-            for i in writer:
-                img_fname = image_list[i]
-                log.info('Running {:d}/{:d}: {}'.format(
-                    i + 1, len(image_list), img_fname))
-                det_success = False
-                max_failure = 20
-                failure_counter = 0
-                while not det_success:
-                    try:
+
+        if args.output:
+            num_shards = int(
+                np.ceil(num_images / float(args.num_images_per_shard)))
+            output_file = ShardedFile(args.output, num_shards)
+            writer = ShardedFileWriter(output_file, num_objects=num_images)
+            it = writer
+        else:
+            it = xrange(num_images)
+
+        for i in it:
+            img_fname = image_list[i]
+            log.info('Running {:d}/{:d}: {}'.format(
+                i + 1, len(image_list), img_fname))
+            det_success = False
+            max_failure = 20
+            failure_counter = 0
+            while not det_success:
+                try:
+                    det_success = True
+                    if args.proposal:
+                        results = run_image(img_fname, args,
+                                            obj_proposals=proposal_list[i])
+                    else:
+                        results = run_image(img_fname, args)
+                except Exception as e:
+                    log.error(e)
+                    failure_counter += 1
+                    if failure_counter >= max_failure:
                         det_success = True
-                        if args.proposal:
-                            results_i = run_image(img_fname, args,
-                                                  obj_proposals=proposal_list[i])
-                        else:
-                            results_i = run_image(img_fname, args)
-                    except Exception as e:
-                        log.error(e)
-                        failure_counter += 1
-                        if failure_counter >= max_failure:
-                            det_success = True
-                            log.error(
-                                '{:d} fails, retrying'.format(failure_counter))
-                        else:
-                            det_success = False
-                            log.error(
-                                '{:d} fails, aborting'.format(failure_counter))
-                        # Re-initialize API
-                        log.error('Error occurred, re-initializing network')
-                        api = None
-                        gc.collect()
-                        api = FastRcnnApi(args.net, args.weights, args.dataset,
-                                          args.datadir, not args.cpu_mode,
-                                          args.gpu_id)
-                results.append(results_i)
-                log.info('After threshold: {:d} boxes'.format(
-                    results[-1].shape[0]))
+                        log.error(
+                            '{:d} fails, retrying'.format(failure_counter))
+                    else:
+                        det_success = False
+                        log.error(
+                            '{:d} fails, aborting'.format(failure_counter))
+
+                    # Re-initialize API
+                    log.error('Error occurred, re-initializing network')
+                    api = None
+                    gc.collect()
+                    api = FastRcnnApi(args.net, args.weights, args.dataset,
+                                      args.datadir, not args.cpu_mode,
+                                      args.gpu_id)
+
+            log.info('After threshold: {:d} boxes'.format(
+                results['boxes'].shape[0]))
+
+            # Write to output.
+            if args.output:
+                log.info('Writing')
+                writer.write(results)
+
+        # Close writer and flush to file.
+        writer.close()

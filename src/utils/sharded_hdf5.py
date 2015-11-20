@@ -77,6 +77,8 @@ class ShardedFile(object):
     def __init__(self, file_prefix, num_shards, suffix='.h5'):
         """Construct a sharded file instance.
         """
+        if not isinstance(num_shards, int):
+            raise Exception('Number of shards need to be integer')
         self.file_prefix = os.path.abspath(file_prefix)
         self.basename = os.path.basename(self.file_prefix)
         log.info(self.basename)
@@ -153,6 +155,7 @@ class ShardedFileReader(object):
         """
         if self._fh is not None:
             self._fh.close()
+            self._fh = None
 
         pass
 
@@ -313,7 +316,7 @@ class ShardedFileReader(object):
             raise StopIteration()
 
     def close(self):
-        self.__exit__()
+        self.__exit__(None, None, None)
 
 
 class ShardedFileWriter(object):
@@ -362,7 +365,6 @@ class ShardedFileWriter(object):
     def __enter__(self):
         """Enter with clause.
         """
-
 
         return self
 
@@ -417,10 +419,10 @@ class ShardedFileWriter(object):
     def _flush(self):
         """Flush the buffer into the current shard.
         """
-
         if len(self._buffer) > 0:
             for key in self._buffer.iterkeys():
                 value = numpy.concatenate(self._buffer[key], axis=0)
+                print key, value
                 self._fh[key] = value
             self._fh[KEY_NUM_ITEM] = numpy.array([self._cur_num_items])
             self._fh[KEY_SEPARATOR] = numpy.array(self._cur_sep, dtype='int64')
@@ -465,4 +467,4 @@ class ShardedFileWriter(object):
         """Close the opened file.
         """
 
-        self.__exit__()
+        self.__exit__(None, None, None)
