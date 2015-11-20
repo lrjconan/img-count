@@ -40,7 +40,7 @@ terminal = {
 log = None
 
 
-def get(filename=None):
+def get(default_fname=None):
     """
     Returns a logger instance, with optional log file output.
     """
@@ -49,7 +49,7 @@ def get(filename=None):
         return log
     fname = os.environ.get('LOGTO', None)
     if fname is None:
-        fname = filename
+        fname = default_fname
     log = Logger(fname)
     return log
 
@@ -95,7 +95,7 @@ class Logger(object):
 
         timestr = '{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}'.format(
             t.year, t.month, t.day, t.hour, t.minute, t.second)
-        
+
         return timestr
 
     def log(self, message, typ='info', verbose=0):
