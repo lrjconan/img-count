@@ -263,7 +263,7 @@ def parse_args():
                               'extracting local feature'))
     #parser.add_argument('-sparse', action='store_true',
     #                    help='Whether to store sparse format')
-    parser.add_argument('num_images_per_shard', type=int,
+    parser.add_argument('-num_images_per_shard', type=int,
                         default=10000,
                         help='Number of images per shard')
 
@@ -393,7 +393,7 @@ if __name__ == '__main__':
         log.fatal('You need to specify input through -image or -image_list.')
     if args.output:
         log.info('Writing output to {}'.format(args.output))
-        log.info('Num images per shard: {:d}'.format(args.num_images_per_shard)
+        log.info('Num images per shard: {:d}'.format(args.num_images_per_shard))
 
     log.info('Confidence threshold: {:.2f}'.format(args.conf))
     log.info('NMS threshold: {:.2f}'.format(args.nms))
