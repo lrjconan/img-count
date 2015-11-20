@@ -368,10 +368,10 @@ def run_image(fname, args, obj_proposals=None):
     else:
         results_dict = assemble_boxes(det_boxes, thresh)
 
-    for key in results_dict.iterkeys():
-        print key
-        print results_dict[key]
-        print results_dict[key].shape
+    # for key in results_dict.iterkeys():
+    #     print key
+    #     print results_dict[key]
+    #     print results_dict[key].shape
 
     return results_dict
 
