@@ -1,10 +1,6 @@
 import scipy.sparse
 
 
-def read_h5(key):
-    pass
-
-
 def make_sparse_list(mat_list, batch_size=1000):
     pass
 

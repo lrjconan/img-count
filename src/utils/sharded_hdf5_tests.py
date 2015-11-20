@@ -1,0 +1,53 @@
+import numpy as np
+import sharded_hdf5 as sh
+import unittest
+
+
+class ShardedFileTests(unittest.TestCase):
+
+    def test_read_write(self):
+        N = 100
+        N2 = 10
+        D1 = 10
+        D2 = 5
+
+        f = sh.ShardedFile('test', num_shards=10)
+
+        with sh.ShardedFileWriter(f, num_objects=N) as writer:
+            for i in writer:
+                data = {
+                    'key1': np.zeros((N2, D1)) + i,
+                    'key2': np.zeros((N2, D2)) - i
+                }
+                writer.write(data)
+
+        with sh.ShardedFileReader(f) as reader:
+            for i, data in enumerate(reader):
+                self.assertTrue((data['key1'] == i).all())
+                self.assertTrue((data['key2'] == -i).all())
+
+        with sh.ShardedFileReader(f, batch_size=3) as reader:
+            for i, data in enumerate(reader):
+                if data['key1'].shape[0] == 3 * N2:
+                    self.assertTrue((data['key1'][: N2] == 3 * i).all())
+                    self.assertTrue(
+                        (data['key1'][N2: 2 * N2] == 3 * i + 1).all())
+                    self.assertTrue((data['key1'][2 * N2:] == 3 * i + 2).all())
+                    self.assertTrue((data['key2'][: N2] == -3 * i).all())
+                    self.assertTrue(
+                        (data['key2'][N2: 2 * N2] == -3 * i - 1).all())
+                    self.assertTrue(
+                        (data['key2'][2 * N2:] == -3 * i - 2).all())
+                elif data['key1'].shape[0] == 2 * N2:
+                    self.assertTrue((data['key1'][: N2] == 3 * i).all())
+                    self.assertTrue(
+                        (data['key1'][N2: 2 * N2] == 3 * i + 1).all())
+                    self.assertTrue((data['key2'][: N2] == -3 * i).all())
+                    self.assertTrue(
+                        (data['key2'][N2: 2 * N2] == -3 * i - 1).all())
+                elif data['key1'].shape[0] == N2:
+                    self.assertTrue((data['key1'] == 3 * i).all())
+                    self.assertTrue((data['key2'] == -3 * i).all())
+
+if __name__ == '__main__':
+    unittest.main()
