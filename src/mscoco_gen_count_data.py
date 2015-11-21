@@ -79,7 +79,7 @@ def apply_distribution(questions, dist):
             count[num - 1] += 1
     orig_dist = count / count.sum().astype('float32')
     dist_ratio = orig_dist / dist
-    least_idx = np.argmax(dist_ratio)
+    least_idx = np.argmin(dist_ratio)
     total_admit = int(np.floor(count[least_idx] / dist[least_idx]))
     remainder = np.zeros(dist.shape, dtype='int64')
     for i in xrange(dist.size):
@@ -88,22 +88,19 @@ def apply_distribution(questions, dist):
     for i, q in enumerate(questions):
         num = q['number']
         if num > 0 and num <= dist.size:
-            if remainder[i] > 0:
-            # if accum_dist[num - 1] < dist[num - 1] + 0.03 or \
+            if remainder[num - 1] > 0:
+                # if accum_dist[num - 1] < dist[num - 1] + 0.03 or \
                     # (accum_dist >= dist).all():
-            #if random.uniform(0, 1, 1) <= dist[num - 1] / orig_dist[num - 1]:
+                # if random.uniform(0, 1, 1) <= dist[num - 1] / orig_dist[num -
+                # 1]:
                 keep.append(i)
                 accum_count[num - 1] += 1
-                remainder[i] -= 1
+                remainder[num - 1] -= 1
                 accum_dist = accum_count / accum_count.sum()
 
     log.info('Admitted {:d}/{:d}'.format(len(keep), len(questions)))
+    log.info('Final count: {}'.format(accum_count))
     log.info('Final distribution: {}'.format(accum_dist))
-
-    for i in xrange(dist.size):
-        print accum_count[i]
-    for i in xrange(dist.size):
-        print accum_dist[i]
 
     return keep
 
