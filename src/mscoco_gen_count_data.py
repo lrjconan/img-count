@@ -71,7 +71,7 @@ def apply_distribution(questions, dist):
     accum_dist = np.zeros(dist.shape, dtype='float32')
     keep = []
     random = np.random.RandomState(2)
-    questions = random.shuffle(questions)
+    random.shuffle(questions)
     count = np.zeros(dist.shape, dtype='int64')
     for i, q in enumerate(questions):
         num = q['number']
