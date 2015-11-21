@@ -20,6 +20,7 @@ log = logger.get()
 
 MAX_COUNT = 30
 
+
 def get_count(annotations, cat_list_rev):
     """Get count information for each object class.
 
@@ -37,14 +38,18 @@ def get_count(annotations, cat_list_rev):
         counts[cat_id] += 1
 
     counts_array = np.zeros((MAX_COUNT), dtype='int64')
-    
+
+    questions = []
     for i in xrange(num_classes):
         counts_array[counts[i]] += 1
+        if counts[i] > 0:
+            questions.append({'category': i, 'number': counts[i]})
 
     return {
         'image_id': annotations[0]['image_id'],
         'cat_counts': counts,
-        'counts_array': counts_array
+        'counts_array': counts_array,
+        'questions': questions
     }
 
 
@@ -59,14 +64,44 @@ def stat_count(counts_array):
     pass
 
 
-def apply_distribution(data, dist):
+def apply_distribution(questions, dist):
     """Apply a distribution on data. Reject too common labels.
     """
-    pass
+    accum_count = np.zeros(dist.shape, dtype='float32')
+    accum_dist = np.zeros(dist.shape, dtype='float32')
+    keep = []
+    random = np.random.RandomState(2)
 
-def stat_cocoqa(basedir='../data/cocoqa'):
+    count = np.zeros(dist.shape, dtype='float32')
+    for i, q in enumerate(questions):
+        num = q['number']
+        if num > 0 and num <= dist.size:
+            count[num - 1] += 1
+    orig_dist = count / count.sum()
+
+    for i, q in enumerate(questions):
+        num = q['number']
+        if num > 0 and num <= dist.size:
+            if accum_dist[num - 1] < dist[num - 1] + 0.03 or \
+                    (accum_dist >= dist).all():
+            #if random.uniform(0, 1, 1) <= dist[num - 1] / orig_dist[num - 1]:
+                keep.append(i)
+                accum_count[num - 1] += 1
+                accum_dist = accum_count / accum_count.sum()
+
+    log.info('Admitted {:d}/{:d}'.format(len(keep), len(questions)))
+    log.info('Final distribution: {}'.format(accum_dist))
+
+    for i in xrange(dist.size):
+        print accum_count[i]
+    for i in xrange(dist.size):
+        print accum_dist[i]
+
+    return keep
+
+
+def stat_cocoqa(cocoqa):
     """Run statistics on COCO-QA"""
-    cocoqa = Cocoqa(basedir, 'train')
     qtypes = cocoqa.get_question_types()
     qtype_dict = cocoqa.get_question_type_dict()
     number_qids = []
@@ -74,15 +109,35 @@ def stat_cocoqa(basedir='../data/cocoqa'):
         if qt == qtype_dict['number']:
             number_qids.append(i)
 
-    ans_idict = cocoqa.get_answer_inv_dict()
+    ans_idict = cocoqa.get_answer_vocab_inv_dict()
     answers = cocoqa.get_encoded_answers()
-    answers = answers[ans_idict[number_qids]]
+    answers = answers[number_qids]
     dist = [0] * len(ans_idict)
     for a in answers:
         dist[a] += 1
-    print dist
+    for i in xrange(len(dist)):
+        if dist[i] != 0:
+            print ans_idict[i], dist[i]
+    number_dict = {
+        'one': 1,
+        'two': 2,
+        'three': 3,
+        'four': 4,
+        'five': 5,
+        'six': 6,
+        'seven': 7,
+        'eight': 8,
+        'nine': 9,
+        'ten': 10
+    }
+    dist2 = [0] * 10
+    for i in xrange(len(dist)):
+        if dist[i] != 0:
+            dist2[number_dict[ans_idict[i]] - 1] = dist[i]
+    dist2 = np.array(dist2, dtype='float32')
+    dist2 = dist2 / dist2.sum()
 
-    pass
+    return dist2
 
 
 def parse_args():
@@ -100,15 +155,15 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     log.log_args()
-    mscoco = Mscoco(base_dir=args.datadir, set_name=args.set)
+    mscoco = Mscoco(base_dir=args.mscoco_datadir, set_name=args.set)
     image_ids = mscoco.get_image_ids()
     cat_list_rev = mscoco.get_cat_list_reverse()
-    # num_classes = len(cat_dict)
     num_images = len(image_ids)
 
     counts_array = []
     cat_counts = []
     counts_id = []
+    questions = []
     err_image_ids = []
     empty_image_ids = []
     success_image_ids = []
@@ -120,6 +175,7 @@ if __name__ == '__main__':
             counts_array.append(counts_dict['counts_array'])
             cat_counts.append(counts_dict['cat_counts'])
             counts_id.append(counts_dict['image_id'])
+            questions.extend(counts_dict['questions'])
             success_image_ids.append(image_id)
         elif annotations is None:
             err_image_ids.append(image_id)
@@ -140,4 +196,12 @@ if __name__ == '__main__':
     counts_array = np.vstack(counts_array)
     log.info('Statistics')
     stat_count(counts_array)
+
+    cocoqa = Cocoqa(base_dir=args.cocoqa_datadir, set_name=args.set)
+    cocoqa_dist = stat_cocoqa(cocoqa)
+    log.info('COCO-QA dist: {}'.format(cocoqa_dist))
+
+    keep = apply_distribution(questions, cocoqa_dist)
+    log.info('Generated {:d} questions.'.format(len(keep)))
+
     pass

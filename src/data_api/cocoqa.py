@@ -1,13 +1,15 @@
-import os.path
 import sys
 sys.path.insert(0, '../')
+
 from utils import list_reader
 from utils import logger
+import numpy as np
+import os.path
 
 question_fname = 'questions.txt'
 answer_fname = 'answers.txt'
 question_type_fname = 'types.txt'
-image_id_fname = 'imgids.txt'
+image_id_fname = 'img_ids.txt'
 train_dirname = 'train'
 valid_dirname = 'valid'
 train_mscoco_image_id_fname = '/ais/gobi3/u/mren/data/mscoco/imgids_train.txt'
@@ -71,15 +73,15 @@ class Cocoqa(object):
         image_id_dict = self._reindex_image_ids(
             self._mscoco_image_ids, keystart=1)
         self._image_id_dict = image_id_dict['dict']
-        self._image_id_inv_dict = image_id_inv_dict['inv_dict']
+        self._image_id_inv_dict = image_id_dict['inv_dict']
 
         # Encode dataset.
         self._question_max_len = self._find_max_len(self._questions)
-        self._encoded_questions = self._encoded_questions(
-            self._questions, self.question_dict, maxlen=self._question_max_len)
+        self._encoded_questions = self._encode_questions(
+            self._questions, self._question_dict, maxlen=self._question_max_len)
         self._encoded_answers = self._encode_answers(
-            self._answers, self.answer_dict)
-        self._encoded_image_ids = self._encoded_image_ids(
+            self._answers, self._answer_dict)
+        self._encoded_image_ids = self._encode_image_ids(
             self._image_ids, self._image_id_dict)
 
         pass
@@ -149,7 +151,7 @@ class Cocoqa(object):
             key += 1
         return {
             'dict': image_id_dict,
-            'inv_dict': image_id_inv_dict
+            'inv_dict': image_id_list
         }
 
     @staticmethod
@@ -192,14 +194,14 @@ class Cocoqa(object):
             sumlen += len(words)
             if len(words) > maxlen:
                 maxlen = len(words)
-        print 'Maxlen:', maxlen
-        print 'Mean len:', sumlen / float(len(questions))
+        print 'Max question length:', maxlen
+        print 'Mean question len:', sumlen / float(len(questions))
         return maxlen
 
     def get_question_vocab_dict(self):
         return self._question_dict
 
-    def get_question__vocab_inv_dict(self):
+    def get_question_vocab_inv_dict(self):
         return self._question_inv_dict
 
     def get_answer_vocab_dict(self):
@@ -220,7 +222,7 @@ class Cocoqa(object):
     def get_question_types(self):
         return self._question_types
 
-    def get_question_types_dict(self):
+    def get_question_type_dict(self):
         return self._question_type_dict
 
     def get_image_ids(self):

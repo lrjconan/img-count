@@ -22,7 +22,7 @@ from fast_rcnn_utils.nms import nms
 from fast_rcnn_utils.timer import Timer
 from utils import logger
 from utils import list_reader
-from utils.sharded_hdf5 import ShardedFile, ShardedFileWriter
+from utils.sharded_hdf5 import ShardedFile, ShardedFileWriter, KEY_NUM_ITEM
 import argparse
 import caffe
 import cv2
@@ -265,7 +265,9 @@ def parse_args():
     #                    help='Whether to store sparse format')
     parser.add_argument('-num_images_per_shard', type=int,
                         default=10000,
-                        help='Number of images per shard')
+                        help = 'Number of images per shard')
+    parser.add_argument('-restore', action = 'store_true',
+                        help = 'Whether to continue from previous checkpoint.')
 
     args = parser.parse_args()
 
@@ -421,6 +423,26 @@ if __name__ == '__main__':
                 np.ceil(num_images / float(args.num_images_per_shard)))
             output_file = ShardedFile(args.output, num_shards)
             writer = ShardedFileWriter(output_file, num_objects=num_images)
+            if args.restore:
+                log.info('Restore previous run')
+                checkpoint = 0
+                checkfile = 0
+                for i in xrange(num_shards):
+                    fname_i = output_file.get_fname(i)
+                    if os.path.exists(fname_i):
+                        h5file = h5py.File(fname_i)
+                        if KEY_NUM_ITEM in h5file:
+                            num = h5file[KEY_NUM_ITEM][0]
+                            checkpoint += num 
+                            log.info('Found {:d} items in {}'.format(
+                                num, fname_i))
+                            checkfile += 1
+                        else:
+                            break
+                    else:
+                        break
+                log.info('Restarting from checkpoint {:d}'.format(checkpoint))
+                writer.seek(pos=checkpoint, shard=checkfile)
             it = writer
         else:
             it = xrange(num_images)

@@ -9,8 +9,8 @@ Sharded HDF5 format: storing a bundle of sharded files.
 
     2. HDF5 structure
     {
-        'num_items__': int, number of items in this file.
-        'sep__': 1D separator int64 array for each item.
+        '__num_items__': int, number of items in this file.
+        '__sep__': 1D separator int64 array for each item.
         'key1': 2D array.
         'key2': 2D array.
         ...
@@ -343,7 +343,7 @@ class ShardedFileWriter(object):
             math.ceil(num_objects / float(self._num_shards)))
 
         # Current file handler.
-        self._fh = h5py.File(self.file.get_fname(0), 'w')
+        self._fh = None
 
         # Current item index.
         self._pos = 0
@@ -390,6 +390,9 @@ class ShardedFileWriter(object):
 
         # Check that all entries has the same first dimension.
         # Check that all entries have the same set of keys.
+        if self._fh is None:
+            self._fh = h5py.File(self.file.get_fname(self._shard), 'w')
+            
         shape1 = None
         for key in data.iterkeys():
             if shape1 is None:
@@ -432,6 +435,17 @@ class ShardedFileWriter(object):
 
         pass
 
+    def seek(self, pos, shard):
+        """Seek to a position.
+        """
+        self._shard = shard
+        self._pos = pos
+        if self._fh is not None:
+            self._fh.close()
+            self._fh = None
+        
+        pass
+
     def next_file(self):
         """Move to writing the next shard.
         """
@@ -444,7 +458,6 @@ class ShardedFileWriter(object):
         if self._fh is not None:
             self._fh.close()
             self._fh = None
-        self._fh = h5py.File(self.file.get_fname(self._shard), 'w')
 
         pass
 
