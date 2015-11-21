@@ -64,8 +64,24 @@ def apply_distribution(data, dist):
     """
     pass
 
-def stat_cocoqa():
+def stat_cocoqa(basedir='../data/cocoqa'):
     """Run statistics on COCO-QA"""
+    cocoqa = Cocoqa(basedir, 'train')
+    qtypes = cocoqa.get_question_types()
+    qtype_dict = cocoqa.get_question_type_dict()
+    number_qids = []
+    for i, qt in enumerate(qtypes):
+        if qt == qtype_dict['number']:
+            number_qids.append(i)
+
+    ans_idict = cocoqa.get_answer_inv_dict()
+    answers = cocoqa.get_encoded_answers()
+    answers = answers[ans_idict[number_qids]]
+    dist = [0] * len(ans_idict)
+    for a in answers:
+        dist[a] += 1
+    print dist
+
     pass
 
 
@@ -73,7 +89,9 @@ def parse_args():
     """Parse input arguments."""
     parser = argparse.ArgumentParser(description='Generate counting questions')
     parser.add_argument('-set', default='train', help='Train or valid set')
-    parser.add_argument('-datadir', default='../data/mscoco',
+    parser.add_argument('-mscoco_datadir', default='../data/mscoco',
+                        help='Dataset directory')
+    parser.add_argument('-cocoqa_datadir', default='../data/cocoqa',
                         help='Dataset directory')
     args = parser.parse_args()
 
