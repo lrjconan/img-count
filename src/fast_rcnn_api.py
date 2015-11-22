@@ -435,8 +435,7 @@ def run_image(fname, args, obj_proposals=None, gt_cat=None):
             for name in feat_layers:
                 if name in FEATURE_DIM:
                     dim = FEATURE_DIM[name]
-                    local_feat[name] = np.zeros((0, dim), dtype='float32')
-                    det_results = (det_boxes, local_feat)
+                    results_dict[name] = np.zeros((0, dim), dtype='float32')
                 else:
                     log.fatal('Unknown feature dimension to fake.')
 
