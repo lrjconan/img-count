@@ -137,7 +137,7 @@ def parse_args():
     default_input = os.path.join(
         paths.GOBI_MREN_MSCOCO, 'image_list_train.txt')
     default_output = os.path.join(
-        paths.GOBI_MREN_MSCOCO, 'select_search_train.npy')
+        paths.GOBI_MREN_MSCOCO, 'select_search_train')
     parser = argparse.ArgumentParser(
         description='Compute selective search boxes in MS-COCO')
     parser.add_argument('-image_list',
