@@ -28,14 +28,30 @@ def run(mscoco, image_list):
         mscoco: MSCOCO API object.
         image_list: list, list of image IDs.
     """
+    results = []
+    not_found = []
+    cat_rev_dict = mscoco.get_cat_list_reverse()
+    
     for image_id in image_list:
         anns = mscoco.get_image_annotations(image_id)
+
         if anns is None:
-            log.error('Not found annotation for image {}'.format(image_id))
+            not_found.append(image_id)
             continue
-        for ann in anns:
-            print ann
-        break
+
+        num_ann = len(anns)
+        result = numpy.zeros((num_ann, 5), dtype='int16')
+
+        for i, ann in enumerate(anns):
+            result[i, :4] = numpy.floor(ann['bbox']).astype('int16')
+            result[i, 4] = cat_rev_dict(ann['category_id'])
+
+        results.append(result)
+
+    for image_id in not_found:
+        log.error('Not found annotation for image {}'.format(image_id))
+
+    return results
 
 
 def save_boxes(output_file, boxes):
