@@ -21,6 +21,7 @@ import datetime
 import inspect
 import os
 import sys
+import traceback
 
 terminal = {
     'normal': '\033[0m',
@@ -51,6 +52,7 @@ def get(default_fname=None):
     if fname is None:
         fname = default_fname
     log = Logger(fname)
+
     return log
 
 
@@ -80,6 +82,7 @@ class Logger(object):
                 os.path.abspath(self.filename)))
         else:
             self.filename = None
+
         pass
 
     @staticmethod
@@ -147,6 +150,7 @@ class Logger(object):
             with open(self.filename, 'a') as f:
                 f.write(logstr)
                 f.write('\n')
+
         pass
 
     def info(self, message, verbose=0):
@@ -158,6 +162,7 @@ class Logger(object):
             verbose: number, verbose level.
         """
         self.log(message, typ='info', verbose=verbose)
+
         pass
 
     def warning(self, message, verbose=0):
@@ -169,6 +174,7 @@ class Logger(object):
             verbose: number, verbose level.
         """
         self.log(message, typ='warning', verbose=verbose)
+
         pass
 
     def error(self, message, verbose=0):
@@ -180,6 +186,7 @@ class Logger(object):
             verbose: number, verbose level.
         """
         self.log(message, typ='error', verbose=verbose)
+
         pass
 
     def fatal(self, message, verbose=0):
@@ -192,7 +199,16 @@ class Logger(object):
         """
         self.log(message, typ='fatal', verbose=verbose)
         sys.exit(0)
+
         pass
 
     def log_args(self, verbose=0):
         self.info('Command: {}'.format(' '.join(sys.argv)))
+
+        pass
+
+    def log_exception(self, exception):
+        tb_str = traceback.format_exc(exception)
+        self.error(tb_str)
+
+        pass

@@ -77,6 +77,7 @@ import selective_search
 import sys
 
 log = logger.get()
+FEATURE_DIM = {}
 
 
 class FastRCNN_API(object):
@@ -301,14 +302,11 @@ def assemble_boxes(boxes, thresh, local_feat=None):
     """Assemble the boxes into int16 array
 
     Args:
-        boxes:
-        thresh:
-        local_feat:
+        boxes: numpy.ndarray, (N, K, 4) dimension
+        thresh: numpy.ndarray, (N, K) dimension
+        local_feat: dict, keys are layer names, values are (N, D) numpy ndarray
     Returns:
-        # results: numpy.ndarray, (N, 6 + D) dimension. N is the number of boxes.
-        # 6 dimensions are (x1, y1, x2, y2, class_id, score),
-        # D is the number of local feature dimension. 
-        # co-ordinates are un-normalized. class_id is 1-based.
+        results_dict:
     """
     N = boxes.shape[0]
     K = boxes.shape[1]
@@ -374,43 +372,72 @@ def run_image(fname, args, obj_proposals=None, gt_cat=None):
         feat_layers = args.local_feat.split(',')
 
     # Run detectors.
+    empty = False
     if args.proposal:
-        im = cv2.imread(fname)
-        det_results = api.run_detector(
-            im, obj_proposals,
-            feat_layers=feat_layers)
+        if len(obj_proposals) > 0:
+            im = cv2.imread(fname)
+            det_results = api.run_detector(
+                im, obj_proposals,
+                feat_layers=feat_layers)
+        else:
+            log.error('Empty proposals for image {}'.format(fname))
+            empty = True
     else:
         det_results = api.run_detector_with_proposal(
             fname,
             feat_layers=feat_layers)
 
-    if args.local_feat:
-        det_boxes = det_results[0]
-        local_feat = det_results[1]
-    else:
-        det_boxes = det_results
+    if not empty:
+        if args.local_feat:
+            det_boxes = det_results[0]
+            local_feat = det_results[1]
+        else:
+            det_boxes = det_results
 
     # Apply threshold.
-    if args.groundtruth:
-        # Do not throw out any boxes if in groundtruth mode.
-        thresh = np.zeros(det_boxes.shape, dtype='bool')
-        # +1 for adding background category.
-        thresh[np.arange(gt_cat.shape[0]), gt_cat + 1] = True
-        log.info('Goundtruth category')
-        log.info(gt_cat + 1)
-        log.info('Prediction max')
-        log.info(np.argmax(det_boxes[:, :, 4], axis=1))
-    else:
-        thresh = api.threshold(det_boxes, args.conf, args.nms)
+    if not empty:
+        if args.groundtruth:
+            # Do not throw out any boxes if in groundtruth mode.
+            thresh = np.zeros((det_boxes.shape[0], det_boxes.shape[1]),
+                              dtype='bool')
+            
+            # +1 for adding background category.
+            thresh[np.arange(gt_cat.shape[0]), gt_cat + 1] = True
+            log.info('Goundtruth category')
+            log.info(gt_cat + 1)
+            log.info('Prediction max')
+            log.info(np.argmax(det_boxes[:, :, 4], axis=1))
 
-    # Disable background.
-    thresh[:, 0] = False
+            # Assign delta-distribution on groundtruth category.
+            det_boxes[:, :, 4] = 0.0
+            det_boxes[np.arange(gt_cat.shape[0]), gt_cat + 1, 4] = 1.0
+        else:
+            thresh = api.threshold(det_boxes, args.conf, args.nms)
 
-    # Pack the results.
-    if args.local_feat:
-        results_dict = assemble_boxes(det_boxes, thresh, local_feat)
+        # Disable background.
+        thresh[:, 0] = False
+
+        # Pack the results.
+        if args.local_feat:
+            results_dict = assemble_boxes(det_boxes, thresh, local_feat)
+            if len(FEATURE_DIM) < len(feat_layers):
+                for name in feat_layers:
+                    FEATURE_DIM[name] = results_dict[name].shape[-1]
+        else:
+            results_dict = assemble_boxes(det_boxes, thresh)
     else:
-        results_dict = assemble_boxes(det_boxes, thresh)
+        results_dict = {
+            'boxes': np.zeros((0, 4), dtype='int16'),
+            'categories': np.zeros((0, 1), dtype='int16'),
+            'scores': np.zeros((0, 1), dtype='float32')
+        }
+        if args.local_feat:
+            for name in feat_layers:
+                if name in FEATURE_DIM:
+                    dim = FEATURE_DIM[name]
+                    results_dict[name] = np.zeros((0, dim), dtype='float32')
+                else:
+                    log.fatal('Unknown feature dimension to fake.')
 
     return results_dict
 
@@ -451,10 +478,8 @@ if __name__ == '__main__':
         proposal_list = np.load(args.proposal)
         if args.groundtruth:
             log.info('Groundtruth mode')
-            proposal_list = [proposal_list[i][:, :4]
-                             for i in xrange(proposal_list.shape[0])]
-            gt_cat_list = [proposal_list[i][:, 4]
-                           for i in xrange(proposal_list.shape[0])]
+            gt_cat_list = [p[:, 4] for p in proposal_list]
+            proposal_list = [p[:, :4] for p in proposal_list]
 
     if args.image:
         results = run_image(args.image, args)
@@ -465,6 +490,11 @@ if __name__ == '__main__':
         num_images = len(image_list)
 
         if args.output:
+            dirname = os.path.dirname(args.output)
+            if not os.path.exists(dirname):
+                log.info('Making directory {}'.format(dirname))
+                os.makedirs(dirname)
+
             num_shards = int(
                 np.ceil(num_images / float(args.num_images_per_shard)))
             output_file = ShardedFile(args.output, num_shards)
@@ -515,6 +545,7 @@ if __name__ == '__main__':
                         results = run_image(img_fname, args)
                 except Exception as e:
                     log.error(e)
+                    log.log_exception(e)
                     failure_counter += 1
                     if failure_counter >= max_failure:
                         det_success = True
