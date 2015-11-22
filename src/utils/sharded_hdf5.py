@@ -464,8 +464,11 @@ class ShardedFileWriter(object):
             for key in self._buffer.iterkeys():
                 if isinstance(self._buffer[key][0], numpy.ndarray):
                     value = numpy.concatenate(self._buffer[key], axis=0)
+                elif isinstance(self._buffer[key][0], str):
+                    value = numpy.array(self._buffer[key], dtype='string')
                 else:
-                    value = numpy.array(self._buffer)
+                    raise Exception('Unknown type: {}'.format(
+                        type(self._buffer[key][0])))
                 self._fh[key] = value
             self._fh[KEY_NUM_ITEM] = numpy.array([self._cur_num_items])
             for key in self._cur_sep.iterkeys():

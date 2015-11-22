@@ -35,7 +35,7 @@ import paths
 import selective_search
 import sys
 
-log = utils.logger.get()
+log = logger.get()
 
 
 def patch(original_boxes, error_image_list, full_image_list, batch_size=10):
@@ -62,7 +62,7 @@ def patch(original_boxes, error_image_list, full_image_list, batch_size=10):
     # return original_boxes
 
 
-def run_selective_search(image_list, output_file, num_shards=1):
+def run_selective_search(image_list, output_fname, num_shards=1):
     """Run selective search on the list of images.
 
     Args:
@@ -75,7 +75,7 @@ def run_selective_search(image_list, output_file, num_shards=1):
     num_images = len(image_list)
     processed_images = []
     error_images = []
-    fout = ShardedFile(output_file, num_shards=num_shards)
+    fout = ShardedFile(output_fname, num_shards=num_shards)
 
     with ShardedFileWriter(fout, num_objects=num_images) as writer:
         for i in writer:
@@ -84,6 +84,7 @@ def run_selective_search(image_list, output_file, num_shards=1):
 
             try:
                 boxes = selective_search.get_windows([image_fname])
+                boxes = boxes[0]
             except Exception as e:
                 log.error('Error occurred while running selective search')
                 log.error(type(e))
@@ -96,11 +97,12 @@ def run_selective_search(image_list, output_file, num_shards=1):
 
             if not error_occurred:
                 processed_images.append(image_fname)
-                log.info('Processed {0}'.format(image_fname))
+                log.info('Processed {:d}/{:d}: {}'.format(i,
+                                                          num_images, 
+                                                          image_fname))
 
             data = {'boxes': boxes, 'image': image_fname}
             writer.write(data)
-            log.info('Ran through {0}'.format(b))
 
     # Finally log all errors.
     for img in error_images:
@@ -173,7 +175,7 @@ if __name__ == '__main__':
     log.info('Number of shards: {0}'.format(args.num_shards))
     image_list = list_reader.read_file_list(args.image_list, check=True)
 
-    dirname = os.path.dirname(args.output_file)
+    dirname = os.path.dirname(args.output)
     if not os.path.exists(dirname):
         os.makedirs(dirname)
 
@@ -190,7 +192,7 @@ if __name__ == '__main__':
 
     processed, error = run_selective_search(
         image_list, args.output, num_shards=args.num_shards)
-    
+
     timestr = log.get_time_str()
     processed_fname_templ = 'select_search_processed_{0}.txt'
     processed_fname = os.path.join(
