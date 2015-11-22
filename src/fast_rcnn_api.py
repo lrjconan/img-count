@@ -277,7 +277,7 @@ def parse_args():
                         help='Confidence threshold')
     parser.add_argument('-nms', default=0.3, type=float,
                         help='NMS threshold')
-    parser.add_argument('-image_list', help='Image list to run in batch')
+    parser.add_argument('---', help='Image list to run in batch')
     parser.add_argument('-output', help='Output of the extracted boxes')
     parser.add_argument('-proposal', help='Proposals file')
     parser.add_argument('-plot', action='store_true', help='Plot the result')
