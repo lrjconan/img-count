@@ -36,7 +36,8 @@ def run(mscoco, image_list):
     cat_rev_dict = mscoco.get_cat_list_reverse()
     
     log.info('Running through all images')
-    for image_id in progress_bar.get_list(image_list):
+    for image_fname in progress_bar.get_list(image_list):
+        image_id = get_image_id_from_path(image_fname)
         anns = mscoco.get_image_annotations(image_id)
 
         if anns is None:
@@ -82,7 +83,7 @@ def parse_args():
     parser.add_argument(
         '-list',
         dest='image_list',
-        default=os.path.join(paths.GOBI_MREN_MSCOCO, 'imgids_train.txt'),
+        default=os.path.join(paths.GOBI_MREN_MSCOCO, 'image_list_train.txt'),
         help='image list text file')
     parser.add_argument(
         '-out',

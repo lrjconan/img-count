@@ -5,6 +5,9 @@ train_annotation_fname = 'annotations/instances_train2014.json'
 valid_annotation_fname = 'annotations/instances_val2014.json'
 train_image_id_fname = '/ais/gobi3/u/mren/data/mscoco/imgids_train.txt'
 train_image_id_fname = '/ais/gobi3/u/mren/data/mscoco/imgids_valid.txt'
+image_id_regex = re.compile(
+    'COCO_((train)|(val))2014_0*(?P<imgid>[1-9][0-9]*)')
+
 
 class MSCOCO(object):
     """MS-COCO API"""
@@ -18,7 +21,7 @@ class MSCOCO(object):
                 base_dir, valid_annotation_fname)
         else:
             raise Exception('Set name {} not found'.format(set_name))
-            
+
         self._coco = COCO(self._annotation_fname)
 
         pass
@@ -55,6 +58,12 @@ class MSCOCO(object):
         """
         return self._coco.getImgIds()
 
+    def get_image_id_from_path(self):
+        match = image_id_regex.search(lines[i])
+        imgid = match.group('imgid')
+
+        return imgid
+
     def to_zero_id(self):
         pass
 
@@ -63,7 +72,7 @@ class MSCOCO(object):
 
     def get_image_annotations(self, image_id):
         """Get annotations of an image
-        
+
         Args:
             image_id: string, image ID.
         Returns:
