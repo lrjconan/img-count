@@ -163,7 +163,6 @@ if __name__ == '__main__':
     mscoco = MSCOCO(base_dir=args.mscoco_datadir, set_name=args.set)
     image_ids = mscoco.get_image_ids()
     cat_list_rev = mscoco.get_cat_list_reverse()
-    num_images = len(image_ids)
 
     counts_array = []
     cat_counts = []
@@ -173,7 +172,7 @@ if __name__ == '__main__':
     empty_image_ids = []
     success_image_ids = []
     log.info('Scanning dataset')
-    for image_id in progress_bar.get(num_images, iter(image_ids)):
+    for image_id in progress_bar.get_list(image_ids):
         annotations = mscoco.get_image_annotations(image_id)
         if annotations is not None and len(annotations) > 0:
             counts_dict = get_count(annotations, cat_list_rev)
@@ -192,7 +191,7 @@ if __name__ == '__main__':
         len(success_image_ids),
         len(err_image_ids),
         len(empty_image_ids),
-        num_images))
+        len(image_ids)))
     for image_id in empty_image_ids:
         log.error('Empty annotation in image: {}'.format(image_id))
     for image_id in err_image_ids:

@@ -20,6 +20,15 @@ from __future__ import division
 import sys
 
 
+def get_list(l):
+    """Get a progress bar from a list.
+   
+    Args:
+        l: list object.
+    """
+    return ProgressBar(length=len(l), iterable=iter(l))
+
+
 def get(length, iterable=None):
     """Returns a ProgressBar object.
 

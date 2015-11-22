@@ -34,13 +34,14 @@ def run(mscoco, image_list):
     results = []
     not_found = []
     cat_rev_dict = mscoco.get_cat_list_reverse()
-    num_images = len(image_list)
     
-    for image_id in progress_bar.get(num_images, image_list):
+    log.info('Running through all images')
+    for image_id in progress_bar.get_list(image_list):
         anns = mscoco.get_image_annotations(image_id)
 
         if anns is None:
             not_found.append(image_id)
+            results.append(numpy.zeros((0, 5), dtype='int16'))
             continue
 
         num_ann = len(anns)
@@ -48,12 +49,13 @@ def run(mscoco, image_list):
 
         for i, ann in enumerate(anns):
             result[i, :4] = numpy.floor(ann['bbox']).astype('int16')
-            result[i, 4] = cat_rev_dict(ann['category_id'])
+            result[i, 4] = cat_rev_dict[ann['category_id']]
 
         results.append(result)
 
     for image_id in not_found:
         log.error('Not found annotation for image {}'.format(image_id))
+    log.error('Total {:d} image annotations not found.'.format(len(not_found)))
 
     results = numpy.array(results, dtype='object')
     
