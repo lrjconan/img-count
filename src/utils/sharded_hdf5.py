@@ -10,7 +10,8 @@ Sharded HDF5 format: storing a bundle of sharded files
     2. HDF5 structure
     {
         '__num_items__': int, number of items in this file.
-        '__sep__': 1D separator int64 array for each item.
+        '__sep_key1__': 1D separator int64 array for each item.
+        '__sep_key2__': 1D separator int64 array for each item.
         'key1': 2D array.
         'key2': 2D array.
         ...
@@ -67,7 +68,22 @@ ERR_MSG_MISSING_FILE = 'Missing file for index {:d} out of {:d}'
 ERR_MSG_DUPE_FILES = 'Duplicate files found for index {:d}'
 ERR_MSG_MISSING_NUM_ITEMS_FIELD = 'Missing field "num_items" in file {}'
 KEY_NUM_ITEM = '__num_items__'
-KEY_SEPARATOR = '__sep__'
+KEY_SEPARATOR = '__sep_{}__'
+KEY_SEPARATOR_RE = re.compile('^__sep_([^_]+)__$')
+
+
+def _get_sep_from_key(key):
+    """Get separator key from key name"""
+    return KEY_SEPARATOR.format(key)
+
+
+def _get_key_from_sep(sep):
+    """Get key name from separator key"""
+    match = fname_re.match(fname)
+    if match is not None:
+        return match.groups()[0]
+    else:
+        return None
 
 
 class ShardedFile(object):
@@ -132,7 +148,7 @@ class ShardedFileReader(object):
         self._need_refresh = False
 
         # Current file separator.
-        self._cur_sep = []
+        self._cur_sep = {}
 
         # Check files all exist.
         if check:
@@ -246,6 +262,8 @@ class ShardedFileReader(object):
                 self._fh.close()
             self._fh = h5py.File(self.file.get_fname(self._cur_fid))
             self._need_refresh = False
+            for key in self._fh.keys():
+                if not key.startswith('__')
             self._cur_sep = self._fh[KEY_SEPARATOR][:]
 
         # Open a file.
@@ -253,7 +271,7 @@ class ShardedFileReader(object):
             self._fh = h5py.File(self.file.get_fname(self._cur_fid))
             self._cur_sep = self._fh[KEY_SEPARATOR][:]
 
-        # Compute file_start and file_end (absolute cursor) and 
+        # Compute file_start and file_end (absolute cursor) and
         # item_start and item_end (relative cursor).
         if self._cur_fid == 0:
             file_start = 0
@@ -358,7 +376,7 @@ class ShardedFileWriter(object):
         self._cur_num_items = 0
 
         # Index separator for current shard.
-        self._cur_sep = []
+        self._cur_sep = {}
 
         pass
 
@@ -381,7 +399,7 @@ class ShardedFileWriter(object):
     def __iter__(self):
         """Get an iterator.
         """
-        
+
         return self
 
     def write(self, data):
@@ -392,7 +410,7 @@ class ShardedFileWriter(object):
         # Check that all entries have the same set of keys.
         if self._fh is None:
             self._fh = h5py.File(self.file.get_fname(self._shard), 'w')
-            
+
         shape1 = None
         for key in data.iterkeys():
             if shape1 is None:
@@ -442,7 +460,7 @@ class ShardedFileWriter(object):
         if self._fh is not None:
             self._fh.close()
             self._fh = None
-        
+
         pass
 
     def next_file(self):
