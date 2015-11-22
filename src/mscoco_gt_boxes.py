@@ -55,6 +55,8 @@ def run(mscoco, image_list):
     for image_id in not_found:
         log.error('Not found annotation for image {}'.format(image_id))
 
+    results = numpy.array(results, dtype='object')
+    
     return results
 
 
