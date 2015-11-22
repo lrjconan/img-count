@@ -15,6 +15,7 @@ Example:
 from data_api import MSCOCO
 from utils import list_reader
 from utils import logger
+from utils import progress_bar
 import argparse
 import numpy
 import os
@@ -33,8 +34,9 @@ def run(mscoco, image_list):
     results = []
     not_found = []
     cat_rev_dict = mscoco.get_cat_list_reverse()
+    num_images = len(image_list)
     
-    for image_id in image_list:
+    for image_id in progress_bar.get(num_images, image_list):
         anns = mscoco.get_image_annotations(image_id)
 
         if anns is None:
@@ -104,4 +106,4 @@ if __name__ == '__main__':
     image_list = list_reader.read_file_list(args.image_list)
     mscoco = MSCOCO(base_dir=args.datadir, set_name=args.set)
     boxes = run(mscoco, image_list)
-    # save_boxes(args.output_file, boxes)
+    save_boxes(args.output_file, boxes)
