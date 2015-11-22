@@ -9,7 +9,8 @@ class ShardedFileTests(unittest.TestCase):
 
     def test_read_write(self):
         N = 100
-        N2 = 10
+        N1 = 10
+        N2 = 8
         D1 = 10
         D2 = 5
         num_shards = 10
@@ -19,7 +20,7 @@ class ShardedFileTests(unittest.TestCase):
         with sh.ShardedFileWriter(f, num_objects=N) as writer:
             for i in writer:
                 data = {
-                    'key1': np.zeros((N2, D1)) + i,
+                    'key1': np.zeros((N1, D1)) + i,
                     'key2': np.zeros((N2, D2)) - i
                 }
                 writer.write(data)
@@ -31,26 +32,23 @@ class ShardedFileTests(unittest.TestCase):
 
         with sh.ShardedFileReader(f, batch_size=3) as reader:
             for i, data in enumerate(reader):
-                if data['key1'].shape[0] == 3 * N2:
-                    self.assertTrue((data['key1'][: N2] == 3 * i).all())
-                    self.assertTrue(
-                        (data['key1'][N2: 2 * N2] == 3 * i + 1).all())
-                    self.assertTrue((data['key1'][2 * N2:] == 3 * i + 2).all())
-                    self.assertTrue((data['key2'][: N2] == -3 * i).all())
-                    self.assertTrue(
-                        (data['key2'][N2: 2 * N2] == -3 * i - 1).all())
-                    self.assertTrue(
-                        (data['key2'][2 * N2:] == -3 * i - 2).all())
-                elif data['key1'].shape[0] == 2 * N2:
-                    self.assertTrue((data['key1'][: N2] == 3 * i).all())
-                    self.assertTrue(
-                        (data['key1'][N2: 2 * N2] == 3 * i + 1).all())
-                    self.assertTrue((data['key2'][: N2] == -3 * i).all())
-                    self.assertTrue(
-                        (data['key2'][N2: 2 * N2] == -3 * i - 1).all())
-                elif data['key1'].shape[0] == N2:
-                    self.assertTrue((data['key1'] == 3 * i).all())
-                    self.assertTrue((data['key2'] == -3 * i).all())
+                dkey1 = np.concatenate([d['key1'] for d in data], axis=0)
+                dkey2 = np.concatenate([d['key2'] for d in data], axis=0)
+                if dkey1.shape[0] == 3 * N2:
+                    self.assertTrue((dkey1[: N1] == 3 * i).all())
+                    self.assertTrue((dkey1[N1: 2 * N2] == 3 * i + 1).all())
+                    self.assertTrue((dkey1[2 * N1:] == 3 * i + 2).all())
+                    self.assertTrue((dkey2[: N2] == -3 * i).all())
+                    self.assertTrue((dkey2[N2: 2 * N2] == -3 * i - 1).all())
+                    self.assertTrue((dkey2[2 * N2:] == -3 * i - 2).all())
+                elif dkey1.shape[0] == 2 * N2:
+                    self.assertTrue((dkey1[: N1] == 3 * i).all())
+                    self.assertTrue((dkey1[N1: 2 * N2] == 3 * i + 1).all())
+                    self.assertTrue((dkey2[: N2] == -3 * i).all())
+                    self.assertTrue((dkey2[N2: 2 * N2] == -3 * i - 1).all())
+                elif dkey1.shape[0] == N2:
+                    self.assertTrue((dkey1 == 3 * i).all())
+                    self.assertTrue((dkey2 == -3 * i).all())
 
         for i in xrange(num_shards):
             os.remove(f.get_fname(i))

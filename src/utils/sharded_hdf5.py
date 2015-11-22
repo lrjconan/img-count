@@ -70,6 +70,7 @@ ERR_MSG_MISSING_NUM_ITEMS_FIELD = 'Missing field "num_items" in file {}'
 KEY_NUM_ITEM = '__num_items__'
 KEY_SEPARATOR = '__sep_{}__'
 KEY_SEPARATOR_RE = re.compile('^__sep_([^_]+)__$')
+KEY_SEPARATOR_PREFIX = '__sep_'
 
 
 def _get_sep_from_key(key):
@@ -241,6 +242,28 @@ class ShardedFileReader(object):
             self._file_index = self._build_index()
         return bisect.bisect_left(self._file_index, index)
 
+    def _renew(self):
+        """Move to next file."""
+        self._cur_fid += 1
+        if self._fh is not None:
+            self._fh.close()
+        self._fh = h5py.File(self.file.get_fname(self._cur_fid))
+        self._need_refresh = False
+
+    def _build_sep(self):
+        """Build separators."""
+        num_items = self._fh[KEY_NUM_ITEM][0]
+        for key in self._fh.keys():
+            if not key.startswith('__'):
+                sepname = _get_sep_from_key(key)
+                if sepname in self._fh:
+                    self._cur_sep[key] = self._fh[sepname][:]
+                else:
+                    if self._fh[key].shape[0] != num_items:
+                        raise Exception('Unknown sep {}'.format(key))
+                    else:
+                        self._cur_sep[key] = numpy.arange(num_items)
+
     def read(self, num_items=1):
         """Read from the current position.
 
@@ -248,8 +271,8 @@ class ShardedFileReader(object):
             num_items: number, number of desired items to read. It is not 
             guaranteed to return the exact same number of items
         Returns:
-            results: dict, keys are same with the keys defined in the file,
-            values are numpy.ndarray.
+            results: list of dict, keys are same with the keys defined in the 
+            file, values are numpy.ndarray.
         """
         # Lazy build file index.
         if self._file_index is None:
@@ -257,19 +280,12 @@ class ShardedFileReader(object):
 
         # Renew file ID.
         if self._need_refresh:
-            self._cur_fid += 1
-            if self._fh is not None:
-                self._fh.close()
-            self._fh = h5py.File(self.file.get_fname(self._cur_fid))
-            self._need_refresh = False
-            for key in self._fh.keys():
-                if not key.startswith('__')
-            self._cur_sep = self._fh[KEY_SEPARATOR][:]
+            self._renew()
 
         # Open a file.
         if self._fh is None:
             self._fh = h5py.File(self.file.get_fname(self._cur_fid))
-            self._cur_sep = self._fh[KEY_SEPARATOR][:]
+            self._build_sep()
 
         # Compute file_start and file_end (absolute cursor) and
         # item_start and item_end (relative cursor).
@@ -286,22 +302,26 @@ class ShardedFileReader(object):
         if item_end == file_end - file_start:
             self._need_refresh = True
 
-        # Compute line start and end.
-        if item_start == 0:
-            line_start = 0
-        else:
-            line_start = self._cur_sep[item_start - 1]
-        line_end = self._cur_sep[item_end - 1]
-
         # Read data.
-        results = {}
-        for key in self._fh.keys():
-            if not key.startswith('__'):
-                results[key] = self._fh[key][line_start: line_end]
+        results = []
+        for i, idx in enumerate(xrange(item_start, item_end)):
+            results.append({})
+            for key in self._fh.keys():
+                if not key.startswith('__'):
+                    # Compute line start and end.
+                    if item_start == 0:
+                        line_start = 0
+                    else:
+                        line_start = self._cur_sep[key][idx - 1]
+                    line_end = self._cur_sep[key][idx]
+                    results[i][key] = self._fh[key][line_start: line_end]
 
         self._pos += num_items
 
-        return results
+        if num_items == 1:
+            return results[0]
+        else:
+            return results
 
     def seek(self, pos):
         """Seek to specific position.
@@ -405,19 +425,13 @@ class ShardedFileWriter(object):
     def write(self, data):
         """Write a single entry into buffer.
         """
-
-        # Check that all entries has the same first dimension.
-        # Check that all entries have the same set of keys.
         if self._fh is None:
             self._fh = h5py.File(self.file.get_fname(self._shard), 'w')
 
-        shape1 = None
         for key in data.iterkeys():
-            if shape1 is None:
-                shape1 = data[key].shape[0]
-            else:
-                if data[key].shape[0] != shape1:
-                    raise Exception('First dimension does not match.')
+            if key.startswith('__'):
+                raise Exception(
+                    'Keys must not start with "__": {}'.format(key))
             if len(self._buffer) > 0:
                 if key not in self._buffer:
                     raise Exception('Unknown key: {}'.format(key))
@@ -428,12 +442,18 @@ class ShardedFileWriter(object):
             else:
                 self._buffer[key] = [data[key]]
 
+            if key not in self._cur_sep:
+                self._cur_sep[key] = []
+
+            shape0 = data[key].shape[0] if isinstance(
+                data[key], numpy.ndarray) else 1
+            if len(self._cur_sep[key]) > 0:
+                last = self._cur_sep[key][-1]
+                self._cur_sep[key].append(last + shape0)
+            else:
+                self._cur_sep[key].append(shape0)
+
         self._cur_num_items += 1
-        if len(self._cur_sep) > 0:
-            last = self._cur_sep[-1]
-            self._cur_sep.append(last + shape1)
-        else:
-            self._cur_sep.append(shape1)
 
         pass
 
@@ -442,12 +462,18 @@ class ShardedFileWriter(object):
         """
         if len(self._buffer) > 0:
             for key in self._buffer.iterkeys():
-                value = numpy.concatenate(self._buffer[key], axis=0)
+                if isinstance(self._buffer[key][0], numpy.ndarray):
+                    value = numpy.concatenate(self._buffer[key], axis=0)
+                else:
+                    value = numpy.array(self._buffer)
                 self._fh[key] = value
             self._fh[KEY_NUM_ITEM] = numpy.array([self._cur_num_items])
-            self._fh[KEY_SEPARATOR] = numpy.array(self._cur_sep, dtype='int64')
+            for key in self._cur_sep.iterkeys():
+                sepname = _get_sep_from_key(key)
+                self._fh[sepname] = numpy.array(
+                    self._cur_sep[key], dtype='int64')
             self._cur_num_items = 0
-            self._cur_sep = []
+            self._cur_sep = {}
             self._buffer = {}
 
         pass

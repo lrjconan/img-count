@@ -6,8 +6,7 @@ Usage:
             -list {image list} \
             -out {output file} \
             [-old {old file}] \
-            [-patch {patch list}] \
-            [-batch {batch size}]
+            [-patch {patch list}]
 
 Examples:
     # Run new
@@ -24,6 +23,10 @@ Examples:
 """
 
 from __future__ import print_function
+from utils import list_reader
+from utils import logger
+from utils import progress_bar
+from utils.sharded_hdf5 import ShardedFile, ShardedFileWriter
 import argparse
 import cv2
 import numpy
@@ -31,9 +34,6 @@ import os
 import paths
 import selective_search
 import sys
-import utils.list_reader
-import utils.logger
-import utils.progress_bar
 
 log = utils.logger.get()
 
@@ -49,19 +49,20 @@ def patch(original_boxes, error_image_list, full_image_list, batch_size=10):
     Returns:
         original_boxes: numpy.ndarray, updated search boxes.
     """
-    boxes, processed, error = run_selective_search(
-        error_image_list, batch_size=batch_size)
-    image_list_dict = {}
-    for idx, image in enumerate(full_image_list):
-        image_list_dict[image] = idx
-    for idx, image in enumerate(error_image_list):
-        orig_idx = image_list_dict[image]
-        original_boxes[orig_idx] = boxes[idx]
+    raise Exception('Not implemented')
+    # boxes, processed, error = run_selective_search(
+    #     error_image_list, batch_size=batch_size)
+    # image_list_dict = {}
+    # for idx, image in enumerate(full_image_list):
+    #     image_list_dict[image] = idx
+    # for idx, image in enumerate(error_image_list):
+    #     orig_idx = image_list_dict[image]
+    #     original_boxes[orig_idx] = boxes[idx]
 
-    return original_boxes
+    # return original_boxes
 
 
-def run_selective_search(image_list, batch_size=10):
+def run_selective_search(image_list, output_file, num_shards=1):
     """Run selective search on the list of images.
 
     Args:
@@ -71,48 +72,41 @@ def run_selective_search(image_list, batch_size=10):
     Notes:
         If error occurred in certain images, then zero entry will be filled in.
     """
-    N = len(image_list)
-    num_batch = int(numpy.ceil(N / float(batch_size)))
-    log.info('Number of images: {0:d}'.format(N))
-    log.info('Batch size: {0:d}'.format(batch_size))
-    log.info('Number of batches: {0:d}'.format(num_batch))
-    boxes = []
+    num_images = len(image_list)
     processed_images = []
     error_images = []
+    fout = ShardedFile(output_file, num_shards=num_shards)
 
-    # Iterates through all images.
-    for i in xrange(num_batch):
-        a = i * batch_size
-        b = min(N, (i + 1) * batch_size)
-        image_list_batch = image_list[a: b]
-        error_occurred = False
-        try:
-            boxes_batch = selective_search.get_windows(image_list_batch)
-        except Exception as e:
-            log.error('Error occurred')
-            log.error(type(e))
-            log.error(e)
-            error_occurred = True
-            for img in image_list_batch:
-                log.error('Did not process {0}:'.format(img))
-            error_images.extend(image_list_batch)
-        if not error_occurred:
-            boxes.extend(boxes_batch)
-            processed_images.extend(image_list_batch)
-            for img in image_list_batch:
-                log.info('Processed {0}'.format(img))
-        else:
-            boxes.extend([0] * len(image_list_batch))
-        log.info('Ran through {0}'.format(b))
+    with ShardedFileWriter(fout, num_objects=num_images) as writer:
+        for i in writer:
+            image_fname = image_list[i]
+            error_occurred = False
+
+            try:
+                boxes = selective_search.get_windows([image_fname])
+            except Exception as e:
+                log.error('Error occurred while running selective search')
+                log.error(type(e))
+                log.error(e)
+                log.log_exception(e)
+                error_occurred = True
+                log.error('Did not process {0}:'.format(image_fname))
+                error_images.append(image_fname)
+                boxes = numpy.zeros(4, dtype='int16')
+
+            if not error_occurred:
+                processed_images.append(image_fname)
+                log.info('Processed {0}'.format(image_fname))
+
+            data = {'boxes': boxes, 'image': image_fname}
+            writer.write(data)
+            log.info('Ran through {0}'.format(b))
 
     # Finally log all errors.
     for img in error_images:
         log.error('Did not process {0}'.format(img))
 
-    # Pack into numpy format.
-    boxes = numpy.array(boxes, dtype='object')
-
-    return boxes, processed_images, error_images
+    return processed_images, error_images
 
 
 def save_boxes(output_file, boxes):
@@ -122,8 +116,8 @@ def save_boxes(output_file, boxes):
         output_file: string, path to the output numpy array.
         boxes: numpy.ndarray, computed search boxes.
     """
-
-    numpy.save(output_file, boxes)
+    raise Exception('Not implemented')
+    # numpy.save(output_file, boxes)
 
     pass
 
@@ -139,35 +133,33 @@ def load_boxes(output_file):
 
 def parse_args():
     """Parse arguments."""
+
+    default_input = os.path.join(
+        paths.GOBI_MREN_MSCOCO, 'image_list_train.txt')
+    default_output = os.path.join(
+        paths.GOBI_MREN_MSCOCO, 'select_search_train.npy')
     parser = argparse.ArgumentParser(
         description='Compute selective search boxes in MS-COCO')
-    parser.add_argument(
-        '-list',
-        dest='image_list',
-        default=os.path.join(paths.GOBI_MREN_MSCOCO, 'image_list_train.txt'),
-        help='image list text file')
-    parser.add_argument(
-        '-out',
-        dest='output_file',
-        default=os.path.join(paths.GOBI_MREN_MSCOCO,
-                             'select_search_train.npy'),
-        help='output numpy file')
-    parser.add_argument(
-        '-old',
-        dest='to_patch_file',
-        default=None,
-        help='file to be patched')
-    parser.add_argument(
-        '-patch',
-        dest='patch_list',
-        default=None,
-        help='list of images that needs to be patched')
-    parser.add_argument(
-        '-batch',
-        dest='batch_size',
-        type=int,
-        default=10,
-        help='batch size')
+    parser.add_argument('-image_list',
+                        default=default_input,
+                        help='Image list text file')
+    parser.add_argument('-output',
+                        default=default_output,
+                        help='Output file name')
+    parser.add_argument('-num_shards',
+                        default=1,
+                        type=int,
+                        help='Total number of shards')
+    # parser.add_argument(
+    #     '-old',
+    #     dest='to_patch_file',
+    #     default=None,
+    #     help='file to be patched')
+    # parser.add_argument(
+    #     '-patch',
+    #     dest='patch_list',
+    #     default=None,
+    #     help='list of images that needs to be patched')
 
     args = parser.parse_args()
 
@@ -177,28 +169,36 @@ if __name__ == '__main__':
     args = parse_args()
     log.log_args()
     log.info('Input list: {0}'.format(args.image_list))
-    log.info('Output file: {0}'.format(args.output_file))
+    log.info('Output file: {0}'.format(args.output))
+    log.info('Number of shards: {0}'.format(args.num_shards))
     image_list = list_reader.read_file_list(args.image_list, check=True)
-    if args.patch_list is not None:
-        if args.to_patch_file is None:
-            raise Exception('Need to specify the file to be patched')
-        log.info('File to be patched: {0}'.format(args.to_patch_file))
-        log.info('Patch list: {0}'.format(args.patch_list))
-        patch_list = list_reader.read_file_list(args.patch_list, check=True)
-        boxes = load_boxes(args.to_patch_file)
-        boxes = patch(boxes, patch_list, image_list,
-                      batch_size=args.batch_size)
-    else:
-        boxes, processed, error = run_selective_search(
-            image_list, batch_size=args.batch_size)
-        save_boxes(args.output_file, boxes)
+
     dirname = os.path.dirname(args.output_file)
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+
+    # if args.patch_list is not None:
+    #     if args.to_patch_file is None:
+    #         raise Exception('Need to specify the file to be patched')
+    #     log.info('File to be patched: {0}'.format(args.to_patch_file))
+    #     log.info('Patch list: {0}'.format(args.patch_list))
+    #     patch_list = list_reader.read_file_list(args.patch_list, check=True)
+    #     boxes = load_boxes(args.to_patch_file)
+    #     boxes = patch(boxes, patch_list, image_list,
+    #                   batch_size=args.batch_size)
+    # else:
+
+    processed, error = run_selective_search(
+        image_list, args.output, num_shards=args.num_shards)
+    
     timestr = log.get_time_str()
-    processed_filename = os.path.join(dirname,
-                                      'select_search_processed_{0}.txt'.format(timestr))
-    error_filename = os.path.join(dirname,
-                                  'select_search_error_{0}.txt'.format(timestr))
-    with open(processed_filename, 'w') as f:
+    processed_fname_templ = 'select_search_processed_{0}.txt'
+    processed_fname = os.path.join(
+        dirname, processed_fname_templ.format(timestr))
+    error_fname_templ = 'select_search_error_{0}.txt'
+    error_fname = os.path.join(dirname, error_fname_templ.format(timestr))
+
+    with open(processed_fname, 'w') as f:
         f.write('\n'.join(processed))
-    with open(error_filename, 'w') as f:
+    with open(error_fname, 'w') as f:
         f.write('\n'.join(error))
