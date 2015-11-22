@@ -439,6 +439,9 @@ def run_image(fname, args, obj_proposals=None, gt_cat=None):
                 else:
                     log.fatal('Unknown feature dimension to fake.')
 
+    # Add image information.
+    results_dict['__image__'] = fname
+
     return results_dict
 
 if __name__ == '__main__':
@@ -568,9 +571,14 @@ if __name__ == '__main__':
                 results['boxes'].shape[0]))
 
             # Write to output.
-            if args.output:
-                log.info('Writing')
-                writer.write(results)
+            try:
+                if args.output:
+                    log.info('Writing')
+                    writer.write(results)
+            except Exception as e:
+                log.error(e)
+                log.log_exception(e)
+                raise e
 
         # Close writer and flush to file.
         writer.close()
