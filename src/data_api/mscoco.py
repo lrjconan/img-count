@@ -69,6 +69,8 @@ class MSCOCO(object):
         Returns:
             annotations: list, list of annotation dictionaries.
         """
+        if type(image_id) is str:
+            image_id = int(image_id)
         if image_id in self._coco.imgToAnns:
             return self._coco.imgToAnns[image_id]
         else:

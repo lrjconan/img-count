@@ -15,7 +15,9 @@ Example:
 from data_api import MSCOCO
 from utils import list_reader
 from utils import logger
+import argparse
 import numpy
+import os
 import paths
 
 log = logger.get()
@@ -70,7 +72,7 @@ def save_boxes(output_file, boxes):
 def parse_args():
     """Parse arguments."""
     parser = argparse.ArgumentParser(
-        description='Compute selective search boxes in MS-COCO')
+        description='Get groundtruth boxes in MS-COCO')
     parser.add_argument(
         '-list',
         dest='image_list',
@@ -95,12 +97,11 @@ def parse_args():
     return args
 
 if __name__ == '__main__':
+    args = parse_args()
     log.log_args()
-    parser = argparse.ArgumentParser(
-        description='Get groundtruth boxes in MS-COCO')
     log.info('Input list: {0}'.format(args.image_list))
     log.info('Output file: {0}'.format(args.output_file))
     image_list = list_reader.read_file_list(args.image_list)
-    mscoco = Mscoco(base_dir=args.datadir, set_name=args.set)
+    mscoco = MSCOCO(base_dir=args.datadir, set_name=args.set)
     boxes = run(mscoco, image_list)
     # save_boxes(args.output_file, boxes)
