@@ -37,7 +37,7 @@ def run(mscoco, image_list):
     
     log.info('Running through all images')
     for image_fname in progress_bar.get_list(image_list):
-        image_id = get_image_id_from_path(image_fname)
+        image_id = mscoco.get_image_id_from_path(image_fname)
         anns = mscoco.get_image_annotations(image_id)
 
         if anns is None:
@@ -108,7 +108,7 @@ if __name__ == '__main__':
     log.log_args()
     log.info('Input list: {0}'.format(args.image_list))
     log.info('Output file: {0}'.format(args.output_file))
-    image_list = list_reader.read_file_list(args.image_list)
+    image_list = list_reader.read_file_list(args.image_list, check=True)
     mscoco = MSCOCO(base_dir=args.datadir, set_name=args.set)
     boxes = run(mscoco, image_list)
     save_boxes(args.output_file, boxes)

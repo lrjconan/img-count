@@ -1,5 +1,6 @@
 from pycocotools.coco import COCO
 import os.path
+import re
 
 train_annotation_fname = 'annotations/instances_train2014.json'
 valid_annotation_fname = 'annotations/instances_val2014.json'
@@ -58,8 +59,8 @@ class MSCOCO(object):
         """
         return self._coco.getImgIds()
 
-    def get_image_id_from_path(self):
-        match = image_id_regex.search(lines[i])
+    def get_image_id_from_path(self, path):
+        match = image_id_regex.search(path)
         imgid = match.group('imgid')
 
         return imgid
