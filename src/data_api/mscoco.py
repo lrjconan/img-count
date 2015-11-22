@@ -6,10 +6,8 @@ valid_annotation_fname = 'annotations/instances_val2014.json'
 train_image_id_fname = '/ais/gobi3/u/mren/data/mscoco/imgids_train.txt'
 train_image_id_fname = '/ais/gobi3/u/mren/data/mscoco/imgids_valid.txt'
 
-class Mscoco(object):
-    """
-    MS-COCO API
-    """
+class MSCOCO(object):
+    """MS-COCO API"""
 
     def __init__(self, base_dir, set_name='train'):
         if set_name == 'train':
@@ -20,16 +18,37 @@ class Mscoco(object):
                 base_dir, valid_annotation_fname)
         else:
             raise Exception('Set name {} not found'.format(set_name))
+            
         self._coco = COCO(self._annotation_fname)
+
         pass
 
     def get_cat_dict(self):
-        """
-        """
+        """Returns a dictionary maps from category ID to category name."""
         cat_dict = {}
         for cat_id in self._coco.cats.iterkeys():
             cat_dict[cat_id] = self._coco.cats[cat_id]['name']
+
         return cat_dict
+
+    def get_cat_list(self):
+        """Returns a list maps from integer ID to category name."""
+        # Add background class to be consistent with Fast-RCNN encoding.
+        cat_dict = self.get_cat_dict()
+        cat_list = ['__background__']
+        for cat in cat_dict.itervalues():
+            cat_list.append(cat)
+
+        return cat_list
+
+    def get_cat_list_reverse(self):
+        """Returns a dictionary maps from category ID to integer ID."""
+        cat_dict = self.get_cat_dict()
+        r = {}
+        for i, key in enumerate(cat_dict.iterkeys()):
+            r[key] = i
+
+        return r
 
     def get_image_ids(self):
         """
@@ -54,18 +73,3 @@ class Mscoco(object):
             return self._coco.imgToAnns[image_id]
         else:
             return None
-
-    def get_cat_list(self):
-        # Add background class to be consistent with Fast-RCNN encoding.
-        cat_dict = self.get_cat_dict()
-        cat_list = ['__background__']
-        for cat in cat_dict.itervalues():
-            cat_list.append(cat)
-        return cat_list
-
-    def get_cat_list_reverse(self):
-        cat_dict = self.get_cat_dict()
-        r = {}
-        for i, key in enumerate(cat_dict.iterkeys()):
-            r[key] = i
-        return r

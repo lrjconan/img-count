@@ -18,7 +18,7 @@ valid_mscoco_image_id_fname = '/ais/gobi3/u/mren/data/mscoco/imgids_valid.txt'
 log = logger.get()
 
 
-class Cocoqa(object):
+class COCOQA(object):
     """
     COCO-QA API
     """

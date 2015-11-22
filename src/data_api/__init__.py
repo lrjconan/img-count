@@ -1,2 +1,2 @@
-from mscoco import Mscoco
-from cocoqa import Cocoqa
+from mscoco import MSCOCO
+from cocoqa import COCOQA

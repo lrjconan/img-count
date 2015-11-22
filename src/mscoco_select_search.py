@@ -26,21 +26,20 @@ Examples:
 from __future__ import print_function
 import argparse
 import cv2
-import utils.logger
 import numpy
 import os
-import utils.progress_bar
-import utils.list_reader
+import paths
 import selective_search
 import sys
+import utils.list_reader
+import utils.logger
+import utils.progress_bar
 
-gobi = '/ais/gobi3/u/mren/data/mscoco'
-log = utils.logger.get('../log/mscoco_select_search')
+log = utils.logger.get()
 
 
 def patch(original_boxes, error_image_list, full_image_list, batch_size=10):
-    """
-    Pathches the search boxes for some of the images
+    """Pathches the search boxes for some of the images
 
     Args:
         original_boxes: numpy.ndarray, boxes to be patched.
@@ -58,12 +57,13 @@ def patch(original_boxes, error_image_list, full_image_list, batch_size=10):
     for idx, image in enumerate(error_image_list):
         orig_idx = image_list_dict[image]
         original_boxes[orig_idx] = boxes[idx]
+
     return original_boxes
 
 
 def run_selective_search(image_list, batch_size=10):
-    """
-    Run selective search on the list of images.
+    """Run selective search on the list of images.
+
     Args:
         image_list: list, list of image file names.
     Returns:
@@ -111,43 +111,46 @@ def run_selective_search(image_list, batch_size=10):
 
     # Pack into numpy format.
     boxes = numpy.array(boxes, dtype='object')
+
     return boxes, processed_images, error_images
 
 
 def save_boxes(output_file, boxes):
-    """
-    Saves computed search boxes.
+    """Saves computed search boxes.
 
     Args:
         output_file: string, path to the output numpy array.
+        boxes: numpy.ndarray, computed search boxes.
     """
 
     numpy.save(output_file, boxes)
+
     pass
 
 
 def load_boxes(output_file):
-    """
-    Loads computed search boxes.
+    """Loads computed search boxes.
 
     Args:
         output_file: string, path to the saved numpy array.
     """
     return numpy.load(output_file)
 
-if __name__ == '__main__':
-    log.log_args()
+
+def parse_args():
+    """Parse arguments."""
     parser = argparse.ArgumentParser(
-        description='Compute selective search boxes on MS-COCO')
+        description='Compute selective search boxes in MS-COCO')
     parser.add_argument(
         '-list',
         dest='image_list',
-        default=os.path.join(gobi, 'image_list_train.txt'),
+        default=os.path.join(paths.GOBI_MREN_MSCOCO, 'image_list_train.txt'),
         help='image list text file')
     parser.add_argument(
         '-out',
         dest='output_file',
-        default=os.path.join(gobi, 'select_search_train.npy'),
+        default=os.path.join(paths.GOBI_MREN_MSCOCO,
+                             'select_search_train.npy'),
         help='output numpy file')
     parser.add_argument(
         '-old',
@@ -165,7 +168,14 @@ if __name__ == '__main__':
         type=int,
         default=10,
         help='batch size')
+
     args = parser.parse_args()
+
+    return args
+
+if __name__ == '__main__':
+    args = parse_args()
+    log.log_args()
     log.info('Input list: {0}'.format(args.image_list))
     log.info('Output file: {0}'.format(args.output_file))
     image_list = list_reader.read_file_list(args.image_list, check=True)
@@ -192,4 +202,3 @@ if __name__ == '__main__':
         f.write('\n'.join(processed))
     with open(error_filename, 'w') as f:
         f.write('\n'.join(error))
-    pass

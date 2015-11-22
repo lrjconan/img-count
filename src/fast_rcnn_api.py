@@ -15,7 +15,7 @@ Command-line usage:
                             -proposal {proposal file}
                             -output {output file}
 """
-from data_api import Mscoco
+from data_api import MSCOCO
 from fast_rcnn.test import im_detect
 from fast_rcnn_model import FastRCNNModel
 from fast_rcnn_utils.nms import nms
@@ -38,15 +38,6 @@ import sys
 
 log = logger.get()
 
-NETS = {'vgg16': ('VGG16.prototxt',
-                  'vgg16_fast_rcnn_iter_40000.caffemodel'),
-        'vgg_cnn_m_1024': ('VGG_CNN_M_1024/test.prototxt',
-                           'vgg_cnn_m_1024_fast_rcnn_iter_40000.caffemodel'),
-        'caffenet': ('CaffeNet/test.prototxt',
-                     'caffenet_fast_rcnn_iter_40000.caffemodel'),
-        'coco_vgg16': ('VGG16/coco/test.prototxt',
-                       'coco_vgg16_fast_rcnn_iter_240000.caffemodel')}
-
 
 class FastRcnnApi():
     """
@@ -59,7 +50,7 @@ class FastRcnnApi():
     def __init__(self, model_def_fname, weights_fname,
                  dataset_name, dataset_dir, gpu=True, gpu_id=0):
         if args.dataset == 'mscoco':
-            self.dataset = Mscoco(base_dir=dataset_dir, set_name='valid')
+            self.dataset = MSCOCO(base_dir=dataset_dir, set_name='valid')
         else:
             raise Exception('Unknown dataset: {}.'.format(dataset))
 
@@ -261,13 +252,13 @@ def parse_args():
                         default='fc7',
                         help=('Comma delimited list of layer names for '
                               'extracting local feature'))
-    #parser.add_argument('-sparse', action='store_true',
+    # parser.add_argument('-sparse', action='store_true',
     #                    help='Whether to store sparse format')
     parser.add_argument('-num_images_per_shard', type=int,
                         default=10000,
-                        help = 'Number of images per shard')
-    parser.add_argument('-restore', action = 'store_true',
-                        help = 'Whether to continue from previous checkpoint.')
+                        help='Number of images per shard')
+    parser.add_argument('-restore', action='store_true',
+                        help='Whether to continue from previous checkpoint.')
 
     args = parser.parse_args()
 
@@ -395,7 +386,8 @@ if __name__ == '__main__':
         log.fatal('You need to specify input through -image or -image_list.')
     if args.output:
         log.info('Writing output to {}'.format(args.output))
-        log.info('Num images per shard: {:d}'.format(args.num_images_per_shard))
+        log.info('Num images per shard: {:d}'.format(
+            args.num_images_per_shard))
 
     log.info('Confidence threshold: {:.2f}'.format(args.conf))
     log.info('NMS threshold: {:.2f}'.format(args.nms))
@@ -433,7 +425,7 @@ if __name__ == '__main__':
                         h5file = h5py.File(fname_i)
                         if KEY_NUM_ITEM in h5file:
                             num = h5file[KEY_NUM_ITEM][0]
-                            checkpoint += num 
+                            checkpoint += num
                             log.info('Found {:d} items in {}'.format(
                                 num, fname_i))
                             checkfile += 1

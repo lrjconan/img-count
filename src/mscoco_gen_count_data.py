@@ -9,8 +9,8 @@ Usage: python mscoco_gen_count_data.py
 
 """
 
-from data_api import Mscoco
-from data_api import Cocoqa
+from data_api import MSCOCO
+from data_api import COCOQA
 from utils import logger
 from utils import progress_bar
 import argparse
@@ -160,7 +160,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     log.log_args()
-    mscoco = Mscoco(base_dir=args.mscoco_datadir, set_name=args.set)
+    mscoco = MSCOCO(base_dir=args.mscoco_datadir, set_name=args.set)
     image_ids = mscoco.get_image_ids()
     cat_list_rev = mscoco.get_cat_list_reverse()
     num_images = len(image_ids)
@@ -202,7 +202,7 @@ if __name__ == '__main__':
     log.info('Statistics')
     stat_count(counts_array)
 
-    cocoqa = Cocoqa(base_dir=args.cocoqa_datadir, set_name=args.set)
+    cocoqa = COCOQA(base_dir=args.cocoqa_datadir, set_name=args.set)
     cocoqa_dist = stat_cocoqa(cocoqa)
     log.info('COCO-QA dist: {}'.format(cocoqa_dist))
 
