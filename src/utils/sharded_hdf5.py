@@ -1,7 +1,7 @@
 """
-Sharded HDF5 format: storing a bundle of sharded files.
+Sharded HDF5 format: storing a bundle of sharded files
 
-==File system structure:
+==File system structure
     1. File pattern
     * /path/folder/file_prefix-{index}-{num_shards}{suffix}
     * {index} and {num_shards} are 5 digit 0-padded integer string.
@@ -23,12 +23,12 @@ Sharded HDF5 format: storing a bundle of sharded files.
         ...
     }
 
-==Key classes:
+==Key classes
     1. ShardedFile
     2. ShardedFileReader
     3. ShardedFileWriter
 
-==Example usages:
+==Examples
     1. Read: iterate everything in batch
     >> with ShardedFileReader(ShardedFile('a', 100), batch_size=10) as reader:
     >>    for items in reader:
@@ -425,7 +425,6 @@ class ShardedFileWriter(object):
         if len(self._buffer) > 0:
             for key in self._buffer.iterkeys():
                 value = numpy.concatenate(self._buffer[key], axis=0)
-                print key, value
                 self._fh[key] = value
             self._fh[KEY_NUM_ITEM] = numpy.array([self._cur_num_items])
             self._fh[KEY_SEPARATOR] = numpy.array(self._cur_sep, dtype='int64')

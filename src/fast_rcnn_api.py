@@ -1,23 +1,64 @@
 """
-Interface to evaluate Fast R-CNN network.
+Interface to evaluate Fast R-CNN network
 
-Command-line usage:
-    python fast_rcnn_api.py -image {image file}
-                            -image_list {image list file}
-                            -dataset {dataset name}
-                            -datadir {dataset directory}
-                            -net {network definition path}
-                            -weights {weights path}
-                            -gpu {gpu ID}
-                            -cpu {cpu mode}
-                            -conf {confidence threshold}
-                            -nms {NMS threshold}
-                            -proposal {proposal file}
-                            -output {output file}
+==Command-line Usage
+    >> python fast_rcnn_api.py -gpu {gpu ID}
+                               -image {image file}
+                               -image_list {image list file}
+                               -dataset {dataset name}
+                               -datadir {dataset directory}
+                               -net {network definition path}
+                               -weights {weights path}
+                               -cpu {cpu mode}
+                               -conf {confidence threshold}
+                               -nms {NMS threshold}
+                               -proposal {proposal file}
+                               -output {output file}
+                               -plot {whether to plot in single image mode}
+                               -local_feat {local feature layer names}
+                               -restore {whether to restore from previous run}
+                               -num_images_per_shard {size of each shard}
+                               -groundtruth {whether proposals contain gt cat}
+
+==Command-line Example
+    >> python fast_rcnn_api.py -gpu 2 \
+                               -image_list "image_list_train.txt" \
+                               -dataset "mscoco" \
+                               -datadir "data/mscoco" \
+                               -net "fast_rcnn.prototxt" \
+                               -weights "fast_rcnn.caffemodel" \
+                               -conf 0.3 \
+                               -nms 0.8 \
+                               -local_feat "fc7,pool5" \
+                               -proposal "select_search_train.npy" \
+                               -output "fast_rcnn_c3n8_train" \
+                               -num_images_per_shard 10000
+
+==API Example
+    >> # Run selective search.
+    >> import selective_search
+    >> ssbox = selective_search.get_windows(['test.png'])
+    >>
+    >> # Initialize API.
+    >> from fast_rcnn_api import FastRCNN_API
+    >> api = FastRCNN_API(model_def_fname='fast_rcnn.prototxt',
+                          weights_fname='fast_rcnn.caffemodel',
+                          dataset_name='mscoco',
+                          dataset_dir='data/mscoco',
+                          gpu=True,
+                          gpu_id=2)
+    >>
+    >> # Run detector.
+    >> im = cv2.imread('test.png')
+    >> dets = api.run_detector(im, ssbox)
+    >>
+    >> # Threhshold the final predictions.
+    >> dets = api.threshold(dets, conf_thresh=0.8, nms_thresh=0.3)
+
 """
 from data_api import MSCOCO
 from fast_rcnn.test import im_detect
-from fast_rcnn_model import FastRCNNModel
+from fast_rcnn_model import FastRCNN_Model
 from fast_rcnn_utils.nms import nms
 from fast_rcnn_utils.timer import Timer
 from utils import logger
@@ -32,14 +73,13 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-import scipy.sparse
 import selective_search
 import sys
 
 log = logger.get()
 
 
-class FastRcnnApi():
+class FastRCNN_API(object):
     """
     Interface to run inference on trained Fast-RCNN network.
     Properties:
@@ -60,33 +100,30 @@ class FastRcnnApi():
         if not os.path.isfile(weights_fname):
             raise IOError('Weights file not found: {}'.format(weights_fname))
 
-        self.model = FastRCNNModel(name=model_def_fname,
-                                   model_def_fname=model_def_fname,
-                                   weights_fname=weights_fname,
-                                   gpu=gpu,
-                                   gpu_id=gpu_id)
+        self.model = FastRCNN_Model(name=model_def_fname,
+                                    model_def_fname=model_def_fname,
+                                    weights_fname=weights_fname,
+                                    gpu=gpu,
+                                    gpu_id=gpu_id)
         pass
 
-    def run_detector_with_proposal(self, image_fname, get_local_feat=False,
-                                   feat_layers=None):
+    def run_detector_with_proposal(self, image_fname, feat_layers=None):
         """Run Fast-RCNN on a single image, without pre-computed proposals.
         """
         obj_proposals = self.compute_obj_proposals(image_fname)
         obj_proposals = self.shift_obj_proposals(obj_proposals)
         im = cv2.imread(image_fname)
-        return self.run_detector(im, obj_proposals,
-                                 get_local_feat=get_local_feat,
-                                 feat_layers=feat_layers)
+        return self.run_detector(im, obj_proposals, feat_layers=feat_layers)
 
-    def run_detector(self, im, obj_proposals, get_local_feat=False,
-                     feat_layers=None):
+    def run_detector(self, im, obj_proposals, feat_layers=None):
         """Run Fast-RCNN on a single image, with pre-computed proposals.
 
         Args:
             im: numpy.ndarray, image pixels.
             obj_proposals: numpy.ndarray, 
         Returns:
-            results: numpy.ndarray, N x 5, N is the number of proposals.
+            results: numpy.ndarray, (N, K, 5), N is the number of proposals,
+            K is the number of categories,
             5 dimensions are (x1, y1, x2, y2, confidence).
             local_feat: (optional) numpy.ndarray, N x D, N is the number of i
             proposals, D is the dimension of the feature layer.
@@ -109,9 +146,7 @@ class FastRcnnApi():
         scores = scores.reshape(scores.shape[0], scores.shape[1], 1)
         results = np.concatenate((boxes, scores), axis=-1)
 
-        if get_local_feat:
-            if feat_layers is None:
-                raise Exception('You need to provide layer names.')
+        if feat_layers is not None:
             local_feat = {}
             for layer in feat_layers:
                 data = self.model.net.blobs[layer].data
@@ -246,19 +281,16 @@ def parse_args():
     parser.add_argument('-output', help='Output of the extracted boxes')
     parser.add_argument('-proposal', help='Proposals file')
     parser.add_argument('-plot', action='store_true', help='Plot the result')
-    parser.add_argument('-local_feat', action='store_true',
-                        help='Whether to extract local feature')
-    parser.add_argument('-feat_layers',
-                        default='fc7',
+    parser.add_argument('-local_feat', default=None,
                         help=('Comma delimited list of layer names for '
                               'extracting local feature'))
-    # parser.add_argument('-sparse', action='store_true',
-    #                    help='Whether to store sparse format')
-    parser.add_argument('-num_images_per_shard', type=int,
-                        default=10000,
+    parser.add_argument('-num_images_per_shard', type=int, default=10000,
                         help='Number of images per shard')
     parser.add_argument('-restore', action='store_true',
                         help='Whether to continue from previous checkpoint.')
+    parser.add_argument('-groundtruth', action='store_true',
+                        help=('Whether object proposals contain groundtruth '
+                              'category in the 5th dimension'))
 
     args = parser.parse_args()
 
@@ -320,30 +352,36 @@ def assemble_boxes(boxes, thresh, local_feat=None):
     return results_dict
 
 
-def run_image(fname, args, obj_proposals=None):
+def run_image(fname, args, obj_proposals=None, gt_cat=None):
     """Run a single image.
 
     Args:
         fname: string, image file name.
         args: command line arguments object.
         obj_proposals: numpy.ndarray, pre-computed object proposals.
+        gt_cat: numpy.ndarray, groundtruth mode only. Groundtruth categories.
     Returns:
         results_dict: dict, keys are 'boxes', 'categories', 'scores', and 
         local feature layer names.
     """
+    if args.groundtruth:
+        if gt_cat is None:
+            raise Exception('Need to provide groundtruth category in gt mode')
+
+    # Local feature layers.
     feat_layers = None
-    if args.feat_layers:
-        feat_layers = args.feat_layers.split(',')
+    if args.local_feat:
+        feat_layers = args.local_feat.split(',')
+
+    # Run detectors.
     if args.proposal:
         im = cv2.imread(fname)
         det_results = api.run_detector(
             im, obj_proposals,
-            get_local_feat=args.local_feat,
             feat_layers=feat_layers)
     else:
         det_results = api.run_detector_with_proposal(
             fname,
-            get_local_feat=args.local_feat,
             feat_layers=feat_layers)
 
     if args.local_feat:
@@ -352,25 +390,34 @@ def run_image(fname, args, obj_proposals=None):
     else:
         det_boxes = det_results
 
-    thresh = api.threshold(det_boxes, args.conf, args.nms)
-    # disable background
+    # Apply threshold.
+    if args.groundtruth:
+        # Do not throw out any boxes if in groundtruth mode.
+        thresh = np.zeros(det_boxes.shape, dtype='bool')
+        # +1 for adding background category.
+        thresh[np.arange(gt_cat.shape[0]), gt_cat + 1] = True
+        log.info('Goundtruth category')
+        log.info(gt_cat + 1)
+        log.info('Prediction max')
+        log.info(np.argmax(det_boxes[:, :, 4], axis=1))
+    else:
+        thresh = api.threshold(det_boxes, args.conf, args.nms)
+
+    # Disable background.
     thresh[:, 0] = False
 
+    # Pack the results.
     if args.local_feat:
         results_dict = assemble_boxes(det_boxes, thresh, local_feat)
     else:
         results_dict = assemble_boxes(det_boxes, thresh)
-
-    # for key in results_dict.iterkeys():
-    #     print key
-    #     print results_dict[key]
-    #     print results_dict[key].shape
 
     return results_dict
 
 if __name__ == '__main__':
     args = parse_args()
     log.log_args()
+
     if args.image:
         log.info('Single file mode')
         log.info('Input image: {}'.format(args.image))
@@ -384,6 +431,7 @@ if __name__ == '__main__':
         image_list = list_reader.read_file_list(args.image_list, check=True)
     else:
         log.fatal('You need to specify input through -image or -image_list.')
+
     if args.output:
         log.info('Writing output to {}'.format(args.output))
         log.info('Num images per shard: {:d}'.format(
@@ -395,12 +443,18 @@ if __name__ == '__main__':
     log.info('Caffe network definition: {}'.format(args.net))
     log.info('Caffe network weights: {}'.format(args.weights))
 
-    api = FastRcnnApi(args.net, args.weights, args.dataset, args.datadir,
-                      not args.cpu_mode, args.gpu_id)
+    api = FastRCNN_API(args.net, args.weights, args.dataset, args.datadir,
+                       not args.cpu_mode, args.gpu_id)
 
     if args.proposal:
         log.info('Loading pre-computed proposals')
         proposal_list = np.load(args.proposal)
+        if args.groundtruth:
+            log.info('Groundtruth mode')
+            proposal_list = [proposal_list[i][:, :4]
+                             for i in xrange(proposal_list.shape[0])]
+            gt_cat_list = [proposal_list[i][:, 4]
+                           for i in xrange(proposal_list.shape[0])]
 
     if args.image:
         results = run_image(args.image, args)
@@ -450,8 +504,13 @@ if __name__ == '__main__':
                 try:
                     det_success = True
                     if args.proposal:
-                        results = run_image(img_fname, args,
-                                            obj_proposals=proposal_list[i])
+                        if args.groundtruth:
+                            results = run_image(img_fname, args,
+                                                obj_proposals=proposal_list[i],
+                                                gt_cat=gt_cat_list[i])
+                        else:
+                            results = run_image(img_fname, args,
+                                                obj_proposals=proposal_list[i])
                     else:
                         results = run_image(img_fname, args)
                 except Exception as e:
@@ -470,9 +529,9 @@ if __name__ == '__main__':
                     log.error('Error occurred, re-initializing network')
                     api = None
                     gc.collect()
-                    api = FastRcnnApi(args.net, args.weights, args.dataset,
-                                      args.datadir, not args.cpu_mode,
-                                      args.gpu_id)
+                    api = FastRCNN_API(args.net, args.weights, args.dataset,
+                                       args.datadir, not args.cpu_mode,
+                                       args.gpu_id)
 
             log.info('After threshold: {:d} boxes'.format(
                 results['boxes'].shape[0]))

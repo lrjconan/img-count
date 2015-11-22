@@ -1,17 +1,20 @@
 import numpy as np
+import os
 import sharded_hdf5 as sh
 import unittest
 
 
 class ShardedFileTests(unittest.TestCase):
+    """Unit tests for ShardedFile, ShardedFileReader, and ShardedFileWriter."""
 
     def test_read_write(self):
         N = 100
         N2 = 10
         D1 = 10
         D2 = 5
+        num_shards = 10
 
-        f = sh.ShardedFile('test', num_shards=10)
+        f = sh.ShardedFile('test', num_shards=num_shards)
 
         with sh.ShardedFileWriter(f, num_objects=N) as writer:
             for i in writer:
@@ -48,6 +51,9 @@ class ShardedFileTests(unittest.TestCase):
                 elif data['key1'].shape[0] == N2:
                     self.assertTrue((data['key1'] == 3 * i).all())
                     self.assertTrue((data['key2'] == -3 * i).all())
+
+        for i in xrange(num_shards):
+            os.remove(f.get_fname(i))
 
 if __name__ == '__main__':
     unittest.main()

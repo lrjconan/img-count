@@ -4,7 +4,7 @@ from utils import logger
 log = logger.get()
 
 
-class FastRCNNModel(object):
+class FastRCNN_Model(object):
 
     def __init__(self, name, model_def_fname, weights_fname,
                  gpu=False, gpu_id=0):
