@@ -218,6 +218,7 @@ class FastRCNN_API(object):
         """
         boxes = selective_search.get_windows([image_fname])
         log.info('Selective search boxes shape: {:s}'.format(boxes[0].shape))
+
         return boxes[0]
 
     def vis_all(self, im, results_dict):
@@ -229,6 +230,7 @@ class FastRCNN_API(object):
             if dets.size > 0:
                 self.vis_detections(im, clas, dets)
         plt.show()
+
         return
 
     def vis_detections(self, im, class_name, dets):
@@ -372,7 +374,6 @@ def run_image(fname, args, obj_proposals=None, gt_cat=None):
         feat_layers = args.local_feat.split(',')
 
     # Run detectors.
-    empty = False
     if args.proposal:
         if len(obj_proposals) > 0:
             im = cv2.imread(fname)
@@ -381,66 +382,51 @@ def run_image(fname, args, obj_proposals=None, gt_cat=None):
                 feat_layers=feat_layers)
         else:
             log.error('Empty proposals for image {}'.format(fname))
-            empty = True
+            return None
     else:
         det_results = api.run_detector_with_proposal(
             fname,
             feat_layers=feat_layers)
 
-    if not empty:
-        if args.local_feat:
-            det_boxes = det_results[0]
-            local_feat = det_results[1]
-        else:
-            det_boxes = det_results
+    if args.local_feat:
+        det_boxes = det_results[0]
+        local_feat = det_results[1]
+    else:
+        det_boxes = det_results
 
     # Apply threshold.
-    if not empty:
-        if args.groundtruth:
-            # Do not throw out any boxes if in groundtruth mode.
-            thresh = np.zeros((det_boxes.shape[0], det_boxes.shape[1]),
-                              dtype='bool')
-            
-            # +1 for adding background category.
-            thresh[np.arange(gt_cat.shape[0]), gt_cat + 1] = True
-            log.info('Goundtruth category')
-            log.info(gt_cat + 1)
-            log.info('Prediction max')
-            log.info(np.argmax(det_boxes[:, :, 4], axis=1))
+    if args.groundtruth:
+        # Do not throw out any boxes if in groundtruth mode.
+        thresh = np.zeros((det_boxes.shape[0], det_boxes.shape[1]),
+                          dtype='bool')
 
-            # Assign delta-distribution on groundtruth category.
-            det_boxes[:, :, 4] = 0.0
-            det_boxes[np.arange(gt_cat.shape[0]), gt_cat + 1, 4] = 1.0
-        else:
-            thresh = api.threshold(det_boxes, args.conf, args.nms)
+        # +1 for adding background category.
+        thresh[np.arange(gt_cat.shape[0]), gt_cat + 1] = True
+        log.info('Goundtruth category')
+        log.info(gt_cat + 1)
+        log.info('Prediction max')
+        log.info(np.argmax(det_boxes[:, :, 4], axis=1))
 
-        # Disable background.
-        thresh[:, 0] = False
-
-        # Pack the results.
-        if args.local_feat:
-            results_dict = assemble_boxes(det_boxes, thresh, local_feat)
-            if len(FEATURE_DIM) < len(feat_layers):
-                for name in feat_layers:
-                    FEATURE_DIM[name] = results_dict[name].shape[-1]
-        else:
-            results_dict = assemble_boxes(det_boxes, thresh)
+        # Assign delta-distribution on groundtruth category.
+        det_boxes[:, :, 4] = 0.0
+        det_boxes[np.arange(gt_cat.shape[0]), gt_cat + 1, 4] = 1.0
     else:
-        results_dict = {
-            'boxes': np.zeros((0, 4), dtype='int16'),
-            'categories': np.zeros((0, 1), dtype='int16'),
-            'scores': np.zeros((0, 1), dtype='float32')
-        }
-        if args.local_feat:
+        thresh = api.threshold(det_boxes, args.conf, args.nms)
+
+    # Disable background.
+    thresh[:, 0] = False
+
+    # Pack the results.
+    if args.local_feat:
+        results_dict = assemble_boxes(det_boxes, thresh, local_feat)
+        if len(FEATURE_DIM) < len(feat_layers):
             for name in feat_layers:
-                if name in FEATURE_DIM:
-                    dim = FEATURE_DIM[name]
-                    results_dict[name] = np.zeros((0, dim), dtype='float32')
-                else:
-                    log.fatal('Unknown feature dimension to fake.')
+                FEATURE_DIM[name] = results_dict[name].shape[-1]
+    else:
+        results_dict = assemble_boxes(det_boxes, thresh)
 
     # Add image information.
-    results_dict['__image__'] = fname
+    results_dict['image'] = fname
 
     return results_dict
 
@@ -567,18 +553,19 @@ if __name__ == '__main__':
                                        args.datadir, not args.cpu_mode,
                                        args.gpu_id)
 
-            log.info('After threshold: {:d} boxes'.format(
-                results['boxes'].shape[0]))
+            if results is not None:
+                log.info('After threshold: {:d} boxes'.format(
+                    results['boxes'].shape[0]))
 
-            # Write to output.
-            try:
-                if args.output:
-                    log.info('Writing')
-                    writer.write(results)
-            except Exception as e:
-                log.error(e)
-                log.log_exception(e)
-                raise e
+                # Write to output.
+                try:
+                    if args.output:
+                        log.info('Writing to output buffer')
+                        writer.write(results)
+                except Exception as e:
+                    log.error(e)
+                    log.log_exception(e)
+                    raise e
 
         # Close writer and flush to file.
         writer.close()
