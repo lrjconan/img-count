@@ -2,24 +2,12 @@
 Runs selective search on a list of images.
 
 Usage:
-    python mscoco_select_search.py \
-            -list {image list} \
-            -out {output file} \
-            [-old {old file}] \
-            [-patch {patch list}]
+    python mscoco_select_search.py -image_list {image list} \
+                                   -out {output file}
 
-Examples:
-    # Run new
-    python mscoco_select_search.py \
-            -list mylist.txt \
-            -out boxes.npy
-
-    # Run patches
-    python mscoco_select_search.py \
-            -list mylist.txt \
-            -old boxes.npy \
-            -out boxes_patch.npy \
-            -patch error_list.txt
+Example:
+    python mscoco_select_search.py -image_list mylist.txt \
+                                   -out boxes
 """
 
 from __future__ import print_function

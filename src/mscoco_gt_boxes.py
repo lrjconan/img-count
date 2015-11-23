@@ -2,14 +2,12 @@
 Get groundtruth bounding boxes in MS-COCO.
 
 Usage:
-    python mscoco_gt_boxes.py \
-            -list {image list} \
-            -out {output file} \
+    python mscoco_gt_boxes.py -image_list {image list} \
+                              -output {output file}
 
 Example:
-    python mscoco_gt_boxes.py \
-            -list mylist.txt \
-            -out boxes.npy
+    python mscoco_gt_boxes.py -image_list mylist.txt \
+                              -output boxes.npy
 """
 
 from data_api import MSCOCO

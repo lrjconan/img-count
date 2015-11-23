@@ -1,5 +1,6 @@
 """
-Sharded HDF5 format: storing a bundle of sharded files
+Sharded HDF5 format
+Storing of a bundle of sharded files for homogeneous data type (matrix/string).
 
 ==File system structure
     1. File pattern
@@ -240,6 +241,7 @@ class ShardedFileReader(object):
         # Lazy build file index.
         if self._file_index is None:
             self._file_index = self._build_index()
+
         return bisect.bisect_left(self._file_index, index)
 
     def _renew(self):
@@ -249,6 +251,8 @@ class ShardedFileReader(object):
             self._fh.close()
         self._fh = h5py.File(self.file.get_fname(self._cur_fid))
         self._need_refresh = False
+
+        pass
 
     def _build_sep(self):
         """Build separators."""
@@ -263,6 +267,8 @@ class ShardedFileReader(object):
                         raise Exception('Unknown sep {}'.format(key))
                     else:
                         self._cur_sep[key] = numpy.arange(num_items)
+
+        pass
 
     def read(self, num_items=1):
         """Read from the current position.
@@ -353,8 +359,12 @@ class ShardedFileReader(object):
         else:
             raise StopIteration()
 
+        pass
+
     def close(self):
         self.__exit__(None, None, None)
+
+        pass
 
 
 class ShardedFileWriter(object):
@@ -525,5 +535,6 @@ class ShardedFileWriter(object):
     def close(self):
         """Close the opened file.
         """
-
         self.__exit__(None, None, None)
+
+        pass
