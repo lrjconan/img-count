@@ -23,7 +23,7 @@ Input feature file entry:
 Output format:
     {
         'input': numpy.ndarray, dtype: float32, shape: (N1, D1). 
-                 N1 is the number of questions. D1 = N x (4 + 1 + 1 + D). 
+                 N1 is the number of questions. D1 = 1 + N x (4 + 1 + 1 + D). 
                  N is the number of boxes, D is the feature dimension.
                  Single entry looks like:
                  [cat, ...
@@ -70,7 +70,8 @@ def parse_args():
                         help='MS-COCO data folder')
     parser.add_argument('-set', default='train', help='Train/valid')
     parser.add_argument('-output', default=None, help='Output file name')
-    parser.add_argument('-num_shards', default=1, help='Output number shards')
+    parser.add_argument('-num_ex_per_shards', default=10000,
+                        help='Number of output example per shard')
     parser.add_argument('-local_feat', default=None,
                         help='Local feature layer name')
     args = parser.parse_args()
@@ -78,12 +79,14 @@ def parse_args():
     return args
 
 
-def pack_data(mscoco, info_file, feature_file, local_feat, output_file):
+def pack_data(mscoco, info_file, feature_file, local_feat, output_fname, num_ex_per_shards):
     """Pack data together"""
     inps = []
     with ShardedFileReader(info_file) as info_reader:
         num_obj = len(info_reader)
         pb = progress_bar.get(num_obj)
+        num_shards = np.ceil(num_obj / float(num_ex_per_shards))
+        output_file = ShardedFile(output_fname, num_shards=num_shards)
         with ShardedFileReader(feature_file) as feature_reader:
             with ShardedFileWriter(output_file, num_objects=num_obj) as writer:
                 for i, question_entry in itertools.izip(writer, info_reader):
@@ -125,9 +128,6 @@ if __name__ == '__main__':
     log.info('Feature file: {}'.format(args.input_feature))
     feature_file = ShardedFile.from_pattern_read(args.input_feature)
 
-    log.info('Output file: {}'.format(args.input_feature))
-    output_file = ShardedFile.from_pattern_read(args.output, args.num_shards)
-
     mscoco = MSCOCO(base_dir=args.datadir, set=args.set)
-
-    pack_data(mscoco, info_file, feature_file, args.local_feat, output_file)
+    pack_data(mscoco, info_file, feature_file, args.local_feat,
+              args.output, args.num_ex_per_shards)
