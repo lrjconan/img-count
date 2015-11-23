@@ -4,17 +4,23 @@ Storing of a bundle of sharded files for homogeneous data type.
 
 ==File system structure
     1. File pattern
-    * /path/folder/file_prefix-{index}-{num_shards}{suffix}
-    * {index} and {num_shards} are 5 digit 0-padded integer string.
-    * e.g. /path/folder/example-00010-of-00020.h5
+    /path/folder/file_prefix-{index}-{num_shards}{suffix}
+    {index} and {num_shards} are 5 digit 0-padded integer string.
+    e.g. 
+    - /path/folder/example-00000-of-00005.h5
+    - /path/folder/example-00001-of-00005.h5
+    - /path/folder/example-00002-of-00005.h5
+    - /path/folder/example-00003-of-00005.h5
+    - /path/folder/example-00004-of-00005.h5
 
     2. HDF5 structure
     {
         '__num_items__': 1 elem numpy.ndarray, number of items in this file.
-        '__sep_key1__': 1D separator int64 array for each item.
-        '__sep_key2__': 1D separator int64 array for each item.
-        'key1': 1-2D numpy.ndarray.
-        'key2': 1-2D numpy.ndarray.
+        '__keys__': 1D numpy.ndarray, look up keys.
+        '__sep_key1__': 1D int64 array storing position of each item.
+        '__sep_key2__': 1D int64 array storing position of each item.
+        'key1': 1-2D numpy.ndarray, 1st dimension is concatenated.
+        'key2': 1-2D numpy.ndarray, 1st dimension is concatenated.
         ...
     }
 
@@ -31,29 +37,46 @@ Storing of a bundle of sharded files for homogeneous data type.
     3. ShardedFileWriter
 
 ==Examples
-    1. Read: iterate everything in batch
-    >> with ShardedFileReader(ShardedFile('a', 100), batch_size=10) as reader:
-    >>    for items in reader:
+    1. Read: iterate everything
+    >> f = ShardedFile('a', num_shards=100)
+    >> with ShardedFileReader(f) as reader:
+    >>    for item in reader:
     >>        do(items)
 
-    2. Read: iterate from a position
-    >> with ShardedFileReader(ShardedFile('a', 100), batch_size=10) as reader:
-    >>     for items in reader.seek(50):
+    2. Read: iterate everything in a batch
+    >> f = ShardedFile('a', num_shards=100)
+    >> with ShardedFileReader(f, batch_size=10) as reader:
+    >>     for items in reader:
     >>         do(items)
 
-    3. Read: random access with position
-    >> with ShardedFileReader(ShardedFile('a', 100)) as reader:
+    3. Read: iterate from a position
+    >> f = ShardedFile('a', num_shards=100)
+    >> with ShardedFileReader(f) as reader:
+    >>     for item in reader.seek(50):
+    >>         do(item)
+
+    4. Read: random access with a position
+    >> f = ShardedFile('a', num_shards=100)
+    >> with ShardedFileReader(f) as reader:
     >>     reader.seek(pos=position)
-    >>     data = reader.read(num_items=100)
+    >>     items = reader.read(num_items=100)
 
-    4. Read: random access with key
-    >> with ShardedFileReader(ShardedFile('a', 100), key_name='key') as reader:
-    >>     data = reader['data_id']
+    5. Read: random access with a key (string or int)
+    >> f = ShardedFile('a', num_shards=100)
+    >> with ShardedFileReader(f) as reader:
+    >>     item = reader[key]
 
-    4.  Write in order
-    >> with ShardedFileWriter(ShardedFile('a', 10), num_objects=100) as writer:
+    6. Write a list
+    >> f = ShardedFile('a', num_shards=100)
+    >> with ShardedFileWriter(f, num_objects=100) as writer:
     >>     for i in writer:
-    >>         writer.write(data[i])
+    >>         writer.write(item[i])
+
+    7. Write a dictionary (see example 5 for reading dictionary)
+    >> f = ShardedFile('a', num_shards=100)
+    >> with ShardedFileWriter(f, num_objects=100) as writer:
+    >>     for i in writer:
+    >>         writer.write(item, key=key)
 """
 
 
@@ -76,6 +99,7 @@ KEY_NUM_ITEM = '__num_items__'
 KEY_SEPARATOR = '__sep_{}__'
 KEY_SEPARATOR_RE = re.compile('^__sep_([^_]+)__$')
 KEY_SEPARATOR_PREFIX = '__sep_'
+KEY_KEYS = '__keys__'
 FILE_PATTERN = re.compile(
     '^(?P<prefix>.*)-(?P<shard>[0-9]{5})-of-(?P<total>[0-9]{5})(?P<suffix>.*)$')
 
@@ -108,6 +132,10 @@ class ShardedFile(object):
         self.suffix = suffix
 
         pass
+
+    def __str__(self):
+        return '{}-?????-of-{:05d}{}'.format(
+            self.basename, self.num_shards, self.suffix)
 
     @classmethod
     def from_pattern(cls, file_pattern):
@@ -189,7 +217,8 @@ class ShardedFileReader(object):
     """Shareded file reader.
     """
 
-    def __init__(self, sharded_file, key_name=None, batch_size=1, check=True):
+    def __init__(self, sharded_file,
+                 key_name=KEY_KEYS, batch_size=1, check=True):
         """Construct a sharded file reader instance.
 
         Args:
@@ -253,6 +282,10 @@ class ShardedFileReader(object):
             self._fh = None
 
         pass
+
+    def __len__(self):
+        """Get total number of items."""
+        return self.get_num_items()
 
     def _check_files(self):
         """Check existing files"""
@@ -394,7 +427,7 @@ class ShardedFileReader(object):
                     line_start = self._cur_sep[key][idx - 1]
                 line_end = self._cur_sep[key][idx]
                 result[key] = self._fh[key][line_start: line_end]
-        
+
         return result
 
     def read(self, num_items=1):
@@ -512,6 +545,15 @@ class ShardedFileReader(object):
 
         pass
 
+    def get_num_items(self):
+        """Get total number of items.
+        """
+        # Lazy build file index.
+        if self._file_index is None:
+            self._file_index = self._build_index()
+
+        return self._file_index[-1]
+
     def close(self):
         self.__exit__(None, None, None)
 
@@ -583,36 +625,56 @@ class ShardedFileWriter(object):
 
         return self
 
-    def write(self, data):
+    def write(self, key, value):
+        """Write a key-value pair into buffer.
+        """
+        if self._dict_mode is None:
+            self._dict_mode = True
+        elif self._dict_mode == False:
+            raise Exception('Cannot write key-value pair in list mode.')
+        value[KEY_KEYS] = key
+        self.write(value)
+
+    def write(self, data, key=None):
         """Write a single entry into buffer.
         """
         if self._fh is None:
             self._fh = h5py.File(self.file.get_fname(self._shard), 'w')
 
-        for key in data.iterkeys():
-            if key.startswith('__'):
+        if key is None:
+            key = self._pos
+
+        # Check data format.
+        for kkey in data.iterkeys():
+            if kkey.startswith('__'):
                 raise Exception(
-                    'Keys must not start with "__": {}'.format(key))
+                    'Keys must not start with "__": {}'.format(kkey))
             if len(self._buffer) > 0:
-                if key not in self._buffer:
-                    raise Exception('Unknown key: {}'.format(key))
+                if kkey not in self._buffer:
+                    raise Exception('Unknown key: {}'.format(kkey))
 
-        for key in data.iterkeys():
-            if key in self._buffer:
-                self._buffer[key].append(data[key])
+        # Assign key.
+        if KEY_KEYS in self._buffer:
+            self._buffer[KEY_KEYS].append(key)
+        else:
+            self._buffer[KEY_KEYS] = [key]
+
+        for kkey in data.iterkeys():
+            if kkey in self._buffer:
+                self._buffer[kkey].append(data[kkey])
             else:
-                self._buffer[key] = [data[key]]
+                self._buffer[kkey] = [data[kkey]]
 
-            if key not in self._cur_sep:
-                self._cur_sep[key] = []
+            if kkey not in self._cur_sep:
+                self._cur_sep[kkey] = []
 
-            shape0 = data[key].shape[0] if isinstance(
-                data[key], numpy.ndarray) else 1
-            if len(self._cur_sep[key]) > 0:
-                last = self._cur_sep[key][-1]
-                self._cur_sep[key].append(last + shape0)
+            shape0 = data[kkey].shape[0] if isinstance(
+                data[kkey], numpy.ndarray) else 1
+            if len(self._cur_sep[kkey]) > 0:
+                last = self._cur_sep[kkey][-1]
+                self._cur_sep[kkey].append(last + shape0)
             else:
-                self._cur_sep[key].append(shape0)
+                self._cur_sep[kkey].append(shape0)
 
         self._cur_num_items += 1
 

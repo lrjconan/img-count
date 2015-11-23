@@ -13,29 +13,28 @@ Example 2:
     N = 1000
     for i in progress_bar.get(N, xrange(N)):
         do_something(i)
+
+Example 3:
+    l = ['a', 'b', 'c']
+    for i in progress_bar.get_iter(l)
 """
 
 
 from __future__ import division
 import sys
 
-
-def get_list(l):
-    """Get a progress bar from a list.
-   
-    Args:
-        l: list object.
-    """
-    return ProgressBar(length=len(l), iterable=iter(l))
-
-
-def get(length, iterable=None):
+def get(length):
     """Returns a ProgressBar object.
 
     Args:
         length: number, total number of objects to count.
     """
-    return ProgressBar(length, iterable=iterable)
+    return ProgressBar(length)
+
+
+def get_iter(iterable):
+    """Returns a progress bar from iterable.""""
+    return ProgressBar(len(iterable), iterable=iter(iterable))
 
 
 class ProgressBar(object):

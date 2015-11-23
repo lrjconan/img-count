@@ -13,7 +13,6 @@ Example:
 from __future__ import print_function
 from utils import list_reader
 from utils import logger
-from utils import progress_bar
 from utils.sharded_hdf5 import ShardedFile, ShardedFileWriter
 import argparse
 import cv2

@@ -69,11 +69,11 @@ class ShardedFileTests(unittest.TestCase):
                     'key': i,
                     'value': np.zeros((N1, D1)) + i
                 }
-                writer.write(data)
+                writer.write(data, key=N - i)
 
-        with sh.ShardedFileReader(f, key_name='key') as reader:
+        with sh.ShardedFileReader(f) as reader:
             for i in xrange(N):
-                data = reader[i]
+                data = reader[N - i]
                 self.assertTrue((data['value'] == i).all())
                 self.assertTrue(data['key'] == i)
 
