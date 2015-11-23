@@ -104,7 +104,6 @@ class ShardedFile(object):
             raise Exception('Number of shards need to be integer')
         self.file_prefix = os.path.abspath(file_prefix)
         self.basename = os.path.basename(self.file_prefix)
-        log.info(self.basename)
         self.num_shards = num_shards
         self.suffix = suffix
 

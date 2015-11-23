@@ -121,7 +121,7 @@ class COCOQA(object):
         if pr:
             summ = 0
             for x in sorted_x:
-                print word_array[x], word_freq[x],
+                log.info('{}: {}'.format(word_array[x], word_freq[x]))
                 summ += word_freq[x]
             med = summ / 2
             medsumm = 0
@@ -129,11 +129,11 @@ class COCOQA(object):
                 if medsumm > med:
                     break
                 medsumm += word_freq[x]
-            print 'median: ', word_array[x],
-            print 'median freq: ', word_freq[x],
-            print 'median freq %:', word_freq[x] / float(total)
-            print 'Dictionary length', len(word_dict)
-            print 'total: ', total
+            log.info('Median: {}',format(word_array[x]))
+            log.info('Median freq: {}'.format(word_freq[x]))
+            log.info('Median freq %: {}'.format(word_freq[x] / float(total)))
+            log.info('Dictionary length: {}'.format(len(word_dict)))
+            log.info('Total: {}'.format(total))
         return {
             'dict': word_dict,
             'inv_dict': word_array,
@@ -194,8 +194,8 @@ class COCOQA(object):
             sumlen += len(words)
             if len(words) > maxlen:
                 maxlen = len(words)
-        print 'Max question length:', maxlen
-        print 'Mean question len:', sumlen / float(len(questions))
+        log.info('Max question length: {}'.format(maxlen))
+        log.info('Mean question len: {}'.format(sumlen / float(len(questions))))
         return maxlen
 
     def get_question_vocab_dict(self):
