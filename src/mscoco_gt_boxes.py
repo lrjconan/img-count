@@ -32,7 +32,6 @@ def run(mscoco, image_list, output_fname, num_shards):
         mscoco: MSCOCO API object.
         image_list: list, list of image IDs.
     """
-    results = []
     not_found = []
     cat_rev_dict = mscoco.get_cat_list_reverse()
     fout = ShardedFile(output_fname, num_shards=num_shards)
@@ -47,7 +46,6 @@ def run(mscoco, image_list, output_fname, num_shards):
 
             if anns is None:
                 not_found.append(image_id)
-                results.append(numpy.zeros((0, 5), dtype='int16'))
                 continue
 
             num_ann = len(anns)
@@ -60,7 +58,6 @@ def run(mscoco, image_list, output_fname, num_shards):
 
             data = {'boxes': boxes, 'categories': cats, 'image': image_fname}
             writer.write(data)
-
             pb.increment()
 
     for image_id in not_found:
