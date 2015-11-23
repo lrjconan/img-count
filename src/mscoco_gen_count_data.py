@@ -1,9 +1,7 @@
 """
 Generate counting questions and answers in MS-COCO dataset, using groundtruth 
 annotation.
-
-Ideal distribution:
-(design a discrete distribution)
+Answer distribution is reshaped into COCO-QA distribution
 
 Usage: python mscoco_gen_count_data.py
 """
@@ -12,9 +10,10 @@ from data_api import MSCOCO
 from data_api import COCOQA
 from utils import logger
 from utils import progress_bar
-from utils import ShardedFile, ShardedFileWriter
+from utils.sharded_hdf5 import ShardedFile, ShardedFileWriter
 import argparse
 import numpy as np
+import os
 
 log = logger.get()
 
@@ -127,7 +126,7 @@ def stat_cocoqa(cocoqa):
         dist[a] += 1
     for i in xrange(len(dist)):
         if dist[i] != 0:
-            print ans_idict[i], dist[i]
+            log.info('{}: {}'.format(ans_idict[i], dist[i]))
 
     number_dict = {
         'one': 1,
@@ -220,6 +219,10 @@ if __name__ == '__main__':
     log.info('Generated {:d} questions.'.format(len(keep)))
 
     if args.output:
+        dirname = os.path.dirname(args.output)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
+
         log.info('Writing output to {}'.format(os.path.abspath(args.output)))
         fout = ShardedFile(args.output, num_shards=1)
         with ShardedFileWriter(fout, num_objects=len(keep)) as writer:
