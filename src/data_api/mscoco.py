@@ -17,12 +17,17 @@ class MSCOCO(object):
         if set_name == 'train':
             self._annotation_fname = os.path.join(
                 base_dir, train_annotation_fname)
+            self._set_dir = 'train'
         elif set_name == 'valid':
             self._annotation_fname = os.path.join(
                 base_dir, valid_annotation_fname)
+            self._set_dir = 'val'
         else:
             raise Exception('Set name {} not found'.format(set_name))
 
+        self._base_dir = base_dir
+        self._set_name = set_name
+        self._year = '2014'
         self._coco = COCO(self._annotation_fname)
 
         pass
@@ -55,7 +60,7 @@ class MSCOCO(object):
         return r
 
     def get_image_ids(self):
-        """
+        """Get all image IDs.
         """
         return self._coco.getImgIds()
 
@@ -75,13 +80,42 @@ class MSCOCO(object):
         """Get annotations of an image
 
         Args:
-            image_id: string, image ID.
+            image_id: string or number, image ID.
         Returns:
             annotations: list, list of annotation dictionaries.
         """
         if type(image_id) is str:
             image_id = int(image_id)
+
         if image_id in self._coco.imgToAnns:
             return self._coco.imgToAnns[image_id]
         else:
             return None
+
+    def get_image_path(self, image_id):
+        """Get storage path of an image.
+
+        Args:
+            image_id: string or number, image ID.
+        Returns:
+            image_path: string, path to the image file.
+        """
+        if type(image_id) is str:
+            image_id = int(image_id)
+
+        yeardir = self._set_dir + self._year
+        image_path = os.path.join(self._base_dir, 'images', yeardir,
+                                  'COCO_{}_{:012d}.jpg'.format(
+                                      yeardir, image_id))
+
+        return image_path
+
+    def get_image_url(self, image_id):
+        """Get Flickr url of an image.
+
+        Args:
+            image_id: string or number, image ID.
+        Returns:
+            image_url: string, url to the image file.
+        """
+        return None

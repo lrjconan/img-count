@@ -6,13 +6,13 @@ Ideal distribution:
 (design a discrete distribution)
 
 Usage: python mscoco_gen_count_data.py
-
 """
 
 from data_api import MSCOCO
 from data_api import COCOQA
 from utils import logger
 from utils import progress_bar
+from utils import ShardedFile, ShardedFileWriter
 import argparse
 import numpy as np
 
@@ -25,32 +25,36 @@ def get_count(annotations, cat_list_rev):
     """Get count information for each object class.
 
     Returns:
-        dict
+        count_dict: dict,
         {
             'image_id': string.
             'count': K-dim vector.
         }
     """
     num_classes = len(cat_list_rev)
-    counts = np.zeros((num_classes), dtype='int64')
+    cat_counts = np.zeros((num_classes), dtype='int64')
     for ann in annotations:
         cat_id = cat_list_rev[ann['category_id']]
-        counts[cat_id] += 1
+        cat_counts[cat_id] += 1
 
     counts_array = np.zeros((MAX_COUNT), dtype='int64')
 
     questions = []
     for i in xrange(num_classes):
-        counts_array[counts[i]] += 1
-        if counts[i] > 0:
-            questions.append({'category': i, 'number': counts[i]})
+        counts_array[cat_counts[i]] += 1
+        if cat_counts[i] > 0:
+            questions.append({'image_id': annotations[0]['image_id'],
+                              'category': i,
+                              'number': cat_counts[i]})
 
-    return {
+    count_dict = {
         'image_id': annotations[0]['image_id'],
-        'cat_counts': counts,
+        'cat_counts': cat_counts,
         'counts_array': counts_array,
         'questions': questions
     }
+
+    return count_dict
 
 
 def stat_count(counts_array):
@@ -118,11 +122,13 @@ def stat_cocoqa(cocoqa):
     answers = cocoqa.get_encoded_answers()
     answers = answers[number_qids]
     dist = [0] * len(ans_idict)
+
     for a in answers:
         dist[a] += 1
     for i in xrange(len(dist)):
         if dist[i] != 0:
             print ans_idict[i], dist[i]
+
     number_dict = {
         'one': 1,
         'two': 2,
@@ -136,6 +142,7 @@ def stat_cocoqa(cocoqa):
         'ten': 10
     }
     dist2 = [0] * 10
+
     for i in xrange(len(dist)):
         if dist[i] != 0:
             dist2[number_dict[ans_idict[i]] - 1] = dist[i]
@@ -153,6 +160,7 @@ def parse_args():
                         help='Dataset directory')
     parser.add_argument('-cocoqa_datadir', default='../data/cocoqa',
                         help='Dataset directory')
+    parser.add_argument('-output', default=None, help='Output file name')
     args = parser.parse_args()
 
     return args
@@ -168,6 +176,7 @@ if __name__ == '__main__':
     cat_counts = []
     counts_id = []
     questions = []
+    counts_dict_list = []
     err_image_ids = []
     empty_image_ids = []
     success_image_ids = []
@@ -181,6 +190,7 @@ if __name__ == '__main__':
             counts_id.append(counts_dict['image_id'])
             questions.extend(counts_dict['questions'])
             success_image_ids.append(image_id)
+            counts_dict_list.append(counts_dict)
         elif annotations is None:
             err_image_ids.append(image_id)
         elif len(annotations) == 0:
@@ -192,6 +202,7 @@ if __name__ == '__main__':
         len(err_image_ids),
         len(empty_image_ids),
         len(image_ids)))
+
     for image_id in empty_image_ids:
         log.error('Empty annotation in image: {}'.format(image_id))
     for image_id in err_image_ids:
@@ -207,5 +218,16 @@ if __name__ == '__main__':
 
     keep = apply_distribution(questions, cocoqa_dist)
     log.info('Generated {:d} questions.'.format(len(keep)))
+
+    if args.output:
+        log.info('Writing output to {}'.format(os.path.abspath(args.output)))
+        fout = ShardedFile(args.output, num_shards=1)
+        with ShardedFileWriter(fout, num_objects=len(keep)) as writer:
+            for k in writer:
+                questions[k]['category'] = np.array(
+                    [questions[k]['category']], dtype='int16')
+                questions[k]['number'] = np.array(
+                    [questions[k]['number']], dtype='int16')
+                writer.write(questions[k])
 
     pass

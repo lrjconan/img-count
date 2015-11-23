@@ -103,6 +103,8 @@ class ShardedFile(object):
         self.num_shards = num_shards
         self.suffix = suffix
 
+        pass
+
     def get_fname(self, shard):
         """Get the file name for a specific shard.
 
@@ -159,18 +161,15 @@ class ShardedFileReader(object):
         pass
 
     def __iter__(self):
-        """Get an iterator.
-        """
+        """Get an iterator."""
         return self
 
     def __enter__(self):
-        """Enter with clause.
-        """
+        """Enter with clause."""
         return self
 
     def __exit__(self, type, value, traceback):
-        """Exit with clause.
-        """
+        """Exit with clause."""
         if self._fh is not None:
             self._fh.close()
             self._fh = None
@@ -476,6 +475,10 @@ class ShardedFileWriter(object):
                     value = numpy.concatenate(self._buffer[key], axis=0)
                 elif isinstance(self._buffer[key][0], str):
                     value = numpy.array(self._buffer[key], dtype='string')
+                elif isinstance(self._buffer[key][0], int):
+                    value = numpy.array(self._buffer[key])
+                elif isinstance(self._buffer[key][0], float):
+                    value = numpy.array(self._buffer[key])
                 else:
                     raise Exception('Unknown type: {}'.format(
                         type(self._buffer[key][0])))
@@ -530,6 +533,7 @@ class ShardedFileWriter(object):
             return i
         else:
             raise StopIteration()
+
         pass
 
     def close(self):

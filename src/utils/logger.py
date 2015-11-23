@@ -23,7 +23,7 @@ import os
 import sys
 import traceback
 
-terminal = {
+TERM_COLOR = {
     'normal': '\033[0m',
     'bright': '\033[1m',
     'invert': '\033[7m',
@@ -114,19 +114,19 @@ class Logger(object):
         """
         if typ == 'info':
             typstr_print = '{0}INFO:{1}'.format(
-                terminal['green'], terminal['default'])
+                TERM_COLOR['green'], TERM_COLOR['default'])
             typstr_log = 'INFO:'
         elif typ == 'warning':
             typstr_print = '{0}WARNING:{1}'.format(
-                terminal['yellow'], terminal['default'])
+                TERM_COLOR['yellow'], TERM_COLOR['default'])
             typstr_log = 'WARNING'
         elif typ == 'error':
             typstr_print = '{0}ERROR:{1}'.format(
-                terminal['red'], terminal['default'])
+                TERM_COLOR['red'], TERM_COLOR['default'])
             typstr_log = 'ERROR'
         elif typ == 'fatal':
             typstr_print = '{0}FATAL:{1}'.format(
-                terminal['red'], terminal['default'])
+                TERM_COLOR['red'], TERM_COLOR['default'])
             typstr_log = 'FATAL'
         else:
             raise Exception('Unknown log type: {0}'.format(typ))
