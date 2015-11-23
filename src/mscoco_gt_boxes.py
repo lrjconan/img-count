@@ -16,7 +16,7 @@ from data_api import MSCOCO
 from utils import list_reader
 from utils import logger
 from utils import progress_bar
-from utils import ShardedFile, ShardedFileWriter
+from utils.sharded_hdf5 import ShardedFile, ShardedFileWriter
 import argparse
 import numpy
 import os
@@ -39,7 +39,7 @@ def run(mscoco, image_list, output_fname, num_shards):
     pb = progress_bar.get(len(image_list))
 
     log.info('Running through all images')
-    with ShardedFileWriter(fout, num_objects=len(image_list)):
+    with ShardedFileWriter(fout, num_objects=len(image_list)) as writer:
         for i in writer:
             image_fname = image_list[i]
             image_id = mscoco.get_image_id_from_path(image_fname)
@@ -85,7 +85,7 @@ def parse_args():
     parser.add_argument(
         '-num_shards',
         default=1,
-        type=int
+        type=int,
         help='Number of output shards')
     parser.add_argument(
         '-set',
