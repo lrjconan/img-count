@@ -53,5 +53,34 @@ class ShardedFileTests(unittest.TestCase):
         for i in xrange(num_shards):
             os.remove(f.get_fname(i))
 
+        pass
+
+    def test_read_keys(self):
+        N = 100
+        N1 = 10
+        D1 = 10
+        num_shards = 10
+
+        f = sh.ShardedFile('test2', num_shards=num_shards)
+
+        with sh.ShardedFileWriter(f, num_objects=N) as writer:
+            for i in writer:
+                data = {
+                    'key': i,
+                    'value': np.zeros((N1, D1)) + i
+                }
+                writer.write(data)
+
+        with sh.ShardedFileReader(f, key_name='key') as reader:
+            for i in xrange(N):
+                data = reader[i]
+                self.assertTrue((data['value'] == i).all())
+                self.assertTrue(data['key'] == i)
+
+        for i in xrange(num_shards):
+            os.remove(f.get_fname(i))
+
+        pass
+
 if __name__ == '__main__':
     unittest.main()

@@ -1,6 +1,6 @@
 """
 Sharded HDF5 format
-Storing of a bundle of sharded files for homogeneous data type (matrix/string).
+Storing of a bundle of sharded files for homogeneous data type.
 
 ==File system structure
     1. File pattern
@@ -10,18 +10,18 @@ Storing of a bundle of sharded files for homogeneous data type (matrix/string).
 
     2. HDF5 structure
     {
-        '__num_items__': int, number of items in this file.
+        '__num_items__': 1 elem numpy.ndarray, number of items in this file.
         '__sep_key1__': 1D separator int64 array for each item.
         '__sep_key2__': 1D separator int64 array for each item.
-        'key1': 2D array.
-        'key2': 2D array.
+        'key1': 1-2D numpy.ndarray.
+        'key2': 1-2D numpy.ndarray.
         ...
     }
 
     3. Object mapping
     {
-        'key1': 1D or 2D array.
-        'key2': 1D or 2D array.
+        'key1': 1-2D numpy.ndarray, maps to 2D numpy.ndarray in the file.
+        'key2': string, int, float, maps to 1D numpy.ndarray in the file.
         ...
     }
 
@@ -41,10 +41,14 @@ Storing of a bundle of sharded files for homogeneous data type (matrix/string).
     >>     for items in reader.seek(50):
     >>         do(items)
 
-    3. Read: random access
+    3. Read: random access with position
     >> with ShardedFileReader(ShardedFile('a', 100)) as reader:
     >>     reader.seek(pos=position)
     >>     data = reader.read(num_items=100)
+
+    4. Read: random access with key
+    >> with ShardedFileReader(ShardedFile('a', 100), key_name='key') as reader:
+    >>     data = reader['data_id']
 
     4.  Write in order
     >> with ShardedFileWriter(ShardedFile('a', 10), num_objects=100) as writer:
@@ -72,6 +76,8 @@ KEY_NUM_ITEM = '__num_items__'
 KEY_SEPARATOR = '__sep_{}__'
 KEY_SEPARATOR_RE = re.compile('^__sep_([^_]+)__$')
 KEY_SEPARATOR_PREFIX = '__sep_'
+FILE_PATTERN = re.compile(
+    '^(?P<prefix>.*)-(?P<shard>[0-9]{5})-of-(?P<total>[0-9]{5})(?P<suffix>.*)$')
 
 
 def _get_sep_from_key(key):
@@ -89,8 +95,7 @@ def _get_key_from_sep(sep):
 
 
 class ShardedFile(object):
-    """Sharded file object.
-    """
+    """Sharded file object."""
 
     def __init__(self, file_prefix, num_shards, suffix='.h5'):
         """Construct a sharded file instance.
@@ -104,6 +109,69 @@ class ShardedFile(object):
         self.suffix = suffix
 
         pass
+
+    @classmethod
+    def from_pattern(cls, file_pattern):
+        """Initialize a sharded file object with file pattern.
+
+        Note:
+            File pattern must look same as the format:
+            file_pattern = {prefix}-?????-of-{num_shards}{suffix}
+
+        Example:
+            file_pattern = prefix-?????-of-00010.h5
+        """
+        match = FILE_PATTERN.match(file_pattern)
+        if match:
+            return cls(file_prefix=match.groupdict()['prefix'],
+                       num_shards=int(match.groupdict()['total']),
+                       suffix=match.groupdict()['suffix'])
+
+    @classmethod
+    def from_pattern_read(cls, file_pattern):
+        """Initialize a sharded file object with file pattern.
+
+        Note:
+            Pattern can be general wildcard but files must already exist.
+
+        Example:
+            file_pattern = prefix*
+        """
+        flist = []
+        dirname = os.path.dirname(file_pattern)
+
+        for fname in os.listdir(dirname):
+            if fnmatch.fnmatch(fname, file_pattern):
+                flist.append(fname)
+
+        prefix = None
+        suffix = None
+        num_shards = 0
+
+        for fname in flist:
+            match = FILE_PATTERN.match(fname)
+            if match:
+                if prefix is None:
+                    prefix = match.groupdict()['prefix']
+                elif prefix != match.groupdict()['prefix']:
+                    raise Exception(
+                        'Found two different prefixes in the file pattern.')
+
+                if suffix is None:
+                    suffix = match.groupdict()['suffix']
+                elif suffix != match.groupdict()['suffix']:
+                    raise Exception(
+                        'Found two different suffixes in the file pattern.')
+
+                if num_shards == 0:
+                    num_shards = int(match.groupdict()['total'])
+                elif num_shards != int(match.groupdict()['total']):
+                    raise Exception(
+                        'Found two different total number of shards.')
+            else:
+                raise Exception('Incorrect file pattern: {}'.format(fname))
+
+        return cls(file_prefix=prefix, num_shards=num_shards, suffix=suffix)
 
     def get_fname(self, shard):
         """Get the file name for a specific shard.
@@ -122,11 +190,12 @@ class ShardedFileReader(object):
     """Shareded file reader.
     """
 
-    def __init__(self, sharded_file, batch_size=1, check=True):
+    def __init__(self, sharded_file, key_name=None, batch_size=1, check=True):
         """Construct a sharded file reader instance.
 
         Args:
             sharded_file: SharededFile instance.
+            key_name: Name of key field for random access (optional).
             batch_size: number, average batch_size for each read. The actual 
             size depends on the number of items in a file so is not guaranteed 
             to be the same size.
@@ -154,6 +223,12 @@ class ShardedFileReader(object):
         # Current file separator.
         self._cur_sep = {}
 
+        # Index based on keys.
+        self._key_index = None
+
+        # Name of the key field.
+        self._key_name = key_name
+
         # Check files all exist.
         if check:
             self._check_files()
@@ -163,6 +238,10 @@ class ShardedFileReader(object):
     def __iter__(self):
         """Get an iterator."""
         return self
+
+    def __getitem__(self, key):
+        """Get item based on key"""
+        return self.read_key(key)
 
     def __enter__(self):
         """Enter with clause."""
@@ -203,7 +282,8 @@ class ShardedFileReader(object):
         # Check all files in the sequence exist.
         for idx in xrange(self.file.num_shards):
             if idx not in found_files:
-                raise Exception(ERR_MSG_MISSING_FILE.format(idx, total))
+                raise Exception(ERR_MSG_MISSING_FILE.format(
+                    idx, self.file.num_shards))
 
         log.info('Check file success: {}'.format(self.file.file_prefix))
 
@@ -215,7 +295,7 @@ class ShardedFileReader(object):
         Returns:
             file_index: list, end element id - 1 of each shard.
         """
-        log.info('Building index')
+        log.info('Building index of file {}'.format(self.file.basename))
         file_index = []
         index = 0
         for shard_idx in xrange(self.file.num_shards):
@@ -229,6 +309,41 @@ class ShardedFileReader(object):
             file_index.append(index)
 
         return file_index
+
+    def _build_key(self, key_name):
+        """Build a mapping from a key to shard number and position.
+
+        Args:
+            key_name: string, name of the key field.
+        """
+        log.info('Building key index of file {}'.format(self.file.basename))
+        self._key_index = {}
+        for shard_idx in xrange(self.file.num_shards):
+            fname = self.file.get_fname(shard_idx)
+            fh = h5py.File(fname, 'r')
+            if key_name in fh:
+                key_index_i = fh[key_name][:]
+                num_keys = key_index_i.shape[0]
+
+                if KEY_NUM_ITEM in fh:
+                    num_items = fh[KEY_NUM_ITEM][0]
+                else:
+                    raise Exception(
+                        ERR_MSG_MISSING_NUM_ITEMS_FIELD.format(fname))
+
+                if num_keys != num_items:
+                    raise Exception(
+                        'Number of keys not equal to number of items')
+
+                for key_idx in xrange(key_index_i.shape[0]):
+                    k = key_index_i[key_idx]
+                    self._key_index[k] = (shard_idx, key_idx)
+            else:
+                raise Exception(
+                    'Key "{}" not found in the file {}'.format(
+                        key_name, fname))
+
+        pass
 
     def find(self, index):
         """Find the file id.
@@ -269,12 +384,26 @@ class ShardedFileReader(object):
 
         pass
 
+    def _read_item(self, idx):
+        result = {}
+        for key in self._fh.keys():
+            if not key.startswith('__'):
+                # Compute line start and end.
+                if idx == 0:
+                    line_start = 0
+                else:
+                    line_start = self._cur_sep[key][idx - 1]
+                line_end = self._cur_sep[key][idx]
+                result[key] = self._fh[key][line_start: line_end]
+        
+        return result
+
     def read(self, num_items=1):
         """Read from the current position.
 
         Args:
             num_items: number, number of desired items to read. It is not 
-            guaranteed to return the exact same number of items
+            guaranteed to return the exact same number of items.
         Returns:
             results: list of dict, keys are same with the keys defined in the 
             file, values are numpy.ndarray.
@@ -310,16 +439,7 @@ class ShardedFileReader(object):
         # Read data.
         results = []
         for i, idx in enumerate(xrange(item_start, item_end)):
-            results.append({})
-            for key in self._fh.keys():
-                if not key.startswith('__'):
-                    # Compute line start and end.
-                    if item_start == 0:
-                        line_start = 0
-                    else:
-                        line_start = self._cur_sep[key][idx - 1]
-                    line_end = self._cur_sep[key][idx]
-                    results[i][key] = self._fh[key][line_start: line_end]
+            results.append(self._read_item(idx))
 
         self._pos += num_items
 
@@ -327,6 +447,39 @@ class ShardedFileReader(object):
             return results[0]
         else:
             return results
+
+    def read_key(self, key):
+        """Read an item based on key.
+
+        Args:
+            key: string, key of the item.
+        Returns:
+            results: dict.
+        """
+        # Build key index lazily.
+        if self._key_index is None:
+            if self._key_name:
+                self._build_key(self._key_name)
+            else:
+                raise Exception(
+                    'You need to specify key field in the constructor.')
+
+        if key not in self._key_index:
+            return None
+        else:
+            location = self._key_index[key]
+            fid = location[0]
+            pos = location[1]
+            if fid != self._cur_fid:
+                self._cur_fid = fid
+                self._fh = None
+                self._need_refresh = False
+            if fid != 0:
+                file_start = self._file_index[fid - 1]
+                pos = pos + file_start
+            self._pos = pos
+
+        return self.read(num_items=1)
 
     def seek(self, pos):
         """Seek to specific position.
