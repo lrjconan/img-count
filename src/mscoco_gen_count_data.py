@@ -180,7 +180,7 @@ if __name__ == '__main__':
     empty_image_ids = []
     success_image_ids = []
     log.info('Scanning dataset')
-    for image_id in progress_bar.get_list(image_ids):
+    for image_id in progress_bar.get_iter(image_ids):
         annotations = mscoco.get_image_annotations(image_id)
         if annotations is not None and len(annotations) > 0:
             counts_dict = get_count(annotations, cat_list_rev)
