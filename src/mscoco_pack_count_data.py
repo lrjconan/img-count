@@ -38,6 +38,7 @@ Usage:
     >> python mscoco_pack_count_data.py -input_info {count info data} \
                                         -input_feature {box feature data} \
                                         -datadir {MS-COCO data folder} \
+                                        -set train \
                                         -output {output file name} \
                                         -num_shards {output number of shards}
 
@@ -45,6 +46,7 @@ Example:
     >> python mscoco_pack_count_data.py -input_info info_?????-of-00001.h5 \
                                         -input_feature feat_?????-of-00009.h5 \
                                         -datadir ../data/mscoco \
+                                        -set train
                                         -output ../ \
                                         -num_shards {output number of shards}
 
@@ -85,16 +87,13 @@ def pack_data(mscoco, info_file, feature_file, local_feat, output_fname, num_ex_
     inps = []
     with ShardedFileReader(info_file) as info_reader:
         num_obj = len(info_reader)
-        # log.error('Number of entries: {:d}'.format(num_obj))
+        log.info('Number of entries: {:d}'.format(num_obj))
         pb = progress_bar.get(num_obj)
         num_shards = int(np.ceil(num_obj / float(num_ex_per_shards)))
         output_file = ShardedFile(output_fname, num_shards=num_shards)
         with ShardedFileReader(feature_file) as feature_reader:
             with ShardedFileWriter(output_file, num_objects=num_obj) as writer:
                 for i, question_entry in itertools.izip(writer, info_reader):
-                    # log.error('idx: {:d}'.format(i))
-                    # log.error('writer shard: {:d}'.format(writer._shard))
-                    # log.error('writer file: {:d}'.format(writer.file.num_shards))
                     image_id = question_entry['image_id']
                     image_path = mscoco.get_image_path(image_id)
 
@@ -138,6 +137,7 @@ def pack_data(mscoco, info_file, feature_file, local_feat, output_fname, num_ex_
                     total_inp = np.concatenate((cat, inp)).astype('float32')
 
                     data = {
+                        'image_id': image_id,
                         'input': total_inp,
                         'label': int(question_entry['number'])
                     }

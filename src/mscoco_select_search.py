@@ -88,8 +88,8 @@ def run_selective_search(image_list, output_fname, num_shards=1):
                                                           num_images, 
                                                           image_fname))
 
-            data = {'boxes': boxes, 'image': image_fname}
-            writer.write(data)
+            data = {'boxes': boxes}
+            writer.write(data, key=image_fname)
 
     # Finally log all errors.
     for img in error_images:
