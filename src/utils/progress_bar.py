@@ -33,7 +33,7 @@ def get(length):
 
 
 def get_iter(iterable):
-    """Returns a progress bar from iterable.""""
+    """Returns a progress bar from iterable."""
     return ProgressBar(len(iterable), iterable=iter(iterable))
 
 

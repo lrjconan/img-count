@@ -52,10 +52,11 @@ Example:
 
 from data_api import MSCOCO
 from utils import logger
-from utils.sharded_hdf5 import ShardedFile, ShardedFileReader, ShardedFileWriter
 from utils import progress_bar
-import numpy as np
+from utils.sharded_hdf5 import ShardedFile, ShardedFileReader, ShardedFileWriter
+import argparse
 import itertools
+import numpy as np
 
 log = logger.get()
 
@@ -84,35 +85,61 @@ def pack_data(mscoco, info_file, feature_file, local_feat, output_fname, num_ex_
     inps = []
     with ShardedFileReader(info_file) as info_reader:
         num_obj = len(info_reader)
+        # log.error('Number of entries: {:d}'.format(num_obj))
         pb = progress_bar.get(num_obj)
-        num_shards = np.ceil(num_obj / float(num_ex_per_shards))
+        num_shards = int(np.ceil(num_obj / float(num_ex_per_shards)))
         output_file = ShardedFile(output_fname, num_shards=num_shards)
         with ShardedFileReader(feature_file) as feature_reader:
             with ShardedFileWriter(output_file, num_objects=num_obj) as writer:
                 for i, question_entry in itertools.izip(writer, info_reader):
+                    # log.error('idx: {:d}'.format(i))
+                    # log.error('writer shard: {:d}'.format(writer._shard))
+                    # log.error('writer file: {:d}'.format(writer.file.num_shards))
                     image_id = question_entry['image_id']
                     image_path = mscoco.get_image_path(image_id)
-                    info = info_reader[image_id]
+
                     feature = feature_reader[image_path]
-                    if local_feat:
+                    if feature is None:
+                        raise Exception(
+                            'Key {} not found in feature'.format(image_path))
+
+                    if local_feat is None:
                         local_feat_dim = 0
                     else:
                         local_feat_dim = feature[local_feat].shape[-1]
-                    num_boxes = feature['boxes'].shape[0]
-                    inp_dim = num_boxes * (4 + 1 + 1 + local_feat_dim)
-                    inp = np.zeros((num_boxes, inp_dim))
+
+                    if len(feature['boxes'].shape) == 1:
+                        num_boxes = 1
+                    elif len(feature['boxes'].shape) == 2:
+                        num_boxes = feature['boxes'].shape[0]
+                    else:
+                        raise Exception('Unknown shape for boxes {}'.format(
+                            feature['boxes'].shape))
+
+                    inp_dim = 4 + 1 + 1 + local_feat_dim
+                    inp = np.zeros((num_boxes, inp_dim), dtype='float32')
+
                     for box_i in xrange(num_boxes):
-                        inp[box_i, :4] = feature['boxes'][box_i]
-                        inp[box_i, 4] = feature['categories'][box_i]
-                        inp[box_i, 5] = feature['scores'][box_i]
-                        if local_feat:
-                            inp[box_i, 6:] = feature[local_feat]
+                        if num_boxes == 1:
+                            inp[box_i, :4] = feature['boxes']
+                            inp[box_i, 4] = feature['categories']
+                            inp[box_i, 5] = feature['scores']
+                            if local_feat:
+                                inp[box_i, 6:] = feature[local_feat]
+                        else:
+                            inp[box_i, :4] = feature['boxes'][box_i]
+                            inp[box_i, 4] = feature['categories'][box_i]
+                            inp[box_i, 5] = feature['scores'][box_i]
+                            if local_feat:
+                                inp[box_i, 6:] = feature[local_feat][box_i]
+
                     inp = inp.reshape(num_boxes * inp_dim)
-                    cat = np.array([info['category']])
+                    cat = np.array([question_entry['category']])
                     total_inp = np.concatenate((cat, inp)).astype('float32')
+
                     data = {
-                        'input': total_inp
-                        'label': info['number']
+                        'input': total_inp,
+                        'label': int(question_entry['number'])
                     }
                     writer.write(data)
                     pb.increment()
@@ -128,6 +155,6 @@ if __name__ == '__main__':
     log.info('Feature file: {}'.format(args.input_feature))
     feature_file = ShardedFile.from_pattern_read(args.input_feature)
 
-    mscoco = MSCOCO(base_dir=args.datadir, set=args.set)
+    mscoco = MSCOCO(base_dir=args.datadir, set_name=args.set)
     pack_data(mscoco, info_file, feature_file, args.local_feat,
               args.output, args.num_ex_per_shards)

@@ -81,6 +81,7 @@ Storing of a bundle of sharded files for homogeneous data type.
 
 
 import bisect
+import fnmatch
 import h5py
 import logger
 import math
@@ -168,16 +169,20 @@ class ShardedFile(object):
         dirname = os.path.dirname(file_pattern)
 
         for fname in os.listdir(dirname):
-            if fnmatch.fnmatch(fname, file_pattern):
-                flist.append(fname)
+            fullname = os.path.join(dirname, fname)
+            if fnmatch.fnmatch(fullname, file_pattern):
+                flist.append(fullname)
 
         prefix = None
         suffix = None
         num_shards = 0
 
+        if len(flist) == 0:
+            raise Exception('No file pattern found: {}'.format(file_pattern))
+
         for fname in flist:
             match = FILE_PATTERN.match(fname)
-            if match:
+            if match is not None:
                 if prefix is None:
                     prefix = match.groupdict()['prefix']
                 elif prefix != match.groupdict()['prefix']:
@@ -206,6 +211,9 @@ class ShardedFile(object):
         Args:
             shard: int, shard index.
         """
+        # log.error('current shard: {:d}'.format(shard))
+        # log.error('total shard: {:d}'.format(self.num_shards))
+        
         if shard >= self.num_shards:
             raise Exception(ERR_MSG_IDX_TOO_LARGE2)
 
@@ -395,7 +403,8 @@ class ShardedFileReader(object):
         self._cur_fid += 1
         if self._fh is not None:
             self._fh.close()
-        self._fh = h5py.File(self.file.get_fname(self._cur_fid))
+            self._fh = None
+        self._fh = h5py.File(self.file.get_fname(self._cur_fid), 'r')
         self._need_refresh = False
 
         pass
@@ -426,7 +435,10 @@ class ShardedFileReader(object):
                 else:
                     line_start = self._cur_sep[key][idx - 1]
                 line_end = self._cur_sep[key][idx]
-                result[key] = self._fh[key][line_start: line_end]
+                if line_start == line_end - 1:
+                    result[key] = self._fh[key][line_start]
+                else:
+                    result[key] = self._fh[key][line_start: line_end]
 
         return result
 
@@ -450,7 +462,7 @@ class ShardedFileReader(object):
 
         # Open a file.
         if self._fh is None:
-            self._fh = h5py.File(self.file.get_fname(self._cur_fid))
+            self._fh = h5py.File(self.file.get_fname(self._cur_fid), 'r')
             self._build_sep()
 
         # Compute file_start and file_end (absolute cursor) and
@@ -467,6 +479,12 @@ class ShardedFileReader(object):
         # Refresh next time if reached the end.
         if item_end == file_end - file_start:
             self._need_refresh = True
+        
+        # log.error('fn: {}'.format(self.file))
+        # log.error('fs: {:d}'.format(file_start))
+        # log.error('fe: {:d}'.format(file_end))
+        # log.error('is: {:d}'.format(item_start))
+        # log.error('ie: {:d}'.format(item_end))
 
         # Read data.
         results = []
@@ -488,7 +506,11 @@ class ShardedFileReader(object):
         Returns:
             results: dict.
         """
-        # Build key index lazily.
+        # Lazy build file index.
+        if self._file_index is None:
+            self._file_index = self._build_index()
+        
+        # Lazy build key index.
         if self._key_index is None:
             if self._key_name:
                 self._build_key(self._key_name)
@@ -527,7 +549,8 @@ class ShardedFileReader(object):
             self._cur_fid = fid
             if self._fh is not None:
                 self._fh.close()
-            self._fh = h5py.File(self.file.get_fname(fid))
+                self._fh = None
+            self._fh = h5py.File(self.file.get_fname(fid), 'r')
 
         return self
 
@@ -616,6 +639,7 @@ class ShardedFileWriter(object):
         self._flush()
         if self._fh is not None:
             self._fh.close()
+            self._fh = None
 
         pass
 
