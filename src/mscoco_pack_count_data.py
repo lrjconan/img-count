@@ -59,6 +59,7 @@ from utils.sharded_hdf5 import ShardedFile, ShardedFileReader, ShardedFileWriter
 import argparse
 import itertools
 import numpy as np
+import os
 
 log = logger.get()
 
@@ -156,5 +157,11 @@ if __name__ == '__main__':
     feature_file = ShardedFile.from_pattern_read(args.input_feature)
 
     mscoco = MSCOCO(base_dir=args.datadir, set_name=args.set)
+
+    # Make directory.
+    dirname = os.path.dirname(args.output)
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+
     pack_data(mscoco, info_file, feature_file, args.local_feat,
               args.output, args.num_ex_per_shards)
