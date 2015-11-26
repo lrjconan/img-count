@@ -287,13 +287,17 @@ def parse_args():
     parser.add_argument('-local_feat', default=None,
                         help=('Comma delimited list of layer names for '
                               'extracting local feature'))
-    parser.add_argument('-num_images_per_shard', type=int, default=10000,
+    parser.add_argument('-num_images_per_shard', default=10000, type=int,
                         help='Number of images per shard')
     parser.add_argument('-restore', action='store_true',
                         help='Whether to continue from previous checkpoint.')
     parser.add_argument('-groundtruth', action='store_true',
                         help=('Whether object proposals contain groundtruth '
                               'category in the 5th dimension'))
+    parser.add_argument('-shuffle', action='store_true',
+                        help='Whether to shuffle the image sequence.')
+    parser.add_argument('-max_num_images', default=-1,
+                        type=int, help='Maximum number of images to run')
 
     args = parser.parse_args()
 
@@ -445,6 +449,14 @@ if __name__ == '__main__':
         if not args.output:
             log.warning('Batch files: not saving results to file')
         image_list = list_reader.read_file_list(args.image_list, check=True)
+        if args.shuffle:
+            rand = np.random.RandomState(2)
+            rand.shuffle(image_list)
+        if args.max_num_images != -1:
+            if args.max_num_images <= 0:
+                log.fatal('max_num_images must be greater than 0.')
+            else:
+                image_list = image_list[:args.max_num_images]
     else:
         log.fatal('You need to specify input through -image or -image_list.')
 
