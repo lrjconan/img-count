@@ -545,29 +545,29 @@ if __name__ == '__main__':
                     if args.proposal:
 
                         # Check proposal exists.
-                        if image_fname not in proposal_reader:
+                        if img_fname not in proposal_reader:
                             log.error(
                                 'No image proposal found for file: {}'.format(
-                                    image_fname))
+                                    img_fname))
                             det_success = False
                             break
 
                         # Read object proposals.
-                        obj_proposals = proposal_reader[image_fname]['boxes']
+                        obj_proposals = proposal_reader[img_fname]['boxes']
 
                         # Groundtruth mode.
                         if args.groundtruth:
 
                             # Check GT proposal exists
-                            if image_fname not in gt_proposal_reader:
+                            if img_fname not in gt_proposal_reader:
                                 log.error(
                                     'No gt proposal found for file: {}'.format(
-                                        image_fname))
+                                        img_fname))
                                 det_success = False
                                 break
 
                             # Read groundtruth category.
-                            gt_cat = proposal_reader[image_fname]['categories']
+                            gt_cat = proposal_reader[img_fname]['categories']
 
                             results = run_image(img_fname, args,
                                                 obj_proposals=obj_proposals,
