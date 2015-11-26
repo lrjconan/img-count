@@ -573,7 +573,7 @@ if __name__ == '__main__':
                 try:
                     if args.output:
                         log.info('Writing to output buffer')
-                        writer.write(results)
+                        writer.write(results, key=img_fname)
                 except Exception as e:
                     log.error(e)
                     log.log_exception(e)

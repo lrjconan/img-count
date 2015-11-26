@@ -1,3 +1,7 @@
+"""
+COCO-QA Dataset API.
+"""
+
 import sys
 sys.path.insert(0, '../')
 
