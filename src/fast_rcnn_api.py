@@ -12,7 +12,7 @@ Interface to evaluate Fast R-CNN network
                                -cpu {cpu mode}
                                -conf {confidence threshold}
                                -nms {NMS threshold}
-                               -proposal {proposal file}
+                               -proposal {proposal file pattern}
                                -output {output file}
                                -plot {whether to plot in single image mode}
                                -local_feat {local feature layer names}
@@ -30,7 +30,7 @@ Interface to evaluate Fast R-CNN network
                                -conf 0.3 \
                                -nms 0.8 \
                                -local_feat "fc7,pool5" \
-                               -proposal "select_search_train.npy" \
+                               -proposal "select_search_train-*" \
                                -output "fast_rcnn_c3n8_train" \
                                -num_images_per_shard 10000
 
@@ -476,11 +476,15 @@ if __name__ == '__main__':
 
     if args.proposal:
         log.info('Loading pre-computed proposals')
-        proposal_list = np.load(args.proposal)
-        if args.groundtruth:
-            log.info('Groundtruth mode')
-            gt_cat_list = [p[:, 4] for p in proposal_list]
-            proposal_list = [p[:, :4] for p in proposal_list]
+        proposal_file = ShardedFile.from_pattern_read(args.proposal)
+        proposal_reader = ShardedFileReader(proposal_file)
+        # proposal_list = np.load(args.proposal)
+        # if args.groundtruth:
+        # log.info('Groundtruth mode')
+        # gt_proposal_file = ShardedFile.from_pattern_read(args.proposal)
+        # gt_proposal_reader = SharededFileReader(gt_proposal_file)
+        # gt_cat_list = [p[:, 4] for p in proposal_list]
+        # proposal_list = [p[:, :4] for p in proposal_list]
 
     if args.image:
         results = run_image(args.image, args)
@@ -531,17 +535,45 @@ if __name__ == '__main__':
             det_success = False
             max_failure = 20
             failure_counter = 0
+            results = None
+
+            # Trials.
             while not det_success:
                 try:
                     det_success = True
                     if args.proposal:
+
+                        # Check proposal exists.
+                        if image_fname not in proposal_reader:
+                            log.error(
+                                'No image proposal found for file: {}'.format(
+                                    image_fname))
+                            det_success = False
+                            break
+
+                        # Read object proposals.
+                        obj_proposals = proposal_reader[image_fname]['boxes']
+
+                        # Groundtruth mode.
                         if args.groundtruth:
+
+                            # Check GT proposal exists
+                            if image_fname not in gt_proposal_reader:
+                                log.error(
+                                    'No gt proposal found for file: {}'.format(
+                                        image_fname))
+                                det_success = False
+                                break
+
+                            # Read groundtruth category.
+                            gt_cat = proposal_reader[image_fname]['categories']
+
                             results = run_image(img_fname, args,
-                                                obj_proposals=proposal_list[i],
-                                                gt_cat=gt_cat_list[i])
+                                                obj_proposals=obj_proposals,
+                                                gt_cat=gt_cat)
                         else:
                             results = run_image(img_fname, args,
-                                                obj_proposals=proposal_list[i])
+                                                obj_proposals=obj_proposals)
                     else:
                         results = run_image(img_fname, args)
                 except Exception as e:
@@ -580,4 +612,5 @@ if __name__ == '__main__':
                     raise e
 
         # Close writer and flush to file.
+        proposal_reader.close()
         writer.close()

@@ -295,6 +295,18 @@ class ShardedFileReader(object):
         """Get total number of items."""
         return self.get_num_items()
 
+    def __contains__(self, key):
+        """Check whether a key is contained in the file."""
+        # Lazy build key index.
+        if self._key_index is None:
+            if self._key_name:
+                self._build_key(self._key_name)
+            else:
+                raise Exception(
+                    'You need to specify key field in the constructor.')
+
+        return key in self._key_index
+
     def _check_files(self):
         """Check existing files"""
 
@@ -525,7 +537,7 @@ class ShardedFileReader(object):
             location = self._key_index[key]
             fid = location[0]
             pos = location[1]
-            log.error('fid: {:d} pos: {:d}'.format(fid, pos))
+            # log.error('fid: {:d} pos: {:d}'.format(fid, pos))
             if fid != self._cur_fid:
                 self._cur_fid = fid
                 self._fh = None

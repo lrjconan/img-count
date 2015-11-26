@@ -55,7 +55,7 @@ def run(mscoco, image_list, output_fname, num_shards):
                 cats[i] = cat_rev_dict[ann['category_id']]
 
             data = {'boxes': boxes, 'categories': cats, 'image': image_fname}
-            writer.write(data)
+            writer.write(data, key=image_fname)
             pb.increment()
 
     for image_id in not_found:
@@ -103,3 +103,5 @@ if __name__ == '__main__':
     image_list = list_reader.read_file_list(args.image_list, check=True)
     mscoco = MSCOCO(base_dir=args.datadir, set_name=args.set)
     boxes = run(mscoco, image_list, args.output, args.num_shards)
+
+    pass

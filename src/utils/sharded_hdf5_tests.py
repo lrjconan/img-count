@@ -73,6 +73,7 @@ class ShardedFileTests(unittest.TestCase):
 
         with sh.ShardedFileReader(f) as reader:
             for i in xrange(N):
+                self.assertTrue((N - i) in reader)
                 data = reader[N - i]
                 self.assertTrue((data['value'] == i).all())
                 self.assertTrue(data['key'] == i)
