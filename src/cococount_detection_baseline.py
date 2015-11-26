@@ -13,10 +13,11 @@ Example:
                                     -det "fast_rcnn_valid_conf_0.8_nms_0.3-*"
 """
 
+from data_api import MSCOCO, COCOCount
 from utils import logger
 from utils import progress_bar
+from utils import stats_tools
 from utils.sharded_hdf5 import ShardedFile, ShardedFileReader
-from data_api import MSCOCO, COCOCount
 import argparse
 
 log = logger.get()
@@ -82,7 +83,11 @@ def run(mscoco, cococount, detect_file_pattern):
     if total > 0:
         acc = correct / float(total)
         log.info('Accuracy: {:4f}'.format(acc))
-
+        cf_mat = stats_tools.confusion_matrix(pred, labels)
+        cf_mat_norm = stats_tools.confusion_matrix(pred, labels)
+        stats_tools.print_confusion_matrix(cf_mat)
+        stats_tools.print_confusion_matrix(cf_mat_norm)
+        
     return acc
 
 
