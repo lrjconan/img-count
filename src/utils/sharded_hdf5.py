@@ -519,20 +519,24 @@ class ShardedFileReader(object):
                     'You need to specify key field in the constructor.')
 
         if key not in self._key_index:
+            log.warining('Key {} not found in file {}'.format(key, self.file))
             return None
         else:
             location = self._key_index[key]
             fid = location[0]
             pos = location[1]
+            log.error('fid: {:d} pos: {:d}'.format(fid, pos))
             if fid != self._cur_fid:
                 self._cur_fid = fid
                 self._fh = None
-                self._need_refresh = False
             if fid != 0:
                 file_start = self._file_index[fid - 1]
                 pos = pos + file_start
             self._pos = pos
 
+        # Disable refresh in key reading mode.
+        self._need_refresh = False
+        
         return self.read(num_items=1)
 
     def seek(self, pos):
