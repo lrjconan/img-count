@@ -63,7 +63,8 @@ from fast_rcnn_utils.nms import nms
 from fast_rcnn_utils.timer import Timer
 from utils import logger
 from utils import list_reader
-from utils.sharded_hdf5 import ShardedFile, ShardedFileWriter, KEY_NUM_ITEM
+from utils.sharded_hdf5 import ShardedFile, ShardedFileReader, \
+                               ShardedFileWriter, KEY_NUM_ITEM
 import argparse
 import caffe
 import cv2
