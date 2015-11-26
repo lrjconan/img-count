@@ -1,5 +1,7 @@
 for CONF in 0.7 0.8 0.9
+#for CONF in 0.7
 do
+    #for NMS in 0.2
     for NMS in 0.2 0.3 0.4
     do
         echo "CONF: $CONF"
@@ -15,7 +17,7 @@ do
             -conf $CONF \
             -nms $NMS \
             -local_feat "fc7,pool5" \
-            -proposal "/ais/gobi3/u/mren/data/mscoco/select_search_valid.npy" \
+            -proposal "/ais/gobi3/u/mren/data/mscoco/select_search_valid-?????-of-00001.h5" \
             -output "/ais/gobi3/u/mren/data/mscoco/fast_rcnn/fast_rcnn_valid_conf_""$CONF""_nms_""$NMS" \
             -num_images_per_shard 5000 \
             -shuffle \

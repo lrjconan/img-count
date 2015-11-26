@@ -15,7 +15,7 @@ Example:
 
 from utils import logger
 from utils import progress_bar
-from utils import ShardedFile, ShardedFileReader
+from utils.sharded_hdf5 import ShardedFile, ShardedFileReader
 from data_api import MSCOCO, COCOCount
 import argparse
 
@@ -33,23 +33,25 @@ def run(mscoco, cococount, detect_file_pattern):
 
     # Initialize files.
     detect_file = ShardedFile.from_pattern_read(detect_file_pattern)
-    cococount_info_path = coco_count.get_info_data_path()
-    cococount_info_file = ShardedFile.from_pattern_read(coco_count_info_path)
+    cococount_info_path = cococount.get_info_data_path()
+    cococount_info_file = ShardedFile.from_pattern_read(cococount_info_path)
 
     # Declare counters.
     correct = 0
     total = 0
-    with ShardedFileReader(coco_count_info_file) as info_reader:
+    preds = []
+    labels = []
+    with ShardedFileReader(cococount_info_file) as info_reader:
         with ShardedFileReader(detect_file) as detect_reader:
             for item in progress_bar.get_iter(info_reader):
                 # Read image ID.
                 image_id = item['image_id']
                 image_path = mscoco.get_image_path(image_id)
-                
+
                 # Check detection exists.
                 if image_path not in detect_reader:
-                    log.error(
-                        'Detection not found for image: {}'.format(image_id))
+                    # log.error(
+                    #     'Detection not found for image: {}'.format(image_id))
                     continue
                 
                 # Read detection.
@@ -57,20 +59,29 @@ def run(mscoco, cococount, detect_file_pattern):
 
                 # Count same category.
                 count = 0
-                for i in xrange(dets['categories'].shape[0]):
-                    # Detection category ID is 1-based.
+                if dets['categories'].size == 1:
                     if dets['categories'] == item['category'] + 1:
                         count += 1
+                else:
+                    for i in xrange(dets['categories'].size):
+                        # Detection category ID is 1-based.
+                        if dets['categories'][i] == item['category'] + 1:
+                            count += 1
                 
                 # Increment counters.
+                preds.append(count)
+                labels.append(item['number'])
+                
                 if count == item['number']:
                     correct += 1
 
                 total += 1
 
-    acc = correct / float(total)
-    log.info('Number of examples: {:d}':format(total))
-    log.info('Accuracy: {:4f}'.format(acc))
+    log.info('Number of examples: {:d}'.format(total))
+    
+    if total > 0:
+        acc = correct / float(total)
+        log.info('Accuracy: {:4f}'.format(acc))
 
     return acc
 
