@@ -40,7 +40,7 @@ def run(mscoco, cococount, detect_file_pattern):
     # Declare counters.
     correct = 0
     total = 0
-    preds = []
+    pred = []
     labels = []
     with ShardedFileReader(cococount_info_file) as info_reader:
         with ShardedFileReader(detect_file) as detect_reader:
@@ -54,7 +54,7 @@ def run(mscoco, cococount, detect_file_pattern):
                     # log.error(
                     #     'Detection not found for image: {}'.format(image_id))
                     continue
-                
+
                 # Read detection.
                 dets = detect_reader[image_path]
 
@@ -68,26 +68,28 @@ def run(mscoco, cococount, detect_file_pattern):
                         # Detection category ID is 1-based.
                         if dets['categories'][i] == item['category'] + 1:
                             count += 1
-                
-                # Increment counters.
-                preds.append(count)
-                labels.append(item['number'])
-                
-                if count == item['number']:
-                    correct += 1
 
-                total += 1
+                # Increment counters.
+                if count > 0:
+                    pred.append(count)
+                    labels.append(item['number'])
+
+                    if count == item['number']:
+                        correct += 1
+
+                    total += 1
 
     log.info('Number of examples: {:d}'.format(total))
-    
+
     if total > 0:
         acc = correct / float(total)
         log.info('Accuracy: {:4f}'.format(acc))
         cf_mat = stats_tools.confusion_matrix(pred, labels)
-        cf_mat_norm = stats_tools.confusion_matrix(pred, labels)
-        stats_tools.print_confusion_matrix(cf_mat)
-        stats_tools.print_confusion_matrix(cf_mat_norm)
-        
+        cf_mat_norm = stats_tools.confusion_matrix_norm(pred, labels)
+        stats_tools.print_confusion_matrix(cf_mat, label_classes=range(1, 10))
+        stats_tools.print_confusion_matrix(cf_mat_norm,
+                                           label_classes=range(1, 10))
+
     return acc
 
 
