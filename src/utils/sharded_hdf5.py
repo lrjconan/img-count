@@ -213,7 +213,7 @@ class ShardedFile(object):
         """
         # log.error('current shard: {:d}'.format(shard))
         # log.error('total shard: {:d}'.format(self.num_shards))
-        
+
         if shard >= self.num_shards:
             raise Exception(ERR_MSG_IDX_TOO_LARGE2)
 
@@ -491,7 +491,7 @@ class ShardedFileReader(object):
         # Refresh next time if reached the end.
         if item_end == file_end - file_start:
             self._need_refresh = True
-        
+
         # log.error('fn: {}'.format(self.file))
         # log.error('fs: {:d}'.format(file_start))
         # log.error('fe: {:d}'.format(file_end))
@@ -521,7 +521,7 @@ class ShardedFileReader(object):
         # Lazy build file index.
         if self._file_index is None:
             self._file_index = self._build_index()
-        
+
         # Lazy build key index.
         if self._key_index is None:
             if self._key_name:
@@ -548,7 +548,7 @@ class ShardedFileReader(object):
 
         # Disable refresh in key reading mode.
         self._need_refresh = False
-        
+
         return self.read(num_items=1)
 
     def seek(self, pos):
@@ -640,6 +640,9 @@ class ShardedFileWriter(object):
         # Index separator for current shard.
         self._cur_sep = {}
 
+        # Set of keys used.
+        self._keys = set()
+
         pass
 
     def __enter__(self):
@@ -665,24 +668,19 @@ class ShardedFileWriter(object):
 
         return self
 
-    def write(self, key, value):
-        """Write a key-value pair into buffer.
-        """
-        if self._dict_mode is None:
-            self._dict_mode = True
-        elif self._dict_mode == False:
-            raise Exception('Cannot write key-value pair in list mode.')
-        value[KEY_KEYS] = key
-        self.write(value)
-
     def write(self, data, key=None):
         """Write a single entry into buffer.
         """
         if self._fh is None:
             self._fh = h5py.File(self.file.get_fname(self._shard), 'w')
 
+        # Assign numerical key.
         if key is None:
             key = self._pos
+
+        # Check key exists.
+        if key in self._keys:
+            raise Exception('Key already exists: {}.'.format(key))
 
         # Check data format.
         for kkey in data.iterkeys():
@@ -716,6 +714,7 @@ class ShardedFileWriter(object):
             else:
                 self._cur_sep[kkey].append(shape0)
 
+        # Increment counter.
         self._cur_num_items += 1
 
         pass
