@@ -215,8 +215,10 @@ if __name__ == '__main__':
     cocoqa_dist = stat_cocoqa(cocoqa)
     log.info('COCO-QA dist: {}'.format(cocoqa_dist))
 
+    # Apply COCO-QA distribution and filter questions.
     keep = apply_distribution(questions, cocoqa_dist)
-    log.info('Generated {:d} questions.'.format(len(keep)))
+    questions = questions[keep]
+    log.info('Generated {:d} questions.'.format(len(questions)))
 
     if args.output:
         dirname = os.path.dirname(args.output)
