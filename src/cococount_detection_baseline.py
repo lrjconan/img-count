@@ -86,9 +86,9 @@ def run(mscoco, cococount, detect_file_pattern):
         log.info('Accuracy: {:4f}'.format(acc))
         cf_mat = stats_tools.confusion_matrix(pred, labels)
         cf_mat_norm = stats_tools.confusion_matrix_norm(pred, labels)
-        stats_tools.print_confusion_matrix(cf_mat, label_classes=range(1, 10))
+        stats_tools.print_confusion_matrix(cf_mat, label_classes=range(1, 11))
         stats_tools.print_confusion_matrix(cf_mat_norm,
-                                           label_classes=range(1, 10))
+                                           label_classes=range(1, 11))
 
     return acc
 

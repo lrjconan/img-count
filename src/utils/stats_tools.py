@@ -17,7 +17,10 @@ def confusion_matrix(pred, labels):
     """
     label_min = min(np.min(pred), np.min(labels))
     label_max = max(np.max(pred), np.max(labels))
+    log.info('Label min: {}'.format(label_min))
+    log.info('Label max: {}'.format(label_max))
     label_range = label_max - label_min + 1
+    log.info('Label range: {}'.format(label_range))
     cf_mat = np.zeros((label_range, label_range), dtype='int64')
     if isinstance(pred, list):
         if len(pred) != len(labels):
@@ -48,7 +51,10 @@ def confusion_matrix_norm(pred, labels):
     cf_mat = confusion_matrix(pred, labels)
     label_min = min(np.min(pred), np.min(labels))
     label_max = max(np.max(pred), np.max(labels))
+    log.info('Label min: {}'.format(label_min))
+    log.info('Label max: {}'.format(label_max))
     label_range = label_max - label_min + 1
+    log.info('Label range: {}'.format(label_range))
     label_count = np.zeros((label_range, 1), dtype='int64')
 
     for i in xrange(label_min, label_max):
@@ -95,9 +101,9 @@ def print_confusion_matrix(cf_mat, label_classes=None):
     pass
 
 if __name__ == '__main__':
-    p = np.floor(np.random.rand(20000) * 10).astype('int64')
-    l = np.floor(np.random.rand(20000) * 10).astype('int64')
+    p = np.ceil(np.random.rand(20000) * 10).astype('int64')
+    l = np.ceil(np.random.rand(20000) * 10).astype('int64')
     cm = confusion_matrix(p, l)
     cmn = confusion_matrix_norm(p, l)
-    print_confusion_matrix(cm)
-    print_confusion_matrix(cmn)
+    print_confusion_matrix(cm, range(1, 11))
+    print_confusion_matrix(cmn, range(1, 11))
