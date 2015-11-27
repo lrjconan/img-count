@@ -1,5 +1,5 @@
-import numpy as np
 import logger
+import numpy as np
 import sys
 
 log = logger.get()
@@ -38,9 +38,10 @@ def confusion_matrix(pred, labels):
 
     return cf_mat
 
+
 def confusion_matrix_norm(pred, labels):
     """Compute normalized confusion matrix.
-    
+
     Args:
         pred: list or numpy.ndarray, (N, 1), dtype: int, prediction vector.
         labels: list or numpy.ndarray, (N, 1), dtype: int, labels vector.
@@ -60,11 +61,12 @@ def confusion_matrix_norm(pred, labels):
     for i in xrange(label_min, label_max):
         labels_np = np.array(labels, dtype='int64')
         label_count[i - label_min] = np.sum((labels_np == i).astype('int64'))
-    
+
     cf_mat_norm = cf_mat / label_count.astype('float64')
     cf_mat_norm[(label_count == 0)[:, 0], :] = 0.0
 
     return cf_mat_norm
+
 
 def print_confusion_matrix(cf_mat, label_classes=None):
     """Print confusion matrix.
@@ -82,7 +84,7 @@ def print_confusion_matrix(cf_mat, label_classes=None):
     for i in xrange(len(label_classes)):
         sys.stdout.write('{:6}'.format(label_classes[i]))
     sys.stdout.write('\n')
-    
+
     sys.stdout.write('{:8}'.format(''))
     for i in xrange(len(label_classes)):
         sys.stdout.write('------')

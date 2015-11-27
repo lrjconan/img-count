@@ -69,13 +69,13 @@ Storing of a bundle of sharded files for homogeneous data type.
     6. Write a list
     >> f = ShardedFile('a', num_shards=100)
     >> with ShardedFileWriter(f, num_objects=1000) as writer:
-    >>     for i in xrange(100):
+    >>     for i in xrange(1000):
     >>         writer.write(item[i])
 
     7. Write a dictionary (see example 5 for reading dictionary)
     >> f = ShardedFile('a', num_shards=100)
     >> with ShardedFileWriter(f, num_objects=1000) as writer:
-    >>     for i in xrange(100):
+    >>     for i in xrange(1000):
     >>         writer.write(item, key=key)
 """
 
@@ -123,8 +123,7 @@ class ShardedFile(object):
     """Sharded file object."""
 
     def __init__(self, file_prefix, num_shards, suffix='.h5'):
-        """Construct a sharded file instance.
-        """
+        """Construct a sharded file instance."""
         if not isinstance(num_shards, int):
             raise Exception('Number of shards need to be integer')
         self.file_prefix = os.path.abspath(file_prefix)
@@ -145,7 +144,6 @@ class ShardedFile(object):
         Note:
             File pattern must look same as the format:
             file_pattern = {prefix}-?????-of-{num_shards}{suffix}
-
         Example:
             file_pattern = prefix-?????-of-00010.h5
         """
@@ -161,7 +159,6 @@ class ShardedFile(object):
 
         Note:
             Pattern can be general wildcard but files must already exist.
-
         Example:
             file_pattern = prefix*
         """
@@ -618,8 +615,7 @@ class ShardedFileReader(object):
 
 
 class ShardedFileWriter(object):
-    """Sharded file writer.
-    """
+    """Sharded file writer."""
 
     def __init__(self, sharded_file, num_objects):
         """Construct a sharded file writer instance.
@@ -664,15 +660,11 @@ class ShardedFileWriter(object):
         pass
 
     def __enter__(self):
-        """Enter with clause.
-        """
-
+        """Enter with clause."""
         return self
 
     def __exit__(self, type, value, traceback):
-        """Exit with clause.
-        """
-
+        """Exit with clause."""
         self._flush()
         if self._fh is not None:
             self._fh.close()
@@ -682,6 +674,11 @@ class ShardedFileWriter(object):
 
     def write(self, data, key=None):
         """Write a single entry into buffer.
+
+        Args:
+            data: numpy.ndarray or int or string, data entry.
+            key: (optional), int or string, key for data entry, default is the 
+            0-based index.
         """
         if self._fh is None:
             self._fh = h5py.File(self.file.get_fname(self._shard), 'w')
@@ -733,8 +730,7 @@ class ShardedFileWriter(object):
         pass
 
     def _flush(self):
-        """Flush the buffer into the current shard.
-        """
+        """Flush the buffer into the current shard."""
         if len(self._buffer) > 0:
             for key in self._buffer.iterkeys():
                 if isinstance(self._buffer[key][0], numpy.ndarray):
@@ -761,8 +757,7 @@ class ShardedFileWriter(object):
         pass
 
     def seek(self, pos, shard):
-        """Seek to a position.
-        """
+        """Seek to a position."""
         self._shard = shard
         self._pos = pos
         if self._fh is not None:
@@ -772,8 +767,7 @@ class ShardedFileWriter(object):
         pass
 
     def next_file(self):
-        """Move to writing the next shard.
-        """
+        """Move to writing the next shard."""
         if self._cur_num_items > 0:
             self._flush()
 
@@ -787,8 +781,7 @@ class ShardedFileWriter(object):
         pass
 
     def next(self):
-        """Move to writing the next object.
-        """
+        """Move to writing the next object."""
 
         if self._pos < self._num_objects:
             r = self._pos - self._shard * self._num_objects_per_shard
@@ -798,13 +791,14 @@ class ShardedFileWriter(object):
             self._pos += 1
             return i
         else:
-            raise StopIteration()
+            raise Exception(
+                'Exceeded initialized capacity {}'.format(self._num_objects))
+            # raise StopIteration()
 
         pass
 
     def close(self):
-        """Close the opened file.
-        """
+        """Close the opened file."""
         self.__exit__(None, None, None)
 
         pass

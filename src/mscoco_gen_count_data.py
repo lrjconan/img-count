@@ -6,8 +6,7 @@ Answer distribution is reshaped into COCO-QA distribution
 Usage: python mscoco_gen_count_data.py
 """
 
-from data_api import MSCOCO
-from data_api import COCOQA
+from data_api import COCOQA, MSCOCO
 from utils import logger
 from utils import progress_bar
 from utils.sharded_hdf5 import ShardedFile, ShardedFileWriter
