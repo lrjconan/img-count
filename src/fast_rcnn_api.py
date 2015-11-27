@@ -525,11 +525,8 @@ if __name__ == '__main__':
                         break
                 log.info('Restarting from checkpoint {:d}'.format(checkpoint))
                 writer.seek(pos=checkpoint, shard=checkfile)
-            it = writer
-        else:
-            it = xrange(num_images)
 
-        for i in it:
+        for i in xrange(num_images):
             img_fname = image_list[i]
             log.info('Running {:d}/{:d}: {}'.format(
                 i + 1, len(image_list), img_fname))

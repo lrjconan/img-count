@@ -68,14 +68,14 @@ Storing of a bundle of sharded files for homogeneous data type.
 
     6. Write a list
     >> f = ShardedFile('a', num_shards=100)
-    >> with ShardedFileWriter(f, num_objects=100) as writer:
-    >>     for i in writer:
+    >> with ShardedFileWriter(f, num_objects=1000) as writer:
+    >>     for i in xrange(100):
     >>         writer.write(item[i])
 
     7. Write a dictionary (see example 5 for reading dictionary)
     >> f = ShardedFile('a', num_shards=100)
-    >> with ShardedFileWriter(f, num_objects=100) as writer:
-    >>     for i in writer:
+    >> with ShardedFileWriter(f, num_objects=1000) as writer:
+    >>     for i in xrange(100):
     >>         writer.write(item, key=key)
 """
 
@@ -551,6 +551,24 @@ class ShardedFileReader(object):
 
         return self.read(num_items=1)
 
+    def keys(self):
+        """Get a list of keys."""
+        # Lazy build key index.
+        if self._key_index is None:
+            if self._key_name:
+                self._build_key(self._key_name)
+
+        return self._key_index.keys()
+
+    def iterkeys(self):
+        """Get an iterable of keys."""
+        # Lazy build key index.
+        if self._key_index is None:
+            if self._key_name:
+                self._build_key(self._key_name)
+
+        return self._key_index.iterkeys()
+
     def seek(self, pos):
         """Seek to specific position.
 
@@ -662,12 +680,6 @@ class ShardedFileWriter(object):
 
         pass
 
-    def __iter__(self):
-        """Get an iterator.
-        """
-
-        return self
-
     def write(self, data, key=None):
         """Write a single entry into buffer.
         """
@@ -716,6 +728,7 @@ class ShardedFileWriter(object):
 
         # Increment counter.
         self._cur_num_items += 1
+        self.next()
 
         pass
 

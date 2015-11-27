@@ -57,7 +57,6 @@ from utils import logger
 from utils import progress_bar
 from utils.sharded_hdf5 import ShardedFile, ShardedFileReader, ShardedFileWriter
 import argparse
-import itertools
 import numpy as np
 import os
 
@@ -94,7 +93,7 @@ def pack_data(mscoco, info_file, feature_file, local_feat, output_fname, num_ex_
         output_file = ShardedFile(output_fname, num_shards=num_shards)
         with ShardedFileReader(feature_file) as feature_reader:
             with ShardedFileWriter(output_file, num_objects=num_obj) as writer:
-                for i, question_entry in itertools.izip(writer, info_reader):
+                for question_entry in info_reader:
                     image_id = question_entry['image_id']
                     image_path = mscoco.get_image_path(image_id)
 

@@ -228,7 +228,7 @@ if __name__ == '__main__':
         log.info('Writing output to {}'.format(os.path.abspath(args.output)))
         fout = ShardedFile(args.output, num_shards=1)
         with ShardedFileWriter(fout, num_objects=len(keep)) as writer:
-            for k in writer:
+            for k in xrange(len(keep)):
                 questions[k]['category'] = np.array(
                     [questions[k]['category']], dtype='int16')
                 questions[k]['number'] = np.array(

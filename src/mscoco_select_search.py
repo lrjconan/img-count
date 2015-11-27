@@ -65,7 +65,7 @@ def run_selective_search(image_list, output_fname, num_shards=1):
     fout = ShardedFile(output_fname, num_shards=num_shards)
 
     with ShardedFileWriter(fout, num_objects=num_images) as writer:
-        for i in writer:
+        for i in xrange(num_images):
             image_fname = image_list[i]
             error_occurred = False
 
