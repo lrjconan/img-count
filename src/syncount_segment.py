@@ -100,6 +100,12 @@ def parse_args():
 
     return args
 
+def conv2d(x, W):
+    return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+
+def max_pool_2x2(x):
+    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
+                          strides=[1, 2, 2, 1], padding='SAME')
 
 if __name__ == '__main__':
     # Options
@@ -116,17 +122,32 @@ if __name__ == '__main__':
         'min_window_size': args.min_window_size,
         'output_window_size': args.output_window_size
     }
-
-    # Create model
-    imwidth = opt['width']
-    imheight = opt['height']
-    x = tf.placeholder('float', [None, imwidth, imheight])
     out_size = opt['output_window_size']
 
-    x_reshape = tf.reshape(x, [-1, imwidth * imheight])
-    weights = tf.Variable(tf.zeros([imwidth * imheight, out_size * out_size]))
-    bias = tf.Variable(tf.zeros([out_size * out_size]))
-    y_reshape = tf.matmul(x_reshape, weights) + bias
+    # Create model
+    x = tf.placeholder('float', [None, out_size, out_size, 3])
+    w_conv1 = tf.Variable([5, 5, 3, 16])
+    b_conv1 = tf.Variable([32])
+    h_conv1 = tf.nn.relu(conv2d(x, w_conv1) + b_conv1)
+    h_pool1 = max_pool_2x2(h_conv1)
+
+    w_conv2 = tf.Variable([5, 5, 16, 32])
+    b_conv2 = tf.Variable([64])
+    h_conv2 = tf.nn.relu(conv2d(h_pool1, w_conv2) + b_conv2)
+    h_pool2 = max_pool_2x2(h_conv2)
+
+    w_conv3 = tf.Variable([5, 5, 32, 64])
+    b_conv3 = tf.Variable([128])
+    h_conv3 = tf.nn.relu(conv2d(h_pool2, w_conv3) + b_conv3)
+    h_pool3 = max_pool_2x2(h_conv3)
+
+    conv_size = 16 * 16 * 64
+    h_pool3_reshape = tf.reshape(h_pool3, [-1, conv_size])
+    # x_reshape = tf.reshape(x, [-1, out_size * out_size])
+
+    w_fc = tf.Variable(tf.zeros([conv_size, out_size * out_size]))
+    b_fc = tf.Variable(tf.zeros([out_size * out_size]))
+    y_reshape = tf.sigmoid(tf.matmul(x_reshape, wfc) + b_fc)
     y = tf.reshape(y_reshape, [-1, out_size, out_size])
     y_ = tf.placeholder('float', [None, out_size, out_size])
     mse = tf.reduce_mean(0.5 * (y - y_) * (y - y_))
