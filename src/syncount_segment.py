@@ -139,9 +139,15 @@ if __name__ == '__main__':
     dataset = get_dataset(opt, 100, 100)
 
     for i in xrange(1000):
-        train_mse = mse.eval(feed_dict={
-            x: dataset['train']['input'],
-            y_: dataset['train']['label_segmentation']
+        xval = dataset['train']['input']
+        y_val = dataset['train']['label_segmentation']
+        sess.run(train_step, feed_dict={
+            x: xval,
+            y_: y_val
+        })
+        train_mse = sess.run(mse, feed_dict={
+            x: xval,
+            y_: y_val
         })
         log.info('step: {:d}, mse: {:4f}'.format(i, train_mse))
 
