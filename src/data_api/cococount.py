@@ -18,7 +18,7 @@ class COCOCount(object):
         self._groundtruth = groundtruth
         self._feat_layer = feat_layer
         self._info_data_path = os.path.join(
-            base_dir, 'coco_count_info_{}-*'.format(set_name))
+            base_dir, 'cococount_info_{}-*'.format(set_name))
 
     def get_info_data_path(self):
         return self._info_data_path

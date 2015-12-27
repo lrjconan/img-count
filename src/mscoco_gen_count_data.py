@@ -217,7 +217,10 @@ if __name__ == '__main__':
 
     # Apply COCO-QA distribution and filter questions.
     keep = apply_distribution(questions, cocoqa_dist)
-    questions = questions[keep]
+    questions_after = []
+    for k in keep:
+        questions_after.append(questions[k])
+    questions = questions_after
     log.info('Generated {:d} questions.'.format(len(questions)))
 
     if args.output:

@@ -49,20 +49,22 @@ def confusion_matrix_norm(pred, labels):
         classes, normalized by the number of labels.
     """
     cf_mat = confusion_matrix(pred, labels)
-    label_min = min(np.min(pred), np.min(labels))
-    label_max = max(np.max(pred), np.max(labels))
-    log.info('Label min: {}'.format(label_min))
-    log.info('Label max: {}'.format(label_max))
-    label_range = label_max - label_min + 1
-    log.info('Label range: {}'.format(label_range))
-    label_count = np.zeros((label_range, 1), dtype='int64')
+    # label_min = min(np.min(pred), np.min(labels))
+    # label_max = max(np.max(pred), np.max(labels))
+    # log.info('Label min: {}'.format(label_min))
+    # log.info('Label max: {}'.format(label_max))
+    # label_range = label_max - label_min + 1
+    # log.info('Label range: {}'.format(label_range))
+    # label_count = np.zeros((label_range, 1), dtype='int64')
 
-    for i in xrange(label_min, label_max):
-        labels_np = np.array(labels, dtype='int64')
-        label_count[i - label_min] = np.sum((labels_np == i).astype('int64'))
+    # for i in xrange(label_min, label_max):
+    #     labels_np = np.array(labels, dtype='int64')
+    #     label_count[i - label_min] = np.sum((labels_np == i).astype('int64'))
     
-    cf_mat_norm = cf_mat / label_count.astype('float64')
-    cf_mat_norm[(label_count == 0)[:, 0], :] = 0.0
+    # cf_mat_norm = cf_mat / label_count.astype('float64')
+    cf_mat_sum = np.sum(cf_mat, axis=0)
+    cf_mat_norm = cf_mat / cf_mat_sum.astype('float64')
+    cf_mat_norm[:, (cf_mat_sum == 0)] = 0.0
 
     return cf_mat_norm
 
@@ -78,12 +80,12 @@ def print_confusion_matrix(cf_mat, label_classes=None):
     if label_classes is None:
         label_classes = range(cf_mat.shape[0])
 
-    sys.stdout.write('{:7}'.format(''))
+    sys.stdout.write('   P/L |')
     for i in xrange(len(label_classes)):
         sys.stdout.write('{:6}'.format(label_classes[i]))
     sys.stdout.write('\n')
     
-    sys.stdout.write('{:8}'.format(''))
+    sys.stdout.write('--------'.format(''))
     for i in xrange(len(label_classes)):
         sys.stdout.write('------')
     sys.stdout.write('\n')

@@ -23,7 +23,7 @@ import argparse
 log = logger.get()
 
 
-def run(mscoco, cococount, detect_file_pattern):
+def run(mscoco, cococount, detect_file_pattern, keep_zeros=False):
     """Run detection baseline.
 
     Args:
@@ -70,7 +70,7 @@ def run(mscoco, cococount, detect_file_pattern):
                             count += 1
 
                 # Increment counters.
-                if count > 0:
+                if keep_zeros or count > 0:
                     pred.append(count)
                     labels.append(item['number'])
 
@@ -86,9 +86,9 @@ def run(mscoco, cococount, detect_file_pattern):
         log.info('Accuracy: {:4f}'.format(acc))
         cf_mat = stats_tools.confusion_matrix(pred, labels)
         cf_mat_norm = stats_tools.confusion_matrix_norm(pred, labels)
-        stats_tools.print_confusion_matrix(cf_mat, label_classes=range(1, 11))
-        stats_tools.print_confusion_matrix(cf_mat_norm,
-                                           label_classes=range(1, 11))
+        label_classes = range(0, 11) if keep_zeros else range(1, 11)
+        stats_tools.print_confusion_matrix(cf_mat, label_classes)
+        stats_tools.print_confusion_matrix(cf_mat_norm, label_classes)
 
     return acc
 
@@ -101,6 +101,8 @@ def parse_args():
     parser.add_argument(
         '-mscoco_datadir', default='../data/mscoco', help='Data directory')
     parser.add_argument('-det', help='MS-COCO detection file pattern')
+    parser.add_argument('-zero', action='store_true',
+                        help='Whether to keep zeros')
     args = parser.parse_args()
 
     return args
@@ -113,6 +115,6 @@ if __name__ == '__main__':
         log.fatal('You need to provide detection file.')
     mscoco = MSCOCO(base_dir=args.mscoco_datadir, set_name='valid')
     cococount = COCOCount(base_dir=args.cococount_datadir, set_name='valid')
-    run(mscoco, cococount, args.det)
+    run(mscoco, cococount, args.det, args.zero)
 
     pass
