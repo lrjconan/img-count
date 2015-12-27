@@ -1,3 +1,5 @@
+import sys
+sys.path.insert(0, '/pkgs/tensorflow-cpu-0.5.0')
 from utils import logger
 import argparse
 import syncount_gen_data as data
