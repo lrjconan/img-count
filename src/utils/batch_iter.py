@@ -1,5 +1,9 @@
 """
 A batch iterator.
+
+Usage:
+    for inp_batch, lb_batch in BatchIterator(inputs, labels, 25):
+        train(inp_batch, lb_batch)
 """
 
 import numpy as np

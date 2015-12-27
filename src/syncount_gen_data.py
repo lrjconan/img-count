@@ -26,12 +26,39 @@ import cv2
 import numpy as np
 
 # Default constants
+
+# Full image height.
 kHeight = 224
+
+# Full image width.
 kWidth = 224
+
+# Circle radius lower bound.
 kRadiusLower = 5
+
+# Circle radius upper bound.
 kRadiusUpper = 20
+
+# Number of examples.
 kNumExamples = 100
+
+# Maximum number of circles.
 kMaxNumCircles = 10
+
+# Random window size variance.
+kSizeVar = 10
+
+# Random window center variance.
+kCenterVar = 5
+
+# Resample window size (segmentation output unisize).
+kOutputWindowSize = 128
+
+# Ratio of negative and positive examples for segmentation data.
+kNegPosRatio = 5
+
+# Minimum window size of the original image (before upsampling).
+kMinWindowSize = 20
 
 # Logger
 log = logger.get()
@@ -56,11 +83,6 @@ def get_raw_data(opt, seed=2):
     max_num_circles = opt['max_num_circles']
 
     results = {}
-    results['height'] = height
-    results['width'] = width
-    results['radius_upper'] = radius_upper
-    results['radius_lower'] = radius_lower
-    results['max_num_circles'] = max_num_circles
     examples = []
     random = np.random.RandomState(seed)
 
@@ -85,9 +107,22 @@ def get_raw_data(opt, seed=2):
     return results
 
 
-def get_image_data(raw_data):
-    im_height = raw_data['height']
-    im_width = raw_data['width']
+def get_image_data(opt, raw_data):
+    """Compile image and segmentation maps with object information.
+
+    Args:
+        opt
+        raw_data
+    Returns:
+        results:
+            images
+            segmentations
+            object_info
+            questions
+            answers
+    """
+    im_height = opt['height']
+    im_width = opt['width']
     examples = raw_data['examples']
     num_ex = len(examples)
     images = np.zeros((num_ex, im_height, im_width, 3), dtype='float32')
@@ -105,9 +140,11 @@ def get_image_data(raw_data):
         answers[ii] = num_circles
         # Segmentations of all circles (N, H, W) in one example, N is number
         # of circles.
-        segms = []
+        segms = np.zeros((num_circles, im_height, im_width), dtype='float32')
         # Information of the circles.
         obj_info = []
+
+        # Compute images and segmentation maps (unoccluded).
         for jj, circle in enumerate(ex):
             radius = circle['radius']
             center = circle['center']
@@ -124,10 +161,19 @@ def get_image_data(raw_data):
             cv2.circle(segm,
                        center=center, radius=radius,
                        color=(1, 0, 0), thickness=-1)
-            segms.append(segm)
+            segms[jj] = segm
             obj_info.append(circle)
 
-        segms = np.array(segms)
+        # Apply occuclusion on segmentation map.
+        if num_circles > 1:
+            for jj in xrange(num_circles - 2, 0, -1):
+                mask = np.logical_not(segms[jj + 1:, :, :].any(axis=0))
+                log.info('Before sum: {}'.format(segms[jj].sum()), verbose=2)
+                log.info('Top mask sum: {}'.format(mask.sum()), verbose=2)
+                segms[jj] = np.logical_and(segms[jj], mask).astype('float32')
+                log.info('After sum: {}'.format(segms[jj].sum()), verbose=2)
+
+        # Aggregate results.
         segmentations.append(segms)
         object_info.append(obj_info)
         images[ii] = img
@@ -142,31 +188,7 @@ def get_image_data(raw_data):
     return results
 
 
-def get_dataset(opt, num_train, num_valid):
-    """
-    Get dataset with train-test split.
-
-    Args:
-        opt:
-        num_train:
-        num_valid:
-    Returns:
-    """
-    dataset = {}
-    opt['num_examples'] = num_train
-    raw_data = get_raw_data(opt, seed=2)
-    image_data = get_image_data(raw_data)
-    dataset['train'] = image_data
-
-    opt['num_examples'] = num_valid
-    raw_data = get_raw_data(opt, seed=3)
-    image_data = get_image_data(raw_data)
-    dataset['valid'] = image_data
-
-    return dataset
-
-
-def get_segmentation_training_data(image_data, seed=2):
+def get_segmentation_data(opt, image_data, seed=2):
     """
     Get dataset for training segmentation.
     Input images with the groundtruth segmentations.
@@ -176,6 +198,7 @@ def get_segmentation_training_data(image_data, seed=2):
     sliding windows accross the image to generate negative examples.
 
     Args:
+        opt: options.
         image_data: dataset generated from get_image_data.
     Returns:
         results: dictionary
@@ -184,21 +207,34 @@ def get_segmentation_training_data(image_data, seed=2):
             label_objectness
     """
     random = np.random.RandomState(seed)
-    size_var = 10
-    center_var = 10
-    dst_image_size = (128, 128)
-    neg_pos_ex_ratio = 5
-    min_window_size = 20
+
+    # Constants
+    min_window_size = opt['min_window_size']
+    neg_pos_ratio = opt['neg_pos_ratio']
+    radius_upper = opt['radius_upper']
+    outsize = opt['output_window_size']
+    output_window_size = (outsize, outsize)
     images = image_data['images']
     segmentations = image_data['segmentations']
     full_width = images[0].shape[1]
     full_height = images[0].shape[0]
-    input_data = []
-    label_segmentation = []
-    label_objectness = []
 
+    # Count total number of examples.
     num_ex = len(image_data['images'])
+    num_ex_final = 0
+    for ii in xrange(num_ex):
+        num_ex_final += len(image_data['object_info'][ii])
+    num_ex_final *= (1 + neg_pos_ratio)
+
+    # Initialize arrays.
+    input_data = np.zeros((num_ex_final, outsize, outsize, 3), dtype='float32')
+    label_segmentation = np.zeros((num_ex_final, outsize, outsize),
+                                  dtype='float32')
+    label_objectness = np.zeros(num_ex_final, dtype='float32')
+
     log.info('Preparing segmentation data, {} examples'.format(num_ex))
+
+    idx = 0
     for ii in progress_bar.get(num_ex):
         obj_info = image_data['object_info'][ii]
         for jj, obj in enumerate(obj_info):
@@ -206,64 +242,80 @@ def get_segmentation_training_data(image_data, seed=2):
             radius = obj['radius']
 
             # Gittering on center.
-            dx = int(np.ceil(random.normal(0, center_var)))
-            dy = int(np.ceil(random.normal(0, center_var)))
+            dx = int(np.ceil(random.normal(0, kCenterVar)))
+            dy = int(np.ceil(random.normal(0, kCenterVar)))
 
             # Random scaling, window size (square shape).
             size = max(
-                       2 * radius + int(np.ceil(random.normal(0, size_var))), 
-                       min_window_size)
+                4 * radius + int(np.ceil(random.normal(0, kSizeVar))),
+                min_window_size)
 
             # Final enter of the sliding window.
             xx = max(center[0] + dx, size)
             yy = max(center[1] + dy, size)
-            # log.info('dx: {}, dy: {}, xx: {}, yy:{}'.format(dx, dy, xx, yy))
-            # log.info('Size: {}'.format(size))
-            # log.info('Sliding window: {} {} {} {}'.format(
-            #          yy - size / 2, yy + size / 2,
-            #          xx - size / 2, xx + size / 2))
+            log.info('dx: {}, dy: {}, xx: {}, yy:{}'.format(dx, dy, xx, yy),
+                     verbose=2)
+            log.info('Size: {}'.format(size),
+                     verbose=2)
+            log.info('Sliding window: {} {} {} {}'.format(
+                     yy - size / 2, yy + size / 2,
+                     xx - size / 2, xx + size / 2),
+                     verbose=2)
 
             # Crop image and its segmentation.
-            crop_imag = images[ii][yy - size / 2 : yy + size / 2,
-                                   xx - size / 2 : xx + size / 2]
-            crop_segm = segmentations[ii][jj, yy - size / 2 : yy + size / 2,
-                                          xx - size / 2 : xx + size / 2]
-            # log.info('Cropped image size: {}'.format(crop_imag.shape))
-            # log.info('Resized image size: {}'.format(dst_image_size))
+            crop_imag = images[ii][yy - size / 2: yy + size / 2,
+                                   xx - size / 2: xx + size / 2]
+            crop_segm = segmentations[ii][jj, yy - size / 2: yy + size / 2,
+                                          xx - size / 2: xx + size / 2]
+            log.info('Cropped image size: {}'.format(crop_imag.shape),
+                     verbose=2)
+            log.info('Resized image size: {}'.format(output_window_size),
+                     verbose=2)
 
             # Resample the image and segmentation to be uni-size.
-            resize_imag = cv2.resize(crop_imag, dst_image_size)
-            resize_segm = cv2.resize(crop_segm, dst_image_size)
-            input_data.append(resize_imag)
-            log.info(resize_imag.shape)
-            label_segmentation.append(resize_segm)
-            label_objectness.append(1)
+            resize_imag = cv2.resize(crop_imag, output_window_size)
+            resize_segm = cv2.resize(crop_segm, output_window_size)
+            input_data[idx] = resize_imag
+            label_segmentation[idx] = resize_segm
+            label_objectness[idx] = 1
+            idx += 1
 
             # Add negative examples with random sliding windows.
-            for kk in xrange(neg_pos_ex_ratio):
-                # Randomly sample sliding windows as negative examples.
-                x = np.ceil(random.uniform(0, full_width - dst_image_size[0]))
-                y = np.ceil(random.uniform(0, full_height - dst_image_size[1]))
-                crop_imag = images[ii][y : y + dst_image_size[1],
-                                       x : x + dst_image_size[0]]
-                crop_segm = np.zeros(dst_image_size, dtype='float32')
-                input_data.append(crop_imag)
-                label_segmentation.append(crop_segm)
-                label_objectness.append(0)
-    results = {
-        'input': np.array(input_data, dtype='float32'),
-        'label_segmentation': np.array(label_segmentation, dtype='float32'),
-        'label_objectness': np.array(label_objectness, dtype='float32')
-    }
-    # results = {
-    #     'input': input_data,
-    #     'label_segmentation': label_segmentation,
-    #     'label_objectness': label_objectness
-    # }
+            for kk in xrange(neg_pos_ratio):
+                keep_sample = True
+                while keep_sample:
+                    size = random.uniform(min_window_size, 4 * radius_upper)
+                    x = np.ceil(random.uniform(0, full_width - size))
+                    y = np.ceil(random.uniform(0, full_height - size))
+                    center_x = x + size / 2
+                    center_y = y + size / 2
+                    # Check if the the center is not too close to any circle.
+                    found = False
+                    for ll, obj2 in enumerate(obj_info):
+                        center = obj2['center']
+                        radius = obj2['radius']
+                        if (center_x - center[0]) ** 2 + \
+                                (center_y - center[1]) ** 2 < 200:
+                            found = True
+                            break
+                    if not found:
+                        keep_sample = False
 
+                crop_imag = images[ii][y: y + size, x: x + size]
+                resize_imag = cv2.resize(crop_imag, output_window_size)
+                resize_segm = np.zeros(output_window_size, dtype='float32')
+                input_data[idx] = resize_imag
+                label_segmentation[idx] = resize_segm
+                label_objectness[idx] = 0
+                idx += 1
+
+    results = {
+        'input': input_data,
+        'label_segmentation': label_segmentation,
+        'label_objectness': label_objectness
+    }
 
     return results
-
 
 
 def parse_args():
@@ -282,6 +334,12 @@ def parse_args():
                         help='Number of examples')
     parser.add_argument('-max_num_circles', default=kMaxNumCircles, type=int,
                         help='Maximum number of circles')
+    parser.add_argument('-neg_pos_ratio', default=kNegPosRatio, type=int,
+                        help='Ratio between negative and positive examples')
+    parser.add_argument('-min_window_size', default=kMinWindowSize, type=int,
+                        help='Minimum window size to crop')
+    parser.add_argument('-output_window_size', default=kOutputWindowSize,
+                        type=int, help='Output segmentation window size')
     parser.add_argument('-output', default=None, help='Output file name')
     args = parser.parse_args()
 
@@ -296,15 +354,32 @@ if __name__ == '__main__':
         'radius_upper': args.radius_upper,
         'radius_lower': args.radius_lower,
         'num_examples': args.num,
-        'max_num_circles': args.max_num_circles
+        'max_num_circles': args.max_num_circles,
+        'neg_pos_ratio': args.neg_pos_ratio,
+        'min_window_size': args.min_window_size,
+        'output_window_size': args.output_window_size
     }
     raw_data = get_raw_data(opt)
-    image_data = get_image_data(raw_data)
+    image_data = get_image_data(opt, raw_data)
     log.info('Images: {}'.format(image_data['images'].shape))
     log.info('Segmentations: {}'.format(len(image_data['segmentations'])))
     log.info('Segmentation 1: {}'.format(image_data['segmentations'][0].shape))
     log.info('Questions: {}'.format(image_data['questions'].shape))
     log.info('Answers: {}'.format(image_data['answers'].shape))
 
-    segm_data = get_segmentation_training_data(image_data)
+    # for ii in xrange(opt['num_examples']):
+    #     cv2.imshow('image', image_data['images'][ii])
+    #     for jj in xrange(image_data['segmentations'][ii].shape[0]):
+    #         cv2.imshow('segm{}'.format(jj), image_data['segmentations'][ii][jj])
+    #     cv2.waitKey()
+
+    segm_data = get_segmentation_data(opt, image_data)
     log.info('Segmentation examples: {}'.format(len(segm_data['input'])))
+    log.info('Segmentation input: {}'.format(segm_data['input'].shape))
+    log.info('Segmentation label: {}'.format(
+        segm_data['label_segmentation'].shape))
+
+    # for ii in xrange(10):
+    #     cv2.imshow('input', segm_data['input'][ii])
+    #     cv2.imshow('label', segm_data['label_segmentation'][ii])
+    #     cv2.waitKey()

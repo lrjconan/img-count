@@ -144,7 +144,7 @@ class Logger(object):
             typstr_print, timestr, callerstr, message)
         logstr = '{0} {1} {2} {3}'.format(
             typstr_log, timestr, callerstr, message)
-        if self.verbose_thresh <= verbose:
+        if self.verbose_thresh >= verbose:
             print(printstr)
         if self.filename is not None:
             with open(self.filename, 'a') as f:
