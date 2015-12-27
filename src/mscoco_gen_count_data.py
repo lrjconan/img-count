@@ -6,8 +6,7 @@ Answer distribution is reshaped into COCO-QA distribution
 Usage: python mscoco_gen_count_data.py
 """
 
-from data_api import MSCOCO
-from data_api import COCOQA
+from data_api import COCOQA, MSCOCO
 from utils import logger
 from utils import progress_bar
 from utils.sharded_hdf5 import ShardedFile, ShardedFileWriter
@@ -231,7 +230,7 @@ if __name__ == '__main__':
         log.info('Writing output to {}'.format(os.path.abspath(args.output)))
         fout = ShardedFile(args.output, num_shards=1)
         with ShardedFileWriter(fout, num_objects=len(keep)) as writer:
-            for k in writer:
+            for k in xrange(len(keep)):
                 questions[k]['category'] = np.array(
                     [questions[k]['category']], dtype='int16')
                 questions[k]['number'] = np.array(

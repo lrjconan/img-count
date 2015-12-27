@@ -18,7 +18,7 @@ class ShardedFileTests(unittest.TestCase):
         f = sh.ShardedFile('test', num_shards=num_shards)
 
         with sh.ShardedFileWriter(f, num_objects=N) as writer:
-            for i in writer:
+            for i in xrange(N):
                 data = {
                     'key1': np.zeros((N1, D1)) + i,
                     'key2': np.zeros((N2, D2)) - i
@@ -64,7 +64,7 @@ class ShardedFileTests(unittest.TestCase):
         f = sh.ShardedFile('test2', num_shards=num_shards)
 
         with sh.ShardedFileWriter(f, num_objects=N) as writer:
-            for i in writer:
+            for i in xrange(N):
                 data = {
                     'key': i,
                     'value': np.zeros((N1, D1)) + i

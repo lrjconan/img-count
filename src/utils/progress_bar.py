@@ -11,7 +11,7 @@ Example 1:
 
 Example 2:
     N = 1000
-    for i in progress_bar.get(N, xrange(N)):
+    for i in progress_bar.get(N):
         do_something(i)
 
 Example 3:
@@ -50,7 +50,10 @@ class ProgressBar(object):
         self.length = length
         self.value = 0
         self.progress = 0
-        self.iterable = iterable
+        if iterable is None:
+            self.iterable = iter(range(length))
+        else:
+            self.iterable = iterable
         self.width = width
         self._finished = False
         pass
@@ -61,11 +64,8 @@ class ProgressBar(object):
 
     def next(self):
         """Iterate next."""
-        if self.iterable:
-            self.increment()
-            return self.iterable.next()
-        else:
-            return self.value
+        self.increment()
+        return self.iterable.next()
 
     def increment(self, value=1):
         """Increments the progress bar.
@@ -74,7 +74,8 @@ class ProgressBar(object):
             value: number, value to be incremented, default 1.
         """
         self.value += value
-        while self.value / self.length > self.progress / self.width:
+        while not self._finished and \
+              self.value / self.length > self.progress / self.width:
             sys.stdout.write('.')
             sys.stdout.flush()
             self.progress = self.progress + 1
