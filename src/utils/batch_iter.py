@@ -2,16 +2,19 @@
 A batch iterator.
 
 Usage:
-    for inp_batch, lb_batch in BatchIterator(inputs, labels, 25):
-        train(inp_batch, lb_batch)
+    for idx in BatchIterator(num=1000, batch_size=25):
+        inp_batch = inp_all[idx]
+        labels_batch = labels_all[idx]
+        train(inp_batch, labels_batch)
 """
 
 import numpy as np
+import progress_bar as pb
 
 
 class BatchIterator(object):
 
-    def __init__(self, data, labels=None, batch_size=1):
+    def __init__(self, num, batch_size=1, progress_bar=False):
         """Construct a batch iterator.
 
         Args:
@@ -21,14 +24,14 @@ class BatchIterator(object):
             batch_size: int, batch size.
         """
 
+        self._num = num
         self._batch_size = batch_size
         self._step = 0
-        self._num_ex = data.shape[0]
-        if labels is not None and self._num_ex != labels.shape[0]:
-            raise Exception('Data and labels shape do not match.')
-        self._num_steps = np.ceil(self._num_ex / batch_size)
-        self._data = data
-        self._labels = labels
+        self._num_steps = np.ceil(self._num / batch_size)
+        self._pb = None
+        if progress_bar:
+            self._pb = pb.get(num)
+
         pass
 
     def __iter__(self):
@@ -41,14 +44,13 @@ class BatchIterator(object):
 
     def next(self):
         """Iterate next element."""
+        if self._pb:
+            self._pb.increment()
         if self._step < self._num_steps:
             start = self._batch_size * self._step
-            end = min(self._num_ex, self._batch_size * (self._step + 1))
+            end = min(self._num, self._batch_size * (self._step + 1))
             self._step += 1
-            if self._labels is not None:
-                return self._data[start: end], self._labels[start: end]
-            else:
-                return self._data[start: end]
+            return np.array(range(start, end))
         else:
             raise StopIteration()
 

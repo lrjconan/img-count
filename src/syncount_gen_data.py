@@ -34,7 +34,7 @@ kHeight = 224
 kWidth = 224
 
 # Circle radius lower bound.
-kRadiusLower = 5
+kRadiusLower = 10
 
 # Circle radius upper bound.
 kRadiusUpper = 20
@@ -43,7 +43,7 @@ kRadiusUpper = 20
 kNumExamples = 100
 
 # Maximum number of circles.
-kMaxNumCircles = 10
+kMaxNumCircles = 8
 
 # Random window size variance.
 kSizeVar = 10
@@ -230,7 +230,7 @@ def get_segmentation_data(opt, image_data, seed=2):
     input_data = np.zeros((num_ex_final, outsize, outsize, 3), dtype='float32')
     label_segmentation = np.zeros((num_ex_final, outsize, outsize),
                                   dtype='float32')
-    label_objectness = np.zeros(num_ex_final, dtype='float32')
+    label_objectness = np.zeros((num_ex_final, 1), dtype='float32')
 
     log.info('Preparing segmentation data, {} examples'.format(num_ex))
 
@@ -273,7 +273,7 @@ def get_segmentation_data(opt, image_data, seed=2):
                      verbose=2)
 
             # Resample the image and segmentation to be uni-size.
-            resize_imag = cv2.resize(crop_imag, output_window_size)
+            resize_imag = cv2.resize(crop_imag, output_window_size) / 255.0
             resize_segm = cv2.resize(crop_segm, output_window_size)
             input_data[idx] = resize_imag
             label_segmentation[idx] = resize_segm
@@ -302,7 +302,7 @@ def get_segmentation_data(opt, image_data, seed=2):
                         keep_sample = False
 
                 crop_imag = images[ii][y: y + size, x: x + size]
-                resize_imag = cv2.resize(crop_imag, output_window_size)
+                resize_imag = cv2.resize(crop_imag, output_window_size) / 255.0
                 resize_segm = np.zeros(output_window_size, dtype='float32')
                 input_data[idx] = resize_imag
                 label_segmentation[idx] = resize_segm
