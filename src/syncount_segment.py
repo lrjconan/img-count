@@ -48,11 +48,14 @@ kNegPosRatio = 5
 # Minimum window size of the original image (before upsampling).
 kMinWindowSize = 20
 
+# Downsample ratio of output.
+kOutputDownsample = 4
+
 # Number of epochs
-kNumEpochs = 5
+kNumEpochs = 10
 
 # Number of epochs per checkpoint
-kEpochsPerCkpt = 5
+kEpochsPerCkpt = 10
 
 
 def get_dataset(opt, num_train, num_valid):
@@ -83,39 +86,6 @@ def get_dataset(opt, num_train, num_valid):
     return dataset
 
 
-def parse_args():
-    """Parse input arguments."""
-    parser = argparse.ArgumentParser(
-        description='Train models on synthetic counting images')
-    parser.add_argument('-height', default=kHeight, type=int,
-                        help='Image height')
-    parser.add_argument('-width', default=kWidth, type=int,
-                        help='Image width')
-    parser.add_argument('-radius_upper', default=kRadiusUpper, type=int,
-                        help='Radius upper bound')
-    parser.add_argument('-radius_lower', default=kRadiusLower, type=int,
-                        help='Radius lower bound')
-    parser.add_argument('-num', default=kNumExamples, type=int,
-                        help='Number of examples')
-    parser.add_argument('-max_num_circles', default=kMaxNumCircles, type=int,
-                        help='Maximum number of circles')
-    parser.add_argument('-neg_pos_ratio', default=kNegPosRatio, type=int,
-                        help='Ratio between negative and positive examples')
-    parser.add_argument('-min_window_size', default=kMinWindowSize, type=int,
-                        help='Minimum window size to crop')
-    parser.add_argument('-output_window_size', default=kOutputWindowSize,
-                        type=int, help='Output segmentation window size')
-    parser.add_argument('-num_epochs', default=kNumEpochs,
-                        type=int, help='Number of epochs to train')
-    parser.add_argument('-epochs_per_ckpt', default=kEpochsPerCkpt,
-                        type=int, help='Number of epochs per checkpoint')
-    parser.add_argument('-results', default='../results',
-                        help='Model results folder')
-    args = parser.parse_args()
-
-    return args
-
-
 def conv2d(x, W):
     """2-D convolution."""
     return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
@@ -125,6 +95,12 @@ def max_pool_2x2(x):
     """2 x 2 max pooling."""
     return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
                           strides=[1, 2, 2, 1], padding='SAME')
+
+
+def avg_pool_4x4(x):
+    """2 x 2 max pooling."""
+    return tf.nn.avg_pool(x, ksize=[1, 4, 4, 1],
+                          strides=[1, 4, 4, 1], padding='SAME')
 
 
 def weight_variable(shape):
@@ -166,40 +142,39 @@ def create_model(opt):
     conv_size = 16 * 16 * 64
     h_pool3_reshape = tf.reshape(h_pool3, [-1, conv_size])
 
+    # Segmentation network
+    lo_size = out_size / opt['output_downsample']
+    w_fc1 = weight_variable([conv_size, lo_size * lo_size])
+    b_fc1 = weight_variable([lo_size * lo_size])
+
     # Output low-resolution image
-    lo = False
-    if lo:
-        lo_size = out_size / 4
-        log.info('Low resolution: {}'.format(lo_size))
-        log.info('High resolution: {}'.format(out_size))
+    segm_reshape = tf.sigmoid(tf.matmul(h_pool3_reshape, w_fc1) + b_fc1)
+    segm_lo = tf.reshape(segm_reshape, [-1, lo_size, lo_size, 1])
 
-        # Segmentation network
-        w_fc1 = weight_variable([conv_size, lo_size * lo_size])
-        b_fc1 = weight_variable([lo_size * lo_size])
-        segm_lo_reshape = tf.sigmoid(tf.matmul(h_pool3_reshape, w_fc1) + b_fc1)
-        segm_lo = tf.reshape(segm_lo_reshape, [-1, lo_size, lo_size, 1])
-
-        # Upsample
-        segm_hi = tf.image.resize_bilinear(segm_lo, (out_size, out_size))
-        segm_hi = tf.reshape(segm_hi, [-1, out_size, out_size])
-        segm_gt = tf.placeholder('float', [None, out_size, out_size])
-
-        # CE average accross all image pixels.
-        segm_ce = -tf.reduce_sum(
-            segm_gt * tf.log(segm_hi) + (1 - segm_gt) * tf.log(1 - segm_hi), 
-            reduction_indices=[1, 2])
+    # Upsample to high-resolution if necessary
+    if opt['output_downsample'] > 1:
+        segm_hi = tf.image.resize_nearest_neighbor(
+            segm_lo, (out_size, out_size))
     else:
-        # Segmentation network
-        w_fc1 = weight_variable([conv_size, out_size * out_size])
-        b_fc1 = weight_variable([out_size * out_size])
-        segm_reshape = tf.sigmoid(tf.matmul(h_pool3_reshape, w_fc1) + b_fc1)
-        segm = tf.reshape(segm_reshape, [-1, out_size, out_size])
-        segm_gt = tf.placeholder('float', [None, out_size, out_size])
+        segm_hi = segm_lo
 
-        # CE average accross all image pixels.
-        segm_ce = -tf.reduce_sum(
-            segm_gt * tf.log(segm) + (1 - segm_gt) * tf.log(1 - segm), 
-            reduction_indices=[1, 2])
+    # Segmentation label
+    segm_gt = tf.placeholder('float', [None, out_size, out_size])
+    segm_gt_reshape = tf.reshape(segm_gt, [-1, out_size, out_size, 1])
+
+    if opt['output_downsample'] > 1:
+        segm_gt_lo = avg_pool_4x4(segm_gt_reshape)
+    else:
+        segm_gt_lo = segm_gt_reshape
+
+    # Final output
+    segm = tf.reshape(segm_hi, [-1, out_size, out_size])
+
+    # CE average accross all image pixels (low-res version).
+    segm_ce = -tf.reduce_sum(
+        segm_gt_lo * tf.log(segm_lo) +
+        (1 - segm_gt_lo) * tf.log(1 - segm_lo),
+        reduction_indices=[1, 2])
 
     # Objectness network
     w_fc2 = weight_variable([conv_size, 1])
@@ -210,7 +185,6 @@ def create_model(opt):
         obj_gt * tf.log(obj) + (1 - obj_gt) * tf.log(1 - obj))
 
     # Constants
-    # lbd = 1 / float(out_size * out_size)
     lbd = 1
 
     # Total objective
@@ -219,63 +193,37 @@ def create_model(opt):
     total_err += lbd * obj_ce
     train_step = tf.train.AdamOptimizer(1e-4).minimize(total_err)
 
-    if lo:
-        model = {
-            'inp': inp,
-            'w_conv1': w_conv1,
-            'b_conv1': b_conv1,
-            'h_pool1': h_pool1,
-            'w_conv2': w_conv2,
-            'b_conv2': b_conv2,
-            'h_conv2': h_conv2,
-            'h_pool2': h_pool2,
-            'b_conv3': b_conv3,
-            'w_conv3': w_conv3,
-            'h_pool3': h_pool3,
-            'h_pool3_reshape': h_pool3_reshape,
-            'w_fc1': w_fc1,
-            'b_fc1': b_fc1,
-            'segm_lo_reshape': segm_lo_reshape,
-            'segm_lo': segm_lo,
-            'segm_hi': segm_hi,
-            'segm_gt': segm_gt,
-            'segm_ce': segm_ce,
-            'w_fc2': w_fc2,
-            'b_fc2': b_fc2,
-            'obj': obj,
-            'obj_gt': obj_gt,
-            'obj_ce': obj_ce,
-            'total_err': total_err,
-            'train_step': train_step
-        }
-    else:
-        model = {
-            'inp': inp,
-            'w_conv1': w_conv1,
-            'b_conv1': b_conv1,
-            'h_pool1': h_pool1,
-            'w_conv2': w_conv2,
-            'b_conv2': b_conv2,
-            'h_conv2': h_conv2,
-            'h_pool2': h_pool2,
-            'b_conv3': b_conv3,
-            'w_conv3': w_conv3,
-            'h_pool3': h_pool3,
-            'h_pool3_reshape': h_pool3_reshape,
-            'w_fc1': w_fc1,
-            'b_fc1': b_fc1,
-            'segm_reshape': segm_reshape,
-            'segm': segm,
-            'segm_gt': segm_gt,
-            'segm_ce': segm_ce,
-            'w_fc2': w_fc2,
-            'b_fc2': b_fc2,
-            'obj': obj,
-            'obj_gt': obj_gt,
-            'obj_ce': obj_ce,
-            'total_err': total_err,
-            'train_step': train_step
-        }
+    model = {
+        'inp': inp,
+        'w_conv1': w_conv1,
+        'b_conv1': b_conv1,
+        'h_pool1': h_pool1,
+        'w_conv2': w_conv2,
+        'b_conv2': b_conv2,
+        'h_conv2': h_conv2,
+        'h_pool2': h_pool2,
+        'b_conv3': b_conv3,
+        'w_conv3': w_conv3,
+        'h_pool3': h_pool3,
+        'h_pool3_reshape': h_pool3_reshape,
+        'w_fc1': w_fc1,
+        'b_fc1': b_fc1,
+        'segm_reshape': segm_reshape,
+        'segm_lo': segm_lo,
+        'segm_hi': segm_hi,
+        'segm': segm,
+        'segm_gt': segm_gt,
+        'segm_gt_reshape': segm_gt_reshape,
+        'segm_gt_lo': segm_gt_lo,
+        'segm_ce': segm_ce,
+        'w_fc2': w_fc2,
+        'b_fc2': b_fc2,
+        'obj': obj,
+        'obj_gt': obj_gt,
+        'obj_ce': obj_ce,
+        'total_err': total_err,
+        'train_step': train_step
+    }
 
     return model
 
@@ -301,6 +249,40 @@ def save_ckpt(save_folder, sess, opt, global_step=None):
     pass
 
 
+def parse_args():
+    """Parse input arguments."""
+    parser = argparse.ArgumentParser(
+        description='Train models on synthetic counting images')
+    parser.add_argument('-height', default=kHeight, type=int,
+                        help='Image height')
+    parser.add_argument('-width', default=kWidth, type=int,
+                        help='Image width')
+    parser.add_argument('-radius_upper', default=kRadiusUpper, type=int,
+                        help='Radius upper bound')
+    parser.add_argument('-radius_lower', default=kRadiusLower, type=int,
+                        help='Radius lower bound')
+    parser.add_argument('-num', default=kNumExamples, type=int,
+                        help='Number of examples')
+    parser.add_argument('-max_num_circles', default=kMaxNumCircles, type=int,
+                        help='Maximum number of circles')
+    parser.add_argument('-neg_pos_ratio', default=kNegPosRatio, type=int,
+                        help='Ratio between negative and positive examples')
+    parser.add_argument('-min_window_size', default=kMinWindowSize, type=int,
+                        help='Minimum window size to crop')
+    parser.add_argument('-output_window_size', default=kOutputWindowSize,
+                        type=int, help='Output segmentation window size')
+    parser.add_argument('-output_downsample', default=kOutputDownsample,
+                        type=int, help='Output downsample ratio')
+    parser.add_argument('-num_epochs', default=kNumEpochs,
+                        type=int, help='Number of epochs to train')
+    parser.add_argument('-epochs_per_ckpt', default=kEpochsPerCkpt,
+                        type=int, help='Number of epochs per checkpoint')
+    parser.add_argument('-results', default='../results',
+                        help='Model results folder')
+    args = parser.parse_args()
+
+    return args
+
 if __name__ == '__main__':
     # Command-line arguments
     args = parse_args()
@@ -316,7 +298,8 @@ if __name__ == '__main__':
         'max_num_circles': args.max_num_circles,
         'neg_pos_ratio': args.neg_pos_ratio,
         'min_window_size': args.min_window_size,
-        'output_window_size': args.output_window_size
+        'output_window_size': args.output_window_size,
+        'output_downsample': args.output_downsample
     }
     # with open('opt.pkl', 'wb') as f_opt:
     #     pkl.dump(opt, f_opt)
@@ -327,7 +310,7 @@ if __name__ == '__main__':
         'num_epochs': args.num_epochs,
         'epochs_per_ckpt': args.epochs_per_ckpt
     }
-  
+
     # Logistics
     save_folder = args.results
     task_name = 'syncount_segment'
@@ -342,14 +325,13 @@ if __name__ == '__main__':
     log.info('All variables: {}'.format([x.name for x in tf.all_variables()]))
     log.info('Trainable variables: {}'.format(
         [x.name for x in tf.trainable_variables()]))
-    # log.fatal('End')
 
     # Initialize session
     sess = tf.Session()
     sess.run(tf.initialize_all_variables())
 
     # Fetch dataset
-    dataset = get_dataset(opt, 50, 20)
+    dataset = get_dataset(opt, 200, 20)
 
     inp_all = dataset['train']['input']
     lab_seg_all = dataset['train']['label_segmentation']
@@ -411,11 +393,3 @@ if __name__ == '__main__':
         # Save model
         if (epoch + 1) % loop_config['epochs_per_ckpt'] == 0:
             save_ckpt(save_folder, sess, opt, global_step=epoch)
-            # if not os.path.exists(save_folder):
-            #     os.makedirs(save_folder)
-            # ckpt_path = os.path.join(
-            #     save_folder, 'model.ckpt'.format(model_id))
-            # log.info('Saving checkpoint to {}'.format(ckpt_path))
-            # saver.save(sess, ckpt_path, global_step=epoch)
-
-    # Save options

@@ -6,6 +6,8 @@ from utils import logger
 import argparse
 import cv2
 import fnmatch
+import matplotlib.pyplot as plt
+import numpy as np
 import os
 import pickle as pkl
 import syncount_gen_data as data
@@ -29,6 +31,23 @@ def get_latest_ckpt(folder):
     latest_step = max(ckpt_fname_step)
 
     return os.path.join(folder, 'model.ckpt-{}'.format(latest_step))
+
+
+def plot_results(img, segm_label, segm_out, obj_label, obj_out, title=''):
+    # Plot results
+    num_img = img.shape[0]
+    f, axarr = plt.subplots(num_img, 3)
+    for ii in xrange(num_img):
+        for jj in xrange(3):
+            axarr[ii, jj].set_axis_off()
+        axarr[ii, 0].imshow(img[ii])
+        axarr[ii, 1].imshow(segm_label[ii])
+        axarr[ii, 1].text(0, 0, '{:.2f}'.format(obj_label[ii, 0]), 
+                          color=(0, 0, 0), size=8)
+        axarr[ii, 2].imshow(segm_out[ii])
+        axarr[ii, 2].text(0, 0, '{:.2f}'.format(obj_out[ii, 0]), 
+                          color=(0, 0, 0), size=8)
+    # f.set_title(title)
 
 
 def parse_args():
@@ -56,34 +75,37 @@ if __name__ == '__main__':
 
     dataset = train.get_dataset(opt, 10, 10)
 
-    idx = 0
-    img = dataset['valid']['input'][idx:idx + 1]
-    label_segm = dataset['valid']['label_segmentation'][idx:idx + 1]
-    label_obj = dataset['valid']['label_objectness'][idx:idx + 1]
-    log.info('Image: {}'.format(img.shape))
-    log.info('Label segmentation: {}'.format(label_segm.shape))
-    cv2.imshow('img', img[0])
+    img = dataset['valid']['input']
+    segm_label = dataset['valid']['label_segmentation']
+    obj_label = dataset['valid']['label_objectness']
+
+    # Plot positive and negative examples separately.
+    # Sample the first 20 postive and negative examples.
+    num_ex = 10
+    pos_idx = obj_label[:, 0] == 1
+    neg_idx = obj_label[:, 0] == 0
 
     # Create model
     m = train.create_model(opt)
 
     # Create saver
     saver = tf.train.Saver(tf.all_variables())
-    feed_dict = {m['inp']: img,
-                 m['segm_gt']: label_segm,
-                 m['obj_gt']: label_obj}
+    feed_dict_pos = {m['inp']: (img[pos_idx])[:num_ex]}
+    feed_dict_neg = {m['inp']: (img[neg_idx])[:num_ex]}
 
+    # Run model
     with tf.Session() as sess:
         # Restores from checkpoint
         saver.restore(sess, ckpt_fname)
-        segm_out = sess.run(m['segm'], feed_dict=feed_dict)
-        obj_out = sess.run(m['obj'], feed_dict=feed_dict)
+        segm_out_pos = sess.run(m['segm'], feed_dict=feed_dict_pos)
+        obj_out_pos = sess.run(m['obj'], feed_dict=feed_dict_pos)
+        segm_out_neg = sess.run(m['segm'], feed_dict=feed_dict_neg)
+        obj_out_neg = sess.run(m['obj'], feed_dict=feed_dict_neg)
 
-        log.info('Output segmentation: {}'.format(segm_out.shape))
-        log.info('Output segmentation: {}'.format(segm_out))
-        cv2.imshow('output', segm_out[0])
-        log.info('Output objectness: {}'.format(obj_out.shape))
-        log.info('Output objectness: {}'.format(obj_out))
-
-    cv2.imshow('label', label_segm[0])
-    cv2.waitKey()
+    plot_results((img[pos_idx])[:num_ex], (segm_label[pos_idx])[:num_ex], 
+                  segm_out_pos, (obj_label[pos_idx])[:num_ex], obj_out_pos, 
+                  'Positive examples')
+    plot_results((img[neg_idx])[:num_ex], (segm_label[neg_idx])[:num_ex], 
+                  segm_out_neg, (obj_label[neg_idx])[:num_ex], obj_out_neg, 
+                  'Negative examples')
+    plt.show()

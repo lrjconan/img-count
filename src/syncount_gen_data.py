@@ -23,6 +23,7 @@ from utils import logger
 from utils import progress_bar
 import argparse
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 
 # Default constants
@@ -341,6 +342,8 @@ def parse_args():
     parser.add_argument('-output_window_size', default=kOutputWindowSize,
                         type=int, help='Output segmentation window size')
     parser.add_argument('-output', default=None, help='Output file name')
+    parser.add_argument('-plot', action='store_true',
+                        help='Whether to plot generated data.')
     args = parser.parse_args()
 
     return args
@@ -367,19 +370,35 @@ if __name__ == '__main__':
     log.info('Questions: {}'.format(image_data['questions'].shape))
     log.info('Answers: {}'.format(image_data['answers'].shape))
 
-    # for ii in xrange(opt['num_examples']):
-    #     cv2.imshow('image', image_data['images'][ii])
-    #     for jj in xrange(image_data['segmentations'][ii].shape[0]):
-    #         cv2.imshow('segm{}'.format(jj), image_data['segmentations'][ii][jj])
-    #     cv2.waitKey()
-
     segm_data = get_segmentation_data(opt, image_data)
     log.info('Segmentation examples: {}'.format(len(segm_data['input'])))
     log.info('Segmentation input: {}'.format(segm_data['input'].shape))
     log.info('Segmentation label: {}'.format(
         segm_data['label_segmentation'].shape))
 
-    # for ii in xrange(10):
-    #     cv2.imshow('input', segm_data['input'][ii])
-    #     cv2.imshow('label', segm_data['label_segmentation'][ii])
-    #     cv2.waitKey()
+    if args.plot:
+        # Plot images
+        num_row = 5
+        num_col = 4
+        f1, axarr = plt.subplots(num_row, num_col)
+        for ii in xrange(20):
+            row = ii / num_col
+            col = ii % num_col
+            img = image_data['images'][ii].astype('uint8')
+            axarr[row, col].imshow(img)
+            axarr[row, col].set_axis_off()
+
+        # Plot segmentations
+        f2, axarr = plt.subplots(num_row, num_col)
+        for ii in xrange(num_row):
+            for jj in xrange(num_col):
+                if jj == 0:
+                    img = image_data['images'][ii].astype('uint8')
+                    axarr[ii, jj].imshow(img)
+                else:
+                    img = image_data['segmentations'][
+                        ii][jj - 1].astype('uint8')
+                    axarr[ii, jj].imshow(img)
+                axarr[ii, jj].set_axis_off()
+
+        plt.show()
