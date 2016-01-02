@@ -21,17 +21,24 @@ kHeight = 224
 # Full image width.
 kWidth = 224
 
-# Circle radius lower bound.
+# Object radius lower bound.
 kRadiusLower = 5
 
-# Circle radius upper bound.
+# Object radius upper bound.
 kRadiusUpper = 20
+
+# Object border thickness.
+kBorderThickness = 2
 
 # Number of examples.
 kNumExamples = 100
 
-# Maximum number of circles.
-kMaxNumCircles = 10
+# Maximum number of objects.
+kMaxNumObjects = 10
+
+# Number of object types, currently support up to three types (circles,
+# triangles, and squares).
+kNumObjectTypes = 3
 
 # Random window size variance.
 kSizeVar = 10
@@ -98,7 +105,7 @@ def max_pool_2x2(x):
 
 
 def avg_pool_4x4(x):
-    """2 x 2 max pooling."""
+    """4 x 4 average pooling."""
     return tf.nn.avg_pool(x, ksize=[1, 4, 4, 1],
                           strides=[1, 4, 4, 1], padding='SAME')
 
@@ -261,10 +268,14 @@ def parse_args():
                         help='Radius upper bound')
     parser.add_argument('-radius_lower', default=kRadiusLower, type=int,
                         help='Radius lower bound')
-    parser.add_argument('-num', default=kNumExamples, type=int,
+    parser.add_argument('-border_thickness', default=kBorderThickness,
+                        type=int, help='Object border thickness')
+    parser.add_argument('-num_ex', default=kNumExamples, type=int,
                         help='Number of examples')
-    parser.add_argument('-max_num_circles', default=kMaxNumCircles, type=int,
-                        help='Maximum number of circles')
+    parser.add_argument('-max_num_objects', default=kMaxNumObjects, type=int,
+                        help='Maximum number of objects')
+    parser.add_argument('-num_object_types', default=kNumObjectTypes, type=int,
+                        help='Number of object types')
     parser.add_argument('-neg_pos_ratio', default=kNegPosRatio, type=int,
                         help='Ratio between negative and positive examples')
     parser.add_argument('-min_window_size', default=kMinWindowSize, type=int,
@@ -294,8 +305,10 @@ if __name__ == '__main__':
         'width': args.width,
         'radius_upper': args.radius_upper,
         'radius_lower': args.radius_lower,
-        'num_examples': args.num,
-        'max_num_circles': args.max_num_circles,
+        'border_thickness': args.border_thickness,
+        'num_examples': args.num_ex,
+        'max_num_objects': args.max_num_objects,
+        'num_object_types': args.num_object_types,
         'neg_pos_ratio': args.neg_pos_ratio,
         'min_window_size': args.min_window_size,
         'output_window_size': args.output_window_size,

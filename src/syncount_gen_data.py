@@ -1,11 +1,11 @@
 """
 Generate counting questions based on synthetic images.
 Object categories are:
-* Triangles (0)
-* Circles (1)
+* Circles (0)
+* Triangles (1)
 * Squares (2)
 
-For now, only single colour is present (i.e. green), but can be extended to 
+For now, only single colour is present (i.e. green), but can be extended to
 multiple colours.
 All objects has white border.
 Background is black.
@@ -34,23 +34,30 @@ kHeight = 224
 # Full image width.
 kWidth = 224
 
-# Circle radius lower bound.
-kRadiusLower = 10
+# Object radius lower bound.
+kRadiusLower = 15
 
-# Circle radius upper bound.
-kRadiusUpper = 20
+# Object radius upper bound.
+kRadiusUpper = 25
+
+# Object border thickness.
+kBorderThickness = 2
 
 # Number of examples.
 kNumExamples = 100
 
-# Maximum number of circles.
-kMaxNumCircles = 8
+# Maximum number of objects.
+kMaxNumObjects = 10
+
+# Number of object types, currently support up to three types (circles,
+# triangles, and squares).
+kNumObjectTypes = 3
 
 # Random window size variance.
 kSizeVar = 10
 
 # Random window center variance.
-kCenterVar = 5
+kCenterVar = 0.01
 
 # Resample window size (segmentation output unisize).
 kOutputWindowSize = 128
@@ -81,7 +88,8 @@ def get_raw_data(opt, seed=2):
     radius_upper = opt['radius_upper']
     radius_lower = opt['radius_lower']
     num_examples = opt['num_examples']
-    max_num_circles = opt['max_num_circles']
+    num_types = opt['num_object_types']
+    max_num_objects = opt['max_num_objects']
 
     results = {}
     examples = []
@@ -89,23 +97,69 @@ def get_raw_data(opt, seed=2):
 
     log.info('Generating raw data')
     for ii in progress_bar.get(num_examples):
-        num_circles = int(np.ceil(random.uniform(0, 1) * max_num_circles))
+        num_obj = int(np.ceil(random.uniform(0, 1) * max_num_objects))
         ex = []
-        for jj in xrange(num_circles):
+        for jj in xrange(num_obj):
             radius = int(np.ceil(random.uniform(radius_lower, radius_upper)))
             center_x = int(np.ceil(random.uniform(radius, width - radius)))
             center_y = int(np.ceil(random.uniform(radius, height - radius)))
             center = (center_x, center_y)
+            obj_type = int(np.floor(random.uniform(0, num_types - 1e-5)))
             ex.append({
                 'center': center,
                 'radius': radius,
-                'type': 0  # Potentially useful for multiple object types.
+                'type': obj_type
             })
         examples.append(ex)
 
     results['examples'] = examples
 
     return results
+
+
+def _draw_circle(img, center, radius, fill, border=None, thickness=None):
+    """Draw a circle given center and radius."""
+    cv2.circle(img, center=center, radius=radius, color=fill, thickness=-1)
+
+    if border:
+        cv2.circle(img, center=center, radius=radius,
+                   color=border, thickness=thickness)
+
+    pass
+
+
+def _draw_square(img, center, radius, fill, border=None, thickness=None):
+    """Draw a square given center and radius."""
+    top_left = (int(np.floor(center[0] - radius / np.sqrt(2))),
+                int(np.floor(center[1] - radius / np.sqrt(2))))
+    bottom_right = (int(np.floor(center[0] + radius / np.sqrt(2))),
+                    int(np.floor(center[1] + radius / np.sqrt(2))))
+    cv2.rectangle(img, pt1=top_left, pt2=bottom_right,
+                  color=fill, thickness=-1)
+    if border:
+        cv2.rectangle(img, pt1=top_left, pt2=bottom_right,
+                      color=border, thickness=thickness)
+
+    pass
+
+
+def _draw_triangle(img, center, radius, fill, border=None, thickness=None):
+    """Draw a equilateral triangle given center and radius."""
+    p1 = (int(center[0]), int(np.floor(center[1] - radius)))
+    p2 = (int(np.floor(center[0] - radius * np.sin(60.0 * np.pi / 180.0))),
+          int(np.floor(center[1] + radius * np.sin(30.0 * np.pi / 180.0))))
+    p3 = (int(np.floor(center[0] + radius * np.sin(60.0 * np.pi / 180.0))),
+          int(np.floor(center[1] + radius * np.sin(30.0 * np.pi / 180.0))))
+    pts = np.array([p1, p2, p3])
+    # log.info(pts)
+    cv2.fillConvexPoly(img, points=pts, color=fill)
+
+    if border:
+        cv2.line(img, pt1=p1, pt2=p2, color=border, thickness=thickness)
+        cv2.line(img, pt1=p2, pt2=p3, color=border, thickness=thickness)
+        cv2.line(img, pt1=p3, pt2=p1, color=border, thickness=thickness)
+
+    pass
 
 
 def get_image_data(opt, raw_data):
@@ -124,9 +178,17 @@ def get_image_data(opt, raw_data):
     """
     im_height = opt['height']
     im_width = opt['width']
+    thickness = opt['border_thickness']
+
+    # Draw a green objects with red border.
+    # Note: OpenCV uses (B, G, R) order.
+    fill_color = (0, 255, 0)
+    border_color = (0, 0, 255)
+    segm_color = (1, 0, 0)
+
     examples = raw_data['examples']
     num_ex = len(examples)
-    images = np.zeros((num_ex, im_height, im_width, 3), dtype='float32')
+    images = np.zeros((num_ex, im_height, im_width, 3), dtype='uint8')
     segmentations = []
     object_info = []
     questions = np.zeros((num_ex), dtype='int16')
@@ -136,45 +198,53 @@ def get_image_data(opt, raw_data):
     for ii in progress_bar.get(num_ex):
         ex = examples[ii]
         img = np.zeros((im_height, im_width, 3))
-        num_circles = len(ex)
+        num_obj = len(ex)
         # Answer to the counting question.
-        answers[ii] = num_circles
-        # Segmentations of all circles (N, H, W) in one example, N is number
-        # of circles.
-        segms = np.zeros((num_circles, im_height, im_width), dtype='float32')
-        # Information of the circles.
+        answers[ii] = num_obj
+        # Segmentations of all objects (N, H, W) in one example, N is number
+        # of objects.
+        segms = np.zeros((num_obj, im_height, im_width), dtype='float32')
+        # Information of the objects.
         obj_info = []
 
         # Compute images and segmentation maps (unoccluded).
-        for jj, circle in enumerate(ex):
-            radius = circle['radius']
-            center = circle['center']
+        for jj, obj in enumerate(ex):
+            radius = obj['radius']
+            center = obj['center']
+            typ = obj['type']
             segm = np.zeros((im_height, im_width), dtype='float32')
+            if typ == 0:
+                _draw_circle(img, center, radius, fill_color,
+                             border_color, thickness)
+                _draw_circle(segm, center, radius, segm_color)
+            elif typ == 1:
+                # Make triangles look larger.
+                radius *= 1.2
+                obj['radius'] = radius
+                _draw_triangle(img, center, radius, fill_color,
+                               border_color, thickness)
+                _draw_triangle(segm, center, radius, segm_color)
+            elif typ == 2:
+                _draw_square(img, center, radius, fill_color,
+                             border_color, thickness)
+                _draw_square(segm, center, radius, segm_color)
+            else:
+                raise Exception('Unknown object type: {}'.format(typ))
 
-            # Draw a green circle with red border.
-            # Note: OpenCV uses (B, G, R) order.
-            cv2.circle(img,
-                       center=center, radius=radius + 1,
-                       color=(0, 0, 255), thickness=2)
-            cv2.circle(img,
-                       center=center, radius=radius,
-                       color=(0, 255, 0), thickness=-1)
-            cv2.circle(segm,
-                       center=center, radius=radius,
-                       color=(1, 0, 0), thickness=-1)
             segms[jj] = segm
-            obj_info.append(circle)
+            obj_info.append(obj)
 
-        # Apply occuclusion on segmentation map.
-        if num_circles > 1:
-            for jj in xrange(num_circles - 2, 0, -1):
+        if num_obj > 1:
+            for jj in xrange(num_obj - 2, -1, -1):
                 mask = np.logical_not(segms[jj + 1:, :, :].any(axis=0))
+                # cv2.imshow('mask {}'.format(jj), mask.astype('float32'))
                 log.info('Before sum: {}'.format(segms[jj].sum()), verbose=2)
                 log.info('Top mask sum: {}'.format(mask.sum()), verbose=2)
                 segms[jj] = np.logical_and(segms[jj], mask).astype('float32')
                 log.info('After sum: {}'.format(segms[jj].sum()), verbose=2)
 
         # Aggregate results.
+        # cv2.waitKey()
         segmentations.append(segms)
         object_info.append(obj_info)
         images[ii] = img
@@ -252,8 +322,8 @@ def get_segmentation_data(opt, image_data, seed=2):
                 min_window_size)
 
             # Final enter of the sliding window.
-            xx = max(center[0] + dx, size)
-            yy = max(center[1] + dy, size)
+            xx = max(center[0] + dx, size / 2)
+            yy = max(center[1] + dy, size / 2)
             log.info('dx: {}, dy: {}, xx: {}, yy:{}'.format(dx, dy, xx, yy),
                      verbose=2)
             log.info('Size: {}'.format(size),
@@ -319,6 +389,23 @@ def get_segmentation_data(opt, image_data, seed=2):
     return results
 
 
+def _plot_segmentation_data(img, segm_label, obj_label, title=''):
+    num_row = 10
+    num_col = 2
+    f, axarr = plt.subplots(num_row, num_col)
+
+    for ii in xrange(num_row):
+        for jj in xrange(num_col):
+            axarr[ii, jj].set_axis_off()
+        axarr[ii, 0].imshow(img[ii])
+        axarr[ii, 1].imshow(segm_label[ii])
+        axarr[ii, 1].text(0, 0, '{:.2f}'.format(obj_label[ii, 0]),
+                          color=(0, 0, 0), size=8)
+    f.suptitle(title, fontsize=16)
+
+    return f, axarr
+
+
 def parse_args():
     """Parse input arguments."""
     parser = argparse.ArgumentParser(
@@ -331,10 +418,14 @@ def parse_args():
                         help='Radius upper bound')
     parser.add_argument('-radius_lower', default=kRadiusLower, type=int,
                         help='Radius lower bound')
-    parser.add_argument('-num', default=kNumExamples, type=int,
+    parser.add_argument('-border_thickness', default=kBorderThickness,
+                        type=int, help='Object border thickness')
+    parser.add_argument('-num_ex', default=kNumExamples, type=int,
                         help='Number of examples')
-    parser.add_argument('-max_num_circles', default=kMaxNumCircles, type=int,
+    parser.add_argument('-max_num_objects', default=kMaxNumObjects, type=int,
                         help='Maximum number of circles')
+    parser.add_argument('-num_object_types', default=kNumObjectTypes, type=int,
+                        help='Number of object types')
     parser.add_argument('-neg_pos_ratio', default=kNegPosRatio, type=int,
                         help='Ratio between negative and positive examples')
     parser.add_argument('-min_window_size', default=kMinWindowSize, type=int,
@@ -356,8 +447,10 @@ if __name__ == '__main__':
         'width': args.width,
         'radius_upper': args.radius_upper,
         'radius_lower': args.radius_lower,
-        'num_examples': args.num,
-        'max_num_circles': args.max_num_circles,
+        'border_thickness': args.border_thickness,
+        'num_examples': args.num_ex,
+        'max_num_objects': args.max_num_objects,
+        'num_object_types': args.num_object_types,
         'neg_pos_ratio': args.neg_pos_ratio,
         'min_window_size': args.min_window_size,
         'output_window_size': args.output_window_size
@@ -377,28 +470,47 @@ if __name__ == '__main__':
         segm_data['label_segmentation'].shape))
 
     if args.plot:
-        # Plot images
         num_row = 5
         num_col = 4
-        f1, axarr = plt.subplots(num_row, num_col)
-        for ii in xrange(20):
+
+        # Plot images
+        f1, axarr1 = plt.subplots(num_row, num_col)
+        f1.suptitle('Full Images')
+        for ii in xrange(num_row * num_col):
             row = ii / num_col
             col = ii % num_col
-            img = image_data['images'][ii].astype('uint8')
-            axarr[row, col].imshow(img)
-            axarr[row, col].set_axis_off()
+            img = image_data['images'][ii]
+            axarr1[row, col].imshow(img)
+            axarr1[row, col].set_axis_off()
 
         # Plot segmentations
-        f2, axarr = plt.subplots(num_row, num_col)
+        f2, axarr2 = plt.subplots(num_row, num_col)
+        f2.suptitle('Instance Segmentation Maps')
         for ii in xrange(num_row):
+            num_obj = image_data['segmentations'][ii].shape[0]
             for jj in xrange(num_col):
                 if jj == 0:
-                    img = image_data['images'][ii].astype('uint8')
-                    axarr[ii, jj].imshow(img)
-                else:
-                    img = image_data['segmentations'][
-                        ii][jj - 1].astype('uint8')
-                    axarr[ii, jj].imshow(img)
-                axarr[ii, jj].set_axis_off()
+                    img = image_data['images'][ii]
+                    axarr2[ii, jj].imshow(img)
+                elif jj <= num_obj:
+                    img = image_data['segmentations'][ii][jj - 1]
+                    axarr2[ii, jj].imshow(img)
+                axarr2[ii, jj].set_axis_off()
+
+        # Plot segmentation training data
+        img = segm_data['input']
+        segm_label = segm_data['label_segmentation']
+        obj_label = segm_data['label_objectness']
+
+        # Plot positive and negative examples
+        pos_idx = obj_label[:, 0] == 1
+        neg_idx = obj_label[:, 0] == 0
+
+        f3, axarr3 = _plot_segmentation_data(img[pos_idx], segm_label[
+            pos_idx], obj_label[pos_idx],
+            title='Postive Training Examples')
+        f3, axarr3 = _plot_segmentation_data(img[neg_idx], segm_label[
+            neg_idx], obj_label[neg_idx],
+            title='Negative Training Examples')
 
         plt.show()

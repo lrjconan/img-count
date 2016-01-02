@@ -17,7 +17,7 @@ import tensorflow as tf
 log = logger.get()
 
 
-def get_latest_ckpt(folder):
+def _get_latest_ckpt(folder):
     """Get the latest checkpoint filename in a folder."""
     ckpt_fname_pattern = os.path.join(folder, 'model.ckpt-*')
     ckpt_fname_list = []
@@ -33,7 +33,7 @@ def get_latest_ckpt(folder):
     return os.path.join(folder, 'model.ckpt-{}'.format(latest_step))
 
 
-def plot_results(img, segm_label, segm_out, obj_label, obj_out, title=''):
+def _plot_results(img, segm_label, segm_out, obj_label, obj_out, title=''):
     # Plot results
     num_img = img.shape[0]
     f, axarr = plt.subplots(num_img, 3)
@@ -47,7 +47,7 @@ def plot_results(img, segm_label, segm_out, obj_label, obj_out, title=''):
         axarr[ii, 2].imshow(segm_out[ii])
         axarr[ii, 2].text(0, 0, '{:.2f}'.format(obj_out[ii, 0]), 
                           color=(0, 0, 0), size=8)
-    # f.set_title(title)
+    f.suptitle(title)
 
 
 def parse_args():
@@ -102,10 +102,10 @@ if __name__ == '__main__':
         segm_out_neg = sess.run(m['segm'], feed_dict=feed_dict_neg)
         obj_out_neg = sess.run(m['obj'], feed_dict=feed_dict_neg)
 
-    plot_results((img[pos_idx])[:num_ex], (segm_label[pos_idx])[:num_ex], 
-                  segm_out_pos, (obj_label[pos_idx])[:num_ex], obj_out_pos, 
-                  'Positive examples')
-    plot_results((img[neg_idx])[:num_ex], (segm_label[neg_idx])[:num_ex], 
-                  segm_out_neg, (obj_label[neg_idx])[:num_ex], obj_out_neg, 
-                  'Negative examples')
+    _plot_results((img[pos_idx])[:num_ex], (segm_label[pos_idx])[:num_ex], 
+                   segm_out_pos, (obj_label[pos_idx])[:num_ex], obj_out_pos, 
+                   'Positive Examples')
+    _plot_results((img[neg_idx])[:num_ex], (segm_label[neg_idx])[:num_ex], 
+                   segm_out_neg, (obj_label[neg_idx])[:num_ex], obj_out_neg, 
+                   'Negative Examples')
     plt.show()
