@@ -460,7 +460,7 @@ if __name__ == '__main__':
     sess.run(tf.initialize_all_variables())
 
     # Fetch dataset
-    dataset = get_dataset(opt, 200, 20)
+    dataset = get_dataset(opt, opt['num_examples'], opt['num_examples'] / 10)
 
     inp_all = dataset['train']['input']
     lab_seg_all = dataset['train']['label_segmentation']
