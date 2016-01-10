@@ -169,12 +169,15 @@ def get_image_data(opt, raw_data):
         opt
         raw_data
     Returns:
-        results:
-            images
-            segmentations
-            object_info
-            questions
-            answers
+        results: dictionary. Contains following fields:
+            images: numpy.ndarray, (N, H, W, 3), N is number of images. H is 
+            image height. W is image width. Each image has RGB 3 channels.
+            segmentations: list of numpy.ndarray, each item has shape 
+            (M, H, W). M is number of objects. H is image height. W is image 
+            width. Binary mask.
+            object_info: dictionary.
+            questions: numpy.ndarray, (N). Stores object type ID.
+            answers: numpy.ndarray, (N). Stores number of objects.
     """
     im_height = opt['height']
     im_width = opt['width']

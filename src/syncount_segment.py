@@ -3,16 +3,18 @@ sys.path.insert(0, '/pkgs/tensorflow-cpu-0.5.0')
 
 from utils import logger
 from utils.batch_iter import BatchIterator
-
+from utils.grad_clip_optim import GradientClipOptimizer
+from utils.time_series_logger import TimeSeriesLogger
 import argparse
 import datetime
 import numpy as np
 import os
+import pickle as pkl
 import syncount_gen_data as data
 import tensorflow as tf
-import pickle as pkl
 
 log = logger.get()
+
 
 # Default constant parameters
 # Full image height.
@@ -41,10 +43,10 @@ kMaxNumObjects = 10
 kNumObjectTypes = 3
 
 # Random window size variance.
-kSizeVar = 10
+kSizeVar = 20
 
 # Random window center variance.
-kCenterVar = 5
+kCenterVar = 20
 
 # Resample window size (segmentation output unisize).
 kOutputWindowSize = 128
@@ -59,7 +61,7 @@ kMinWindowSize = 20
 kOutputDownsample = 4
 
 # Number of epochs
-kNumEpochs = 10
+kNumEpochs = 20
 
 # Number of epochs per checkpoint
 kEpochsPerCkpt = 10
@@ -116,8 +118,107 @@ def weight_variable(shape):
     return tf.Variable(initial)
 
 
-def create_model(opt):
-    """Create model.
+def get_inference_model(opt, sess, train_model):
+    """Get a model (for inference). Copy weights from trained model.
+    Apply model densely on all sliding windows.
+
+    Args:
+        opt: dictionary, model options
+        train_model: restored train model for assigning weights
+    Returns:
+        model: dictionary.
+    """
+    # The inference network is fully convolutional so it is not dependent on 
+    # the input image size.
+    # inp_width = opt['width']
+    # inp_height = opt['height']
+
+    # Model input
+    # (batch, inp_height, inp_width, 3)
+    inp = tf.placeholder('float', [None, None, None, 3])
+
+    # 1st convolution layer
+    # (batch, inp_height / 2, inp_width / 2, 16)
+    w_conv1 = tf.constant(sess.run(train_model['w_conv1']))
+    b_conv1 = tf.constant(sess.run(train_model['b_conv1']))
+    h_conv1 = tf.nn.relu(conv2d(inp, w_conv1) + b_conv1)
+    h_pool1 = max_pool_2x2(h_conv1)
+
+    # 2nd convolution layer
+    # (batch, inp_height / 4, inp_width / 4, 32)
+    w_conv2 = tf.constant(sess.run(train_model['w_conv2']))
+    b_conv2 = tf.constant(sess.run(train_model['b_conv2']))
+    h_conv2 = tf.nn.relu(conv2d(h_pool1, w_conv2) + b_conv2)
+    h_pool2 = max_pool_2x2(h_conv2)
+
+    # 3rd convolution layer
+    # (batch, inp_height / 8, inp_width / 8, 64)
+    w_conv3 = tf.constant(sess.run(train_model['w_conv3']))
+    b_conv3 = tf.constant(sess.run(train_model['b_conv3']))
+    h_conv3 = tf.nn.relu(conv2d(h_pool2, w_conv3) + b_conv3)
+    h_pool3 = max_pool_2x2(h_conv3)
+
+    # Helper sizes
+    # out_conv_size_h = inp_height / 8
+    # out_conv_size_w = inp_width / 8
+    # Dense layer (apply convolution on all sliding windows)
+    # (batch, out_conv_size_h, out_conv_size_w, lo_size * lo_size)
+
+    # Output map of the train network.
+    out_size = opt['output_window_size']
+
+    # Convolution filter size of the train network.
+    conv_size = out_size / 8
+
+    lo_size = out_size / opt['output_downsample']
+    w_fc1_val = np.reshape(sess.run(train_model['w_fc1']),
+                           [conv_size, conv_size, 64, lo_size * lo_size])
+    w_fc1 = tf.constant(w_fc1_val)
+    b_fc1 = tf.constant(sess.run(train_model['b_fc1']))
+    segm_reshape = tf.sigmoid(conv2d(h_pool3, w_fc1) + b_fc1)
+
+    # (batch * out_conv_size_h * out_conv_size_w, lo_size, lo_size , 1)
+    segm_lo = tf.reshape(segm_reshape, [-1, lo_size, lo_size, 1])
+
+    # Upsample to high-resolution if necessary
+    # (batch * out_conv_size_h * out_conv_size_w, out_size, out_size, 1)
+    if opt['output_downsample'] > 1:
+        segm_hi = tf.image.resize_nearest_neighbor(
+            segm_lo, (out_size, out_size))
+    else:
+        segm_hi = segm_lo
+
+    # Final output
+    # (batch * out_conv_size_h * out_conv_size_w, out_size, out_size)
+    segm = tf.reshape(segm_hi, [-1, out_size, out_size])
+
+    # Objectness network
+    # (batch * out_conv_size_h * out_conv_size_w, 1)
+    w_fc2_val = np.reshape(sess.run(train_model['w_fc2']),
+                           [conv_size, conv_size, 64, 1])
+    w_fc2 = tf.constant(w_fc2_val)
+    b_fc2 = tf.constant(sess.run(train_model['b_fc2']))
+
+    # (batch * out_conv_size_h * out_conv_size_w, 1)
+    obj = tf.sigmoid(conv2d(h_pool3, w_fc2) + b_fc2)
+
+    model = {
+        'inp': inp,
+        'h_pool1': h_pool1,
+        'h_conv2': h_conv2,
+        'h_pool2': h_pool2,
+        'h_pool3': h_pool3,
+        'segm_lo': segm_lo,
+        'segm_hi': segm_hi,
+        'segm': segm,
+        'obj': obj
+    }
+
+    return model
+
+
+def get_train_model(opt):
+    """Get a model (for training).
 
     Args:
         opt: dictionary, model options
@@ -146,12 +247,17 @@ def create_model(opt):
     h_conv3 = tf.nn.relu(conv2d(h_pool2, w_conv3) + b_conv3)
     h_pool3 = max_pool_2x2(h_conv3)
 
-    conv_size = 16 * 16 * 64
-    h_pool3_reshape = tf.reshape(h_pool3, [-1, conv_size])
+    # After 3 convolutional layers, the image has been downsampled by a factor 
+    # of 8. conv_size is the output image size of the 3rd convolution layer.
+    conv_size = out_size / 8
+    log.info('Conv size {}'.format(conv_size))
+    full_size = conv_size * conv_size * 64
+    log.info('Full size {}'.format(full_size))
+    h_pool3_reshape = tf.reshape(h_pool3, [-1, full_size])
 
     # Segmentation network
     lo_size = out_size / opt['output_downsample']
-    w_fc1 = weight_variable([conv_size, lo_size * lo_size])
+    w_fc1 = weight_variable([full_size, lo_size * lo_size])
     b_fc1 = weight_variable([lo_size * lo_size])
 
     # Output low-resolution image
@@ -179,26 +285,33 @@ def create_model(opt):
 
     # CE average accross all image pixels (low-res version).
     segm_ce = -tf.reduce_sum(
-        segm_gt_lo * tf.log(segm_lo) +
-        (1 - segm_gt_lo) * tf.log(1 - segm_lo),
+        segm_gt_lo * tf.log(segm_lo + 1e-7) +
+        (1 - segm_gt_lo) * tf.log(1 - segm_lo + 1e-7),
         reduction_indices=[1, 2])
 
     # Objectness network
-    w_fc2 = weight_variable([conv_size, 1])
+    w_fc2 = weight_variable([full_size, 1])
     b_fc2 = weight_variable([1])
     obj = tf.sigmoid(tf.matmul(h_pool3_reshape, w_fc2) + b_fc2)
     obj_gt = tf.placeholder('float', [None, 1])
     obj_ce = -tf.reduce_mean(
-        obj_gt * tf.log(obj) + (1 - obj_gt) * tf.log(1 - obj))
+        obj_gt * tf.log(obj + 1e-7) + (1 - obj_gt) * tf.log(1 - obj + 1e-7))
 
     # Constants
+    # Mixing coefficient of objectness and segmentation objectives
     lbd = 1
+    # Learning rate
+    lr = 1e-4
+    # Small constant for numerical stability
+    eps = 1e-7
 
     # Total objective
     # Only count error for segmentation when there is a positive example.
     total_err = tf.reduce_mean(segm_ce * obj_gt)
     total_err += lbd * obj_ce
-    train_step = tf.train.AdamOptimizer(1e-4).minimize(total_err)
+    # train_step = GradientClipOptimizer(
+    #     tf.train.AdamOptimizer(lr, epsilon=eps)).minimize(total_err)
+    train_step = tf.train.AdamOptimizer(lr, epsilon=eps).minimize(total_err)
 
     model = {
         'inp': inp,
@@ -212,16 +325,12 @@ def create_model(opt):
         'b_conv3': b_conv3,
         'w_conv3': w_conv3,
         'h_pool3': h_pool3,
-        'h_pool3_reshape': h_pool3_reshape,
         'w_fc1': w_fc1,
         'b_fc1': b_fc1,
-        'segm_reshape': segm_reshape,
         'segm_lo': segm_lo,
         'segm_hi': segm_hi,
         'segm': segm,
         'segm_gt': segm_gt,
-        'segm_gt_reshape': segm_gt_reshape,
-        'segm_gt_lo': segm_gt_lo,
         'segm_ce': segm_ce,
         'w_fc2': w_fc2,
         'b_fc2': b_fc2,
@@ -235,21 +344,31 @@ def create_model(opt):
     return model
 
 
-def save_ckpt(save_folder, sess, opt, global_step=None):
+def add_catalog(results_folder, model_id):
+    """Add catalog entry.
+    (Should refractor this logic outside training file)
+    """
+    with open(os.path.join(results_folder, 'catalog'), 'a') as f:
+        f.write('{}\n'.format(model_id))
+
+    pass
+
+
+def save_ckpt(folder, sess, opt, global_step=None):
     """Save checkpoint.
 
     Args:
-        save_folder:
+        folder:
         sess:
         global_step:
     """
-    if not os.path.exists(save_folder):
-        os.makedirs(save_folder)
+    if not os.path.exists(folder):
+        os.makedirs(folder)
     ckpt_path = os.path.join(
-        save_folder, 'model.ckpt'.format(model_id))
+        folder, 'model.ckpt'.format(model_id))
     log.info('Saving checkpoint to {}'.format(ckpt_path))
     saver.save(sess, ckpt_path, global_step=global_step)
-    opt_path = os.path.join(save_folder, 'opt.pkl')
+    opt_path = os.path.join(folder, 'opt.pkl')
     with open(opt_path, 'wb') as f_opt:
         pkl.dump(opt, f_opt)
 
@@ -314,9 +433,6 @@ if __name__ == '__main__':
         'output_window_size': args.output_window_size,
         'output_downsample': args.output_downsample
     }
-    # with open('opt.pkl', 'wb') as f_opt:
-    #     pkl.dump(opt, f_opt)
-    # log.fatal('end')
 
     # Train loop options
     loop_config = {
@@ -325,16 +441,16 @@ if __name__ == '__main__':
     }
 
     # Logistics
-    save_folder = args.results
+    results_folder = args.results
     task_name = 'syncount_segment'
     time_obj = datetime.datetime.now()
     model_id = timestr = '{}-{:04d}{:02d}{:02d}{:02d}{:02d}{:02d}'.format(
         task_name, time_obj.year, time_obj.month, time_obj.day,
         time_obj.hour, time_obj.minute, time_obj.second)
-    save_folder = os.path.join(save_folder, model_id)
+    exp_folder = os.path.join(results_folder, model_id)
 
     # Create model
-    m = create_model(opt)
+    m = get_train_model(opt)
     log.info('All variables: {}'.format([x.name for x in tf.all_variables()]))
     log.info('Trainable variables: {}'.format(
         [x.name for x in tf.trainable_variables()]))
@@ -362,15 +478,35 @@ if __name__ == '__main__':
     saver = tf.train.Saver(tf.all_variables())
     # saver = tf.train.Saver(tf.trainable_variables())
 
+    # Create time series logger
+    train_ce_logger = TimeSeriesLogger(
+        os.path.join(exp_folder, 'train_ce.csv'), 'train_ce', buffer_size=5)
+    valid_ce_logger = TimeSeriesLogger(
+        os.path.join(exp_folder, 'valid_ce.csv'), 'valid_ce', buffer_size=1)
+    log.info(
+        'Curves can be viewed at: http://localhost/visualizer?id={}'.format(
+            model_id))
+
+    step = 0
     for epoch in xrange(loop_config['num_epochs']):
-        train_ce_epoch = 0
-        valid_ce_epoch = 0
         log.info('Epoch {}'.format(epoch))
 
+        # Validation
+        valid_ce = 0
+        for idx in BatchIterator(num_ex_val, batch_size=64, progress_bar=False):
+            inp_batch = inp_all_val[idx]
+            lab_seg_batch = lab_seg_all_val[idx]
+            lab_obj_batch = lab_obj_all_val[idx]
+            vce = sess.run(m['total_err'],
+                           feed_dict={m['inp']: inp_batch,
+                                      m['segm_gt']: lab_seg_batch,
+                                      m['obj_gt']: lab_obj_batch})
+            log.info('Step: {:d}, Valid CE: {:.4f}'.format(step, vce))
+            valid_ce += vce * inp_batch.shape[0] / float(num_ex_val)
+        valid_ce_logger.add(step, valid_ce)
+
         # Train
-        for step, idx in enumerate(BatchIterator(
-                num_ex, batch_size=64,
-                progress_bar=False)):
+        for idx in BatchIterator(num_ex, batch_size=64, progress_bar=False):
             inp_batch = inp_all[idx]
             lab_seg_batch = lab_seg_all[idx]
             lab_obj_batch = lab_obj_all[idx]
@@ -383,26 +519,10 @@ if __name__ == '__main__':
                                            m['segm_gt']: lab_seg_batch,
                                            m['obj_gt']: lab_obj_batch})
             log.info('Step: {:d}, Train CE: {:.4f}'.format(step, train_ce))
-            train_ce_epoch += train_ce * inp_batch.shape[0] / float(num_ex)
-
-        # Validation
-        for step, idx in enumerate(BatchIterator(
-                num_ex_val, batch_size=64,
-                progress_bar=False)):
-            inp_batch = inp_all_val[idx]
-            lab_seg_batch = lab_seg_all_val[idx]
-            lab_obj_batch = lab_obj_all_val[idx]
-            valid_ce = sess.run(m['total_err'],
-                                feed_dict={m['inp']: inp_batch,
-                                           m['segm_gt']: lab_seg_batch,
-                                           m['obj_gt']: lab_obj_batch})
-            log.info('Step: {:d}, Valid CE: {:.4f}'.format(step, valid_ce))
-            valid_ce_epoch += valid_ce * inp_batch.shape[0] / float(num_ex_val)
-
-        # Epoch statistics
-        log.info('Epoch: {:d}, Train CE: {:.4f}, Valid CE {:.4f}'.format(
-            epoch, train_ce_epoch, valid_ce_epoch))
+            train_ce_logger.add(step, train_ce)
+            step += 1
 
         # Save model
         if (epoch + 1) % loop_config['epochs_per_ckpt'] == 0:
-            save_ckpt(save_folder, sess, opt, global_step=epoch)
+            save_ckpt(exp_folder, sess, opt, global_step=epoch)
+            add_catalog(results_folder, model_id)

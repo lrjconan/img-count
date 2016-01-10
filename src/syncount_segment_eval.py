@@ -11,7 +11,7 @@ import numpy as np
 import os
 import pickle as pkl
 import syncount_gen_data as data
-import syncount_segment as train
+import syncount_segment as model
 import tensorflow as tf
 
 log = logger.get()
@@ -66,14 +66,14 @@ if __name__ == '__main__':
     if not args.model:
         log.fatal('You must provide model folder using -model.')
 
-    ckpt_fname = get_latest_ckpt(args.model)
+    ckpt_fname = _get_latest_ckpt(args.model)
     opt_fname = os.path.join(args.model, 'opt.pkl')
 
     with open(opt_fname, 'rb') as f_opt:
         opt = pkl.load(f_opt)
     log.info(opt)
 
-    dataset = train.get_dataset(opt, 10, 10)
+    dataset = model.get_dataset(opt, 10, 10)
 
     img = dataset['valid']['input']
     segm_label = dataset['valid']['label_segmentation']
@@ -86,7 +86,7 @@ if __name__ == '__main__':
     neg_idx = obj_label[:, 0] == 0
 
     # Create model
-    m = train.create_model(opt)
+    m = model.get_train_model(opt)
 
     # Create saver
     saver = tf.train.Saver(tf.all_variables())
@@ -101,11 +101,28 @@ if __name__ == '__main__':
         obj_out_pos = sess.run(m['obj'], feed_dict=feed_dict_pos)
         segm_out_neg = sess.run(m['segm'], feed_dict=feed_dict_neg)
         obj_out_neg = sess.run(m['obj'], feed_dict=feed_dict_neg)
+        w_conv1 = sess.run(m['w_conv1'])
 
+    # Plot positive examples
     _plot_results((img[pos_idx])[:num_ex], (segm_label[pos_idx])[:num_ex], 
                    segm_out_pos, (obj_label[pos_idx])[:num_ex], obj_out_pos, 
                    'Positive Examples')
+
+    # Plot negative examples
     _plot_results((img[neg_idx])[:num_ex], (segm_label[neg_idx])[:num_ex], 
                    segm_out_neg, (obj_label[neg_idx])[:num_ex], obj_out_neg, 
                    'Negative Examples')
+
+    # Normalize 1st layer filters and plot them
+    w_conv1 = w_conv1 / np.max(w_conv1)
+    num_filters = w_conv1.shape[3]
+    num_rows = 4
+    num_cols = num_filters / num_rows
+    log.info('Number of filters: {}'.format(num_filters))
+    f, axarr = plt.subplots(num_rows, num_cols)
+    for ii in xrange(num_rows):
+        for jj in xrange(num_cols):
+            axarr[ii, jj].imshow(w_conv1[:, :, :, ii * num_cols + jj])
+            axarr[ii, jj].set_axis_off()
+
     plt.show()
