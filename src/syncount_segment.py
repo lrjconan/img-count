@@ -419,6 +419,10 @@ def parse_args():
                         type=int, help='Number of epochs per checkpoint')
     parser.add_argument('-results', default='../results',
                         help='Model results folder')
+    parser.add_argument('-logs', default='../results',
+                        help='Training curve logs folder')
+    parser.add_argument('-localhost', default='localhost', 
+                        help='Local domain name')
     parser.add_argument('-gpu', default=-1, type=int,
                         help='GPU ID, default CPU')
     args = parser.parse_args()
@@ -460,12 +464,14 @@ if __name__ == '__main__':
 
     # Logistics
     results_folder = args.results
+    logs_folder = args.logs
     task_name = 'syncount_segment'
     time_obj = datetime.datetime.now()
     model_id = timestr = '{}-{:04d}{:02d}{:02d}{:02d}{:02d}{:02d}'.format(
         task_name, time_obj.year, time_obj.month, time_obj.day,
         time_obj.hour, time_obj.minute, time_obj.second)
     exp_folder = os.path.join(results_folder, model_id)
+    exp_logs_folder = os.path.join(logs_folder, model_id)
 
     # Create model
     m = get_train_model(opt, device=device)
@@ -498,12 +504,14 @@ if __name__ == '__main__':
 
     # Create time series logger
     train_ce_logger = TimeSeriesLogger(
-        os.path.join(exp_folder, 'train_ce.csv'), 'train_ce', buffer_size=25)
+        os.path.join(exp_logs_folder, 'train_ce.csv'), 'train_ce', 
+        buffer_size=25)
     valid_ce_logger = TimeSeriesLogger(
-        os.path.join(exp_folder, 'valid_ce.csv'), 'valid_ce', buffer_size=2)
+        os.path.join(exp_logs_folder, 'valid_ce.csv'), 'valid_ce', 
+        buffer_size=2)
     log.info(
-        'Curves can be viewed at: http://localhost/visualizer?id={}'.format(
-            model_id))
+        'Curves can be viewed at: http://{}/visualizer?id={}'.format(
+            args.localhost, model_id))
 
     step = 0
     for epoch in xrange(loop_config['num_epochs']):
