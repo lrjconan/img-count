@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0')
+
 import numpy as np
 import tensorflow as tf
 
