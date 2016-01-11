@@ -4,5 +4,5 @@ python src/syncount_segment.py \
     -num_steps 10000 \
     -neg_pos_ratio 1 \
     -logs "/u/mren/public_html/results" \
-    -results "/ais/gobi3/u/mren/results/img-count"
+    -results "/ais/gobi3/u/mren/results/img-count" \
     -localhost "www.cs.toronto.edu/~mren"
