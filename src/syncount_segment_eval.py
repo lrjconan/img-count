@@ -21,8 +21,8 @@ def _get_latest_ckpt(folder):
     """Get the latest checkpoint filename in a folder."""
     ckpt_fname_pattern = os.path.join(folder, 'model.ckpt-*')
     ckpt_fname_list = []
-    for fname in os.listdir(args.model):
-        fullname = os.path.join(args.model, fname)
+    for fname in os.listdir(folder):
+        fullname = os.path.join(folder, fname)
         if fnmatch.fnmatch(fullname, ckpt_fname_pattern):
             ckpt_fname_list.append(fullname)
     if len(ckpt_fname_list) == 0:

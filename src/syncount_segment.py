@@ -308,7 +308,7 @@ def get_train_model(opt, device='/cpu:0'):
 
         # Constants
         # Mixing coefficient of objectness and segmentation objectives
-        lbd = 1
+        r = lo_size
         # Learning rate
         lr = 1e-4
         # Small constant for numerical stability
@@ -317,7 +317,7 @@ def get_train_model(opt, device='/cpu:0'):
         # Total objective
         # Only count error for segmentation when there is a positive example.
         total_err = tf.reduce_mean(segm_ce * obj_gt)
-        total_err += lbd * obj_ce
+        total_err += r * obj_ce
         # train_step = GradientClipOptimizer(
         #     tf.train.AdamOptimizer(lr, epsilon=eps)).minimize(total_err)
         train_step = tf.train.AdamOptimizer(
