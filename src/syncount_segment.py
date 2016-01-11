@@ -1,5 +1,6 @@
 import sys
-sys.path.insert(0, '/pkgs/tensorflow-cpu-0.5.0')
+sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
+# sys.path.insert(0, '/pkgs/tensorflow-cpu-0.5.0')
 
 from utils import logger
 from utils.batch_iter import BatchIterator
@@ -118,89 +119,92 @@ def weight_variable(shape):
     return tf.Variable(initial)
 
 
-def get_inference_model(opt, sess, train_model):
+def get_inference_model(opt, sess, train_model, device='/cpu:0'):
     """Get a model (for inference). Copy weights from trained model.
     Apply model densely on all sliding windows.
 
     Args:
         opt: dictionary, model options
+        sess: tensorflow session
         train_model: restored train model for assigning weights
+        device: device to store inference model
     Returns:
         model: dictionary.
     """
-    # The inference network is fully convolutional so it is not dependent on 
+    # The inference network is fully convolutional so it is not dependent on
     # the input image size.
     # inp_width = opt['width']
     # inp_height = opt['height']
 
-    # Model input
-    # (batch, inp_height, inp_width, 3)
-    inp = tf.placeholder('float', [None, None, None, 3])
+    with tf.device(device):
+        # Model input
+        # (batch, inp_height, inp_width, 3)
+        inp = tf.placeholder('float', [None, None, None, 3])
 
-    # 1st convolution layer
-    # (batch, inp_height / 2, inp_width / 2, 16)
-    w_conv1 = tf.constant(sess.run(train_model['w_conv1']))
-    b_conv1 = tf.constant(sess.run(train_model['b_conv1']))
-    h_conv1 = tf.nn.relu(conv2d(inp, w_conv1) + b_conv1)
-    h_pool1 = max_pool_2x2(h_conv1)
+        # 1st convolution layer
+        # (batch, inp_height / 2, inp_width / 2, 16)
+        w_conv1 = tf.constant(sess.run(train_model['w_conv1']))
+        b_conv1 = tf.constant(sess.run(train_model['b_conv1']))
+        h_conv1 = tf.nn.relu(conv2d(inp, w_conv1) + b_conv1)
+        h_pool1 = max_pool_2x2(h_conv1)
 
-    # 2nd convolution layer
-    # (batch, inp_height / 4, inp_width / 4, 32)
-    w_conv2 = tf.constant(sess.run(train_model['w_conv2']))
-    b_conv2 = tf.constant(sess.run(train_model['b_conv2']))
-    h_conv2 = tf.nn.relu(conv2d(h_pool1, w_conv2) + b_conv2)
-    h_pool2 = max_pool_2x2(h_conv2)
+        # 2nd convolution layer
+        # (batch, inp_height / 4, inp_width / 4, 32)
+        w_conv2 = tf.constant(sess.run(train_model['w_conv2']))
+        b_conv2 = tf.constant(sess.run(train_model['b_conv2']))
+        h_conv2 = tf.nn.relu(conv2d(h_pool1, w_conv2) + b_conv2)
+        h_pool2 = max_pool_2x2(h_conv2)
 
-    # 3rd convolution layer
-    # (batch, inp_height / 8, inp_width / 8, 64)
-    w_conv3 = tf.constant(sess.run(train_model['w_conv3']))
-    b_conv3 = tf.constant(sess.run(train_model['b_conv3']))
-    h_conv3 = tf.nn.relu(conv2d(h_pool2, w_conv3) + b_conv3)
-    h_pool3 = max_pool_2x2(h_conv3)
+        # 3rd convolution layer
+        # (batch, inp_height / 8, inp_width / 8, 64)
+        w_conv3 = tf.constant(sess.run(train_model['w_conv3']))
+        b_conv3 = tf.constant(sess.run(train_model['b_conv3']))
+        h_conv3 = tf.nn.relu(conv2d(h_pool2, w_conv3) + b_conv3)
+        h_pool3 = max_pool_2x2(h_conv3)
 
-    # Helper sizes
-    # out_conv_size_h = inp_height / 8
-    # out_conv_size_w = inp_width / 8
-    # Dense layer (apply convolution on all sliding windows)
-    # (batch, out_conv_size_h, out_conv_size_w, lo_size * lo_size)
+        # Helper sizes
+        # out_conv_size_h = inp_height / 8
+        # out_conv_size_w = inp_width / 8
+        # Dense layer (apply convolution on all sliding windows)
+        # (batch, out_conv_size_h, out_conv_size_w, lo_size * lo_size)
 
-    # Output map of the train network.
-    out_size = opt['output_window_size']
+        # Output map of the train network.
+        out_size = opt['output_window_size']
 
-    # Convolution filter size of the train network.
-    conv_size = out_size / 8
+        # Convolution filter size of the train network.
+        conv_size = out_size / 8
 
-    lo_size = out_size / opt['output_downsample']
-    w_fc1_val = np.reshape(sess.run(train_model['w_fc1']),
-                           [conv_size, conv_size, 64, lo_size * lo_size])
-    w_fc1 = tf.constant(w_fc1_val)
-    b_fc1 = tf.constant(sess.run(train_model['b_fc1']))
-    segm_reshape = tf.sigmoid(conv2d(h_pool3, w_fc1) + b_fc1)
+        lo_size = out_size / opt['output_downsample']
+        w_fc1_val = np.reshape(sess.run(train_model['w_fc1']),
+                               [conv_size, conv_size, 64, lo_size * lo_size])
+        w_fc1 = tf.constant(w_fc1_val)
+        b_fc1 = tf.constant(sess.run(train_model['b_fc1']))
+        segm_reshape = tf.sigmoid(conv2d(h_pool3, w_fc1) + b_fc1)
 
-    # (batch * out_conv_size_h * out_conv_size_w, lo_size, lo_size , 1)
-    segm_lo = tf.reshape(segm_reshape, [-1, lo_size, lo_size, 1])
+        # (batch * out_conv_size_h * out_conv_size_w, lo_size, lo_size , 1)
+        segm_lo = tf.reshape(segm_reshape, [-1, lo_size, lo_size, 1])
 
-    # Upsample to high-resolution if necessary
-    # (batch * out_conv_size_h * out_conv_size_w, out_size, out_size, 1)
-    if opt['output_downsample'] > 1:
-        segm_hi = tf.image.resize_nearest_neighbor(
-            segm_lo, (out_size, out_size))
-    else:
-        segm_hi = segm_lo
+        # Upsample to high-resolution if necessary
+        # (batch * out_conv_size_h * out_conv_size_w, out_size, out_size, 1)
+        if opt['output_downsample'] > 1:
+            segm_hi = tf.image.resize_nearest_neighbor(
+                segm_lo, (out_size, out_size))
+        else:
+            segm_hi = segm_lo
 
-    # Final output
-    # (batch * out_conv_size_h * out_conv_size_w, out_size, out_size)
-    segm = tf.reshape(segm_hi, [-1, out_size, out_size])
+        # Final output
+        # (batch * out_conv_size_h * out_conv_size_w, out_size, out_size)
+        segm = tf.reshape(segm_hi, [-1, out_size, out_size])
 
-    # Objectness network
-    # (batch * out_conv_size_h * out_conv_size_w, 1)
-    w_fc2_val = np.reshape(sess.run(train_model['w_fc2']),
-                           [conv_size, conv_size, 64, 1])
-    w_fc2 = tf.constant(w_fc2_val)
-    b_fc2 = tf.constant(sess.run(train_model['b_fc2']))
+        # Objectness network
+        # (batch * out_conv_size_h * out_conv_size_w, 1)
+        w_fc2_val = np.reshape(sess.run(train_model['w_fc2']),
+                               [conv_size, conv_size, 64, 1])
+        w_fc2 = tf.constant(w_fc2_val)
+        b_fc2 = tf.constant(sess.run(train_model['b_fc2']))
 
-    # (batch * out_conv_size_h * out_conv_size_w, 1)
-    obj = tf.sigmoid(conv2d(h_pool3, w_fc2) + b_fc2)
+        # (batch * out_conv_size_h * out_conv_size_w, 1)
+        obj = tf.sigmoid(conv2d(h_pool3, w_fc2) + b_fc2)
 
     model = {
         'inp': inp,
@@ -217,7 +221,7 @@ def get_inference_model(opt, sess, train_model):
     return model
 
 
-def get_train_model(opt):
+def get_train_model(opt, device='/cpu:0'):
     """Get a model (for training).
 
     Args:
@@ -226,92 +230,98 @@ def get_train_model(opt):
         model: dictionary.
     """
     out_size = opt['output_window_size']
-    # Model input
-    inp = tf.placeholder('float', [None, out_size, out_size, 3])
 
-    # 1st convolution layer
-    w_conv1 = weight_variable([5, 5, 3, 16])
-    b_conv1 = weight_variable([16])
-    h_conv1 = tf.nn.relu(conv2d(inp, w_conv1) + b_conv1)
-    h_pool1 = max_pool_2x2(h_conv1)
+    with tf.device(device):
+        # Model input
+        inp = tf.placeholder('float', [None, out_size, out_size, 3])
 
-    # 2nd convolution layer
-    w_conv2 = weight_variable([5, 5, 16, 32])
-    b_conv2 = weight_variable([32])
-    h_conv2 = tf.nn.relu(conv2d(h_pool1, w_conv2) + b_conv2)
-    h_pool2 = max_pool_2x2(h_conv2)
+        # 1st convolution layer
+        w_conv1 = weight_variable([5, 5, 3, 16])
+        b_conv1 = weight_variable([16])
+        h_conv1 = tf.nn.relu(conv2d(inp, w_conv1) + b_conv1)
+        h_pool1 = max_pool_2x2(h_conv1)
 
-    # 3rd convolution layer
-    w_conv3 = weight_variable([5, 5, 32, 64])
-    b_conv3 = weight_variable([64])
-    h_conv3 = tf.nn.relu(conv2d(h_pool2, w_conv3) + b_conv3)
-    h_pool3 = max_pool_2x2(h_conv3)
+        # 2nd convolution layer
+        w_conv2 = weight_variable([5, 5, 16, 32])
+        b_conv2 = weight_variable([32])
+        h_conv2 = tf.nn.relu(conv2d(h_pool1, w_conv2) + b_conv2)
+        h_pool2 = max_pool_2x2(h_conv2)
 
-    # After 3 convolutional layers, the image has been downsampled by a factor 
-    # of 8. conv_size is the output image size of the 3rd convolution layer.
-    conv_size = out_size / 8
-    log.info('Conv size {}'.format(conv_size))
-    full_size = conv_size * conv_size * 64
-    log.info('Full size {}'.format(full_size))
-    h_pool3_reshape = tf.reshape(h_pool3, [-1, full_size])
+        # 3rd convolution layer
+        w_conv3 = weight_variable([5, 5, 32, 64])
+        b_conv3 = weight_variable([64])
+        h_conv3 = tf.nn.relu(conv2d(h_pool2, w_conv3) + b_conv3)
+        h_pool3 = max_pool_2x2(h_conv3)
 
-    # Segmentation network
-    lo_size = out_size / opt['output_downsample']
-    w_fc1 = weight_variable([full_size, lo_size * lo_size])
-    b_fc1 = weight_variable([lo_size * lo_size])
+        # After 3 convolutional layers, the image has been downsampled by a
+        # factor of 8. conv_size is the output image size of the 3rd convolution
+        # layer.
+        conv_size = out_size / 8
+        log.info('Conv size {}'.format(conv_size))
+        full_size = conv_size * conv_size * 64
+        log.info('Full size {}'.format(full_size))
+        h_pool3_reshape = tf.reshape(h_pool3, [-1, full_size])
 
-    # Output low-resolution image
-    segm_reshape = tf.sigmoid(tf.matmul(h_pool3_reshape, w_fc1) + b_fc1)
-    segm_lo = tf.reshape(segm_reshape, [-1, lo_size, lo_size, 1])
+        # Segmentation network
+        lo_size = out_size / opt['output_downsample']
+        w_fc1 = weight_variable([full_size, lo_size * lo_size])
+        b_fc1 = weight_variable([lo_size * lo_size])
 
-    # Upsample to high-resolution if necessary
-    if opt['output_downsample'] > 1:
-        segm_hi = tf.image.resize_nearest_neighbor(
-            segm_lo, (out_size, out_size))
-    else:
-        segm_hi = segm_lo
+        # Output low-resolution image
+        segm_reshape = tf.sigmoid(tf.matmul(h_pool3_reshape, w_fc1) + b_fc1)
+        segm_lo = tf.reshape(segm_reshape, [-1, lo_size, lo_size, 1])
 
-    # Segmentation label
-    segm_gt = tf.placeholder('float', [None, out_size, out_size])
-    segm_gt_reshape = tf.reshape(segm_gt, [-1, out_size, out_size, 1])
+        # Upsample to high-resolution if necessary
+        if opt['output_downsample'] > 1:
+            segm_hi = tf.image.resize_nearest_neighbor(
+                segm_lo, (out_size, out_size))
+        else:
+            segm_hi = segm_lo
 
-    if opt['output_downsample'] > 1:
-        segm_gt_lo = avg_pool_4x4(segm_gt_reshape)
-    else:
-        segm_gt_lo = segm_gt_reshape
+        # Segmentation label
+        segm_gt = tf.placeholder('float', [None, out_size, out_size])
+        segm_gt_reshape = tf.reshape(segm_gt, [-1, out_size, out_size, 1])
 
-    # Final output
-    segm = tf.reshape(segm_hi, [-1, out_size, out_size])
+        if opt['output_downsample'] > 1:
+            segm_gt_lo = avg_pool_4x4(segm_gt_reshape)
+        else:
+            segm_gt_lo = segm_gt_reshape
 
-    # CE average accross all image pixels (low-res version).
-    segm_ce = -tf.reduce_sum(
-        segm_gt_lo * tf.log(segm_lo + 1e-7) +
-        (1 - segm_gt_lo) * tf.log(1 - segm_lo + 1e-7),
-        reduction_indices=[1, 2])
+        # Final output
+        segm = tf.reshape(segm_hi, [-1, out_size, out_size])
 
-    # Objectness network
-    w_fc2 = weight_variable([full_size, 1])
-    b_fc2 = weight_variable([1])
-    obj = tf.sigmoid(tf.matmul(h_pool3_reshape, w_fc2) + b_fc2)
-    obj_gt = tf.placeholder('float', [None, 1])
-    obj_ce = -tf.reduce_mean(
-        obj_gt * tf.log(obj + 1e-7) + (1 - obj_gt) * tf.log(1 - obj + 1e-7))
+        # CE average accross all image pixels (low-res version).
+        segm_ce = -tf.reduce_sum(
+            segm_gt_lo * tf.log(segm_lo + 1e-7) +
+            (1 - segm_gt_lo) * tf.log(1 - segm_lo + 1e-7),
+            reduction_indices=[1, 2])
 
-    # Constants
-    # Mixing coefficient of objectness and segmentation objectives
-    lbd = 1
-    # Learning rate
-    lr = 1e-4
-    # Small constant for numerical stability
-    eps = 1e-7
+        # Objectness network
+        w_fc2 = weight_variable([full_size, 1])
+        b_fc2 = weight_variable([1])
+        obj = tf.sigmoid(tf.matmul(h_pool3_reshape, w_fc2) + b_fc2)
+        obj_gt = tf.placeholder('float', [None, 1])
+        
+    with tf.device('/cpu:0'):
+        obj_ce = -tf.reduce_mean(
+            obj_gt * tf.log(obj + 1e-7) + (1 - obj_gt) * tf.log(1 - obj + 1e-7))
 
-    # Total objective
-    # Only count error for segmentation when there is a positive example.
-    total_err = tf.reduce_mean(segm_ce * obj_gt)
-    total_err += lbd * obj_ce
-    # train_step = GradientClipOptimizer(
-    #     tf.train.AdamOptimizer(lr, epsilon=eps)).minimize(total_err)
-    train_step = tf.train.AdamOptimizer(lr, epsilon=eps).minimize(total_err)
+        # Constants
+        # Mixing coefficient of objectness and segmentation objectives
+        lbd = 1
+        # Learning rate
+        lr = 1e-4
+        # Small constant for numerical stability
+        eps = 1e-7
+
+        # Total objective
+        # Only count error for segmentation when there is a positive example.
+        total_err = tf.reduce_mean(segm_ce * obj_gt)
+        total_err += lbd * obj_ce
+        # train_step = GradientClipOptimizer(
+        #     tf.train.AdamOptimizer(lr, epsilon=eps)).minimize(total_err)
+        train_step = tf.train.AdamOptimizer(
+            lr, epsilon=eps).minimize(total_err)
 
     model = {
         'inp': inp,
@@ -409,6 +419,8 @@ def parse_args():
                         type=int, help='Number of epochs per checkpoint')
     parser.add_argument('-results', default='../results',
                         help='Model results folder')
+    parser.add_argument('-gpu', default=-1, type=int,
+                        help='GPU ID, default CPU')
     args = parser.parse_args()
 
     return args
@@ -417,6 +429,12 @@ if __name__ == '__main__':
     # Command-line arguments
     args = parse_args()
     log.log_args()
+
+    # Set device
+    if args.gpu >= 0:
+        device = '/gpu:{}'.format(args.gpu)
+    else:
+        device = '/cpu:0'
 
     # Model options
     opt = {
@@ -450,7 +468,7 @@ if __name__ == '__main__':
     exp_folder = os.path.join(results_folder, model_id)
 
     # Create model
-    m = get_train_model(opt)
+    m = get_train_model(opt, device=device)
     log.info('All variables: {}'.format([x.name for x in tf.all_variables()]))
     log.info('Trainable variables: {}'.format(
         [x.name for x in tf.trainable_variables()]))
@@ -480,9 +498,9 @@ if __name__ == '__main__':
 
     # Create time series logger
     train_ce_logger = TimeSeriesLogger(
-        os.path.join(exp_folder, 'train_ce.csv'), 'train_ce', buffer_size=5)
+        os.path.join(exp_folder, 'train_ce.csv'), 'train_ce', buffer_size=25)
     valid_ce_logger = TimeSeriesLogger(
-        os.path.join(exp_folder, 'valid_ce.csv'), 'valid_ce', buffer_size=1)
+        os.path.join(exp_folder, 'valid_ce.csv'), 'valid_ce', buffer_size=2)
     log.info(
         'Curves can be viewed at: http://localhost/visualizer?id={}'.format(
             model_id))
