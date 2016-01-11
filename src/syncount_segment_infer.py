@@ -1,11 +1,15 @@
 from utils import logger
+import argparse
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import pickle as pkl
 import syncount_gen_data as data
 import syncount_segment as model
 import tensorflow as tf
+
+from syncount_segment_eval import _get_latest_ckpt
 
 log = logger.get()
 
@@ -52,9 +56,26 @@ def idx2img(idx, scale, patch_size, img_size):
     return (ystart, yend), (xstart, xend), \
            (yidxstart, yidxend), (xidxstart, xidxend)
 
+
+def parse_args():
+    """Parse input arguments."""
+    parser = argparse.ArgumentParser(
+        description='Evaluate models on synthetic counting images')
+    parser.add_argument('-model', default=None, help='Model save folder')
+    parser.add_argument('-scale', default=1.0, type=float, help='Image scale')
+    args = parser.parse_args()
+
+    return args
+
 if __name__ == '__main__':
-    ckpt_fname = '../results/syncount_segment-20160103222523/model.ckpt-19'
-    opt_fname = '../results/syncount_segment-20160103222523/opt.pkl'
+    args = parse_args()
+    log.log_args()
+
+    if not args.model:
+        log.fatal('You must provide model folder using -model.')
+
+    ckpt_fname = _get_latest_ckpt(args.model)
+    opt_fname = os.path.join(args.model, 'opt.pkl')
 
     with open(opt_fname, 'rb') as f_opt:
         opt = pkl.load(f_opt)
@@ -73,7 +94,7 @@ if __name__ == '__main__':
     orig_img = image_data['images'][0: 1]
     log.info('Original image: {}'.format(orig_img.shape))
 
-    scale_list = [2.0]
+    scale_list = [args.scale]
     # scale_list = [0.5, 1.0, 1.5, 2.0]
 
     for scale in scale_list:
@@ -94,7 +115,8 @@ if __name__ == '__main__':
         log.info('Segm shape: {}'.format(segm.shape))
         conv_out_h = int(np.ceil(inp_height / 8.0))
         conv_out_w = int(np.ceil(inp_width / 8.0))
-        log.info('Reshape: {}'.format([-1, conv_out_h, conv_out_w, out_size, out_size]))
+        log.info('Reshape: {}'.format(
+            [-1, conv_out_h, conv_out_w, out_size, out_size]))
         segm = segm.reshape([-1, conv_out_h, conv_out_w, out_size, out_size])
         obj = obj.reshape([-1, conv_out_h, conv_out_w])
 
@@ -127,7 +149,7 @@ if __name__ == '__main__':
             [np.floor(obj_srt_idx / out_width), np.mod(obj_srt_idx, out_width)])
         obj_srt_idx2 = obj_srt_idx2.transpose()
         for ii in xrange(obj_reshape.size):
-            log.info('1D: {:.2f}'.format(obj_reshape[obj_srt_idx[ii]]), 
+            log.info('1D: {:.2f}'.format(obj_reshape[obj_srt_idx[ii]]),
                      verbose=2)
 
         log.info(obj_srt_idx.shape, verbose=2)
@@ -144,7 +166,7 @@ if __name__ == '__main__':
         num_col = num_proposals / 15
         num_row = num_proposals / num_col
         f4, axarr = plt.subplots(num_row, num_col)
-        plt.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, 
+        plt.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0,
                             wspace=0.0, hspace=0.0)
 
         for ii in xrange(idx_start, idx_start + num_proposals):

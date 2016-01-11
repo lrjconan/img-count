@@ -61,11 +61,11 @@ kMinWindowSize = 20
 # Downsample ratio of output.
 kOutputDownsample = 4
 
-# Number of epochs
-kNumEpochs = 20
+# Number of steps
+kNumSteps = 2000
 
-# Number of epochs per checkpoint
-kEpochsPerCkpt = 10
+# Number of steps per checkpoint
+kStepsPerCkpt = 1000
 
 
 def get_dataset(opt, num_train, num_valid):
@@ -308,7 +308,7 @@ def get_train_model(opt, device='/cpu:0'):
 
         # Constants
         # Mixing coefficient of objectness and segmentation objectives
-        lbd = 1
+        r = lo_size
         # Learning rate
         lr = 1e-4
         # Small constant for numerical stability
@@ -317,7 +317,7 @@ def get_train_model(opt, device='/cpu:0'):
         # Total objective
         # Only count error for segmentation when there is a positive example.
         total_err = tf.reduce_mean(segm_ce * obj_gt)
-        total_err += lbd * obj_ce
+        total_err += r * obj_ce
         # train_step = GradientClipOptimizer(
         #     tf.train.AdamOptimizer(lr, epsilon=eps)).minimize(total_err)
         train_step = tf.train.AdamOptimizer(
@@ -413,10 +413,10 @@ def parse_args():
                         type=int, help='Output segmentation window size')
     parser.add_argument('-output_downsample', default=kOutputDownsample,
                         type=int, help='Output downsample ratio')
-    parser.add_argument('-num_epochs', default=kNumEpochs,
-                        type=int, help='Number of epochs to train')
-    parser.add_argument('-epochs_per_ckpt', default=kEpochsPerCkpt,
-                        type=int, help='Number of epochs per checkpoint')
+    parser.add_argument('-num_steps', default=kNumSteps,
+                        type=int, help='Number of steps to train')
+    parser.add_argument('-steps_per_ckpt', default=kStepsPerCkpt,
+                        type=int, help='Number of steps per checkpoint')
     parser.add_argument('-results', default='../results',
                         help='Model results folder')
     parser.add_argument('-logs', default='../results',
@@ -458,8 +458,8 @@ if __name__ == '__main__':
 
     # Train loop options
     loop_config = {
-        'num_epochs': args.num_epochs,
-        'epochs_per_ckpt': args.epochs_per_ckpt
+        'num_steps': args.num_steps,
+        'steps_per_ckpt': args.steps_per_ckpt
     }
 
     # Logistics
@@ -514,7 +514,7 @@ if __name__ == '__main__':
             args.localhost, model_id))
 
     step = 0
-    for epoch in xrange(loop_config['num_epochs']):
+    while steps < loop_config['num_steps']:
         log.info('Epoch {}'.format(epoch))
 
         # Validation
@@ -548,7 +548,7 @@ if __name__ == '__main__':
             train_ce_logger.add(step, train_ce)
             step += 1
 
-        # Save model
-        if (epoch + 1) % loop_config['epochs_per_ckpt'] == 0:
-            save_ckpt(exp_folder, sess, opt, global_step=epoch)
-            add_catalog(results_folder, model_id)
+            # Save model
+            if step % loop_config['epochs_per_ckpt'] == 0:
+                save_ckpt(exp_folder, sess, opt, global_step=step)
+                add_catalog(results_folder, model_id)
