@@ -486,7 +486,8 @@ if __name__ == '__main__':
         [x.name for x in tf.trainable_variables()]))
 
     # Initialize session
-    sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+    sess = tf.Session()
+    # sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
     sess.run(tf.initialize_all_variables())
 
     # Fetch dataset
