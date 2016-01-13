@@ -354,6 +354,12 @@ def get_train_model(opt, device='/cpu:0'):
     return model
 
 
+def preprocess(inp, label_segmentation, label_objectness):
+    """Preprocess training data."""
+    return inp.astype('float32') / 255, label_segmentation.astype('float32'), \
+        label_objectness.astype('float32')
+
+
 def add_catalog(results_folder, model_id):
     """Add catalog entry.
     (Should refractor this logic outside training file)
@@ -520,9 +526,11 @@ if __name__ == '__main__':
         # Validation
         valid_ce = 0
         for st, nd in BatchIterator(num_ex_val, batch_size=64, progress_bar=False):
-            inp_batch = inp_all_val[st: nd].astype('float32')
-            lab_seg_batch = lab_seg_all_val[st: nd].astype('float32')
-            lab_obj_batch = lab_obj_all_val[st: nd].astype('float32')
+            inp_batch = inp_all_val[st: nd]
+            lab_seg_batch = lab_seg_all_val[st: nd]
+            lab_obj_batch = lab_obj_all_val[st: nd]
+            inp_batch, lab_seg_batch, lab_obj_batch = preprocess(
+                inp_batch, lab_seg_batch, lab_obj_batch)
             vce = sess.run(m['total_err'],
                            feed_dict={m['inp']: inp_batch,
                                       m['segm_gt']: lab_seg_batch,
@@ -533,9 +541,11 @@ if __name__ == '__main__':
 
         # Train
         for st, nd in BatchIterator(num_ex, batch_size=64, progress_bar=False):
-            inp_batch = inp_all[st: nd].astype('float32')
-            lab_seg_batch = lab_seg_all[st: nd].astype('float32')
-            lab_obj_batch = lab_obj_all[st: nd].astype('float32')
+            inp_batch = inp_all[st: nd]
+            lab_seg_batch = lab_seg_all[st: nd]
+            lab_obj_batch = lab_obj_all[st: nd]
+            inp_batch, lab_seg_batch, lab_obj_batch = preprocess(
+                inp_batch, lab_seg_batch, lab_obj_batch)
             sess.run(m['train_step'],
                      feed_dict={m['inp']: inp_batch,
                                 m['segm_gt']: lab_seg_batch,
