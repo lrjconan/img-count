@@ -91,7 +91,9 @@ if __name__ == '__main__':
     opt['radius_upper'] = 45
     raw_data = data.get_raw_data(opt, seed=10)
     image_data = data.get_image_data(opt, raw_data)
-    orig_img = image_data['images'][0: 1]
+    orig_img = image_data[0]['image']
+    orig_img = orig_img.reshape(
+        [-1, orig_img.shape[0], orig_img.shape[1], orig_img.shape[2]])
     log.info('Original image: {}'.format(orig_img.shape))
 
     scale_list = [args.scale]

@@ -50,7 +50,7 @@ class BatchIterator(object):
             start = self._batch_size * self._step
             end = min(self._num, self._batch_size * (self._step + 1))
             self._step += 1
-            return np.array(range(start, end))
+            return (start, end)
         else:
             raise StopIteration()
 

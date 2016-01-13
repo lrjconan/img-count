@@ -254,8 +254,8 @@ def get_train_model(opt, device='/cpu:0'):
         h_pool3 = max_pool_2x2(h_conv3)
 
         # After 3 convolutional layers, the image has been downsampled by a
-        # factor of 8. conv_size is the output image size of the 3rd convolution
-        # layer.
+        # factor of 8. conv_size is the output image size of the 3rd
+        # convolution layer.
         conv_size = out_size / 8
         log.info('Conv size {}'.format(conv_size))
         full_size = conv_size * conv_size * 64
@@ -301,10 +301,10 @@ def get_train_model(opt, device='/cpu:0'):
         b_fc2 = weight_variable([1])
         obj = tf.sigmoid(tf.matmul(h_pool3_reshape, w_fc2) + b_fc2)
         obj_gt = tf.placeholder('float', [None, 1])
-        
+
     with tf.device('/cpu:0'):
-        obj_ce = -tf.reduce_mean(
-            obj_gt * tf.log(obj + 1e-7) + (1 - obj_gt) * tf.log(1 - obj + 1e-7))
+        obj_ce = -tf.reduce_mean(obj_gt * tf.log(obj + 1e-7) +
+                                 (1 - obj_gt) * tf.log(1 - obj + 1e-7))
 
         # Constants
         # Mixing coefficient of objectness and segmentation objectives
@@ -421,7 +421,7 @@ def parse_args():
                         help='Model results folder')
     parser.add_argument('-logs', default='../results',
                         help='Training curve logs folder')
-    parser.add_argument('-localhost', default='localhost', 
+    parser.add_argument('-localhost', default='localhost',
                         help='Local domain name')
     parser.add_argument('-gpu', default=-1, type=int,
                         help='GPU ID, default CPU')
@@ -484,6 +484,8 @@ if __name__ == '__main__':
     sess.run(tf.initialize_all_variables())
 
     # Fetch dataset
+    # You probably want to store a disk-version of the dataset if it is very large.
+    # You probably want to flush to disk while generating data.
     dataset = get_dataset(opt, opt['num_examples'], opt['num_examples'] / 10)
 
     inp_all = dataset['train']['input']
@@ -504,25 +506,23 @@ if __name__ == '__main__':
 
     # Create time series logger
     train_ce_logger = TimeSeriesLogger(
-        os.path.join(exp_logs_folder, 'train_ce.csv'), 'train_ce', 
+        os.path.join(exp_logs_folder, 'train_ce.csv'), 'train_ce',
         buffer_size=25)
     valid_ce_logger = TimeSeriesLogger(
-        os.path.join(exp_logs_folder, 'valid_ce.csv'), 'valid_ce', 
+        os.path.join(exp_logs_folder, 'valid_ce.csv'), 'valid_ce',
         buffer_size=2)
     log.info(
         'Curves can be viewed at: http://{}/visualizer?id={}'.format(
             args.localhost, model_id))
 
     step = 0
-    while steps < loop_config['num_steps']:
-        log.info('Epoch {}'.format(epoch))
-
+    while step < loop_config['num_steps']:
         # Validation
         valid_ce = 0
-        for idx in BatchIterator(num_ex_val, batch_size=64, progress_bar=False):
-            inp_batch = inp_all_val[idx]
-            lab_seg_batch = lab_seg_all_val[idx]
-            lab_obj_batch = lab_obj_all_val[idx]
+        for st, nd in BatchIterator(num_ex_val, batch_size=64, progress_bar=False):
+            inp_batch = inp_all_val[st: nd].astype('float32')
+            lab_seg_batch = lab_seg_all_val[st: nd].astype('float32')
+            lab_obj_batch = lab_obj_all_val[st: nd].astype('float32')
             vce = sess.run(m['total_err'],
                            feed_dict={m['inp']: inp_batch,
                                       m['segm_gt']: lab_seg_batch,
@@ -532,10 +532,10 @@ if __name__ == '__main__':
         valid_ce_logger.add(step, valid_ce)
 
         # Train
-        for idx in BatchIterator(num_ex, batch_size=64, progress_bar=False):
-            inp_batch = inp_all[idx]
-            lab_seg_batch = lab_seg_all[idx]
-            lab_obj_batch = lab_obj_all[idx]
+        for st, nd in BatchIterator(num_ex, batch_size=64, progress_bar=False):
+            inp_batch = inp_all[st: nd].astype('float32')
+            lab_seg_batch = lab_seg_all[st: nd].astype('float32')
+            lab_obj_batch = lab_obj_all[st: nd].astype('float32')
             sess.run(m['train_step'],
                      feed_dict={m['inp']: inp_batch,
                                 m['segm_gt']: lab_seg_batch,
@@ -549,6 +549,6 @@ if __name__ == '__main__':
             step += 1
 
             # Save model
-            if step % loop_config['epochs_per_ckpt'] == 0:
+            if step % loop_config['steps_per_ckpt'] == 0:
                 save_ckpt(exp_folder, sess, opt, global_step=step)
                 add_catalog(results_folder, model_id)

@@ -16,7 +16,8 @@ Example 2:
 
 Example 3:
     l = ['a', 'b', 'c']
-    for i in progress_bar.get_iter(l)
+    for c in progress_bar.get_iter(l):
+        do_something(c)
 """
 
 
