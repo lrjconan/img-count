@@ -19,6 +19,7 @@ log = logger.get()
 
 def _get_latest_ckpt(folder):
     """Get the latest checkpoint filename in a folder."""
+    
     ckpt_fname_pattern = os.path.join(folder, 'model.ckpt-*')
     ckpt_fname_list = []
     for fname in os.listdir(folder):
@@ -34,7 +35,8 @@ def _get_latest_ckpt(folder):
 
 
 def _plot_results(img, segm_label, segm_out, obj_label, obj_out, title=''):
-    # Plot results
+    """Plot results."""
+
     num_img = img.shape[0]
     f, axarr = plt.subplots(num_img, 3)
     for ii in xrange(num_img):
@@ -49,9 +51,12 @@ def _plot_results(img, segm_label, segm_out, obj_label, obj_out, title=''):
                           color=(0, 0, 0), size=8)
     f.suptitle(title)
 
+    pass
+
 
 def parse_args():
     """Parse input arguments."""
+    
     parser = argparse.ArgumentParser(
         description='Evaluate models on synthetic counting images')
     parser.add_argument('-model', default=None, help='Model save folder')
