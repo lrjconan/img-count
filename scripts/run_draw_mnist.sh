@@ -1,4 +1,4 @@
-python src/syncount_segment.py \
+python src/draw_mnist.py \
     -gpu $1 \
     -logs "/u/mren/public_html/results" \
     -results "/ais/gobi3/u/mren/results/img-count" \
