@@ -347,16 +347,17 @@ def get_train_model(opt, device='/cpu:0'):
             filter_y_t[t] = tf.transpose(filter_y[t], [0, 2, 1],
                                          name='filter_y_t_{}'.format(t))
 
-        #########################################################
-        # Attention selector
-        #########################################################
-        # [B, 1, 1] * [B, F, H] * [B, H, W] * [B, W, F] = [B, F, F]
-        readout_x[t] = tf.mul(tf.exp(lg_gamma[t]), tf.batch_matmul(
-            tf.batch_matmul(filter_y_t[t], x), filter_x[t]),
-            name='readout_x_{}'.format(t))
-        readout_err[t] = tf.mul(tf.exp(lg_gamma[t]), tf.batch_matmul(
-            tf.batch_matmul(filter_y_t[t], x_err[t]), filter_x[t]),
-            name='readout_err_{}'.format(t))
+        with tf.device('/cpu:0'):
+            #########################################################
+            # Attention selector
+            #########################################################
+            # [B, 1, 1] * [B, F, H] * [B, H, W] * [B, W, F] = [B, F, F]
+            readout_x[t] = tf.mul(tf.exp(lg_gamma[t]), tf.batch_matmul(
+                tf.batch_matmul(filter_y_t[t], x), filter_x[t]),
+                name='readout_x_{}'.format(t))
+            readout_err[t] = tf.mul(tf.exp(lg_gamma[t]), tf.batch_matmul(
+                tf.batch_matmul(filter_y_t[t], x_err[t]), filter_x[t]),
+                name='readout_err_{}'.format(t))
 
         with tf.device(device):
             # [B, 2 * F]
@@ -434,12 +435,13 @@ def get_train_model(opt, device='/cpu:0'):
                                      [-1, filter_size, filter_size],
                                      name='writeout_{}'.format(t))
         
-        # [B, H, F] * [B, F, F] * [B, F, W] = [B, H, W]
-        canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma[t]), tf.batch_matmul(
-            tf.batch_matmul(filter_y[t], writeout[t]), filter_x_t[t]),
-            name='canvas_delta_{}'.format(t))
-        # [B, H, W]
-        canvas[t] = canvas[t - 1] + canvas_delta[t]
+        with tf.device('/cpu:0'):
+            # [B, H, F] * [B, F, F] * [B, F, W] = [B, H, W]
+            canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma[t]), tf.batch_matmul(
+                tf.batch_matmul(filter_y[t], writeout[t]), filter_x_t[t]),
+                name='canvas_delta_{}'.format(t))
+            # [B, H, W]
+            canvas[t] = canvas[t - 1] + canvas_delta[t]
 
         pass
 
