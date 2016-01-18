@@ -504,15 +504,16 @@ def get_train_model(opt, device='/cpu:0'):
     #########################################################
     with tf.device('/cpu:0'):
     # with tf.device(device):
-    x_rec = tf.sigmoid(canvas[timespan - 1], name='x_rec')
-    eps = 1e-7
-    ce_sum = -tf.reduce_sum(x * tf.log(x_rec + eps) +
-                            (1 - x) * tf.log(1 - x_rec + eps),
-                            name='ce_sum')
-    ce = tf.div(ce_sum, tf.to_float(num_ex[0]), name='ce')
-    lr = 1e-4
-    train_step = GradientClipOptimizer(
-        tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(ce)
+        x_rec = tf.sigmoid(canvas[timespan - 1], name='x_rec')
+        eps = 1e-7
+        ce_sum = -tf.reduce_sum(x * tf.log(x_rec + eps) +
+                                (1 - x) * tf.log(1 - x_rec + eps),
+                                name='ce_sum')
+        # Cross entropy normalized by number of examples.
+        ce = tf.div(ce_sum, tf.to_float(num_ex[0]), name='ce')
+        lr = 1e-4
+        train_step = GradientClipOptimizer(
+            tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(ce)
 
     m = {
         'x': x,
