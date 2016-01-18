@@ -10,6 +10,9 @@ Reference:
 Recurrent Neural Network For Image Generation. ICML 2015.
 """
 
+import sys
+sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
+
 from data_api import mnist
 from utils import logger
 from utils.grad_clip_optim import GradientClipOptimizer
