@@ -45,42 +45,42 @@ def weight_variable(shape, wd=None, name=None):
 def get_train_model(opt, device='/cpu:0'):
     """Get train model for DRAW."""
 
+    #########################################################
+    #########################################################
+    # Constants
+    #########################################################
+    #########################################################
+    # RNN timespan: T.
+    timespan = opt['timespan']
+
+    # Input image height: H.
+    inp_height = opt['inp_height']
+    # Input image width: W.
+    inp_width = opt['inp_width']
+    # Gaussian filter size: F.
+    filter_size = opt['filter_size']
+
+    # Number of hidden units in the RNN encoder: He.
+    num_hid_enc = opt['num_hid_enc']
+    # Number of hidden units in the RNN decoder: Hd.
+    num_hid_dec = opt['num_hid_dec']
+    # Number of hidden dimension in the latent variable: Hz.
+    num_hid = opt['num_hid']
+
+    # Weight L2 regularization.
+    wd = opt['weight_decay']
+
+    # Constant for computing filter_x. Shape: [1, W, 1].
+    span_x = np.reshape(np.arange(inp_width), [1, inp_width, 1])
+    # Constant for computing filter_y. Shape: [1, H, 1].
+    span_y = np.reshape(np.arange(inp_height), [1, inp_height, 1])
+
+    #########################################################
+    #########################################################
+    # Variables
+    #########################################################
+    #########################################################
     with tf.device(device):
-        #########################################################
-        #########################################################
-        # Constants
-        #########################################################
-        #########################################################
-        # RNN timespan: T.
-        timespan = opt['timespan']
-
-        # Input image height: H.
-        inp_height = opt['inp_height']
-        # Input image width: W.
-        inp_width = opt['inp_width']
-        # Gaussian filter size: F.
-        filter_size = opt['filter_size']
-
-        # Number of hidden units in the RNN encoder: He.
-        num_hid_enc = opt['num_hid_enc']
-        # Number of hidden units in the RNN decoder: Hd.
-        num_hid_dec = opt['num_hid_dec']
-        # Number of hidden dimension in the latent variable: Hz.
-        num_hid = opt['num_hid']
-
-        # Weight L2 regularization.
-        wd = opt['weight_decay']
-
-        # Constant for computing filter_x. Shape: [1, W, 1].
-        span_x = np.reshape(np.arange(inp_width), [1, inp_width, 1])
-        # Constant for computing filter_y. Shape: [1, H, 1].
-        span_y = np.reshape(np.arange(inp_height), [1, inp_height, 1])
-
-        #########################################################
-        #########################################################
-        # Variables
-        #########################################################
-        #########################################################
         # Input image. Shape: [B, T, H, W].
         x = tf.placeholder('float', [None, inp_width, inp_height])
         # [B, H * W]
@@ -277,7 +277,9 @@ def get_train_model(opt, device='/cpu:0'):
         canvas[-1] = tf.constant(np.zeros([inp_width, inp_height]),
                                  dtype='float32')
 
-        for t in xrange(timespan):
+    for t in xrange(timespan):
+
+        with tf.device(device):
             # [B, H * W]
             x_err[t] = tf.sub(x, tf.sigmoid(canvas[t - 1]),
                               name='x_err_{}'.format(t))
@@ -345,16 +347,18 @@ def get_train_model(opt, device='/cpu:0'):
             filter_y_t[t] = tf.transpose(filter_y[t], [0, 2, 1],
                                          name='filter_y_t_{}'.format(t))
 
-            #########################################################
-            # Attention selector
-            #########################################################
-            # [B, 1, 1] * [B, F, H] * [B, H, W] * [B, W, F] = [B, F, F]
-            readout_x[t] = tf.mul(tf.exp(lg_gamma[t]), tf.batch_matmul(
-                tf.batch_matmul(filter_y_t[t], x), filter_x[t]),
-                name='readout_x_{}'.format(t))
-            readout_err[t] = tf.mul(tf.exp(lg_gamma[t]), tf.batch_matmul(
-                tf.batch_matmul(filter_y_t[t], x_err[t]), filter_x[t]),
-                name='readout_err_{}'.format(t))
+        #########################################################
+        # Attention selector
+        #########################################################
+        # [B, 1, 1] * [B, F, H] * [B, H, W] * [B, W, F] = [B, F, F]
+        readout_x[t] = tf.mul(tf.exp(lg_gamma[t]), tf.batch_matmul(
+            tf.batch_matmul(filter_y_t[t], x), filter_x[t]),
+            name='readout_x_{}'.format(t))
+        readout_err[t] = tf.mul(tf.exp(lg_gamma[t]), tf.batch_matmul(
+            tf.batch_matmul(filter_y_t[t], x_err[t]), filter_x[t]),
+            name='readout_err_{}'.format(t))
+
+        with tf.device(device):
             # [B, 2 * F]
             readout[t] = tf.concat(1,
                                    [tf.reshape(readout_x[t], [-1, filter_size * filter_size]),
@@ -421,14 +425,16 @@ def get_train_model(opt, device='/cpu:0'):
                               h_cdd_dec[t] * gi_dec[t],
                               name='h_dec_{}'.format(t))
 
-            #########################################################
-            # Write to canvas
-            #########################################################
-            # [B, F, F]
-            writeout[t] = tf.reshape(tf.matmul(h_dec[t], w_hdec_writeout) +
-                                     b_hdec_writeout,
-                                     [-1, filter_size, filter_size],
-                                     name='writeout_{}'.format(t))
+        #########################################################
+        # Write to canvas
+        #########################################################
+        # [B, F, F]
+        writeout[t] = tf.reshape(tf.matmul(h_dec[t], w_hdec_writeout) +
+                                 b_hdec_writeout,
+                                 [-1, filter_size, filter_size],
+                                 name='writeout_{}'.format(t))
+        
+        with tf.device(device):
             # [B, H, F] * [B, F, F] * [B, F, W] = [B, H, W]
             canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma[t]), tf.batch_matmul(
                 tf.batch_matmul(filter_y[t], writeout[t]), filter_x_t[t]),
@@ -436,7 +442,7 @@ def get_train_model(opt, device='/cpu:0'):
             # [B, H, W]
             canvas[t] = canvas[t - 1] + canvas_delta[t]
 
-            pass
+        pass
 
     #########################################################
     #########################################################
