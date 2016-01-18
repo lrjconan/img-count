@@ -425,22 +425,21 @@ def get_train_model(opt, device='/cpu:0'):
                               h_cdd_dec[t] * gi_dec[t],
                               name='h_dec_{}'.format(t))
 
-        #########################################################
-        # Write to canvas
-        #########################################################
-        # [B, F, F]
-        writeout[t] = tf.reshape(tf.matmul(h_dec[t], w_hdec_writeout) +
-                                 b_hdec_writeout,
-                                 [-1, filter_size, filter_size],
-                                 name='writeout_{}'.format(t))
+            #########################################################
+            # Write to canvas
+            #########################################################
+            # [B, F, F]
+            writeout[t] = tf.reshape(tf.matmul(h_dec[t], w_hdec_writeout) +
+                                     b_hdec_writeout,
+                                     [-1, filter_size, filter_size],
+                                     name='writeout_{}'.format(t))
         
-        with tf.device(device):
-            # [B, H, F] * [B, F, F] * [B, F, W] = [B, H, W]
-            canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma[t]), tf.batch_matmul(
-                tf.batch_matmul(filter_y[t], writeout[t]), filter_x_t[t]),
-                name='canvas_delta_{}'.format(t))
-            # [B, H, W]
-            canvas[t] = canvas[t - 1] + canvas_delta[t]
+        # [B, H, F] * [B, F, F] * [B, F, W] = [B, H, W]
+        canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma[t]), tf.batch_matmul(
+            tf.batch_matmul(filter_y[t], writeout[t]), filter_x_t[t]),
+            name='canvas_delta_{}'.format(t))
+        # [B, H, W]
+        canvas[t] = canvas[t - 1] + canvas_delta[t]
 
         pass
 
