@@ -68,7 +68,8 @@ if __name__ == '__main__':
     num_row = 10
     num_col = opt['timespan']
     f1, axarr = plt.subplots(num_row, num_col + 1)
-    x = dataset.test.images[:num_row].reshape([-1, 28, 28])
+    x = dataset.test.images[:num_row].reshape(
+        [-1, opt['inp_height'], opt['inp_width']])
 
     # Bernoulli only
     if opt['output_dist'] == 'Bernoulli':
