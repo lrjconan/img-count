@@ -1,3 +1,14 @@
+"""
+This code implements VAE (Variational Autoencoder) [1] on MNIST.
+
+Author: Mengye Ren (mren@cs.toronto.edu)
+
+Usage:
+
+Reference:
+[1] D.P. Kingma, M. Welling. Auto-Encoding Variational Bayes. ICLR 2014.
+"""
+
 from data_api import mnist
 from utils import logger
 import datetime
