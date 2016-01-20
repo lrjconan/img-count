@@ -1328,7 +1328,7 @@ if __name__ == '__main__':
         'weight_decay': 5e-5,
         'output_dist': 'Bernoulli',
         'learned_bias': True,
-        'squash_mean': True
+        'squash': True
     }
 
     # Train loop options
