@@ -12,7 +12,7 @@ Recurrent Neural Network For Image Generation. ICML 2015.
 
 import sys
 sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
-sys.path.insert(0, '/pkgs/tensorflow-cpu-0.5.0')
+# sys.path.insert(0, '/pkgs/tensorflow-cpu-0.5.0')
 
 from data_api import mnist
 from utils import logger
@@ -879,9 +879,10 @@ def get_train_model(opt, device='/cpu:0'):
                                     name='ctr_x_r_{}'.format(t))
             # [B, 1, 1]
             ctr_y_r[t] = tf.reshape((inp_height + 1) / 2.0 *
-                                    ctl_r[t][:, 1] + 1,
+                                    (ctl_r[t][:, 1] + 1),
                                     [-1, 1, 1],
                                     name='ctr_y_r_{}'.format(t))
+
             # [B, 1, 1]
             delta_r[t] = tf.reshape((max(inp_width, inp_height) - 1) /
                                     ((filter_size_r - 1) *
@@ -1017,7 +1018,7 @@ def get_train_model(opt, device='/cpu:0'):
                                     name='ctr_x_w_{}'.format(t))
             # [B, 1, 1]
             ctr_y_w[t] = tf.reshape((inp_height + 1) / 2.0 *
-                                    ctl_w[t][:, 1] + 1,
+                                    (ctl_w[t][:, 1] + 1),
                                     [-1, 1, 1],
                                     name='ctr_y_w_{}'.format(t))
             # [B, 1, 1]

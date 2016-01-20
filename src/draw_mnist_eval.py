@@ -89,16 +89,24 @@ if __name__ == '__main__':
     results.extend(m_ae['delta_r'])
     results.extend(m_ae['lg_gamma_r'])
     results.extend(m_ae['readout_x'])
+
     results.extend(m_ae['ctr_x_w'])
     results.extend(m_ae['ctr_y_w'])
     results.extend(m_ae['delta_w'])
     results.extend(m_ae['lg_gamma_w'])
     results.extend(m_ae['canvas_delta'])
+
     results.extend(m_ae['filter_x_r'])
     results.extend(m_ae['filter_y_r'])
     results.extend(m_ae['mu_x_r'])
     results.extend(m_ae['mu_y_r'])
+
     results.extend(m_ae['lg_var_r'])
+    results.extend(m_ae['filter_x_w'])
+    results.extend(m_ae['filter_y_w'])
+    results.extend(m_ae['mu_x_w'])
+    results.extend(m_ae['mu_y_w'])
+    results.extend(m_ae['lg_var_w'])
 
     r = sess.run(results, feed_dict={m_ae['x']: x})
 
@@ -119,6 +127,12 @@ if __name__ == '__main__':
     mu_x_r = r[13 * tt: 14 * tt]
     mu_y_r = r[14 * tt: 15 * tt]
     lg_var_r = r[15 * tt: 16 * tt]
+    filter_x_r = r[16 * tt: 17 * tt]
+    filter_y_r = r[17 * tt: 18 * tt]
+    mu_x_r = r[18 * tt: 19 * tt]
+    mu_y_r = r[19 * tt: 20 * tt]
+    lg_var_r = r[20 * tt: 21 * tt]
+
 
     for ii in xrange(num_row):
         for jj in xrange(num_col):

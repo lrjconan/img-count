@@ -17,57 +17,6 @@ import tensorflow as tf
 log = logger.get()
 
 
-# Default constant parameters
-# Full image height.
-kHeight = 224
-
-# Full image width.
-kWidth = 224
-
-# Object radius lower bound.
-kRadiusLower = 5
-
-# Object radius upper bound.
-kRadiusUpper = 20
-
-# Object border thickness.
-kBorderThickness = 2
-
-# Number of examples.
-kNumExamples = 100
-
-# Maximum number of objects.
-kMaxNumObjects = 10
-
-# Number of object types, currently support up to three types (circles,
-# triangles, and squares).
-kNumObjectTypes = 3
-
-# Random window size variance.
-kSizeVar = 20
-
-# Random window center variance.
-kCenterVar = 20
-
-# Resample window size (segmentation output unisize).
-kOutputWindowSize = 128
-
-# Ratio of negative and positive examples for segmentation data.
-kNegPosRatio = 5
-
-# Minimum window size of the original image (before upsampling).
-kMinWindowSize = 20
-
-# Downsample ratio of output.
-kOutputDownsample = 4
-
-# Number of steps
-kNumSteps = 2000
-
-# Number of steps per checkpoint
-kStepsPerCkpt = 1000
-
-
 def get_dataset(opt, num_train, num_valid):
     """Get train-valid split dataset for instance segmentation.
 
@@ -393,6 +342,42 @@ def save_ckpt(folder, sess, opt, global_step=None):
 
 def parse_args():
     """Parse input arguments."""
+
+    # Default constant parameters
+    # Full image height.
+    kHeight = 224
+    # Full image width.
+    kWidth = 224
+    # Object radius lower bound.
+    kRadiusLower = 5
+    # Object radius upper bound.
+    kRadiusUpper = 20
+    # Object border thickness.
+    kBorderThickness = 2
+    # Number of examples.
+    kNumExamples = 100
+    # Maximum number of objects.
+    kMaxNumObjects = 10
+    # Number of object types, currently support up to three types (circles,
+    # triangles, and squares).
+    kNumObjectTypes = 3
+    # Random window size variance.
+    kSizeVar = 20
+    # Random window center variance.
+    kCenterVar = 20
+    # Resample window size (segmentation output unisize).
+    kOutputWindowSize = 128
+    # Ratio of negative and positive examples for segmentation data.
+    kNegPosRatio = 5
+    # Minimum window size of the original image (before upsampling).
+    kMinWindowSize = 20
+    # Downsample ratio of output.
+    kOutputDownsample = 4
+    # Number of steps
+    kNumSteps = 2000
+    # Number of steps per checkpoint
+    kStepsPerCkpt = 1000
+
     parser = argparse.ArgumentParser(
         description='Train models on synthetic counting images')
     parser.add_argument('-height', default=kHeight, type=int,
@@ -411,6 +396,10 @@ def parse_args():
                         help='Maximum number of objects')
     parser.add_argument('-num_object_types', default=kNumObjectTypes, type=int,
                         help='Number of object types')
+    parser.add_argument('-center_var', default=kCenterVar, type=float,
+                        help='Image patch center variance')
+    parser.add_argument('-size_var', default=kSizeVar, type=float,
+                        help='Image patch size variance')
     parser.add_argument('-neg_pos_ratio', default=kNegPosRatio, type=int,
                         help='Ratio between negative and positive examples')
     parser.add_argument('-min_window_size', default=kMinWindowSize, type=int,
@@ -456,6 +445,8 @@ if __name__ == '__main__':
         'num_examples': args.num_ex,
         'max_num_objects': args.max_num_objects,
         'num_object_types': args.num_object_types,
+        'center_var': args.center_var,
+        'size_var': args.size_var,
         'neg_pos_ratio': args.neg_pos_ratio,
         'min_window_size': args.min_window_size,
         'output_window_size': args.output_window_size,
