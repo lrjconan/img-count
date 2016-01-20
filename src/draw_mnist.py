@@ -1033,7 +1033,7 @@ def get_train_model(opt, device='/cpu:0'):
                                   tf.reduce_sum(1 + 2 * lg_sigma_z[t] -
                                                 mu_z[t] * mu_z[t] -
                                                 tf.exp(2 * lg_sigma_z[t])),
-                                  name='kl_qzx_pz')
+                                  name='kl_qzx_pz_{}'.format(t))
 
             #########################################################
             # Decoder RNN
@@ -1162,7 +1162,7 @@ def get_train_model(opt, device='/cpu:0'):
     with tf.device('/cpu:0'):
         x_rec = tf.sigmoid(canvas[timespan - 1], name='x_rec')
         eps = 1e-7
-        kl_qzx_pz_sum = tf.reduce_sum(tf.concat(0, kl_qzx_pz))
+        kl_qzx_pz_sum = tf.reduce_sum(tf.pack(kl_qzx_pz))
         log_pxz_sum = tf.reduce_sum(x * tf.log(x_rec + eps) +
                                     (1 - x) * tf.log(1 - x_rec + eps),
                                     name='ce_sum')

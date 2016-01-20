@@ -313,10 +313,10 @@ if __name__ == '__main__':
         'num_hid_enc': 100,
         'num_hid': 20,
         'num_hid_dec': 100,
-        'output_dist': 'Bernoulli',  # Bernoulli or Gaussian
-        # 'output_dist': 'Gaussian',
-        'non_linear': 'tf.nn.relu',
-        # 'non_linear': 'tf.nn.tanh',
+        # 'output_dist': 'Bernoulli',  # Bernoulli or Gaussian
+        'output_dist': 'Gaussian',
+        # 'non_linear': 'tf.nn.relu',
+        'non_linear': 'tf.nn.tanh',
         'weight_decay': 5e-5
     }
 
