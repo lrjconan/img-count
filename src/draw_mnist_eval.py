@@ -3,6 +3,7 @@ from utils import logger
 import argparse
 import fnmatch
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import matplotlib.cm as cm
 import numpy as np
 import os
@@ -39,6 +40,10 @@ def parse_args():
 
     return args
 
+
+def sigmoid(a):
+    return 1 / (1 + np.exp(-a + 1e-7))
+
 if __name__ == '__main__':
     args = parse_args()
     log.log_args()
@@ -65,24 +70,94 @@ if __name__ == '__main__':
     m_ae = model.get_autoencoder(opt, sess, train_model)
 
     # Generate random MNIST digits.
-    num_row = 10
+    num_row = 4
     num_col = opt['timespan']
-    f1, axarr = plt.subplots(num_row, num_col + 1)
-    x = dataset.test.images[:num_row].reshape(
+    f1, axarr = plt.subplots(num_row, num_col)
+    x = dataset.test.images[:num_row / 4].reshape(
         [-1, opt['inp_height'], opt['inp_width']])
 
     # Bernoulli only
     if opt['output_dist'] == 'Bernoulli':
         x = (x > 0.5).astype('float32')
 
-    x_rec = sess.run(m_ae['x_rec'], feed_dict={m_ae['x']: x})
+    # Run model.
+    results = m_ae['x_rec']
+    results.extend(m_ae['ctr_x_r'])
+    results.extend(m_ae['ctr_y_r'])
+    results.extend(m_ae['delta_r'])
+    results.extend(m_ae['lg_gamma_r'])
+    results.extend(m_ae['readout_x'])
+    results.extend(m_ae['ctr_x_w'])
+    results.extend(m_ae['ctr_y_w'])
+    results.extend(m_ae['delta_w'])
+    results.extend(m_ae['lg_gamma_w'])
+    results.extend(m_ae['canvas_delta'])
+
+    r = sess.run(results, feed_dict={m_ae['x']: x})
+
+    tt = opt['timespan']
+    x_rec = r[: tt]
+    ctr_x_r = r[tt: 2 * tt]
+    ctr_y_r = r[2 * tt: 3 * tt]
+    delta_r = r[3 * tt: 4 * tt]
+    lg_gamma_r = r[4 * tt: 5 * tt]
+    readout_x = r[5 * tt: 6 * tt]
+    ctr_x_w = r[6 * tt: 7 * tt]
+    ctr_y_w = r[7 * tt: 8 * tt]
+    delta_w = r[8 * tt: 9 * tt]
+    lg_gamma_w = r[9 * tt: 10 * tt]
+    canvas_delta = r[10 * tt: 11 * tt]
 
     for ii in xrange(num_row):
-        for jj in xrange(num_col + 1):
-            if jj == 0:
-                axarr[ii, jj].imshow(x[ii], cmap=cm.Greys_r)
-            else:
-                axarr[ii, jj].imshow(x_rec[jj - 1][ii], cmap=cm.Greys_r)
+        for jj in xrange(num_col):
             axarr[ii, jj].set_axis_off()
+            idx = ii / 4
+            if ii % 4 == 0:
+                # Plot canvas image.
+                axarr[ii, jj].imshow(x_rec[jj][idx], cmap=cm.Greys_r)
+                # Plot write attention controller box.
+                top_left_x = (ctr_x_w[jj][idx] -
+                              delta_w[jj][idx] * 
+                              (opt['filter_size_w'] - 1) / 2.0)
+                top_left_y = (ctr_y_w[jj][idx] -
+                              delta_w[jj][idx] * 
+                              (opt['filter_size_w'] - 1) / 2.0)
+                axarr[ii, jj].add_patch(
+                    patches.Rectangle(
+                        (top_left_x, top_left_y),
+                        delta_w[jj][idx] * (opt['filter_size_w'] - 1),
+                        delta_w[jj][idx] * (opt['filter_size_w'] - 1),
+                        fill=False,
+                        color='r')
+                )
+            elif ii % 4 == 1:
+                # Plot write out image.
+                axarr[ii, jj].imshow(sigmoid(canvas_delta[jj][idx]),
+                                     cmap=cm.Greys_r)
+            elif ii % 4 == 2:
+                # Plot read out image.
+                axarr[ii, jj].imshow(
+                    readout_x[jj][idx] / np.exp(lg_gamma_r[jj][idx]),
+                    cmap=cm.Greys_r)
+            elif ii % 4 == 3:
+                # Plot original image.
+                axarr[ii, jj].imshow(x[idx], cmap=cm.Greys_r)
+                # Plot read attention controller box.
+                top_left_x = (ctr_x_r[jj][idx] -
+                              delta_r[jj][idx] * 
+                              (opt['filter_size_r'] - 1) / 2.0)
+                top_left_y = (ctr_y_r[jj][idx] -
+                              delta_r[jj][idx] * 
+                              (opt['filter_size_r'] - 1) / 2.0)
+                axarr[ii, jj].add_patch(
+                    patches.Rectangle(
+                        (top_left_x, top_left_y),
+                        delta_r[jj][idx] * (opt['filter_size_r'] - 1),
+                        delta_r[jj][idx] * (opt['filter_size_r'] - 1),
+                        fill=False,
+                        color='r')
+                )
+                axarr[ii, jj].set_axis_off()
 
+    sess.close()
     plt.show()
