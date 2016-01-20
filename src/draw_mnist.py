@@ -451,7 +451,7 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
                 delta_w[t] = tf.reshape((max(inp_width, inp_height) - 1) /
                                         ((filter_size_w - 1) *
                                          tf.exp(ctl_w[t][:, 3])),
-                                        [-1, 1, 1], 
+                                        [-1, 1, 1],
                                         name='delta_w_{}'.format(t))
             lg_var_w[t] = tf.reshape(ctl_w[t][:, 2], [-1, 1, 1],
                                      name='lg_var_w_{}'.format(t))
@@ -699,9 +699,12 @@ def get_train_model(opt, device='/cpu:0'):
         # Mean of hidden latent variable. Shape: T * [B, Hz].
         mu_z = [None] * timespan
         # Standard deviation of hidden latent variable. Shape: T * [B, Hz].
+        lg_sigma_z = [None] * timespan
         sigma_z = [None] * timespan
         # Hidden latent variable. Shape: T * [B, Hz].
         z = [None] * timespan
+        # KL divergence
+        kl_qzx_pz = [None] * timespan
 
         #########################################################
         # Decoder RNN
@@ -814,9 +817,9 @@ def get_train_model(opt, device='/cpu:0'):
                                      name='w_henc_muz')
         b_muz = weight_variable([num_hid], wd=wd, name='w_henc_muz')
         # Hidden encoder to latent variable std.
-        w_henc_stdz = weight_variable(
-            [num_hid_enc, num_hid], wd=wd, name='w_henc_stdz')
-        b_stdz = weight_variable([num_hid], wd=wd, name='w_henc_stdz')
+        w_henc_lgsigmaz = weight_variable(
+            [num_hid_enc, num_hid], wd=wd, name='w_henc_lgsigmaz')
+        b_lgsigmaz = weight_variable([num_hid], wd=wd, name='b_lgsigmaz')
 
         #########################################################
         # Decoder RNN
@@ -1019,10 +1022,18 @@ def get_train_model(opt, device='/cpu:0'):
             # [B, He] * [He, ]
             mu_z[t] = tf.add(tf.matmul(h_enc[t], w_henc_muz), b_muz,
                              name='mu_z_{}'.format(t))
-            sigma_z[t] = tf.exp(tf.matmul(h_enc[t], w_henc_stdz) + b_muz,
-                                name='sigma_z_{}'.format(t))
+            lg_sigma_z[t] = tf.add(tf.matmul(h_enc[t], w_henc_lgsigmaz),
+                                   b_lgsigmaz,
+                                   name='lg_sigma_z_{}'.format(t))
+            sigma_z[t] = tf.exp(lg_sigma_z, name='sigma_z_{}'.format(t))
             z[t] = tf.add(mu_z[t], sigma_z[t] * u_l_flat[t],
                           name='z_{}'.format(t))
+            # KL Divergence
+            kl_qzx_pz[t] = tf.mul(-0.5,
+                                  tf.reduce_sum(1 + 2 * lg_sigma_z[t] -
+                                                mu_z[t] * mu_z[t] -
+                                                tf.exp(2 * lg_sigma_z[t])),
+                                  name='kl_qzx_pz')
 
             #########################################################
             # Decoder RNN
@@ -1151,14 +1162,28 @@ def get_train_model(opt, device='/cpu:0'):
     with tf.device('/cpu:0'):
         x_rec = tf.sigmoid(canvas[timespan - 1], name='x_rec')
         eps = 1e-7
-        ce_sum = -tf.reduce_sum(x * tf.log(x_rec + eps) +
-                                (1 - x) * tf.log(1 - x_rec + eps),
-                                name='ce_sum')
+        kl_qzx_pz_sum = tf.reduce_sum(tf.concat(0, kl_qzx_pz))
+        log_pxz_sum = tf.reduce_sum(x * tf.log(x_rec + eps) +
+                                    (1 - x) * tf.log(1 - x_rec + eps),
+                                    name='ce_sum')
+        w_kl = 1.0
+        w_logp = 1.0
+
         # Cross entropy normalized by number of examples.
-        ce = tf.div(ce_sum, tf.to_float(num_ex[0]), name='ce')
+        ce = tf.div(-log_pxz_sum, tf.to_float(num_ex[0]), name='ce')
+
+        # Lower bound
+        log_px_lb = tf.div(-w_kl * kl_qzx_pz_sum +
+                           w_logp * log_pxz_sum /
+                           (w_kl + w_logp) * 2.0, tf.to_float(num_ex[0]),
+                           name='log_px_lb')
+        tf.add_to_collection('losses', -log_px_lb)
+        total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+
         lr = 1e-4
         train_step = GradientClipOptimizer(
-            tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(ce)
+            tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(
+            total_loss)
 
     m = {
         # Input
@@ -1202,8 +1227,8 @@ def get_train_model(opt, device='/cpu:0'):
 
         'w_henc_muz': w_henc_muz,
         'b_muz': b_muz,
-        'w_henc_stdz': w_henc_stdz,
-        'b_stdz': b_stdz,
+        'w_henc_lgsigmaz': w_henc_lgsigmaz,
+        'b_lgsigmaz': b_lgsigmaz,
 
         'w_z_gi_dec': w_z_gi_dec,
         'w_hdec_gi_dec': w_hdec_gi_dec,

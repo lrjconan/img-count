@@ -209,7 +209,10 @@ def get_train_model(opt):
     num_ex = tf.shape(x, name='num_ex')
 
     # Variational lower bound of marginal log-likelihood
-    log_px_lb = (-kl_qzx_pz + log_pxz) / tf.cast(num_ex[0], 'float')
+    w_kl = 10.0
+    w_logp = 1.0
+    log_px_lb = (-w_kl * kl_qzx_pz + w_logp * log_pxz) / \
+        (w_kl + w_logp) / tf.to_float(num_ex[0])
     tf.add_to_collection('losses', -log_px_lb)
     total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
 
@@ -274,7 +277,7 @@ def parse_args():
     # Number of steps
     kNumSteps = 500000
     # Number of steps per checkpoint
-    kStepsPerCkpt = 10000
+    kStepsPerCkpt = 1000
     parser = argparse.ArgumentParser(
         description='Train DRAW')
     parser.add_argument('-num_steps', default=kNumSteps,
