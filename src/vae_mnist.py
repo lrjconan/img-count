@@ -11,6 +11,8 @@ Reference:
 
 from data_api import mnist
 from utils import logger
+from utils.time_series_logger import TimeSeriesLogger
+import argparse
 import datetime
 import numpy as np
 import os
@@ -267,17 +269,58 @@ def save_ckpt(folder, sess, opt, global_step=None):
     pass
 
 
+def parse_args():
+    """Parse input arguments."""
+    # Number of steps
+    kNumSteps = 500000
+    # Number of steps per checkpoint
+    kStepsPerCkpt = 10000
+    parser = argparse.ArgumentParser(
+        description='Train DRAW')
+    parser.add_argument('-num_steps', default=kNumSteps,
+                        type=int, help='Number of steps to train')
+    parser.add_argument('-steps_per_ckpt', default=kStepsPerCkpt,
+                        type=int, help='Number of steps per checkpoint')
+    parser.add_argument('-results', default='../results',
+                        help='Model results folder')
+    parser.add_argument('-logs', default='../results',
+                        help='Training curve logs folder')
+    parser.add_argument('-localhost', default='localhost',
+                        help='Local domain name')
+    parser.add_argument('-gpu', default=-1, type=int,
+                        help='GPU ID, default CPU')
+    args = parser.parse_args()
+
+    return args
+
+
+def preprocess(x, opt):
+    if opt['output_dist'] == 'Bernoulli':
+        return (batch[0] > 0.5).astype('float32').reshape([-1, 28 * 28])
+    else:
+        return x.reshape([-1, 28 * 28])
+
 if __name__ == '__main__':
+    # Command-line arguments
+    args = parse_args()
+    log.log_args()
+
     opt = {
         'num_inp': 28 * 28,
         'num_hid_enc': 100,
-        'num_hid': 2,
+        'num_hid': 20,
         'num_hid_dec': 100,
-        # 'output_dist': 'Bernoulli',  # Bernoulli or Gaussian
-        'output_dist': 'Gaussian',
-        # 'non_linear': 'tf.nn.relu',
-        'non_linear': 'tf.nn.tanh',
+        'output_dist': 'Bernoulli',  # Bernoulli or Gaussian
+        # 'output_dist': 'Gaussian',
+        'non_linear': 'tf.nn.relu',
+        # 'non_linear': 'tf.nn.tanh',
         'weight_decay': 5e-5
+    }
+
+    # Train loop options
+    loop_config = {
+        'num_steps': args.num_steps,
+        'steps_per_ckpt': args.steps_per_ckpt
     }
 
     dataset = mnist.read_data_sets("../MNIST_data/", one_hot=True)
@@ -291,30 +334,62 @@ if __name__ == '__main__':
     model_id = timestr = '{}-{:04d}{:02d}{:02d}{:02d}{:02d}{:02d}'.format(
         task_name, time_obj.year, time_obj.month, time_obj.day,
         time_obj.hour, time_obj.minute, time_obj.second)
-    results_folder = '../results'
+    results_folder = args.results
+    logs_folder = args.logs
     exp_folder = os.path.join(results_folder, model_id)
+    exp_logs_folder = os.path.join(logs_folder, model_id)
+
+    # Create time series logger
+    train_logger = TimeSeriesLogger(
+        os.path.join(exp_logs_folder, 'train_logp.csv'), 'train_logp',
+        buffer_size=25)
+    valid_logger = TimeSeriesLogger(
+        os.path.join(exp_logs_folder, 'valid_logp.csv'), 'valid_logp',
+        buffer_size=2)
+    log.info(
+        'Curves can be viewed at: http://{}/visualizer?id={}'.format(
+            args.localhost, model_id))
 
     random = np.random.RandomState(2)
-    for step in xrange(200000):
-        batch = dataset.train.next_batch(100)
-        x = batch[0]
-        
-        if opt['output_dist'] == 'Bernoulli':
-            x = (batch[0] > 0.5).astype('float32')
-        
-        t = random.normal(0, 1, [x.shape[0], opt['num_hid']])
-        if step % 500 == 0:
+    step = 0
+    while step < loop_config['num_steps']:
+
+        # Validation
+        valid_log_px_lb = 0
+        log.info('Running validation')
+        for ii in xrange(100):
+            batch = dataset.test.next_batch(100)
+            x = preprocess(batch[0], opt)
+            t = random.normal(0, 1, [x.shape[0], opt['num_hid']])
             log_px_lb = sess.run(m['log_px_lb'], feed_dict={
                 m['x']: x,
                 m['t']: t
             })
-            log.info('step {:d}, log prob lb {:.4f}'.format(step, log_px_lb))
+            valid_log_px_lb += log_px_lb * 100 / 10000.0
+        log.info('step {:d}, valid logp {:.4f}'.format(step, valid_log_px_lb))
+        valid_logger.add(step, valid_log_px_lb)
 
-        sess.run(m['train_step'], feed_dict={
-            m['x']: x,
-            m['t']: random.normal(0, 1, [x.shape[0], opt['num_hid']])
-        })
+        # Train
+        for ii in xrange(500):
+            batch = dataset.train.next_batch(100)
+            x = preprocess(batch[0], opt)
+            t = random.normal(0, 1, [x.shape[0], opt['num_hid']])
+            if step % 10 == 0:
+                log_px_lb = sess.run(m['log_px_lb'], feed_dict={
+                    m['x']: x,
+                    m['t']: t
+                })
+                log.info('step {:d}, train logp {:.4f}'.format(
+                    step, log_px_lb))
+                train_logger.add(step, log_px_lb)
 
-        # Save model
-        if step % 1000 == 0:
-            save_ckpt(exp_folder, sess, opt, global_step=step)
+            sess.run(m['train_step'], feed_dict={
+                m['x']: x,
+                m['t']: random.normal(0, 1, [x.shape[0], opt['num_hid']])
+            })
+
+            step += 1
+
+            # Save model
+            if step % args.steps_per_ckpt == 0:
+                save_ckpt(exp_folder, sess, opt, global_step=step)

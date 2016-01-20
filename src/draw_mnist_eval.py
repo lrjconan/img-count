@@ -60,6 +60,8 @@ if __name__ == '__main__':
     log.info(opt)
     if 'learned_bias' not in opt:
         opt['learned_bias'] = False
+    if 'squash' not in opt:
+        opt['squash'] = False
 
     # Load dataset.
     dataset = mnist.read_data_sets("../MNIST_data/", one_hot=True)

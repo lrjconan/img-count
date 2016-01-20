@@ -27,11 +27,6 @@ import tensorflow as tf
 
 log = logger.get()
 
-# Number of steps
-kNumSteps = 500000
-# Number of steps per checkpoint
-kStepsPerCkpt = 1000
-
 
 def weight_variable(shape, wd=None, name=None):
     """Initialize weights."""
@@ -303,18 +298,34 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
                               tf.matmul(x_err_flat[t], w_err_ctl_r) +
                               tf.matmul(h_dec[t - 1], w_hdec_ctl_r),
                               b_ctl_r, name='ctl_r_{}'.format(t))
-            ctr_x_r[t] = tf.reshape((inp_width + 1) / 2.0 *
-                                    (ctl_r[t][:, 0] + 1),
-                                    [-1, 1, 1],
-                                    name='ctr_x_r_{}'.format(t))
-            ctr_y_r[t] = tf.reshape((inp_height + 1) / 2.0 *
-                                    ctl_r[t][:, 1] + 1,
-                                    [-1, 1, 1],
-                                    name='ctr_y_r_{}'.format(t))
-            delta_r[t] = tf.reshape((max(inp_width, inp_height) - 1) /
-                                    ((filter_size_r - 1) *
-                                     tf.exp(ctl_r[t][:, 3])),
-                                    [-1, 1, 1], name='delta_r_{}'.format(t))
+            if opt['squash']:
+                ctr_x_r[t] = tf.reshape((inp_width + 1) / 2.0 *
+                                        (tf.tanh(ctl_r[t][:, 0]) + 1),
+                                        [-1, 1, 1],
+                                        name='ctr_x_r_{}'.format(t))
+                ctr_y_r[t] = tf.reshape((inp_height + 1) / 2.0 *
+                                        (tf.tanh(ctl_r[t][:, 1]) + 1),
+                                        [-1, 1, 1],
+                                        name='ctr_y_r_{}'.format(t))
+                delta_r[t] = tf.reshape((max(inp_width, inp_height) - 1) /
+                                        ((filter_size_r - 1) *
+                                         tf.sigmoid(ctl_r[t][:, 3])),
+                                        [-1, 1, 1],
+                                        name='delta_r_{}'.format(t))
+            else:
+                ctr_x_r[t] = tf.reshape((inp_width + 1) / 2.0 *
+                                        (ctl_r[t][:, 0] + 1),
+                                        [-1, 1, 1],
+                                        name='ctr_x_r_{}'.format(t))
+                ctr_y_r[t] = tf.reshape((inp_height + 1) / 2.0 *
+                                        ctl_r[t][:, 1] + 1,
+                                        [-1, 1, 1],
+                                        name='ctr_y_r_{}'.format(t))
+                delta_r[t] = tf.reshape((max(inp_width, inp_height) - 1) /
+                                        ((filter_size_r - 1) *
+                                         tf.exp(ctl_r[t][:, 3])),
+                                        [-1, 1, 1],
+                                        name='delta_r_{}'.format(t))
             lg_var_r[t] = tf.reshape(ctl_r[t][:, 2], [-1, 1, 1],
                                      name='lg_var_r_{}'.format(t))
             lg_gamma_r[t] = tf.reshape(ctl_r[t][:, 4], [-1, 1, 1],
@@ -414,18 +425,34 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
                               tf.matmul(x_err_flat[t], w_err_ctl_w) +
                               tf.matmul(h_dec[t], w_hdec_ctl_w),
                               b_ctl_w, name='ctl_w_{}'.format(t))
-            ctr_x_w[t] = tf.reshape((inp_width + 1) / 2.0 *
-                                    (ctl_w[t][:, 0] + 1),
-                                    [-1, 1, 1],
-                                    name='ctr_x_w_{}'.format(t))
-            ctr_y_w[t] = tf.reshape((inp_height + 1) / 2.0 *
-                                    ctl_w[t][:, 1] + 1,
-                                    [-1, 1, 1],
-                                    name='ctr_y_w_{}'.format(t))
-            delta_w[t] = tf.reshape((max(inp_width, inp_height) - 1) /
-                                    ((filter_size_w - 1) *
-                                     tf.exp(ctl_w[t][:, 3])),
-                                    [-1, 1, 1], name='delta_w_{}'.format(t))
+            if opt['squash']:
+                ctr_x_w[t] = tf.reshape((inp_width + 1) / 2.0 *
+                                        (tf.tanh(ctl_w[t][:, 0]) + 1),
+                                        [-1, 1, 1],
+                                        name='ctr_x_w_{}'.format(t))
+                ctr_y_w[t] = tf.reshape((inp_height + 1) / 2.0 *
+                                        (tf.tanh(ctl_w[t][:, 1]) + 1),
+                                        [-1, 1, 1],
+                                        name='ctr_y_w_{}'.format(t))
+                delta_w[t] = tf.reshape((max(inp_width, inp_height) - 1) /
+                                        ((filter_size_w - 1) *
+                                         tf.sigmoid(ctl_w[t][:, 3])),
+                                        [-1, 1, 1],
+                                        name='delta_w_{}'.format(t))
+            else:
+                ctr_x_w[t] = tf.reshape((inp_width + 1) / 2.0 *
+                                        (ctl_w[t][:, 0] + 1),
+                                        [-1, 1, 1],
+                                        name='ctr_x_w_{}'.format(t))
+                ctr_y_w[t] = tf.reshape((inp_height + 1) / 2.0 *
+                                        ctl_w[t][:, 1] + 1,
+                                        [-1, 1, 1],
+                                        name='ctr_y_w_{}'.format(t))
+                delta_w[t] = tf.reshape((max(inp_width, inp_height) - 1) /
+                                        ((filter_size_w - 1) *
+                                         tf.exp(ctl_w[t][:, 3])),
+                                        [-1, 1, 1], 
+                                        name='delta_w_{}'.format(t))
             lg_var_w[t] = tf.reshape(ctl_w[t][:, 2], [-1, 1, 1],
                                      name='lg_var_w_{}'.format(t))
             lg_gamma_w[t] = tf.reshape(ctl_w[t][:, 4], [-1, 1, 1],
@@ -502,7 +529,7 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
 
         'mu_x_w': mu_x_w,
         'mu_y_w': mu_y_w,
-        'lg_var_w':lg_var_w,
+        'lg_var_w': lg_var_w,
         'filter_x_w': filter_x_w,
         'filter_y_w': filter_y_w,
 
@@ -872,22 +899,40 @@ def get_train_model(opt, device='/cpu:0'):
                               tf.matmul(x_err_flat[t], w_err_ctl_r) +
                               tf.matmul(h_dec[t - 1], w_hdec_ctl_r),
                               b_ctl_r, name='ctl_r_{}'.format(t))
-            # [B, 1, 1]
-            ctr_x_r[t] = tf.reshape((inp_width + 1) / 2.0 *
-                                    (ctl_r[t][:, 0] + 1),
-                                    [-1, 1, 1],
-                                    name='ctr_x_r_{}'.format(t))
-            # [B, 1, 1]
-            ctr_y_r[t] = tf.reshape((inp_height + 1) / 2.0 *
-                                    (ctl_r[t][:, 1] + 1),
-                                    [-1, 1, 1],
-                                    name='ctr_y_r_{}'.format(t))
+            if opt['squash']:
+                # Squash in (-1, 1), [B, 1, 1]
+                ctr_x_r[t] = tf.reshape((inp_width + 1) / 2.0 *
+                                        (tf.tanh(ctl_r[t][:, 0]) + 1),
+                                        [-1, 1, 1],
+                                        name='ctr_x_r_{}'.format(t))
+                ctr_y_r[t] = tf.reshape((inp_height + 1) / 2.0 *
+                                        (tf.tanh(ctl_r[t][:, 1]) + 1),
+                                        [-1, 1, 1],
+                                        name='ctr_y_r_{}'.format(t))
+                # Squash in (0, 1), [B, 1, 1]
+                delta_r[t] = tf.reshape((max(inp_width, inp_height) - 1) /
+                                        ((filter_size_r - 1) *
+                                         tf.sigmoid(ctl_r[t][:, 3])),
+                                        [-1, 1, 1],
+                                        name='delta_r_{}'.format(t))
+            else:
+                # [B, 1, 1]
+                ctr_x_r[t] = tf.reshape((inp_width + 1) / 2.0 *
+                                        (ctl_r[t][:, 0] + 1),
+                                        [-1, 1, 1],
+                                        name='ctr_x_r_{}'.format(t))
+                # [B, 1, 1]
+                ctr_y_r[t] = tf.reshape((inp_height + 1) / 2.0 *
+                                        (ctl_r[t][:, 1] + 1),
+                                        [-1, 1, 1],
+                                        name='ctr_y_r_{}'.format(t))
 
-            # [B, 1, 1]
-            delta_r[t] = tf.reshape((max(inp_width, inp_height) - 1) /
-                                    ((filter_size_r - 1) *
-                                     tf.exp(ctl_r[t][:, 3])),
-                                    [-1, 1, 1], name='delta_r_{}'.format(t))
+                # [B, 1, 1]
+                delta_r[t] = tf.reshape((max(inp_width, inp_height) - 1) /
+                                        ((filter_size_r - 1) *
+                                         tf.exp(ctl_r[t][:, 3])),
+                                        [-1, 1, 1],
+                                        name='delta_r_{}'.format(t))
             # [B, 1, 1]
             lg_var_r[t] = tf.reshape(ctl_r[t][:, 2], [-1, 1, 1],
                                      name='lg_var_r_{}'.format(t))
@@ -1011,21 +1056,40 @@ def get_train_model(opt, device='/cpu:0'):
                               tf.matmul(x_err_flat[t], w_err_ctl_w) +
                               tf.matmul(h_dec[t], w_hdec_ctl_w),
                               b_ctl_w, name='ctl_w_{}'.format(t))
-            # [B, 1, 1]
-            ctr_x_w[t] = tf.reshape((inp_width + 1) / 2.0 *
-                                    (ctl_w[t][:, 0] + 1),
-                                    [-1, 1, 1],
-                                    name='ctr_x_w_{}'.format(t))
-            # [B, 1, 1]
-            ctr_y_w[t] = tf.reshape((inp_height + 1) / 2.0 *
-                                    (ctl_w[t][:, 1] + 1),
-                                    [-1, 1, 1],
-                                    name='ctr_y_w_{}'.format(t))
-            # [B, 1, 1]
-            delta_w[t] = tf.reshape((max(inp_width, inp_height) - 1) /
-                                    ((filter_size_w - 1) *
-                                     tf.exp(ctl_w[t][:, 3])),
-                                    [-1, 1, 1], name='delta_w_{}'.format(t))
+            if opt['squash']:
+                # [B, 1, 1]
+                ctr_x_w[t] = tf.reshape((inp_width + 1) / 2.0 *
+                                        (tf.tanh(ctl_w[t][:, 0]) + 1),
+                                        [-1, 1, 1],
+                                        name='ctr_x_w_{}'.format(t))
+                # [B, 1, 1]
+                ctr_y_w[t] = tf.reshape((inp_height + 1) / 2.0 *
+                                        (tf.tanh(ctl_w[t][:, 1]) + 1),
+                                        [-1, 1, 1],
+                                        name='ctr_y_w_{}'.format(t))
+                # [B, 1, 1]
+                delta_w[t] = tf.reshape((max(inp_width, inp_height) - 1) /
+                                        ((filter_size_w - 1) *
+                                         tf.sigmoid(ctl_w[t][:, 3])),
+                                        [-1, 1, 1],
+                                        name='delta_w_{}'.format(t))
+            else:
+                # [B, 1, 1]
+                ctr_x_w[t] = tf.reshape((inp_width + 1) / 2.0 *
+                                        (ctl_w[t][:, 0] + 1),
+                                        [-1, 1, 1],
+                                        name='ctr_x_w_{}'.format(t))
+                # [B, 1, 1]
+                ctr_y_w[t] = tf.reshape((inp_height + 1) / 2.0 *
+                                        (ctl_w[t][:, 1] + 1),
+                                        [-1, 1, 1],
+                                        name='ctr_y_w_{}'.format(t))
+                # [B, 1, 1]
+                delta_w[t] = tf.reshape((max(inp_width, inp_height) - 1) /
+                                        ((filter_size_w - 1) *
+                                         tf.exp(ctl_w[t][:, 3])),
+                                        [-1, 1, 1],
+                                        name='delta_w_{}'.format(t))
             # [B, 1, 1]
             lg_var_w[t] = tf.reshape(ctl_w[t][:, 2], [-1, 1, 1],
                                      name='lg_var_w_{}'.format(t))
@@ -1187,6 +1251,10 @@ def save_ckpt(folder, sess, opt, global_step=None):
 
 def parse_args():
     """Parse input arguments."""
+    # Number of steps
+    kNumSteps = 500000
+    # Number of steps per checkpoint
+    kStepsPerCkpt = 1000
     parser = argparse.ArgumentParser(
         description='Train DRAW')
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -1204,6 +1272,14 @@ def parse_args():
     args = parser.parse_args()
 
     return args
+
+
+def preprocess(x, opt):
+    if opt['output_dist'] == 'Bernoulli':
+        return (batch[0] > 0.5).astype('float32').reshape([-1, 28, 28])
+    else:
+        return x.reshape([-1, 28, 28])
+
 if __name__ == '__main__':
     # Command-line arguments
     args = parse_args()
@@ -1226,7 +1302,8 @@ if __name__ == '__main__':
         'num_hid_dec': 256,
         'weight_decay': 5e-5,
         'output_dist': 'Bernoulli',
-        'learned_bias': True
+        'learned_bias': True,
+        'squash_mean': True
     }
 
     # Train loop options
@@ -1271,10 +1348,7 @@ if __name__ == '__main__':
         log.info('Running validation')
         for ii in xrange(100):
             batch = dataset.test.next_batch(100)
-            x = batch[0]
-
-            if opt['output_dist'] == 'Bernoulli':
-                x = (batch[0] > 0.5).astype('float32').reshape([-1, 28, 28])
+            x = preprocess(batch[0])
             u = random.normal(
                 0, 1, [x.shape[0], opt['timespan'], opt['num_hid']])
             ce = sess.run(m['ce'], feed_dict={
@@ -1282,17 +1356,13 @@ if __name__ == '__main__':
                 m['u']: u
             })
             valid_ce += ce * 100 / 10000.0
-        log.info('step {:d}, valid ce: {:.4f}'.format(step, valid_ce))
+        log.info('step {:d}, valid ce {:.4f}'.format(step, valid_ce))
         valid_ce_logger.add(step, valid_ce)
 
         # Train
         for ii in xrange(500):
             batch = dataset.train.next_batch(100)
-            x = batch[0]
-
-            if opt['output_dist'] == 'Bernoulli':
-                x = (batch[0] > 0.5).astype('float32').reshape([-1, 28, 28])
-
+            x = preprocess(batch[0])
             u = random.normal(
                 0, 1, [x.shape[0], opt['timespan'], opt['num_hid']])
             if step % 10 == 0:
@@ -1300,7 +1370,7 @@ if __name__ == '__main__':
                     m['x']: x,
                     m['u']: u
                 })
-                log.info('step {:d}, train ce: {:.4f}'.format(step, ce))
+                log.info('step {:d}, train ce {:.4f}'.format(step, ce))
                 train_ce_logger.add(step, ce)
 
             sess.run(m['train_step'], feed_dict={
@@ -1311,7 +1381,7 @@ if __name__ == '__main__':
             step += 1
 
             # Save model
-            if step % 1000 == 0:
+            if step % args.steps_per_ckpt == 0:
                 save_ckpt(exp_folder, sess, opt, global_step=step)
 
     sess.close()
