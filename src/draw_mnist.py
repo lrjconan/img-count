@@ -1373,7 +1373,7 @@ if __name__ == '__main__':
         log.info('Running validation')
         for ii in xrange(100):
             batch = dataset.test.next_batch(100)
-            x = preprocess(batch[0])
+            x = preprocess(batch[0], opt)
             u = random.normal(
                 0, 1, [x.shape[0], opt['timespan'], opt['num_hid']])
             ce = sess.run(m['ce'], feed_dict={
@@ -1387,7 +1387,7 @@ if __name__ == '__main__':
         # Train
         for ii in xrange(500):
             batch = dataset.train.next_batch(100)
-            x = preprocess(batch[0])
+            x = preprocess(batch[0], opt)
             u = random.normal(
                 0, 1, [x.shape[0], opt['timespan'], opt['num_hid']])
             if step % 10 == 0:
