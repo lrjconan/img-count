@@ -12,6 +12,7 @@ Recurrent Neural Network For Image Generation. ICML 2015.
 
 import sys
 sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
+sys.path.insert(0, '/pkgs/tensorflow-cpu-0.5.0')
 
 from data_api import mnist
 from utils import logger
@@ -256,12 +257,13 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
                                  name='b_hcdd_dec')
 
         # Learned initialization biases.
-        w_henc_init = tf.constant(sess.run(train_model['w_henc_init']),
-                                  name='w_henc_init')
-        w_hdec_init = tf.constant(sess.run(train_model['w_hdec_init']),
-                                  name='w_hdec_init')
-        w_canvas_init = tf.constant(sess.run(train_model['w_canvas_init']),
-                                    name='w_canvas_init')
+        if opt['learned_bias']:
+            w_henc_init = tf.constant(sess.run(train_model['w_henc_init']),
+                                      name='w_henc_init')
+            w_hdec_init = tf.constant(sess.run(train_model['w_hdec_init']),
+                                      name='w_hdec_init')
+            w_canvas_init = tf.constant(sess.run(train_model['w_canvas_init']),
+                                        name='w_canvas_init')
 
     #########################################################
     #########################################################
@@ -272,9 +274,16 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
     x_shape = tf.shape(x, name='x_shape')
     num_ex = x_shape[0: 1]
     num_ex_mul = tf.concat(0, [num_ex, tf.constant([1])])
-    h_enc[-1] = tf.tile(w_henc_init, num_ex_mul, name='h_enc_-1')
-    h_dec[-1] = tf.tile(w_hdec_init, num_ex_mul, name='h_dec_-1')
-    canvas[-1] = w_canvas_init
+    if opt['learned_bias']:
+        h_enc[-1] = tf.tile(w_henc_init, num_ex_mul, name='h_enc_-1')
+        h_dec[-1] = tf.tile(w_hdec_init, num_ex_mul, name='h_dec_-1')
+        canvas[-1] = w_canvas_init
+    else:
+        h_enc[-1] = tf.tile(tf.zeros([1, num_hid_enc]), num_ex_mul,
+                            name='h_enc_-1')
+        h_dec[-1] = tf.tile(tf.zeros([1, num_hid_dec]), num_ex_mul,
+                            name='h_dec_-1')
+        canvas[-1] = tf.zeros([inp_height, inp_width], name='canvas_-1')
 
     #########################################################
     # Recurrent loop
@@ -475,6 +484,13 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
         'delta_r': delta_r,
         'lg_var_r': lg_var_r,
         'lg_gamma_r': lg_gamma_r,
+
+        'mu_x_r': mu_x_r,
+        'mu_y_r': mu_y_r,
+        'lg_var_r': lg_var_r,
+        'filter_x_r': filter_x_r,
+        'filter_y_r': filter_y_r,
+
         'readout_x': readout_x,
 
         # Write controller
@@ -483,6 +499,13 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
         'delta_w': delta_w,
         'lg_var_w': lg_var_w,
         'lg_gamma_w': lg_gamma_w,
+
+        'mu_x_w': mu_x_w,
+        'mu_y_w': mu_y_w,
+        'lg_var_w':lg_var_w,
+        'filter_x_w': filter_x_w,
+        'filter_y_w': filter_y_w,
+
         'canvas_delta': canvas_delta
     }
 
@@ -799,12 +822,13 @@ def get_train_model(opt, device='/cpu:0'):
         b_hcdd_dec = weight_variable([num_hid_dec], wd=wd, name='b_hcdd_dec')
 
         # Learned initialization biases.
-        w_henc_init = weight_variable([1, num_hid_enc], wd=wd,
-                                      name='w_henc_init')
-        w_hdec_init = weight_variable([1, num_hid_dec], wd=wd,
-                                      name='w_hdec_init')
-        w_canvas_init = weight_variable([inp_width, inp_height], wd=wd,
-                                        name='w_canvas_init')
+        if opt['learned_bias']:
+            w_henc_init = weight_variable([1, num_hid_enc], wd=wd,
+                                          name='w_henc_init')
+            w_hdec_init = weight_variable([1, num_hid_dec], wd=wd,
+                                          name='w_hdec_init')
+            w_canvas_init = weight_variable([inp_height, inp_width], wd=wd,
+                                            name='w_canvas_init')
     #########################################################
     #########################################################
     # Computation graph
@@ -814,9 +838,17 @@ def get_train_model(opt, device='/cpu:0'):
     x_shape = tf.shape(x, name='x_shape')
     num_ex = x_shape[0: 1]
     num_ex_mul = tf.concat(0, [num_ex, tf.constant([1])])
-    h_enc[-1] = tf.tile(w_henc_init, num_ex_mul, name='h_enc_-1')
-    h_dec[-1] = tf.tile(w_hdec_init, num_ex_mul, name='h_dec_-1')
-    canvas[-1] = w_canvas_init
+
+    if opt['learned_bias']:
+        h_enc[-1] = tf.tile(w_henc_init, num_ex_mul, name='h_enc_-1')
+        h_dec[-1] = tf.tile(w_hdec_init, num_ex_mul, name='h_dec_-1')
+        canvas[-1] = w_canvas_init
+    else:
+        h_enc[-1] = tf.tile(tf.zeros([1, num_hid_enc]), num_ex_mul,
+                            name='h_enc_-1')
+        h_dec[-1] = tf.tile(tf.zeros([1, num_hid_dec]), num_ex_mul,
+                            name='h_dec_-1')
+        canvas[-1] = tf.zeros([inp_height, inp_width], name='canvas_-1')
 
     #########################################################
     # Recurrent loop
@@ -1121,12 +1153,12 @@ def get_train_model(opt, device='/cpu:0'):
         'b_hcdd_dec': b_hcdd_dec,
 
         'w_hdec_writeout': w_hdec_writeout,
-        'b_writeout': b_writeout,
-
-        'w_henc_init': w_henc_init,
-        'w_hdec_init': w_hdec_init,
-        'w_canvas_init': w_canvas_init
+        'b_writeout': b_writeout
     }
+    if opt['learned_bias']:
+        m['w_henc_init'] = w_henc_init
+        m['w_hdec_init'] = w_hdec_init
+        m['w_canvas_init'] = w_canvas_init
 
     return m
 
@@ -1192,7 +1224,8 @@ if __name__ == '__main__':
         'num_hid': 100,
         'num_hid_dec': 256,
         'weight_decay': 5e-5,
-        'output_dist': 'Bernoulli'
+        'output_dist': 'Bernoulli',
+        'learned_bias': True
     }
 
     # Train loop options

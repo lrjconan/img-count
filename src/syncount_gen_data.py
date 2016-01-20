@@ -1,22 +1,11 @@
 """
-Generate counting questions based on synthetic images.
-Object categories are:
-* Circles (0)
-* Triangles (1)
-* Squares (2)
-
-For now, only single colour is present (i.e. green), but can be extended to
-multiple colours.
-All objects has white border.
-Background is black.
+Generate synthetic images with circles, triangles, and squares.
 
 Output:
-* Images: 224x224
-* Groundtruth segmentations for each object: Mx224x224 (M objects)
-* Question: int (class ID)
-* Answer: int
+* Images: [H, W]
+* Groundtruth segmentations for each object: [M, H, W] (M objects)
 
-Usage: python syncount_gen_data.py
+Usage: python syncount_gen_data.py --help
 """
 
 from utils import logger
@@ -27,48 +16,6 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Default constants
-
-# Full image height.
-kHeight = 224
-
-# Full image width.
-kWidth = 224
-
-# Object radius lower bound.
-kRadiusLower = 15
-
-# Object radius upper bound.
-kRadiusUpper = 25
-
-# Object border thickness.
-kBorderThickness = 2
-
-# Number of examples.
-kNumExamples = 100
-
-# Maximum number of objects.
-kMaxNumObjects = 10
-
-# Number of object types, currently support up to three types (circles,
-# triangles, and squares).
-kNumObjectTypes = 3
-
-# Random window size variance.
-kSizeVar = 10
-
-# Random window center variance.
-kCenterVar = 0.01
-
-# Resample window size (segmentation output unisize).
-kOutputWindowSize = 128
-
-# Ratio of negative and positive examples for segmentation data.
-kNegPosRatio = 5
-
-# Minimum window size of the original image (before upsampling).
-kMinWindowSize = 20
-
 # Logger
 log = logger.get()
 
@@ -78,7 +25,7 @@ def get_raw_data(opt, seed=2):
 
     Args:
         opt: dictionary, options.
-        seed:
+        seed: int, rng seed.
     Returns:
         results:
     """
@@ -116,7 +63,16 @@ def get_raw_data(opt, seed=2):
 
 
 def _draw_circle(img, center, radius, fill, border=None, thickness=None):
-    """Draw a circle given center and radius."""
+    """Draw a circle given center and radius.
+
+    Args:
+        img: numpy.ndarray, [H, W, 3], dtype=uint8, [0, 255]
+        center: tuple, (x, y)
+        radius: float
+        fill: tuple, (B, G, R)
+        border: tuple, (B, G, R)
+        thickness: float
+    """
     cv2.circle(img, center=center, radius=radius, color=fill, thickness=-1)
 
     if border:
@@ -127,7 +83,16 @@ def _draw_circle(img, center, radius, fill, border=None, thickness=None):
 
 
 def _draw_square(img, center, radius, fill, border=None, thickness=None):
-    """Draw a square given center and radius."""
+    """Draw a square given center and radius.
+
+    Args:
+        img: numpy.ndarray, [H, W, 3], dtype=uint8, [0, 255]
+        center: tuple, (x, y)
+        radius: float
+        fill: tuple, (B, G, R)
+        border: tuple, (B, G, R)
+        thickness: float
+    """
     top_left = (int(np.floor(center[0] - radius / np.sqrt(2))),
                 int(np.floor(center[1] - radius / np.sqrt(2))))
     bottom_right = (int(np.floor(center[0] + radius / np.sqrt(2))),
@@ -142,7 +107,16 @@ def _draw_square(img, center, radius, fill, border=None, thickness=None):
 
 
 def _draw_triangle(img, center, radius, fill, border=None, thickness=None):
-    """Draw a equilateral triangle given center and radius."""
+    """Draw a equilateral triangle given center and radius.
+
+    Args:
+        img: numpy.ndarray, [H, W, 3], dtype=uint8, [0, 255]
+        center: tuple, (x, y)
+        radius: float
+        fill: tuple, (B, G, R)
+        border: tuple, (B, G, R)
+        thickness: float
+    """
     p1 = (int(center[0]), int(np.floor(center[1] - radius)))
     p2 = (int(np.floor(center[0] - radius * np.sin(60.0 * np.pi / 180.0))),
           int(np.floor(center[1] + radius * np.sin(30.0 * np.pi / 180.0))))
@@ -165,12 +139,12 @@ def _raw_to_image(opt, raw_data_entry):
     (rasterized image).
 
     Args:
-        raw_data: list
+        raw_data_entry: list
     Returns:
         image_data: dictionary
-            image
-            segmentations
-            object_info
+            image: numpy.ndarray, [H, W, 3], dtype=uint8, [0, 255]
+            segmentations: numpy.ndarray, [M, H, W], dtype=uint8, [0, 1]
+            object_info: dictionary.
     """
     im_height = opt['height']
     im_width = opt['width']
@@ -227,13 +201,11 @@ def _raw_to_image(opt, raw_data_entry):
             log.info('After sum: {}'.format(segms[jj].sum()), verbose=2)
 
     # Aggregate results.
-    image_data = {
+    return {
         'image': img,
         'segmentations': segms,
         'object_info': obj_info
     }
-
-    return image_data
 
 
 def get_image_data(opt, raw_data):
@@ -244,14 +216,12 @@ def get_image_data(opt, raw_data):
         raw_data
     Returns:
         image_data: dictionary. Contains following fields:
-            images: list of numpy.ndarray, (H, W, 3), H is
+            images: list of numpy.ndarray, [H, W, 3], H is
             image height. W is image width. Each image has RGB 3 channels.
             segmentations: list of numpy.ndarray, each item has shape
             (M, H, W). M is number of objects. H is image height. W is image
             width. Binary mask.
             object_info: dictionary.
-            questions: numpy.ndarray, (N). Stores object type ID.
-            answers: numpy.ndarray, (N). Stores number of objects.
     """
     im_height = opt['height']
     im_width = opt['width']
@@ -265,7 +235,18 @@ def get_image_data(opt, raw_data):
 
 
 def _image_to_segmentation(opt, image_data_entry, random=None):
-    """Convert image_data_entry to segmentation training data"""
+    """Convert image_data_entry to segmentation training data
+
+    Args:
+        opt: list of dictionary
+        image_data_entry: dictionary
+        random: numpy.random.RandomState object
+    Returns:
+        results: list of dictionary. Each has the following fields:
+            input: numpy.ndarray, [Hp, Wp, 3], dtype=uint8, [0, 255]
+            label_segmentation: numpy.ndarray, [Hp, Wp], dtype=uint8, [0, 1]
+            label_objectness: float, [0, 1]
+    """
 
     if random is None:
         random = np.random.RandomState(2)
@@ -290,12 +271,12 @@ def _image_to_segmentation(opt, image_data_entry, random=None):
         radius = obj['radius']
 
         # Gittering on center.
-        dx = int(np.ceil(random.normal(0, kCenterVar)))
-        dy = int(np.ceil(random.normal(0, kCenterVar)))
+        dx = int(np.ceil(random.normal(0, opt['center_var'])))
+        dy = int(np.ceil(random.normal(0, opt['center_var'])))
 
         # Random scaling, window size (square shape).
         size = max(
-            4 * radius + int(np.ceil(random.normal(0, kSizeVar))),
+            4 * radius + int(np.ceil(random.normal(0, opt['size_var']))),
             min_window_size)
 
         # Final enter of the sliding window.
@@ -362,8 +343,17 @@ def _image_to_segmentation(opt, image_data_entry, random=None):
     return results
 
 
-def write_segmentation_data(opt, image_data, fname, num_per_shard=16000, seed=2):
-    """Write segmentation network training data to sharded file."""
+def write_segmentation_data(opt, image_data, fname, num_per_shard=16000,
+                            seed=2):
+    """Write segmentation network training data to sharded file.
+
+    Args:
+        opt: dictionary
+        image_data: list of dictionary
+        fname: string, output file basename
+        num_per_shard: int, number of training examples per file shard
+        seed: rng seed
+    """
 
     random = np.random.RandomState(seed)
     neg_pos_ratio = opt['neg_pos_ratio']
@@ -378,7 +368,7 @@ def write_segmentation_data(opt, image_data, fname, num_per_shard=16000, seed=2)
 
     num_shards = int(np.ceil(num_ex_final / float(num_per_shard)))
     log.info('Writing to {} in {} shards'.format(fname, num_shards))
-    
+
     fout = ShardedFile(fname, num_shards=num_shards)
     with ShardedFileWriter(fout, num_ex_final) as writer:
         for ii in progress_bar.get(num_ex):
@@ -403,10 +393,10 @@ def get_segmentation_data(opt, image_data, seed=2):
         opt: options.
         image_data: dataset generated from get_image_data.
     Returns:
-        results: dictionary
-            input
-            label_segmentation
-            label_objectness
+        results: list of dictionary. Each has the following fields:
+            input: numpy.ndarray, [Hp, Wp, 3], dtype=uint8, [0, 255]
+            label_segmentation: numpy.ndarray, [Hp, Wp], dtype=uint8, [0, 1]
+            label_objectness: float, [0, 1]
     """
     random = np.random.RandomState(seed)
     neg_pos_ratio = opt['neg_pos_ratio']
@@ -435,13 +425,11 @@ def get_segmentation_data(opt, image_data, seed=2):
             label_objectness[idx] = segm_j['label_objectness']
             idx += 1
 
-    results = {
+    return {
         'input': input_data,
         'label_segmentation': label_segmentation,
         'label_objectness': label_objectness
     }
-
-    return results
 
 
 def _add_noise_to_segmentation(image_data_entry, seed=2):
@@ -500,12 +488,6 @@ def _add_noise_to_segmentation(image_data_entry, seed=2):
     pass
 
 
-def get_count_data(image_data):
-    """Get counting network training data."""
-
-    pass
-
-
 def _plot_segmentation_data(img, segm_label, obj_label, title=''):
     num_row = 10
     num_col = 2
@@ -525,6 +507,35 @@ def _plot_segmentation_data(img, segm_label, obj_label, title=''):
 
 def parse_args():
     """Parse input arguments."""
+    # Default constants
+    # Full image height.
+    kHeight = 224
+    # Full image width.
+    kWidth = 224
+    # Object radius lower bound.
+    kRadiusLower = 15
+    # Object radius upper bound.
+    kRadiusUpper = 25
+    # Object border thickness.
+    kBorderThickness = 2
+    # Number of examples.
+    kNumExamples = 100
+    # Maximum number of objects.
+    kMaxNumObjects = 10
+    # Number of object types, currently support up to three types (circles,
+    # triangles, and squares).
+    kNumObjectTypes = 3
+    # Random window size variance.
+    kSizeVar = 10
+    # Random window center variance.
+    kCenterVar = 0.01
+    # Resample window size (segmentation output unisize).
+    kOutputWindowSize = 128
+    # Ratio of negative and positive examples for segmentation data.
+    kNegPosRatio = 5
+    # Minimum window size of the original image (before upsampling).
+    kMinWindowSize = 20
+
     parser = argparse.ArgumentParser(
         description='Generate counting questions on synthetic images')
     parser.add_argument('-height', default=kHeight, type=int,
@@ -543,6 +554,10 @@ def parse_args():
                         help='Maximum number of circles')
     parser.add_argument('-num_object_types', default=kNumObjectTypes, type=int,
                         help='Number of object types')
+    parser.add_argument('-center_var', default=kCenterVar, type=float,
+                        help='Image patch center variance')
+    parser.add_argument('-size_var', default=kSizeVar, type=float,
+                        help='Image patch size variance')
     parser.add_argument('-neg_pos_ratio', default=kNegPosRatio, type=int,
                         help='Ratio between negative and positive examples')
     parser.add_argument('-min_window_size', default=kMinWindowSize, type=int,
@@ -550,6 +565,8 @@ def parse_args():
     parser.add_argument('-output_window_size', default=kOutputWindowSize,
                         type=int, help='Output segmentation window size')
     parser.add_argument('-output', default=None, help='Output file name')
+    parser.add_argument('-noise', action='store_true',
+                        help='Whether to add noise to image data.')
     parser.add_argument('-plot', action='store_true',
                         help='Whether to plot generated data.')
     args = parser.parse_args()
@@ -568,6 +585,8 @@ if __name__ == '__main__':
         'num_examples': args.num_ex,
         'max_num_objects': args.max_num_objects,
         'num_object_types': args.num_object_types,
+        'center_var': args.center_var,
+        'size_var': args.size_var,
         'neg_pos_ratio': args.neg_pos_ratio,
         'min_window_size': args.min_window_size,
         'output_window_size': args.output_window_size
@@ -578,8 +597,9 @@ if __name__ == '__main__':
     log.info('Segmentation 1: {}'.format(image_data[0]['segmentations'].shape))
 
     # Add noise to segmentations.
-    for image_data_entry in progress_bar.get_iter(image_data):
-        _add_noise_to_segmentation(image_data_entry)
+    if args.noise:
+        for image_data_entry in progress_bar.get_iter(image_data):
+            _add_noise_to_segmentation(image_data_entry)
 
     segm_data = get_segmentation_data(opt, image_data)
     log.info('Segmentation examples: {}'.format(len(segm_data['input'])))
@@ -587,7 +607,9 @@ if __name__ == '__main__':
     log.info('Segmentation label: {}'.format(
         segm_data['label_segmentation'].shape))
 
-    write_segmentation_data(opt, image_data, 'train_data_syncount_segment')
+    # Write training data to file.
+    if args.output:
+        write_segmentation_data(opt, image_data, args.output)
 
     if args.plot:
         num_row = 5

@@ -58,6 +58,8 @@ if __name__ == '__main__':
     with open(opt_fname, 'rb') as f_opt:
         opt = pkl.load(f_opt)
     log.info(opt)
+    if 'learned_bias' not in opt:
+        opt['learned_bias'] = False
 
     # Load dataset.
     dataset = mnist.read_data_sets("../MNIST_data/", one_hot=True)
@@ -92,6 +94,11 @@ if __name__ == '__main__':
     results.extend(m_ae['delta_w'])
     results.extend(m_ae['lg_gamma_w'])
     results.extend(m_ae['canvas_delta'])
+    results.extend(m_ae['filter_x_r'])
+    results.extend(m_ae['filter_y_r'])
+    results.extend(m_ae['mu_x_r'])
+    results.extend(m_ae['mu_y_r'])
+    results.extend(m_ae['lg_var_r'])
 
     r = sess.run(results, feed_dict={m_ae['x']: x})
 
@@ -107,6 +114,11 @@ if __name__ == '__main__':
     delta_w = r[8 * tt: 9 * tt]
     lg_gamma_w = r[9 * tt: 10 * tt]
     canvas_delta = r[10 * tt: 11 * tt]
+    filter_x_r = r[11 * tt: 12 * tt]
+    filter_y_r = r[12 * tt: 13 * tt]
+    mu_x_r = r[13 * tt: 14 * tt]
+    mu_y_r = r[14 * tt: 15 * tt]
+    lg_var_r = r[15 * tt: 16 * tt]
 
     for ii in xrange(num_row):
         for jj in xrange(num_col):
@@ -117,10 +129,10 @@ if __name__ == '__main__':
                 axarr[ii, jj].imshow(x_rec[jj][idx], cmap=cm.Greys_r)
                 # Plot write attention controller box.
                 top_left_x = (ctr_x_w[jj][idx] -
-                              delta_w[jj][idx] * 
+                              delta_w[jj][idx] *
                               (opt['filter_size_w'] - 1) / 2.0)
                 top_left_y = (ctr_y_w[jj][idx] -
-                              delta_w[jj][idx] * 
+                              delta_w[jj][idx] *
                               (opt['filter_size_w'] - 1) / 2.0)
                 axarr[ii, jj].add_patch(
                     patches.Rectangle(
@@ -136,18 +148,29 @@ if __name__ == '__main__':
                                      cmap=cm.Greys_r)
             elif ii % 4 == 2:
                 # Plot read out image.
+                log.info('Time: {}'.format(jj))
                 axarr[ii, jj].imshow(
                     readout_x[jj][idx] / np.exp(lg_gamma_r[jj][idx]),
                     cmap=cm.Greys_r)
+                log.info('Read head centre: {}'.format(
+                    (ctr_x_r[jj][idx], ctr_y_r[jj][idx])))
+                log.info('Read head stride: {}'.format(delta_r[jj][idx]))
+                log.info('Mu x read: {}'.format(mu_x_r[jj][idx]))
+                log.info('Mu y read: {}'.format(mu_y_r[jj][idx]))
+                log.info('Var: {}'.format(np.exp(lg_var_r[jj][idx])))
+                log.info('Filter x read: {}'.format(filter_x_r[jj][idx]))
+                log.info('Filter y read: {}'.format(filter_y_r[jj][idx]))
+                log.info('Read out: {}'.format(readout_x[jj][idx]))
+                log.info('Gamma: {}'.format(np.exp(lg_gamma_r[jj][idx])))
             elif ii % 4 == 3:
                 # Plot original image.
                 axarr[ii, jj].imshow(x[idx], cmap=cm.Greys_r)
                 # Plot read attention controller box.
                 top_left_x = (ctr_x_r[jj][idx] -
-                              delta_r[jj][idx] * 
+                              delta_r[jj][idx] *
                               (opt['filter_size_r'] - 1) / 2.0)
                 top_left_y = (ctr_y_r[jj][idx] -
-                              delta_r[jj][idx] * 
+                              delta_r[jj][idx] *
                               (opt['filter_size_r'] - 1) / 2.0)
                 axarr[ii, jj].add_patch(
                     patches.Rectangle(
