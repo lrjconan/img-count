@@ -1025,7 +1025,7 @@ def get_train_model(opt, device='/cpu:0'):
             lg_sigma_z[t] = tf.add(tf.matmul(h_enc[t], w_henc_lgsigmaz),
                                    b_lgsigmaz,
                                    name='lg_sigma_z_{}'.format(t))
-            sigma_z[t] = tf.exp(lg_sigma_z, name='sigma_z_{}'.format(t))
+            sigma_z[t] = tf.exp(lg_sigma_z[t], name='sigma_z_{}'.format(t))
             z[t] = tf.add(mu_z[t], sigma_z[t] * u_l_flat[t],
                           name='z_{}'.format(t))
             # KL Divergence
