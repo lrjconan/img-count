@@ -820,6 +820,9 @@ def get_train_model(opt, device='/cpu:0'):
         w_henc_lgsigmaz = weight_variable(
             [num_hid_enc, num_hid], wd=wd, name='w_henc_lgsigmaz')
         b_lgsigmaz = weight_variable([num_hid], wd=wd, name='b_lgsigmaz')
+        # w_henc_lgsigmaz = weight_variable(
+        #     [num_hid_enc, num_hid], wd=wd, name='w_henc_stdz')
+        # b_lgsigmaz = weight_variable([num_hid], wd=wd, name='b_henc_muz')
 
         #########################################################
         # Decoder RNN
@@ -1294,6 +1297,8 @@ def parse_args():
                         help='Local domain name')
     parser.add_argument('-gpu', default=-1, type=int,
                         help='GPU ID, default CPU')
+    parser.add_argument('-seed', default=100, type=int,
+                        help='Training seed')
     args = parser.parse_args()
 
     return args
@@ -1364,7 +1369,7 @@ if __name__ == '__main__':
         'Curves can be viewed at: http://{}/visualizer?id={}'.format(
             args.localhost, model_id))
 
-    random = np.random.RandomState(2)
+    random = np.random.RandomState(args.seed)
 
     step = 0
     while step < loop_config['num_steps']:
