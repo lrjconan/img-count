@@ -441,6 +441,64 @@ def _add_controller_rnn(model, timespan, inp_width, inp_height, ctl_inp_dim, fil
     return unroll
 
 
+def _batch_matmul(x, y, rep_x=True, adj_x=False, adj_y=False):
+    """Same as tf.batch_matmul, but GPU friendly.
+
+    Args:
+        x: first tensor, [B, R1, C1]
+        y: second tensor, [B, R2, C2]
+        rep_x: tensorflow is not fully broadcasting so you need to decide
+        whether to repeat x or repeat y, repeat x by default.
+        adj_x: whether to transpose x.
+        adj_y: whether to transpose y.
+
+    Returns:
+        z: resulting tensor, [B, R1, C2] (without transposing).
+    """
+    if adj_x and adj_y:
+        # [B, H, F] * [B, W, H] = [B, F, W]
+        raise Exception('Not supported.')
+    elif adj_x:
+        # [B, H, F] * [B, H, W] = [B, F, W]
+        x2 = tf.expand_dims(x, dim=3)
+        y2 = tf.expand_dims(y, dim=2)
+        if rep_x:
+            t = tf.constant([1, 1, 1, y.get_shape()[2].value])
+            x3 = tf.tile(x2, t)
+            y3 = y2
+        else:
+            t = tf.constant([1, 1, x.get_shape()[2].value, 1])
+            x3 = x2
+            y3 = tf.tile(y2, t)
+        return tf.reduce_sum(x3 * y3, reduction_indices=[1])
+    elif adj_y:
+        # [B, F, H] * [B, W, H] = [B, F, W]
+        x2 = tf.expand_dims(x, dim=2)
+        y2 = tf.expand_dims(y, dim=1)
+        if rep_x:
+            t = tf.constant([1, 1, y.get_shape()[1].value, 1])
+            x3 = tf.tile(x2, t)
+            y3 = y2
+        else:
+            t = tf.constant([1, x.get_shape()[1].value, 1, 1])
+            x3 = x2
+            y3 = tf.tile(y2, t)
+        return tf.reduce_sum(x3 * y3, reduction_indices=[3])
+    else:
+        # [B, F, H] * [B, H, W] = [B, F, W]
+        x2 = tf.expand_dims(x, dim=3)
+        y2 = tf.expand_dims(y, dim=1)
+        if rep_x:
+            t = tf.constant([1, 1, 1, y.get_shape()[2].value])
+            x3 = tf.tile(x2, t)
+            y3 = y2
+        else:
+            t = tf.constant([1, x.get_shape()[1].value, 1, 1])
+            x3 = x2
+            y3 = tf.tile(y2, t)
+        return tf.reduce_sum(x3 * y3, reduction_indices=[2])
+
+
 def get_train_model(opt, device='/cpu:0'):
     """Get train model for DRAW."""
     m = {}
@@ -473,7 +531,8 @@ def get_train_model(opt, device='/cpu:0'):
     #########################################################
     # Variables
     #########################################################
-    with tf.device('/cpu:0'):
+    with tf.device(device):
+    # with tf.device('/cpu:0'):
         # Input image. Shape: [B, T, H, W].
         x = tf.placeholder('float', [None, inp_width, inp_height])
         x_shape = tf.shape(x, name='x_shape')
@@ -536,7 +595,7 @@ def get_train_model(opt, device='/cpu:0'):
                                         name='w_canvas_init')
         canvas[-1] = w_canvas_init
 
-    with tf.device(device):
+    # with tf.device(device):
         # Error images (original substracted by drawn). Shape: T * [B, H, W].
         x_err = [None] * timespan
 
@@ -599,7 +658,8 @@ def get_train_model(opt, device='/cpu:0'):
     # Computation graph
     #########################################################
     for t in xrange(timespan):
-        with tf.device('/cpu:0'):
+        with tf.device(device):
+        # with tf.device('/cpu:0'):
             # [B, H * W]
             x_err[t] = tf.sub(x, tf.sigmoid(canvas[t - 1]),
                               name='x_err_{}'.format(t))
@@ -610,11 +670,21 @@ def get_train_model(opt, device='/cpu:0'):
             unroll_read_controller(ctl_inp=h_dec[t - 1], time=t)
 
             # [B, 1, 1] * [B, F, H] * [B, H, W] * [B, W, F] = [B, F, F]
-            readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
-                tf.batch_matmul(filter_y_r[t], x, adj_x=True), filter_x_r[t]),
+            # readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
+            #     tf.batch_matmul(filter_y_r[t], x, adj_x=True), filter_x_r[t]),
+            #     name='readout_x_{}'.format(t))
+            # readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
+            #     tf.batch_matmul(filter_y_r[t], x_err[t], adj_x=True),
+            #     filter_x_r[t]),
+            #     name='readout_err_{}'.format(t))
+            # fxt = tf.transpose(filter_x_r[t], [0, 2, 1])
+            readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
+                _batch_matmul(filter_y_r[t], x, adj_x=True, rep_x=False),
+                filter_x_r[t]),
                 name='readout_x_{}'.format(t))
-            readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
-                tf.batch_matmul(filter_y_r[t], x_err[t], adj_x=True),
+            readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
+                _batch_matmul(filter_y_r[t], x_err[t],
+                              adj_x=True, rep_x=False),
                 filter_x_r[t]),
                 name='readout_err_{}'.format(t))
 
@@ -626,7 +696,7 @@ def get_train_model(opt, device='/cpu:0'):
             readout[t] = tf.concat(1, x_and_err[t],
                                    name='readout_{}'.format(t))
 
-        with tf.device(device):
+        # with tf.device(device):
             # Encoder RNN
             enc_inp = tf.concat(1,
                                 [readout[t], h_dec[t - 1]],
@@ -654,7 +724,7 @@ def get_train_model(opt, device='/cpu:0'):
             # Decoder RNN
             unroll_decoder(inp=z[t], time=t)
 
-        with tf.device('/cpu:0'):
+        # with tf.device('/cpu:0'):
             # Write to canvas
             unroll_write_controller(ctl_inp=h_dec[t], time=t)
 
@@ -664,19 +734,27 @@ def get_train_model(opt, device='/cpu:0'):
                                      [-1, filter_size_w, filter_size_w],
                                      name='writeout_{}'.format(t))
 
-            # [B, H, Fw] * [B, Fw, Fw] * [B, F, W] = [B, H, W]
+            # [B, H, Fw] * [B, Fw, Fw] * [B, Fw, W] = [B, H, W]
+            # canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
+            #                          tf.batch_matmul(
+            #     tf.batch_matmul(filter_y_w[t], writeout[t]),
+            #     filter_x_w[t], adj_y=True),
+            #     name='canvas_delta_{}'.format(t))
+
+            # fyt = tf.transpose(filter_y_w[t], [0, 2, 1])
             canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
-                                     tf.batch_matmul(
-                tf.batch_matmul(filter_y_w[t], writeout[t]),
-                filter_x_w[t], adj_y=True),
-                name='canvas_delta_{}'.format(t))
+                                     _batch_matmul(_batch_matmul(
+                                         filter_y_w[t], writeout[t], rep_x=False),
+                                     filter_x_w[t], adj_y=True),
+                                     name='canvas_delta_{}'.format(t))
             # [B, H, W]
             canvas[t] = canvas[t - 1] + canvas_delta[t]
 
     #########################################################
     # Loss and gradient
     #########################################################
-    with tf.device('/cpu:0'):
+    # with tf.device('/cpu:0'):
+    with tf.device(device):
         x_rec = tf.sigmoid(canvas[timespan - 1], name='x_rec')
         eps = 1e-7
         kl_qzx_pz_sum = tf.reduce_sum(tf.pack(kl_qzx_pz))
@@ -697,6 +775,7 @@ def get_train_model(opt, device='/cpu:0'):
         tf.add_to_collection('losses', -log_px_lb)
         total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
 
+    # with tf.device(device):
         lr = 1e-4
         train_step = GradientClipOptimizer(
             tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(
