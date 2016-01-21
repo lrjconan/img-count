@@ -674,6 +674,7 @@ def get_train_model(opt, device='/cpu:0'):
             #     filter_x_r[t]),
             #     name='readout_err_{}'.format(t))
             # fxt = tf.transpose(filter_x_r[t], [0, 2, 1])
+            # with tf.device('/cpu:0'):
             readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
                 _batch_matmul(filter_y_r[t], x, adj_x=True, rep_x=False),
                 filter_x_r[t]),
@@ -735,10 +736,12 @@ def get_train_model(opt, device='/cpu:0'):
             #     filter_x_w[t], adj_y=True),
             #     name='canvas_delta_{}'.format(t))
 
+            # with tf.device('/cpu:0'):
             # fyt = tf.transpose(filter_y_w[t], [0, 2, 1])
             canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
                                      _batch_matmul(_batch_matmul(
-                                         filter_y_w[t], writeout[t], rep_x=False),
+                                         filter_y_w[t], writeout[t], 
+                                         rep_x=False),
                                      filter_x_w[t], adj_y=True),
                                      name='canvas_delta_{}'.format(t))
             # [B, H, W]
@@ -766,15 +769,17 @@ def get_train_model(opt, device='/cpu:0'):
                            name='log_px_lb')
 
         tf.add_to_collection('losses', -log_px_lb)
+    
+    # with tf.device('/cpu:0'):
         total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
 
-    # with tf.device('/cpu:0'):
+    # with tf.device(device):
         lr = 1e-4
-        # train_step = GradientClipOptimizer(
-        #     tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(
-        #     total_loss)
-        # train_step = tf.train.AdamOptimizer(lr, epsilon=eps).minimize(
-        #     total_loss)
+            # train_step = GradientClipOptimizer(
+            #     tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(
+            #     total_loss)
+            # train_step = tf.train.AdamOptimizer(lr, epsilon=eps).minimize(
+            #     total_loss)
         train_step = tf.train.GradientDescentOptimizer(lr).minimize(total_loss)
 
     m['x'] = x
@@ -885,7 +890,8 @@ if __name__ == '__main__':
 
     dataset = mnist.read_data_sets("../MNIST_data/", one_hot=True)
     m = get_train_model(opt, device=device)
-    sess = tf.Session()
+    # sess = tf.Session()
+    sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
     sess.run(tf.initialize_all_variables())
     saver = tf.train.Saver(tf.all_variables())
 
