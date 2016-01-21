@@ -528,11 +528,10 @@ def get_train_model(opt, device='/cpu:0'):
     # Weight L2 regularization.
     wd = opt['weight_decay']
 
-    #########################################################
-    # Variables
-    #########################################################
     with tf.device(device):
-    # with tf.device('/cpu:0'):
+        #########################################################
+        # Variables
+        #########################################################
         # Input image. Shape: [B, T, H, W].
         x = tf.placeholder('float', [None, inp_width, inp_height])
         x_shape = tf.shape(x, name='x_shape')
@@ -595,7 +594,6 @@ def get_train_model(opt, device='/cpu:0'):
                                         name='w_canvas_init')
         canvas[-1] = w_canvas_init
 
-    # with tf.device(device):
         # Error images (original substracted by drawn). Shape: T * [B, H, W].
         x_err = [None] * timespan
 
@@ -654,12 +652,10 @@ def get_train_model(opt, device='/cpu:0'):
         )
         h_dec = m['h_dec']
 
-    #########################################################
-    # Computation graph
-    #########################################################
-    for t in xrange(timespan):
-        with tf.device(device):
-        # with tf.device('/cpu:0'):
+        #########################################################
+        # Computation graph
+        #########################################################
+        for t in xrange(timespan):
             # [B, H * W]
             x_err[t] = tf.sub(x, tf.sigmoid(canvas[t - 1]),
                               name='x_err_{}'.format(t))
@@ -750,11 +746,9 @@ def get_train_model(opt, device='/cpu:0'):
             # [B, H, W]
             canvas[t] = canvas[t - 1] + canvas_delta[t]
 
-    #########################################################
-    # Loss and gradient
-    #########################################################
-    # with tf.device('/cpu:0'):
-    with tf.device(device):
+        #########################################################
+        # Loss and gradient
+        #########################################################
         x_rec = tf.sigmoid(canvas[timespan - 1], name='x_rec')
         eps = 1e-7
         kl_qzx_pz_sum = tf.reduce_sum(tf.pack(kl_qzx_pz))
@@ -775,7 +769,6 @@ def get_train_model(opt, device='/cpu:0'):
         tf.add_to_collection('losses', -log_px_lb)
         total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
 
-    # with tf.device(device):
         lr = 1e-4
         train_step = GradientClipOptimizer(
             tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(
