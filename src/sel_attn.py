@@ -14,11 +14,11 @@ filter_size = 10
 
 def sel_attn(img, g_x, g_y, delta, lg_var):
     # [W, 1]
-    span_x = np.arange(im_width).reshape([-1, 1])
+    span_x = (np.arange(im_width) + 1).reshape([-1, 1])
     # [H, 1]
-    span_y = np.arange(im_height).reshape([-1, 1])
+    span_y = (np.arange(im_height) + 1).reshape([-1, 1])
     # [1, F]
-    span_f = np.arange(filter_size).reshape([1, -1])
+    span_f = (np.arange(filter_size) + 1).reshape([1, -1])
 
     # [1, F]
     mu_x = g_x + delta * (span_f - filter_size / 2.0 - 0.5)

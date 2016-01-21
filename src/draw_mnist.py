@@ -12,7 +12,6 @@ Recurrent Neural Network For Image Generation. ICML 2015.
 
 import sys
 sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
-# sys.path.insert(0, '/pkgs/tensorflow-cpu-0.5.0')
 
 from data_api import mnist
 from utils import logger
@@ -40,320 +39,140 @@ def weight_variable(shape, wd=None, name=None):
 
 def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
     """Get inference model for autoencoder."""
-    #########################################################
+    m = {}
     #########################################################
     # Constants
-    #########################################################
     #########################################################
     timespan = opt['timespan']
     inp_height = opt['inp_height']
     inp_width = opt['inp_width']
     filter_size_r = opt['filter_size_r']
     filter_size_w = opt['filter_size_w']
-    num_hid_enc = opt['num_hid_enc']
-    num_hid_dec = opt['num_hid_dec']
-    num_hid = opt['num_hid']
+    hid_enc_dim = opt['hid_enc_dim']
+    hid_dec_dim = opt['hid_dec_dim']
+    hid_dim = opt['hid_dim']
 
-    span_x = np.reshape(np.arange(inp_width), [1, -1, 1])
-    span_y = np.reshape(np.arange(inp_height), [1, -1, 1])
-
-    span_filter_r = np.reshape(np.arange(filter_size_r), [1, 1, -1])
-    span_filter_w = np.reshape(np.arange(filter_size_w), [1, 1, -1])
-
-    #########################################################
     #########################################################
     # Variables
     #########################################################
-    #########################################################
     with tf.device('/cpu:0'):
+        # Input image
         x = tf.placeholder('float', [None, inp_width, inp_height])
-        x_flat = tf.reshape(x, [-1, inp_height * inp_width], name='x_flat')
+        x_shape = tf.shape(x, name='x_shape')
+        num_ex = x_shape[0: 1]
+        num_ex_mul = tf.concat(0, [num_ex, tf.constant([1])])
 
-        #########################################################
         # Read attention controller
-        #########################################################
-        ctl_r = [None] * timespan
-        ctr_x_r = [None] * timespan
-        ctr_y_r = [None] * timespan
-        delta_r = [None] * timespan
-        lg_var_r = [None] * timespan
-        lg_gamma_r = [None] * timespan
+        unroll_read_controller = _add_controller_rnn(
+            model=m,
+            timespan=timespan,
+            inp_width=inp_width,
+            inp_height=inp_height,
+            ctl_inp_dim=hid_dec_dim,
+            filter_size=filter_size_r,
+            name='r',
+            sess=sess,
+            train_model=train_model
+        )
+        lg_gamma_r = m['lg_gamma_r']
+        filter_x_r = m['filter_x_r']
+        filter_y_r = m['filter_y_r']
 
-        #########################################################
-        # Read Gaussian filter
-        #########################################################
-        mu_x_r = [None] * timespan
-        mu_y_r = [None] * timespan
-        filter_x_r = [None] * timespan
-        filter_y_r = [None] * timespan
-
-        #########################################################
         # Attention selector
-        #########################################################
         readout_x = [None] * timespan
         readout_err = [None] * timespan
         x_and_err = [None] * timespan
         readout = [None] * timespan
 
-        #########################################################
         # Write attention controller
-        #########################################################
-        ctl_w = [None] * timespan
-        ctr_x_w = [None] * timespan
-        ctr_y_w = [None] * timespan
-        delta_w = [None] * timespan
-        lg_var_w = [None] * timespan
-        lg_gamma_w = [None] * timespan
+        unroll_write_controller = _add_controller_rnn(
+            model=m,
+            timespan=timespan,
+            inp_width=inp_width,
+            inp_height=inp_height,
+            ctl_inp_dim=hid_dec_dim,
+            filter_size=filter_size_w,
+            name='w',
+            sess=sess,
+            train_model=train_model
+        )
+        lg_gamma_w = m['lg_gamma_w']
+        filter_x_w = m['filter_x_w']
+        filter_y_w = m['filter_y_w']
 
-        #########################################################
-        # Write Gaussian filter
-        #########################################################
-        mu_x_w = [None] * timespan
-        mu_y_w = [None] * timespan
-        filter_x_w = [None] * timespan
-        filter_y_w = [None] * timespan
-
-        #########################################################
         # Write to canvas
-        #########################################################
         writeout = [None] * timespan
-        canvas_delta = [None] * timespan
-        canvas = [None] * (timespan + 1)
-        x_rec = [None] * timespan
-
-    with tf.device(device):
-        #########################################################
-        # Recurrent loop
-        #########################################################
-        x_err = [None] * timespan
-        x_err_flat = [None] * timespan
-
-        #########################################################
-        # Encoder RNN
-        #########################################################
-        h_enc = [None] * (timespan + 1)
-        gi_enc = [None] * timespan
-        gr_enc = [None] * timespan
-        h_cdd_enc = [None] * timespan
-
-        #########################################################
-        # Latent distribution
-        #########################################################
-        z = [None] * timespan
-
-        #########################################################
-        # Decoder RNN
-        #########################################################
-        h_dec = [None] * (timespan + 1)
-        gi_dec = [None] * timespan
-        gr_dec = [None] * timespan
-        h_cdd_dec = [None] * timespan
-
-    #########################################################
-    #########################################################
-    # Weights
-    #########################################################
-    #########################################################
-    with tf.device('/cpu:0'):
-        #########################################################
-        # Read attention Controller
-        #########################################################
-        w_x_ctl_r = tf.constant(sess.run(train_model['w_x_ctl_r']),
-                                name='w_x_ctl_r')
-        w_err_ctl_r = tf.constant(sess.run(train_model['w_err_ctl_r']),
-                                  name='w_err_ctl_r')
-        w_hdec_ctl_r = tf.constant(sess.run(train_model['w_hdec_ctl_r']),
-                                   name='w_hdec_ctl_r')
-        b_ctl_r = tf.constant(sess.run(train_model['b_ctl_r']), name='b_ctl_r')
-
-        #########################################################
-        # Write attention Controller
-        #########################################################
-        w_x_ctl_w = tf.constant(sess.run(train_model['w_x_ctl_w']),
-                                name='w_x_ctl_w')
-        w_err_ctl_w = tf.constant(sess.run(train_model['w_err_ctl_w']),
-                                  name='w_err_ctl_w')
-        w_hdec_ctl_w = tf.constant(sess.run(train_model['w_hdec_ctl_w']),
-                                   name='w_hdec_ctl_w')
-        b_ctl_w = tf.constant(sess.run(train_model['b_ctl_w']), name='b_ctl_w')
-
-        #########################################################
-        # Write to canvas
-        #########################################################
         w_hdec_writeout = tf.constant(sess.run(train_model['w_hdec_writeout']),
                                       name='w_hdec_writeout')
         b_writeout = tf.constant(sess.run(train_model['b_writeout']),
                                  name='b_writeout')
 
+        canvas_delta = [None] * timespan
+        canvas = [None] * (timespan + 1)
+        # Learned initialization biases.
+        w_canvas_init = tf.constant(sess.run(train_model['w_canvas_init']),
+                                    name='w_canvas_init')
+        canvas[-1] = w_canvas_init
+        x_rec = [None] * timespan
+
     with tf.device(device):
-        #########################################################
+        # Error image
+        x_err = [None] * timespan
+
         # Encoder RNN
-        #########################################################
-        w_readout_gi_enc = tf.constant(
-            sess.run(train_model['w_readout_gi_enc']),
-            name='w_readout_gi_enc')
-        w_henc_gi_enc = tf.constant(sess.run(train_model['w_henc_gi_enc']),
-                                    name='w_henc_gi_enc')
-        w_hdec_gi_enc = tf.constant(sess.run(train_model['w_hdec_gi_enc']),
-                                    name='w_hdec_gi_enc')
-        b_gi_enc = tf.constant(sess.run(train_model['b_gi_enc']),
-                               name='b_gi_enc')
+        w_henc_init = tf.constant(
+            sess.run(train_model['w_henc_init']),
+            name='w_henc_init')
+        henc_init = tf.tile(w_henc_init, num_ex_mul, name='henc_init')
+        unroll_encoder = _add_gated_rnn(
+            model=m,
+            timespan=timespan,
+            inp_dim=2 * filter_size_r * filter_size_r + hid_dec_dim,
+            hid_dim=hid_enc_dim,
+            h_init=henc_init,
+            sess=sess,
+            train_model=train_model,
+            name='enc'
+        )
+        h_enc = m['h_enc']
 
-        w_readout_gr_enc = tf.constant(
-            sess.run(train_model['w_readout_gr_enc']),
-            name='w_readout_gr_enc')
-        w_henc_gr_enc = tf.constant(sess.run(train_model['w_henc_gr_enc']),
-                                    name='w_henc_gr_enc')
-        w_hdec_gr_enc = tf.constant(sess.run(train_model['w_hdec_gr_enc']),
-                                    name='w_hdec_gr_enc')
-        b_gr_enc = tf.constant(sess.run(train_model['b_gr_enc']),
-                               name='b_gr_enc')
-
-        w_readout_hcdd_enc = tf.constant(
-            sess.run(train_model['w_readout_hcdd_enc']),
-            name='w_readout_hcdd_enc')
-        w_henc_hcdd_enc = tf.constant(sess.run(train_model['w_henc_hcdd_enc']),
-                                      name='w_henc_hcdd_enc')
-        w_hdec_hcdd_enc = tf.constant(sess.run(train_model['w_hdec_hcdd_enc']),
-                                      name='w_hdec_gr_enc')
-        b_hcdd_enc = tf.constant(sess.run(train_model['b_hcdd_enc']),
-                                 name='b_hcdd_enc')
-
-        #########################################################
         # Latent distribution
-        #########################################################
+        z = [None] * timespan
         w_henc_muz = tf.constant(sess.run(train_model['w_henc_muz']),
                                  name='w_henc_muz')
         b_muz = tf.constant(sess.run(train_model['b_muz']),
                             name='b_muz')
 
-        #########################################################
         # Decoder RNN
-        #########################################################
-        w_z_gi_dec = tf.constant(sess.run(train_model['w_z_gi_dec']),
-                                 name='w_z_gi_dec')
-        w_hdec_gi_dec = tf.constant(sess.run(train_model['w_hdec_gi_dec']),
-                                    name='w_hdec_gi_dec')
-        b_gi_dec = tf.constant(sess.run(train_model['b_gi_dec']),
-                               name='b_gi_dec')
+        w_hdec_init = tf.constant(
+            sess.run(train_model['w_hdec_init']),
+            name='w_hdec_init')
+        hdec_init = tf.tile(w_hdec_init, num_ex_mul, name='hdec_init')
 
-        w_z_gr_dec = tf.constant(sess.run(train_model['w_z_gr_dec']),
-                                 name='w_z_gr_dec')
-        w_hdec_gr_dec = tf.constant(sess.run(train_model['w_hdec_gr_dec']),
-                                    name='w_hdec_gr_dec')
-        b_gr_dec = tf.constant(sess.run(train_model['b_gr_dec']),
-                               name='b_gr_dec')
+        unroll_decoder = _add_gated_rnn(
+            model=m,
+            timespan=timespan,
+            inp_dim=hid_dim,
+            hid_dim=hid_dec_dim,
+            h_init=hdec_init,
+            sess=sess,
+            train_model=train_model,
+            name='dec'
+        )
+        h_dec = m['h_dec']
 
-        w_z_hcdd_dec = tf.constant(sess.run(train_model['w_z_hcdd_dec']),
-                                   name='w_z_hcdd_dec')
-        w_hdec_hcdd_dec = tf.constant(sess.run(train_model['w_hdec_hcdd_dec']),
-                                      name='w_hdec_hcdd_dec')
-        b_hcdd_dec = tf.constant(sess.run(train_model['b_hcdd_dec']),
-                                 name='b_hcdd_dec')
-
-        # Learned initialization biases.
-        if opt['learned_bias']:
-            w_henc_init = tf.constant(sess.run(train_model['w_henc_init']),
-                                      name='w_henc_init')
-            w_hdec_init = tf.constant(sess.run(train_model['w_hdec_init']),
-                                      name='w_hdec_init')
-            w_canvas_init = tf.constant(sess.run(train_model['w_canvas_init']),
-                                        name='w_canvas_init')
-
-    #########################################################
     #########################################################
     # Computation graph
-    #########################################################
-    #########################################################
-    # Setup default hidden states.
-    x_shape = tf.shape(x, name='x_shape')
-    num_ex = x_shape[0: 1]
-    num_ex_mul = tf.concat(0, [num_ex, tf.constant([1])])
-    if opt['learned_bias']:
-        h_enc[-1] = tf.tile(w_henc_init, num_ex_mul, name='h_enc_-1')
-        h_dec[-1] = tf.tile(w_hdec_init, num_ex_mul, name='h_dec_-1')
-        canvas[-1] = w_canvas_init
-    else:
-        h_enc[-1] = tf.tile(tf.zeros([1, num_hid_enc]), num_ex_mul,
-                            name='h_enc_-1')
-        h_dec[-1] = tf.tile(tf.zeros([1, num_hid_dec]), num_ex_mul,
-                            name='h_dec_-1')
-        canvas[-1] = tf.zeros([inp_height, inp_width], name='canvas_-1')
-
-    #########################################################
-    # Recurrent loop
     #########################################################
     for t in xrange(timespan):
         with tf.device('/cpu:0'):
             x_err[t] = tf.sub(x, tf.sigmoid(canvas[t - 1]),
                               name='x_err_{}'.format(t))
-            x_err_flat[t] = tf.reshape(x_err[t],
-                                       [-1, inp_height * inp_width],
-                                       name='x_err_flat_{}'.format(t))
 
-            #########################################################
             # Read attention controller
-            #########################################################
-            ctl_r[t] = tf.add(tf.matmul(x_flat, w_x_ctl_r) +
-                              tf.matmul(x_err_flat[t], w_err_ctl_r) +
-                              tf.matmul(h_dec[t - 1], w_hdec_ctl_r),
-                              b_ctl_r, name='ctl_r_{}'.format(t))
-            if opt['squash']:
-                ctr_x_r[t] = tf.reshape((inp_width + 1) / 2.0 *
-                                        (tf.tanh(ctl_r[t][:, 0]) + 1),
-                                        [-1, 1, 1],
-                                        name='ctr_x_r_{}'.format(t))
-                ctr_y_r[t] = tf.reshape((inp_height + 1) / 2.0 *
-                                        (tf.tanh(ctl_r[t][:, 1]) + 1),
-                                        [-1, 1, 1],
-                                        name='ctr_y_r_{}'.format(t))
-                delta_r[t] = tf.reshape((max(inp_width, inp_height) - 1) /
-                                        ((filter_size_r - 1) *
-                                         tf.sigmoid(ctl_r[t][:, 3])),
-                                        [-1, 1, 1],
-                                        name='delta_r_{}'.format(t))
-            else:
-                ctr_x_r[t] = tf.reshape((inp_width + 1) / 2.0 *
-                                        (ctl_r[t][:, 0] + 1),
-                                        [-1, 1, 1],
-                                        name='ctr_x_r_{}'.format(t))
-                ctr_y_r[t] = tf.reshape((inp_height + 1) / 2.0 *
-                                        ctl_r[t][:, 1] + 1,
-                                        [-1, 1, 1],
-                                        name='ctr_y_r_{}'.format(t))
-                delta_r[t] = tf.reshape((max(inp_width, inp_height) - 1) /
-                                        ((filter_size_r - 1) *
-                                         tf.exp(ctl_r[t][:, 3])),
-                                        [-1, 1, 1],
-                                        name='delta_r_{}'.format(t))
-            lg_var_r[t] = tf.reshape(ctl_r[t][:, 2], [-1, 1, 1],
-                                     name='lg_var_r_{}'.format(t))
-            lg_gamma_r[t] = tf.reshape(ctl_r[t][:, 4], [-1, 1, 1],
-                                       name='lg_gamma_r_{}'.format(t))
+            unroll_read_controller(ctl_inp=h_dec[t - 1], time=t)
 
-            #########################################################
-            # Read Gaussian filter
-            #########################################################
-            mu_x_r[t] = tf.add(ctr_x_r[t], delta_r[t] * (
-                span_filter_r - filter_size_r / 2.0 - 0.5),
-                name='mu_x_r_{}'.format(t))
-            mu_y_r[t] = tf.add(ctr_y_r[t], delta_r[t] * (
-                span_filter_r - filter_size_r / 2.0 - 0.5),
-                name='mu_y_r_{}'.format(t))
-            filter_x_r[t] = tf.mul(
-                1 / tf.sqrt(tf.exp(lg_var_r[t])) / tf.sqrt(2 * np.pi),
-                tf.exp(-0.5 * (span_x - mu_x_r[t]) * (span_x - mu_x_r[t]) /
-                       tf.exp(lg_var_r[t])),
-                name='filter_x_r_{}'.format(t))
-            filter_y_r[t] = tf.mul(
-                1 / tf.sqrt(tf.exp(lg_var_r[t])) / tf.sqrt(2 * np.pi),
-                tf.exp(-0.5 * (span_y - mu_y_r[t]) * (span_y - mu_y_r[t]) /
-                       tf.exp(lg_var_r[t])),
-                name='filter_y_r_{}'.format(t))
-
-            #########################################################
             # Read attention selector
-            #########################################################
             readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
                 tf.batch_matmul(filter_y_r[t], x, adj_x=True), filter_x_r[t]),
                 name='readout_x_{}'.format(t))
@@ -369,119 +188,24 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
                                    name='readout_{}'.format(t))
 
         with tf.device(device):
-            #########################################################
             # Encoder RNN
-            #########################################################
-            gi_enc[t] = tf.sigmoid(tf.matmul(readout[t], w_readout_gi_enc) +
-                                   tf.matmul(h_enc[t - 1], w_henc_gi_enc) +
-                                   tf.matmul(h_dec[t - 1], w_hdec_gi_enc) +
-                                   b_gi_enc,
-                                   name='gi_enc_{}'.format(t))
-            gr_enc[t] = tf.sigmoid(tf.matmul(readout[t], w_readout_gr_enc) +
-                                   tf.matmul(h_enc[t - 1], w_henc_gr_enc) +
-                                   tf.matmul(h_dec[t - 1], w_hdec_gr_enc) +
-                                   b_gr_enc,
-                                   name='gr_enc_{}'.format(t))
-            h_cdd_enc[t] = tf.tanh(tf.matmul(readout[t], w_readout_hcdd_enc) +
-                                   gr_enc[t] * (
-                                   tf.matmul(h_enc[t - 1], w_henc_hcdd_enc) +
-                                   tf.matmul(h_dec[t - 1], w_hdec_hcdd_enc)) +
-                                   b_hcdd_enc,
-                                   name='h_cdd_enc_{}'.format(t))
-            h_enc[t] = tf.add(h_enc[t - 1] * (1 - gi_enc[t]),
-                              h_cdd_enc[t] * gi_enc[t],
-                              name='h_enc_{}'.format(t))
+            enc_inp = tf.concat(1,
+                                [readout[t], h_dec[t - 1]],
+                                name='enc_inp_{}'.format(t))
+            unroll_encoder(inp=enc_inp, time=t)
 
-            #########################################################
             # Latent distribution
-            #########################################################
             z[t] = tf.add(tf.matmul(h_enc[t], w_henc_muz), b_muz,
                           name='z_{}'.format(t))
 
-            #########################################################
             # Decoder RNN
-            #########################################################
-            gi_dec[t] = tf.sigmoid(tf.matmul(z[t], w_z_gi_dec) +
-                                   tf.matmul(h_dec[t - 1], w_hdec_gi_dec) +
-                                   b_gi_dec,
-                                   name='gi_dec_{}'.format(t))
-            gr_dec[t] = tf.sigmoid(tf.matmul(z[t], w_z_gr_dec) +
-                                   tf.matmul(h_dec[t - 1], w_hdec_gr_dec) +
-                                   b_gr_dec,
-                                   name='gr_dec_{}'.format(t))
-            h_cdd_dec[t] = tf.tanh(tf.matmul(z[t], w_z_hcdd_dec) + gr_dec[t] *
-                                   tf.matmul(h_dec[t - 1], w_hdec_hcdd_dec) +
-                                   b_hcdd_dec,
-                                   name='h_cdd_dec_{}'.format(t))
-            h_dec[t] = tf.add(h_dec[t - 1] * (1 - gi_dec[t]),
-                              h_cdd_dec[t] * gi_dec[t],
-                              name='h_dec_{}'.format(t))
+            unroll_decoder(inp=z[t], time=t)
 
         with tf.device('/cpu:0'):
-            #########################################################
             # Write attention controller
-            #########################################################
-            ctl_w[t] = tf.add(tf.matmul(x_flat, w_x_ctl_w) +
-                              tf.matmul(x_err_flat[t], w_err_ctl_w) +
-                              tf.matmul(h_dec[t], w_hdec_ctl_w),
-                              b_ctl_w, name='ctl_w_{}'.format(t))
-            if opt['squash']:
-                ctr_x_w[t] = tf.reshape((inp_width + 1) / 2.0 *
-                                        (tf.tanh(ctl_w[t][:, 0]) + 1),
-                                        [-1, 1, 1],
-                                        name='ctr_x_w_{}'.format(t))
-                ctr_y_w[t] = tf.reshape((inp_height + 1) / 2.0 *
-                                        (tf.tanh(ctl_w[t][:, 1]) + 1),
-                                        [-1, 1, 1],
-                                        name='ctr_y_w_{}'.format(t))
-                delta_w[t] = tf.reshape((max(inp_width, inp_height) - 1) /
-                                        ((filter_size_w - 1) *
-                                         tf.sigmoid(ctl_w[t][:, 3])),
-                                        [-1, 1, 1],
-                                        name='delta_w_{}'.format(t))
-            else:
-                ctr_x_w[t] = tf.reshape((inp_width + 1) / 2.0 *
-                                        (ctl_w[t][:, 0] + 1),
-                                        [-1, 1, 1],
-                                        name='ctr_x_w_{}'.format(t))
-                ctr_y_w[t] = tf.reshape((inp_height + 1) / 2.0 *
-                                        ctl_w[t][:, 1] + 1,
-                                        [-1, 1, 1],
-                                        name='ctr_y_w_{}'.format(t))
-                delta_w[t] = tf.reshape((max(inp_width, inp_height) - 1) /
-                                        ((filter_size_w - 1) *
-                                         tf.exp(ctl_w[t][:, 3])),
-                                        [-1, 1, 1],
-                                        name='delta_w_{}'.format(t))
-            lg_var_w[t] = tf.reshape(ctl_w[t][:, 2], [-1, 1, 1],
-                                     name='lg_var_w_{}'.format(t))
-            lg_gamma_w[t] = tf.reshape(ctl_w[t][:, 4], [-1, 1, 1],
-                                       name='lg_gamma_w_{}'.format(t))
+            unroll_write_controller(ctl_inp=h_dec[t], time=t)
 
-            #########################################################
-            # Write Gaussian filter
-            #########################################################
-            mu_x_w[t] = tf.add(ctr_x_w[t], delta_w[t] * (
-                span_filter_w - filter_size_w / 2.0 - 0.5),
-                name='mu_x_w_{}'.format(t))
-            mu_y_w[t] = tf.add(ctr_y_w[t], delta_w[t] * (
-                span_filter_w - filter_size_w / 2.0 - 0.5),
-                name='mu_y_w_{}'.format(t))
-
-            filter_x_w[t] = tf.mul(
-                1 / tf.sqrt(tf.exp(lg_var_w[t])) / tf.sqrt(2 * np.pi),
-                tf.exp(-0.5 * (span_x - mu_x_w[t]) * (span_x - mu_x_w[t]) /
-                       tf.exp(lg_var_w[t])),
-                name='filter_x_w_{}'.format(t))
-            filter_y_w[t] = tf.mul(
-                1 / tf.sqrt(tf.exp(lg_var_w[t])) / tf.sqrt(2 * np.pi),
-                tf.exp(-0.5 * (span_y - mu_y_w[t]) * (span_y - mu_y_w[t]) /
-                       tf.exp(lg_var_w[t])),
-                name='filter_y_w_{}'.format(t))
-
-            #########################################################
             # Write to canvas
-            #########################################################
             # [B, F, Fw]
             writeout[t] = tf.reshape(tf.matmul(h_dec[t], w_hdec_writeout) +
                                      b_writeout,
@@ -494,58 +218,235 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
                 name='canvas_delta_{}'.format(t))
             canvas[t] = canvas[t - 1] + canvas_delta[t]
             x_rec[t] = tf.sigmoid(canvas[t], name='x_rec_{}'.format(t))
-        #########################################################
-        # End of recurrent loop
-        #########################################################
 
-    m = {
-        # Input
-        'x': x,
-
-        # Output
-        'x_rec': x_rec,
-
-        # Read controller
-        'ctr_x_r': ctr_x_r,
-        'ctr_y_r': ctr_y_r,
-        'delta_r': delta_r,
-        'lg_var_r': lg_var_r,
-        'lg_gamma_r': lg_gamma_r,
-
-        'mu_x_r': mu_x_r,
-        'mu_y_r': mu_y_r,
-        'lg_var_r': lg_var_r,
-        'filter_x_r': filter_x_r,
-        'filter_y_r': filter_y_r,
-
-        'readout_x': readout_x,
-
-        # Write controller
-        'ctr_x_w': ctr_x_w,
-        'ctr_y_w': ctr_y_w,
-        'delta_w': delta_w,
-        'lg_var_w': lg_var_w,
-        'lg_gamma_w': lg_gamma_w,
-
-        'mu_x_w': mu_x_w,
-        'mu_y_w': mu_y_w,
-        'lg_var_w': lg_var_w,
-        'filter_x_w': filter_x_w,
-        'filter_y_w': filter_y_w,
-
-        'canvas_delta': canvas_delta
-    }
+    m['x'] = x
+    m['x_rec'] = x_rec
+    m['readout_x'] = readout_x
+    m['canvas_delta'] = canvas_delta
 
     return m
 
 
+def _add_gated_rnn(model, timespan, inp_dim, hid_dim, h_init, wd=None, name='', sess=None, train_model=None):
+    h = [None] * (timespan + 1)
+    g_i = [None] * timespan
+    g_r = [None] * timespan
+    h[-1] = h_init
+
+    if train_model is None:
+        w_xi = weight_variable(
+            [inp_dim, hid_dim], wd=wd, name='w_xi_{}'.format(name))
+        w_hi = weight_variable(
+            [hid_dim, hid_dim], wd=wd, name='w_hi_{}'.format(name))
+        b_i = weight_variable(
+            [hid_dim], wd=wd, name='b_i_{}'.format(name))
+
+        w_xu = weight_variable(
+            [inp_dim, hid_dim], wd=wd, name='w_xu_{}'.format(name))
+        w_hu = weight_variable(
+            [hid_dim, hid_dim], wd=wd, name='w_hu_{}'.format(name))
+        b_u = weight_variable(
+            [hid_dim], wd=wd, name='b_u_{}'.format(name))
+
+        w_xr = weight_variable(
+            [inp_dim, hid_dim], wd=wd, name='w_xr_{}'.format(name))
+        w_hr = weight_variable(
+            [hid_dim, hid_dim], wd=wd, name='w_hr_{}'.format(name))
+        b_r = weight_variable(
+            [hid_dim], wd=wd, name='b_r_{}'.format(name))
+    else:
+        w_xi = tf.constant(
+            sess.run(train_model['w_xi_{}'.format(name)]),
+            name='w_xi_{}'.format(name))
+        w_hi = tf.constant(
+            sess.run(train_model['w_hi_{}'.format(name)]),
+            name='w_hi_{}'.format(name))
+        b_i = tf.constant(
+            sess.run(train_model['b_i_{}'.format(name)]),
+            name='b_i_{}'.format(name))
+
+        w_xu = tf.constant(
+            sess.run(train_model['w_xu_{}'.format(name)]),
+            name='w_xu_{}'.format(name))
+        w_hu = tf.constant(
+            sess.run(train_model['w_hu_{}'.format(name)]),
+            name='w_hu_{}'.format(name))
+        b_u = tf.constant(
+            sess.run(train_model['b_u_{}'.format(name)]),
+            name='b_u_{}'.format(name))
+
+        w_xr = tf.constant(
+            sess.run(train_model['w_xr_{}'.format(name)]),
+            name='w_xr_{}'.format(name))
+        w_hr = tf.constant(
+            sess.run(train_model['w_hr_{}'.format(name)]),
+            name='w_hr_{}'.format(name))
+        b_r = tf.constant(
+            sess.run(train_model['b_r_{}'.format(name)]),
+            name='b_r_{}'.format(name))
+
+    def unroll(inp, time):
+        t = time
+
+        # [B, H]
+        g_i[t] = tf.sigmoid(tf.matmul(inp, w_xi) +
+                            tf.matmul(h[t - 1], w_hi) +
+                            b_i,
+                            name='g_i_{}_{}'.format(name, t))
+        # [B, H]
+        g_r[t] = tf.sigmoid(tf.matmul(inp, w_xr) +
+                            tf.matmul(h[t - 1], w_hr) +
+                            b_r,
+                            name='g_r_{}_{}'.format(name, t))
+        # [B, H]
+        u = tf.tanh(tf.matmul(inp, w_xu) + g_r[t] *
+                    (tf.matmul(h[t - 1], w_hu)) +
+                    b_u,
+                    name='u_{}_{}'.format(name, t))
+        # [B, He]
+        h[t] = tf.add(h[t - 1] * (1 - g_i[t]), u * g_i[t],
+                      name='h_{}_{}'.format(name, t))
+
+    model['w_xi_{}'.format(name)] = w_xi
+    model['w_hi_{}'.format(name)] = w_hi
+    model['b_i_{}'.format(name)] = b_i
+    model['w_xu_{}'.format(name)] = w_xu
+    model['w_hu_{}'.format(name)] = w_hu
+    model['b_u_{}'.format(name)] = b_u
+    model['w_xr_{}'.format(name)] = w_xr
+    model['w_hr_{}'.format(name)] = w_hr
+    model['b_r_{}'.format(name)] = b_r
+    model['g_i_{}'.format(name)] = g_i
+    model['g_r_{}'.format(name)] = g_i
+    model['h_{}'.format(name)] = h
+
+    return unroll
+
+
+def _add_controller_rnn(model, timespan, inp_width, inp_height, ctl_inp_dim, filter_size, wd=None, name='', sess=None, train_model=None):
+    """Add an attention controller."""
+    # Constant for computing filter_x. Shape: [1, W, 1].
+    span_x = np.reshape(np.arange(inp_width), [1, inp_width, 1])
+    # Constant for computing filter_y. Shape: [1, H, 1].
+    span_y = np.reshape(np.arange(inp_height), [1, inp_height, 1])
+    # Constant for computing filter_x. Shape: [1, 1, Fr].
+    span_filter = np.reshape(np.arange(filter_size) + 1, [1, 1, -1])
+
+    # Control variale. [g_x, g_y, log_var, log_delta, log_gamma].
+    # Shape: T * [B, 5].
+    ctl = [None] * timespan
+    # Attention center x. Shape: T * [B].
+    ctr_x = [None] * timespan
+    # Attention center y. Shape: T * [B].
+    ctr_y = [None] * timespan
+    # Attention width. Shape: T * [B].
+    delta = [None] * timespan
+    # Log of the variance of Gaussian filter. Shape: T * [B].
+    lg_var = [None] * timespan
+    # Log of the multiplier of Gaussian filter. Shape: T * [B].
+    lg_gamma = [None] * timespan
+    # Gaussian filter mu_x. Shape: T * [B, W, Fr].
+    mu_x = [None] * timespan
+    # Gaussian filter mu_y. Shape: T * [B, H, Fr].
+    mu_y = [None] * timespan
+    # Gaussian filter on x direction. Shape: T * [B, W, Fr].
+    filter_x = [None] * timespan
+    # Gaussian filter on y direction. Shape: T * [B, H, Fr].
+    filter_y = [None] * timespan
+
+    if sess is None:
+        # From hidden decoder to controller variables. Shape: [Hd, 5].
+        w_ctl = weight_variable(
+            [ctl_inp_dim, 5], wd=wd, name='w_ctl_{}'.format(name))
+        # Controller variable bias. Shape: [5].
+        b_ctl = weight_variable([5], wd=wd, name='b_ctl_{}'.format(name))
+    else:
+        w_ctl = tf.constant(
+            sess.run(train_model['w_ctl_{}'.format(name)]),
+            name='w_ctl_{}'.format(name))
+        b_ctl = tf.constant(
+            sess.run(train_model['b_ctl_{}'.format(name)]),
+            name='b_ctl_{}'.format(name))
+
+    def unroll(ctl_inp, time):
+        """Run controller."""
+        t = time
+        #########################################################
+        # Attention controller
+        #########################################################
+        # [B, 5]
+        ctl[t] = tf.matmul(ctl_inp, w_ctl) + b_ctl
+        # [B, 1, 1]
+        ctr_x[t] = tf.reshape((inp_width + 1) / 2.0 *
+                              (ctl[t][:, 0] + 1),
+                              [-1, 1, 1],
+                              name='ctr_x_{}_{}'.format(name, t))
+        # [B, 1, 1]
+        ctr_y[t] = tf.reshape((inp_height + 1) / 2.0 *
+                              (ctl[t][:, 1] + 1),
+                              [-1, 1, 1],
+                              name='ctr_y_{}_{}'.format(name, t))
+        # [B, 1, 1]
+        delta[t] = tf.reshape((max(inp_width, inp_height) - 1) /
+                              ((filter_size - 1) *
+                               tf.exp(ctl[t][:, 3])),
+                              [-1, 1, 1],
+                              name='delta_{}_{}'.format(name, t))
+        # [B, 1, 1]
+        lg_var[t] = tf.reshape(ctl[t][:, 2], [-1, 1, 1],
+                               name='lg_var_{}_{}'.format(name, t))
+        # [B, 1, 1]
+        lg_gamma[t] = tf.reshape(ctl[t][:, 4], [-1, 1, 1],
+                                 name='lg_gamma_{}_{}'.format(name, t))
+
+        #########################################################
+        # Gaussian filter
+        #########################################################
+        # [B, 1, 1] + [B, 1, 1] * [1, Fr, 1] = [B, 1, Fr]
+        mu_x[t] = tf.add(ctr_x[t], delta[t] * (
+            span_filter - filter_size / 2.0 - 0.5),
+            name='mu_x_{}_{}'.format(name, t))
+        # [B, 1, 1] + [B, 1, 1] * [1, 1, Fr] = [B, 1, Fr]
+        mu_y[t] = tf.add(ctr_y[t], delta[t] * (
+            span_filter - filter_size / 2.0 - 0.5),
+            name='mu_y_{}_{}'.format(name, t))
+        # [B, 1, 1] * [1, W, 1] - [B, 1, Fr] = [B, W, Fr]
+        filter_x[t] = tf.mul(
+            1 / tf.sqrt(tf.exp(lg_var[t])) / tf.sqrt(2 * np.pi),
+            tf.exp(-0.5 * (span_x - mu_x[t]) * (span_x - mu_x[t]) /
+                   tf.exp(lg_var[t])),
+            name='filter_x_{}_{}'.format(name, t))
+        # [1, H, 1] - [B, 1, Fr] = [B, H, Fr]
+        filter_y[t] = tf.mul(
+            1 / tf.sqrt(tf.exp(lg_var[t])) / tf.sqrt(2 * np.pi),
+            tf.exp(-0.5 * (span_y - mu_y[t]) * (span_y - mu_y[t]) /
+                   tf.exp(lg_var[t])),
+            name='filter_y_{}_{}'.format(name, t))
+
+        pass
+
+    model['w_ctl_{}'.format(name)] = w_ctl
+    model['b_ctl_{}'.format(name)] = b_ctl
+    model['ctl_{}'.format(name)] = ctl
+    model['ctr_x_{}'.format(name)] = ctr_x
+    model['ctr_y_{}'.format(name)] = ctr_y
+    model['delta_{}'.format(name)] = delta
+    model['lg_var_{}'.format(name)] = lg_var
+    model['lg_gamma_{}'.format(name)] = lg_gamma
+    model['mu_x_{}'.format(name)] = mu_x
+    model['mu_y_{}'.format(name)] = mu_y
+    model['filter_x_{}'.format(name)] = filter_x
+    model['filter_y_{}'.format(name)] = filter_y
+
+    return unroll
+
+
 def get_train_model(opt, device='/cpu:0'):
     """Get train model for DRAW."""
+    m = {}
 
     #########################################################
-    #########################################################
     # Constants
-    #########################################################
     #########################################################
     # RNN timespan: T.
     timespan = opt['timespan']
@@ -560,68 +461,39 @@ def get_train_model(opt, device='/cpu:0'):
     filter_size_w = opt['filter_size_w']
 
     # Number of hidden units in the RNN encoder: He.
-    num_hid_enc = opt['num_hid_enc']
+    hid_enc_dim = opt['hid_enc_dim']
     # Number of hidden units in the RNN decoder: Hd.
-    num_hid_dec = opt['num_hid_dec']
+    hid_dec_dim = opt['hid_dec_dim']
     # Number of hidden dimension in the latent variable: Hz.
-    num_hid = opt['num_hid']
+    hid_dim = opt['hid_dim']
 
     # Weight L2 regularization.
     wd = opt['weight_decay']
 
-    # Constant for computing filter_x. Shape: [1, W, 1].
-    span_x = np.reshape(np.arange(inp_width), [1, inp_width, 1])
-    # Constant for computing filter_y. Shape: [1, H, 1].
-    span_y = np.reshape(np.arange(inp_height), [1, inp_height, 1])
-    # Constant for computing filter_x. Shape: [1, 1, Fr].
-    span_filter_r = np.reshape(np.arange(filter_size_r), [1, 1, -1])
-    # Constant for computing filter_y. Shape: [1, 1, Fw].
-    span_filter_w = np.reshape(np.arange(filter_size_w), [1, 1, -1])
-
-    #########################################################
     #########################################################
     # Variables
     #########################################################
-    #########################################################
     with tf.device('/cpu:0'):
-        # with tf.device(device):
         # Input image. Shape: [B, T, H, W].
         x = tf.placeholder('float', [None, inp_width, inp_height])
-        # [B, H * W]
-        x_flat = tf.reshape(x, [-1, inp_height * inp_width], name='x_flat')
+        x_shape = tf.shape(x, name='x_shape')
+        num_ex = x_shape[0: 1]
+        num_ex_mul = tf.concat(0, [num_ex, tf.constant([1])])
 
-        #########################################################
-        # Read attention controller
-        #########################################################
-        # Control variale. [g_x, g_y, log_var, log_delta, log_gamma].
-        # Shape: T * [B, 5].
-        ctl_r = [None] * timespan
-        # Attention center x. Shape: T * [B].
-        ctr_x_r = [None] * timespan
-        # Attention center y. Shape: T * [B].
-        ctr_y_r = [None] * timespan
-        # Attention width. Shape: T * [B].
-        delta_r = [None] * timespan
-        # Log of the variance of Gaussian filter. Shape: T * [B].
-        lg_var_r = [None] * timespan
-        # Log of the multiplier of Gaussian filter. Shape: T * [B].
-        lg_gamma_r = [None] * timespan
+        unroll_read_controller = _add_controller_rnn(
+            model=m,
+            timespan=timespan,
+            inp_width=inp_width,
+            inp_height=inp_height,
+            ctl_inp_dim=hid_dec_dim,
+            filter_size=filter_size_r,
+            wd=wd,
+            name='r'
+        )
+        lg_gamma_r = m['lg_gamma_r']
+        filter_x_r = m['filter_x_r']
+        filter_y_r = m['filter_y_r']
 
-        #########################################################
-        # Read Gaussian filter
-        #########################################################
-        # Gaussian filter mu_x. Shape: T * [B, W, Fr].
-        mu_x_r = [None] * timespan
-        # Gaussian filter mu_y. Shape: T * [B, H, Fr].
-        mu_y_r = [None] * timespan
-        # Gaussian filter on x direction. Shape: T * [B, W, Fr].
-        filter_x_r = [None] * timespan
-        # Gaussian filter on y direction. Shape: T * [B, H, Fr].
-        filter_y_r = [None] * timespan
-
-        #########################################################
-        # Read attention selector
-        #########################################################
         # Read out image from the read head. Shape: T * [B, Fr, Fr].
         readout_x = [None] * timespan
         readout_err = [None] * timespan
@@ -629,351 +501,114 @@ def get_train_model(opt, device='/cpu:0'):
         # Read out image from the read head. Shape: T * [B, 2 * Fr * Fr].
         readout = [None] * timespan
 
-        #########################################################
         # Write attention controller
-        #########################################################
-        # Control variale. [g_x, g_y, log_var, log_delta, log_gamma].
-        # Shape: T * [B, 5].
-        ctl_w = [None] * timespan
-        # Attention center x. Shape: T * [B].
-        ctr_x_w = [None] * timespan
-        # Attention center y. Shape: T * [B].
-        ctr_y_w = [None] * timespan
-        # Attention width. Shape: T * [B].
-        delta_w = [None] * timespan
-        # Log of the variance of Gaussian filter. Shape: T * [B].
-        lg_var_w = [None] * timespan
-        # Log of the multiplier of Gaussian filter. Shape: T * [B].
-        lg_gamma_w = [None] * timespan
+        unroll_write_controller = _add_controller_rnn(
+            model=m,
+            timespan=timespan,
+            inp_width=inp_width,
+            inp_height=inp_height,
+            ctl_inp_dim=hid_dec_dim,
+            filter_size=filter_size_w,
+            wd=wd,
+            name='w'
+        )
+        lg_gamma_w = m['lg_gamma_w']
+        filter_x_w = m['filter_x_w']
+        filter_y_w = m['filter_y_w']
 
-        #########################################################
-        # Write Gaussian filter
-        #########################################################
-        # Gaussian filter mu_x. Shape: T * [B, W, Fw].
-        mu_x_w = [None] * timespan
-        # Gaussian filter mu_y. Shape: T * [B, H, Fw].
-        mu_y_w = [None] * timespan
-        # Gaussian filter on x direction. Shape: T * [B, W, Fw].
-        filter_x_w = [None] * timespan
-        # Gaussian filter on y direction. Shape: T * [B, H, Fw].
-        filter_y_w = [None] * timespan
-
-        #########################################################
         # Write to canvas
-        #########################################################
         # Write out. Shape: T * [B, F, F].
         writeout = [None] * timespan
+        # From decoder to write. Shape: [Hd, Fw * Fw].
+        w_hdec_writeout = weight_variable(
+            [hid_dec_dim, filter_size_w * filter_size_w], wd=wd,
+            name='w_hdec_writeout')
+
+        # Shape: [Fw * Fw].
+        b_writeout = weight_variable(
+            [filter_size_w * filter_size_w], wd=wd, name='b_writeout')
+
         # Add to canvas. Shape: T * [B, H, W].
         canvas_delta = [None] * timespan
         # Canvas accumulating output. Shape: T * [B, H, W].
         canvas = [None] * (timespan + 1)
+        w_canvas_init = weight_variable([inp_height, inp_width], wd=wd,
+                                        name='w_canvas_init')
+        canvas[-1] = w_canvas_init
 
     with tf.device(device):
-        #########################################################
-        # Recurrent loop
-        #########################################################
         # Error images (original substracted by drawn). Shape: T * [B, H, W].
         x_err = [None] * timespan
-        x_err_flat = [None] * timespan
 
-        #########################################################
         # Encoder RNN
-        #########################################################
-        # Hidden state of the RNN encoder. Shape: (T + 1) * [B, He].
-        h_enc = [None] * (timespan + 1)
-        # Input gate of the RNN encoder. Shape: T * [B, He].
-        gi_enc = [None] * timespan
-        # Recurrent gate of the RNN encoder. Shape: T * [B, He].
-        gr_enc = [None] * timespan
-        # Hidden candidate activation of the RNN encoder.
-        h_cdd_enc = [None] * timespan
+        w_henc_init = weight_variable([1, hid_enc_dim], wd=wd,
+                                      name='w_henc_init')
+        henc_init = tf.tile(w_henc_init, num_ex_mul, name='henc_init')
+        unroll_encoder = _add_gated_rnn(
+            model=m,
+            timespan=timespan,
+            inp_dim=2 * filter_size_r * filter_size_r + hid_dec_dim,
+            hid_dim=hid_enc_dim,
+            h_init=henc_init,
+            wd=wd,
+            name='enc'
+        )
+        h_enc = m['h_enc']
 
-        #########################################################
         # Latent distribution
-        #########################################################
         # Noise. Shape: [B, T, Hz]
-        u = tf.placeholder('float', [None, timespan, num_hid])
+        u = tf.placeholder('float', [None, timespan, hid_dim])
         u_l = tf.split(1, timespan, u)
         u_l_flat = [None] * timespan
 
         # Mean of hidden latent variable. Shape: T * [B, Hz].
         mu_z = [None] * timespan
+        # Hidden encoder to latent variable mean.
+        w_henc_muz = weight_variable([hid_enc_dim, hid_dim], wd=wd,
+                                     name='w_henc_muz')
+        b_muz = weight_variable([hid_dim], wd=wd, name='w_henc_muz')
+
         # Standard deviation of hidden latent variable. Shape: T * [B, Hz].
         lg_sigma_z = [None] * timespan
         sigma_z = [None] * timespan
+        # Hidden encoder to latent variable std.
+        w_henc_lgsigmaz = weight_variable(
+            [hid_enc_dim, hid_dim], wd=wd, name='w_henc_lgsigmaz')
+        b_lgsigmaz = weight_variable([hid_dim], wd=wd, name='b_lgsigmaz')
+
         # Hidden latent variable. Shape: T * [B, Hz].
         z = [None] * timespan
         # KL divergence
         kl_qzx_pz = [None] * timespan
 
-        #########################################################
         # Decoder RNN
-        #########################################################
-        # Hidden state of the RNN decoder. Shape: (T + 1) * [B, Hd].
-        h_dec = [None] * (timespan + 1)
-        # Input gate of the RNN decoder. Shape: T * [B, Hd].
-        gi_dec = [None] * timespan
-        # Recurrent gate of the RNN decoder. Shape: T * [B, Hd].
-        gr_dec = [None] * timespan
-        # Hidden candidate activation of the RNN decoder. Shape: T * [B, Hd].
-        h_cdd_dec = [None] * timespan
+        w_hdec_init = weight_variable([1, hid_dec_dim], wd=wd,
+                                      name='w_hdec_init')
+        hdec_init = tf.tile(w_hdec_init, num_ex_mul, name='hdec_init')
+        unroll_decoder = _add_gated_rnn(
+            model=m,
+            timespan=timespan,
+            inp_dim=hid_dim,
+            hid_dim=hid_dec_dim,
+            h_init=hdec_init,
+            name='dec'
+        )
+        h_dec = m['h_dec']
 
-    #########################################################
-    #########################################################
-    # Weights
-    #########################################################
-    #########################################################
-    with tf.device('/cpu:0'):
-        #########################################################
-        # Read attention controller
-        #########################################################
-        # From input image to controller variables. Shape: [H * W, 5].
-        w_x_ctl_r = weight_variable([inp_height * inp_width, 5], wd=wd,
-                                    name='w_x_ctl_r')
-        # From err image to controller variables. Shape: [H * W, 5].
-        w_err_ctl_r = weight_variable([inp_height * inp_width, 5], wd=wd,
-                                      name='w_err_ctl_r')
-        # From hidden decoder to controller variables. Shape: [Hd, 5].
-        w_hdec_ctl_r = weight_variable(
-            [num_hid_dec, 5], wd=wd, name='w_hdec_ctl_r')
-        # Controller variable bias. Shape: [5].
-        b_ctl_r = weight_variable([5], wd=wd, name='b_ctl_r')
-
-        #########################################################
-        # Write attention controller
-        #########################################################
-        # From input image to controller variables. Shape: [H * W, 5].
-        w_x_ctl_w = weight_variable([inp_height * inp_width, 5], wd=wd,
-                                    name='w_x_ctl_w')
-        # From err image to controller variables. Shape: [H * W, 5].
-        w_err_ctl_w = weight_variable([inp_height * inp_width, 5], wd=wd,
-                                      name='w_err_ctl_w')
-        # From hidden decoder to controller variables. Shape: [Hd, 5].
-        w_hdec_ctl_w = weight_variable([num_hid_dec, 5], wd=wd,
-                                       name='w_hdec_ctl_w')
-        # Controller variable bias. Shape: [5].
-        b_ctl_w = weight_variable([5], wd=wd, name='b_ctl_w')
-
-        #########################################################
-        # Write to canvas
-        #########################################################
-        # From decoder to write. Shape: [Hd, Fw * Fw].
-        w_hdec_writeout = weight_variable(
-            [num_hid_dec, filter_size_w * filter_size_w], wd=wd,
-            name='w_hdec_writeout')
-        # Shape: [Fw * Fw].
-        b_writeout = weight_variable(
-            [filter_size_w * filter_size_w], wd=wd, name='b_writeout')
-
-    with tf.device(device):
-        #########################################################
-        # Encoder RNN
-        #########################################################
-        # From read out to input gate encoder. Shape: [2 * F * F, He].
-        w_readout_gi_enc = weight_variable(
-            [2 * filter_size_r * filter_size_r, num_hid_enc], wd=wd,
-            name='w_readout_gi_enc')
-        # From hidden encoder to input gate encoder. Shape: [He, He].
-        w_henc_gi_enc = weight_variable([num_hid_enc, num_hid_enc], wd=wd,
-                                        name='w_henc_gi_enc')
-        # From hidden decoder to input gate encoder. Shape: [He, He].
-        w_hdec_gi_enc = weight_variable([num_hid_dec, num_hid_enc], wd=wd,
-                                        name='w_hdec_gi_enc')
-        # Input gate encoder bias. Shape: [He].
-        b_gi_enc = weight_variable([num_hid_enc], wd=wd, name='b_gi_enc')
-
-        # From read out to recurrent gate encoder. Shape: [2 * F * F, He].
-        w_readout_gr_enc = weight_variable(
-            [2 * filter_size_r * filter_size_r, num_hid_enc], wd=wd,
-            name='w_readout_gr_enc')
-        # From hidden encoder to recurrent gate encoder. Shape: [He, He].
-        w_henc_gr_enc = weight_variable([num_hid_enc, num_hid_enc], wd=wd,
-                                        name='w_henc_gr_enc')
-        # From hidden decoder to recurrent gate encoder. Shape: [He, He].
-        w_hdec_gr_enc = weight_variable(
-            [num_hid_dec, num_hid_enc], wd=wd,
-            name='w_hdec_gr_enc')
-        # Recurrent gate encoder bias. Shape: [He].
-        b_gr_enc = weight_variable([num_hid_enc], wd=wd, name='b_gr_enc')
-
-        # From read out to hidden candidate encoder. Shape: [2 * F * F, He].
-        w_readout_hcdd_enc = weight_variable(
-            [2 * filter_size_r * filter_size_r, num_hid_enc], wd=wd,
-            name='w_readout_hcdd_enc')
-        # From hidden encoder to hidden candidate encoder. Shape: [He, He].
-        w_henc_hcdd_enc = weight_variable([num_hid_enc, num_hid_enc], wd=wd,
-                                          name='w_henc_hcdd_enc')
-        # From hidden decoder to hidden candidate encoder. Shape: [He, He].
-        w_hdec_hcdd_enc = weight_variable([num_hid_dec, num_hid_enc], wd=wd,
-                                          name='w_hdec_gr_enc')
-        # Hidden candidate encoder bias. Shape: [He].
-        b_hcdd_enc = weight_variable([num_hid_enc], wd=wd, name='b_hcdd_enc')
-
-        #########################################################
-        # Latent distribution
-        #########################################################
-        # Hidden encoder to latent variable mean.
-        w_henc_muz = weight_variable([num_hid_enc, num_hid], wd=wd,
-                                     name='w_henc_muz')
-        b_muz = weight_variable([num_hid], wd=wd, name='w_henc_muz')
-        # Hidden encoder to latent variable std.
-        w_henc_lgsigmaz = weight_variable(
-            [num_hid_enc, num_hid], wd=wd, name='w_henc_lgsigmaz')
-        b_lgsigmaz = weight_variable([num_hid], wd=wd, name='b_lgsigmaz')
-        # w_henc_lgsigmaz = weight_variable(
-        #     [num_hid_enc, num_hid], wd=wd, name='w_henc_stdz')
-        # b_lgsigmaz = weight_variable([num_hid], wd=wd, name='b_henc_muz')
-
-        #########################################################
-        # Decoder RNN
-        #########################################################
-        # From latent variable to input gate decoder. Shape: [Hz, Hd].
-        w_z_gi_dec = weight_variable([num_hid, num_hid_dec], wd=wd,
-                                     name='w_z_gi_dec')
-        # From hidden decoder to input gate decoder. Shape: [Hd, Hd].
-        w_hdec_gi_dec = weight_variable([num_hid_dec, num_hid_dec], wd=wd,
-                                        name='w_hdec_gi_dec')
-        # Input gate decoder bias. Shape: [Hd].
-        b_gi_dec = weight_variable([num_hid_dec], wd=wd, name='b_gi_dec')
-
-        # From latent variable to recurrent gate decoder. Shape: [Hz, Hd].
-        w_z_gr_dec = weight_variable([num_hid, num_hid_dec], wd=wd,
-                                     name='w_z_gr_dec')
-        # From hidden decoder to recurrent gate decoder. Shape: [Hd, Hd].
-        w_hdec_gr_dec = weight_variable([num_hid_dec, num_hid_dec], wd=wd,
-                                        name='w_hdec_gr_dec')
-        # Recurrent gate decoder bias. Shape: [Hd].
-        b_gr_dec = weight_variable([num_hid_dec], wd=wd, name='b_gr_dec')
-
-        # From read out to hidden candidate decoder. Shape: [Hz, Hd].
-        w_z_hcdd_dec = weight_variable([num_hid, num_hid_dec], wd=wd,
-                                       name='w_z_hcdd_dec')
-        # From hidden decoder to hidden candidate decoder. Shape: [Hd, Hd].
-        w_hdec_hcdd_dec = weight_variable([num_hid_dec, num_hid_dec], wd=wd,
-                                          name='w_hdec_hcdd_dec')
-        # Hidden candidate decoder bias. Shape: [Hde].
-        b_hcdd_dec = weight_variable([num_hid_dec], wd=wd, name='b_hcdd_dec')
-
-        # Learned initialization biases.
-        if opt['learned_bias']:
-            w_henc_init = weight_variable([1, num_hid_enc], wd=wd,
-                                          name='w_henc_init')
-            w_hdec_init = weight_variable([1, num_hid_dec], wd=wd,
-                                          name='w_hdec_init')
-            w_canvas_init = weight_variable([inp_height, inp_width], wd=wd,
-                                            name='w_canvas_init')
-    #########################################################
     #########################################################
     # Computation graph
-    #########################################################
-    #########################################################
-    # Setup default hidden states.
-    x_shape = tf.shape(x, name='x_shape')
-    num_ex = x_shape[0: 1]
-    num_ex_mul = tf.concat(0, [num_ex, tf.constant([1])])
-
-    if opt['learned_bias']:
-        h_enc[-1] = tf.tile(w_henc_init, num_ex_mul, name='h_enc_-1')
-        h_dec[-1] = tf.tile(w_hdec_init, num_ex_mul, name='h_dec_-1')
-        canvas[-1] = w_canvas_init
-    else:
-        h_enc[-1] = tf.tile(tf.zeros([1, num_hid_enc]), num_ex_mul,
-                            name='h_enc_-1')
-        h_dec[-1] = tf.tile(tf.zeros([1, num_hid_dec]), num_ex_mul,
-                            name='h_dec_-1')
-        canvas[-1] = tf.zeros([inp_height, inp_width], name='canvas_-1')
-
-    #########################################################
-    # Recurrent loop
     #########################################################
     for t in xrange(timespan):
         with tf.device('/cpu:0'):
             # [B, H * W]
             x_err[t] = tf.sub(x, tf.sigmoid(canvas[t - 1]),
                               name='x_err_{}'.format(t))
-            x_err_flat[t] = tf.reshape(x_err[t],
-                                       [-1, inp_height * inp_width],
-                                       name='x_err_flat_{}'.format(t))
-            u_l_flat[t] = tf.reshape(u_l[t], [-1, num_hid],
+            u_l_flat[t] = tf.reshape(u_l[t], [-1, hid_dim],
                                      name='u_flat_{}'.format(t))
 
-            #########################################################
-            # Read attention controller
-            #########################################################
-            # [B, 5]
-            ctl_r[t] = tf.add(tf.matmul(x_flat, w_x_ctl_r) +
-                              tf.matmul(x_err_flat[t], w_err_ctl_r) +
-                              tf.matmul(h_dec[t - 1], w_hdec_ctl_r),
-                              b_ctl_r, name='ctl_r_{}'.format(t))
-            if opt['squash']:
-                # Squash in (-1, 1), [B, 1, 1]
-                ctr_x_r[t] = tf.reshape((inp_width + 1) / 2.0 *
-                                        (tf.tanh(ctl_r[t][:, 0]) + 1),
-                                        [-1, 1, 1],
-                                        name='ctr_x_r_{}'.format(t))
-                ctr_y_r[t] = tf.reshape((inp_height + 1) / 2.0 *
-                                        (tf.tanh(ctl_r[t][:, 1]) + 1),
-                                        [-1, 1, 1],
-                                        name='ctr_y_r_{}'.format(t))
-                # Squash in (0, 1), [B, 1, 1]
-                delta_r[t] = tf.reshape((max(inp_width, inp_height) - 1) /
-                                        ((filter_size_r - 1) *
-                                         tf.sigmoid(ctl_r[t][:, 3])),
-                                        [-1, 1, 1],
-                                        name='delta_r_{}'.format(t))
-            else:
-                # [B, 1, 1]
-                ctr_x_r[t] = tf.reshape((inp_width + 1) / 2.0 *
-                                        (ctl_r[t][:, 0] + 1),
-                                        [-1, 1, 1],
-                                        name='ctr_x_r_{}'.format(t))
-                # [B, 1, 1]
-                ctr_y_r[t] = tf.reshape((inp_height + 1) / 2.0 *
-                                        (ctl_r[t][:, 1] + 1),
-                                        [-1, 1, 1],
-                                        name='ctr_y_r_{}'.format(t))
-
-                # [B, 1, 1]
-                delta_r[t] = tf.reshape((max(inp_width, inp_height) - 1) /
-                                        ((filter_size_r - 1) *
-                                         tf.exp(ctl_r[t][:, 3])),
-                                        [-1, 1, 1],
-                                        name='delta_r_{}'.format(t))
-            # [B, 1, 1]
-            lg_var_r[t] = tf.reshape(ctl_r[t][:, 2], [-1, 1, 1],
-                                     name='lg_var_r_{}'.format(t))
-            # [B, 1, 1]
-            lg_gamma_r[t] = tf.reshape(ctl_r[t][:, 4], [-1, 1, 1],
-                                       name='lg_gamma_r_{}'.format(t))
-
-            #########################################################
-            # Read Gaussian filter
-            #########################################################
-            # [B, 1, 1] + [B, 1, 1] * [1, Fr, 1] = [B, 1, Fr]
-            mu_x_r[t] = tf.add(ctr_x_r[t], delta_r[t] * (
-                span_filter_r - filter_size_r / 2.0 - 0.5),
-                name='mu_x_r_{}'.format(t))
-            # [B, 1, 1] + [B, 1, 1] * [1, 1, Fr] = [B, 1, Fr]
-            mu_y_r[t] = tf.add(ctr_y_r[t], delta_r[t] * (
-                span_filter_r - filter_size_r / 2.0 - 0.5),
-                name='mu_y_r_{}'.format(t))
-
-            # [B, 1, 1] * [1, W, 1] - [B, 1, Fr] = [B, W, Fr]
-            filter_x_r[t] = tf.mul(
-                1 / tf.sqrt(tf.exp(lg_var_r[t])) / tf.sqrt(2 * np.pi),
-                tf.exp(-0.5 * (span_x - mu_x_r[t]) * (span_x - mu_x_r[t]) /
-                       tf.exp(lg_var_r[t])),
-                name='filter_x_r_{}'.format(t))
-            # [1, H, 1] - [B, 1, Fr] = [B, H, Fr]
-            filter_y_r[t] = tf.mul(
-                1 / tf.sqrt(tf.exp(lg_var_r[t])) / tf.sqrt(2 * np.pi),
-                tf.exp(-0.5 * (span_y - mu_y_r[t]) * (span_y - mu_y_r[t]) /
-                       tf.exp(lg_var_r[t])),
-                name='filter_y_r_{}'.format(t))
-
-            #########################################################
             # Read attention selector
-            #########################################################
+            unroll_read_controller(ctl_inp=h_dec[t - 1], time=t)
+
             # [B, 1, 1] * [B, F, H] * [B, H, W] * [B, W, F] = [B, F, F]
             readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
                 tf.batch_matmul(filter_y_r[t], x, adj_x=True), filter_x_r[t]),
@@ -983,7 +618,7 @@ def get_train_model(opt, device='/cpu:0'):
                 filter_x_r[t]),
                 name='readout_err_{}'.format(t))
 
-            # [B, 2 * F]
+            # [B, 2 * F * F]
             x_and_err[t] = [tf.reshape(readout_x[t],
                                        [-1, filter_size_r * filter_size_r]),
                             tf.reshape(readout_err[t],
@@ -992,37 +627,14 @@ def get_train_model(opt, device='/cpu:0'):
                                    name='readout_{}'.format(t))
 
         with tf.device(device):
-            #########################################################
             # Encoder RNN
-            #########################################################
-            # [B, He]
-            gi_enc[t] = tf.sigmoid(tf.matmul(readout[t], w_readout_gi_enc) +
-                                   tf.matmul(h_enc[t - 1], w_henc_gi_enc) +
-                                   tf.matmul(h_dec[t - 1], w_hdec_gi_enc) +
-                                   b_gi_enc,
-                                   name='gi_enc_{}'.format(t))
-            # [B, He]
-            gr_enc[t] = tf.sigmoid(tf.matmul(readout[t], w_readout_gr_enc) +
-                                   tf.matmul(h_enc[t - 1], w_henc_gr_enc) +
-                                   tf.matmul(h_dec[t - 1], w_hdec_gr_enc) +
-                                   b_gr_enc,
-                                   name='gr_enc_{}'.format(t))
-            # [B, He]
-            h_cdd_enc[t] = tf.tanh(tf.matmul(readout[t], w_readout_hcdd_enc) +
-                                   gr_enc[t] * (
-                                   tf.matmul(h_enc[t - 1], w_henc_hcdd_enc) +
-                                   tf.matmul(h_dec[t - 1], w_hdec_hcdd_enc)) +
-                                   b_hcdd_enc,
-                                   name='h_cdd_enc_{}'.format(t))
-            # [B, He]
-            h_enc[t] = tf.add(h_enc[t - 1] * (1 - gi_enc[t]),
-                              h_cdd_enc[t] * gi_enc[t],
-                              name='h_enc_{}'.format(t))
+            enc_inp = tf.concat(1,
+                                [readout[t], h_dec[t - 1]],
+                                name='enc_inp_{}'.format(t))
+            unroll_encoder(inp=enc_inp, time=t)
 
-            #########################################################
             # Latent distribution
-            #########################################################
-            # [B, He] * [He, ]
+            # [B, He] * [He, H]
             mu_z[t] = tf.add(tf.matmul(h_enc[t], w_henc_muz), b_muz,
                              name='mu_z_{}'.format(t))
             lg_sigma_z[t] = tf.add(tf.matmul(h_enc[t], w_henc_lgsigmaz),
@@ -1031,6 +643,7 @@ def get_train_model(opt, device='/cpu:0'):
             sigma_z[t] = tf.exp(lg_sigma_z[t], name='sigma_z_{}'.format(t))
             z[t] = tf.add(mu_z[t], sigma_z[t] * u_l_flat[t],
                           name='z_{}'.format(t))
+            z[t] = mu_z[t]
             # KL Divergence
             kl_qzx_pz[t] = tf.mul(-0.5,
                                   tf.reduce_sum(1 + 2 * lg_sigma_z[t] -
@@ -1038,107 +651,13 @@ def get_train_model(opt, device='/cpu:0'):
                                                 tf.exp(2 * lg_sigma_z[t])),
                                   name='kl_qzx_pz_{}'.format(t))
 
-            #########################################################
             # Decoder RNN
-            #########################################################
-            # [B, Hd]
-            gi_dec[t] = tf.sigmoid(tf.matmul(z[t], w_z_gi_dec) +
-                                   tf.matmul(h_dec[t - 1], w_hdec_gi_dec) +
-                                   b_gi_dec,
-                                   name='gi_dec_{}'.format(t))
-            # [B, Hd]
-            gr_dec[t] = tf.sigmoid(tf.matmul(z[t], w_z_gr_dec) +
-                                   tf.matmul(h_dec[t - 1], w_hdec_gr_dec) +
-                                   b_gr_dec,
-                                   name='gr_dec_{}'.format(t))
-            # [B, Hd]
-            h_cdd_dec[t] = tf.tanh(tf.matmul(z[t], w_z_hcdd_dec) + gr_dec[t] *
-                                   tf.matmul(h_dec[t - 1], w_hdec_hcdd_dec) +
-                                   b_hcdd_dec,
-                                   name='h_cdd_dec_{}'.format(t))
-            # [B, Hd]
-            h_dec[t] = tf.add(h_dec[t - 1] * (1 - gi_dec[t]),
-                              h_cdd_dec[t] * gi_dec[t],
-                              name='h_dec_{}'.format(t))
+            unroll_decoder(inp=z[t], time=t)
 
         with tf.device('/cpu:0'):
-            #########################################################
-            # Write attention controller
-            #########################################################
-            # [B, 5]
-            ctl_w[t] = tf.add(tf.matmul(x_flat, w_x_ctl_w) +
-                              tf.matmul(x_err_flat[t], w_err_ctl_w) +
-                              tf.matmul(h_dec[t], w_hdec_ctl_w),
-                              b_ctl_w, name='ctl_w_{}'.format(t))
-            if opt['squash']:
-                # [B, 1, 1]
-                ctr_x_w[t] = tf.reshape((inp_width + 1) / 2.0 *
-                                        (tf.tanh(ctl_w[t][:, 0]) + 1),
-                                        [-1, 1, 1],
-                                        name='ctr_x_w_{}'.format(t))
-                # [B, 1, 1]
-                ctr_y_w[t] = tf.reshape((inp_height + 1) / 2.0 *
-                                        (tf.tanh(ctl_w[t][:, 1]) + 1),
-                                        [-1, 1, 1],
-                                        name='ctr_y_w_{}'.format(t))
-                # [B, 1, 1]
-                delta_w[t] = tf.reshape((max(inp_width, inp_height) - 1) /
-                                        ((filter_size_w - 1) *
-                                         tf.sigmoid(ctl_w[t][:, 3])),
-                                        [-1, 1, 1],
-                                        name='delta_w_{}'.format(t))
-            else:
-                # [B, 1, 1]
-                ctr_x_w[t] = tf.reshape((inp_width + 1) / 2.0 *
-                                        (ctl_w[t][:, 0] + 1),
-                                        [-1, 1, 1],
-                                        name='ctr_x_w_{}'.format(t))
-                # [B, 1, 1]
-                ctr_y_w[t] = tf.reshape((inp_height + 1) / 2.0 *
-                                        (ctl_w[t][:, 1] + 1),
-                                        [-1, 1, 1],
-                                        name='ctr_y_w_{}'.format(t))
-                # [B, 1, 1]
-                delta_w[t] = tf.reshape((max(inp_width, inp_height) - 1) /
-                                        ((filter_size_w - 1) *
-                                         tf.exp(ctl_w[t][:, 3])),
-                                        [-1, 1, 1],
-                                        name='delta_w_{}'.format(t))
-            # [B, 1, 1]
-            lg_var_w[t] = tf.reshape(ctl_w[t][:, 2], [-1, 1, 1],
-                                     name='lg_var_w_{}'.format(t))
-            # [B, 1, 1]
-            lg_gamma_w[t] = tf.reshape(ctl_w[t][:, 4], [-1, 1, 1],
-                                       name='lg_gamma_w_{}'.format(t))
-
-            #########################################################
-            # Write Gaussian filter
-            #########################################################
-            # [B, 1, 1] + [B, 1, 1] * [1, Fw, 1] = [B, 1, Fw]
-            mu_x_w[t] = tf.add(ctr_x_w[t], delta_w[t] * (
-                span_filter_w - filter_size_w / 2.0 - 0.5),
-                name='mu_x_w_{}'.format(t))
-            # [B, 1, 1] + [B, 1, 1] * [1, 1, Fw] = [B, 1, Fw]
-            mu_y_w[t] = tf.add(ctr_y_w[t], delta_w[t] * (
-                span_filter_w - filter_size_w / 2.0 - 0.5),
-                name='mu_y_w_{}'.format(t))
-
-            # [B, 1, 1] * [1, W, 1] - [B, 1, Fw] = [B, W, Fw]
-            filter_x_w[t] = tf.mul(
-                1 / tf.sqrt(tf.exp(lg_var_w[t])) / tf.sqrt(2 * np.pi),
-                tf.exp(-0.5 * (span_x - mu_x_w[t]) * (span_x - mu_x_w[t]) /
-                       tf.exp(lg_var_w[t])),
-                name='filter_x_w_{}'.format(t))
-            # [1, H, 1] - [B, 1, Fw] = [B, H, Fw]
-            filter_y_w[t] = tf.mul(
-                1 / tf.sqrt(tf.exp(lg_var_w[t])) / tf.sqrt(2 * np.pi),
-                tf.exp(-0.5 * (span_y - mu_y_w[t]) * (span_y - mu_y_w[t]) /
-                       tf.exp(lg_var_w[t])),
-                name='filter_y_w_{}'.format(t))
-
-            #########################################################
             # Write to canvas
-            #########################################################
+            unroll_write_controller(ctl_inp=h_dec[t], time=t)
+
             # [B, F, Fw]
             writeout[t] = tf.reshape(tf.matmul(h_dec[t], w_hdec_writeout) +
                                      b_writeout,
@@ -1153,14 +672,9 @@ def get_train_model(opt, device='/cpu:0'):
                 name='canvas_delta_{}'.format(t))
             # [B, H, W]
             canvas[t] = canvas[t - 1] + canvas_delta[t]
-        #########################################################
-        # End of recurrent loop
-        #########################################################
 
     #########################################################
-    #########################################################
     # Loss and gradient
-    #########################################################
     #########################################################
     with tf.device('/cpu:0'):
         x_rec = tf.sigmoid(canvas[timespan - 1], name='x_rec')
@@ -1188,70 +702,23 @@ def get_train_model(opt, device='/cpu:0'):
             tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(
             total_loss)
 
-    m = {
-        # Input
-        'x': x,
-        'u': u,
+    m['x'] = x
+    m['u'] = u
+    m['x_rec'] = x_rec
+    m['ce'] = ce
+    m['train_step'] = train_step
 
-        # Output
-        'x_rec': x_rec,
+    m['w_henc_muz'] = w_henc_muz
+    m['b_muz'] = b_muz
+    m['w_henc_lgsigmaz'] = w_henc_lgsigmaz
+    m['b_lgsigmaz'] = b_lgsigmaz
 
-        # Loss
-        'ce': ce,
+    m['w_hdec_writeout'] = w_hdec_writeout
+    m['b_writeout'] = b_writeout
 
-        # Train
-        'train_step': train_step,
-
-        # Weights
-        'w_x_ctl_r': w_x_ctl_r,
-        'w_err_ctl_r': w_err_ctl_r,
-        'w_hdec_ctl_r': w_hdec_ctl_r,
-        'b_ctl_r': b_ctl_r,
-
-        'w_x_ctl_w': w_x_ctl_w,
-        'w_err_ctl_w': w_err_ctl_w,
-        'w_hdec_ctl_w': w_hdec_ctl_w,
-        'b_ctl_w': b_ctl_w,
-
-        'w_readout_gi_enc': w_readout_gi_enc,
-        'w_henc_gi_enc': w_henc_gi_enc,
-        'w_hdec_gi_enc': w_hdec_gi_enc,
-        'b_gi_enc': b_gi_enc,
-
-        'w_readout_gr_enc': w_readout_gr_enc,
-        'w_henc_gr_enc': w_henc_gr_enc,
-        'w_hdec_gr_enc': w_hdec_gr_enc,
-        'b_gr_enc': b_gr_enc,
-
-        'w_readout_hcdd_enc': w_readout_hcdd_enc,
-        'w_henc_hcdd_enc': w_henc_hcdd_enc,
-        'w_hdec_hcdd_enc': w_hdec_hcdd_enc,
-        'b_hcdd_enc': b_hcdd_enc,
-
-        'w_henc_muz': w_henc_muz,
-        'b_muz': b_muz,
-        'w_henc_lgsigmaz': w_henc_lgsigmaz,
-        'b_lgsigmaz': b_lgsigmaz,
-
-        'w_z_gi_dec': w_z_gi_dec,
-        'w_hdec_gi_dec': w_hdec_gi_dec,
-        'b_gi_dec': b_gi_dec,
-
-        'w_z_gr_dec': w_z_gr_dec,
-        'w_hdec_gr_dec': w_hdec_gr_dec,
-        'b_gr_dec': b_gr_dec,
-
-        'w_z_hcdd_dec': w_z_hcdd_dec,
-        'w_hdec_hcdd_dec': w_hdec_hcdd_dec,
-        'b_hcdd_dec': b_hcdd_dec,
-
-        'w_hdec_writeout': w_hdec_writeout,
-        'b_writeout': b_writeout
-    }
-    if opt['learned_bias']:
-        m['w_henc_init'] = w_henc_init
-        m['w_hdec_init'] = w_hdec_init
-        m['w_canvas_init'] = w_canvas_init
+    m['w_henc_init'] = w_henc_init
+    m['w_hdec_init'] = w_hdec_init
+    m['w_canvas_init'] = w_canvas_init
 
     return m
 
@@ -1327,12 +794,11 @@ if __name__ == '__main__':
         'timespan': 64,
         'filter_size_r': 2,
         'filter_size_w': 5,
-        'num_hid_enc': 256,
-        'num_hid': 100,
-        'num_hid_dec': 256,
+        'hid_enc_dim': 256,
+        'hid_dim': 100,
+        'hid_dec_dim': 256,
         'weight_decay': 5e-5,
         'output_dist': 'Bernoulli',
-        'learned_bias': True,
         'squash': False
     }
 
@@ -1380,7 +846,7 @@ if __name__ == '__main__':
             batch = dataset.test.next_batch(100)
             x = preprocess(batch[0], opt)
             u = random.normal(
-                0, 1, [x.shape[0], opt['timespan'], opt['num_hid']])
+                0, 1, [x.shape[0], opt['timespan'], opt['hid_dim']])
             ce = sess.run(m['ce'], feed_dict={
                 m['x']: x,
                 m['u']: u
@@ -1394,7 +860,7 @@ if __name__ == '__main__':
             batch = dataset.train.next_batch(100)
             x = preprocess(batch[0], opt)
             u = random.normal(
-                0, 1, [x.shape[0], opt['timespan'], opt['num_hid']])
+                0, 1, [x.shape[0], opt['timespan'], opt['hid_dim']])
             if step % 10 == 0:
                 ce = sess.run(m['ce'], feed_dict={
                     m['x']: x,

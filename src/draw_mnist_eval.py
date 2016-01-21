@@ -58,8 +58,6 @@ if __name__ == '__main__':
     with open(opt_fname, 'rb') as f_opt:
         opt = pkl.load(f_opt)
     log.info(opt)
-    if 'learned_bias' not in opt:
-        opt['learned_bias'] = False
     if 'squash' not in opt:
         opt['squash'] = False
 
@@ -102,8 +100,8 @@ if __name__ == '__main__':
     results.extend(m_ae['filter_y_r'])
     results.extend(m_ae['mu_x_r'])
     results.extend(m_ae['mu_y_r'])
-
     results.extend(m_ae['lg_var_r'])
+
     results.extend(m_ae['filter_x_w'])
     results.extend(m_ae['filter_y_w'])
     results.extend(m_ae['mu_x_w'])
@@ -113,27 +111,31 @@ if __name__ == '__main__':
     r = sess.run(results, feed_dict={m_ae['x']: x})
 
     tt = opt['timespan']
-    x_rec = r[: tt]
-    ctr_x_r = r[tt: 2 * tt]
-    ctr_y_r = r[2 * tt: 3 * tt]
-    delta_r = r[3 * tt: 4 * tt]
-    lg_gamma_r = r[4 * tt: 5 * tt]
-    readout_x = r[5 * tt: 6 * tt]
-    ctr_x_w = r[6 * tt: 7 * tt]
-    ctr_y_w = r[7 * tt: 8 * tt]
-    delta_w = r[8 * tt: 9 * tt]
-    lg_gamma_w = r[9 * tt: 10 * tt]
+    x_rec        = r[ 0 * tt:  1 * tt]
+    
+    ctr_x_r      = r[ 1 * tt:  2 * tt]
+    ctr_y_r      = r[ 2 * tt:  3 * tt]
+    delta_r      = r[ 3 * tt:  4 * tt]
+    lg_gamma_r   = r[ 4 * tt:  5 * tt]
+    readout_x    = r[ 5 * tt:  6 * tt]
+    
+    ctr_x_w      = r[ 6 * tt:  7 * tt]
+    ctr_y_w      = r[ 7 * tt:  8 * tt]
+    delta_w      = r[ 8 * tt:  9 * tt]
+    lg_gamma_w   = r[ 9 * tt: 10 * tt]
     canvas_delta = r[10 * tt: 11 * tt]
-    filter_x_r = r[11 * tt: 12 * tt]
-    filter_y_r = r[12 * tt: 13 * tt]
-    mu_x_r = r[13 * tt: 14 * tt]
-    mu_y_r = r[14 * tt: 15 * tt]
-    lg_var_r = r[15 * tt: 16 * tt]
-    filter_x_r = r[16 * tt: 17 * tt]
-    filter_y_r = r[17 * tt: 18 * tt]
-    mu_x_r = r[18 * tt: 19 * tt]
-    mu_y_r = r[19 * tt: 20 * tt]
-    lg_var_r = r[20 * tt: 21 * tt]
+
+    filter_x_r   = r[11 * tt: 12 * tt]
+    filter_y_r   = r[12 * tt: 13 * tt]
+    mu_x_r       = r[13 * tt: 14 * tt]
+    mu_y_r       = r[14 * tt: 15 * tt]
+    lg_var_r     = r[15 * tt: 16 * tt]
+
+    filter_x_w   = r[16 * tt: 17 * tt]
+    filter_y_w   = r[17 * tt: 18 * tt]
+    mu_x_w       = r[18 * tt: 19 * tt]
+    mu_y_w       = r[19 * tt: 20 * tt]
+    lg_var_w     = r[20 * tt: 21 * tt]
 
 
     for ii in xrange(num_row):
