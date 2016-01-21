@@ -65,11 +65,11 @@ if __name__ == '__main__':
     dataset = mnist.read_data_sets("../MNIST_data/", one_hot=True)
 
     # Create model and load trained model.
-    m_ae = model.get_autoencoder(opt, sess=None, train_model=None)
-    # train_model = model.get_train_model(opt)
+    train_model = model.get_train_model(opt)
     sess = tf.Session()
     saver = tf.train.Saver(tf.all_variables())
     saver.restore(sess, ckpt_fname)
+    m_ae = model.get_autoencoder(opt, sess, train_model)
 
     # Generate random MNIST digits.
     num_row = 4
