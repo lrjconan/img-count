@@ -81,10 +81,7 @@ if __name__ == '__main__':
 
     f2, axarr = plt.subplots(num_row, num_col)
     x = dataset.test.images[:num_row * num_col]
-    
-    # Bernoulli only
-    if opt['output_dist'] == 'Bernoulli':
-        x = (x > 0.5).astype('float32')
+    x = model.preprocess(x, opt)
     
     x_out = sess.run(m_ae['mu_dec'], feed_dict={m_ae['x']: x})
     
@@ -93,6 +90,7 @@ if __name__ == '__main__':
             idx = ii * num_col + jj
             axarr[ii, jj].imshow(x_out[idx].reshape([28, 28]), cmap=cm.Greys_r)
             axarr[ii, jj].set_axis_off()
+    f2.suptitle('Output', fontsize=16)
 
     f3, axarr = plt.subplots(num_row, num_col)
     for ii in xrange(num_row):
@@ -100,6 +98,7 @@ if __name__ == '__main__':
             idx = ii * num_col + jj
             axarr[ii, jj].imshow(x[idx].reshape([28, 28]), cmap=cm.Greys_r)
             axarr[ii, jj].set_axis_off()
+    f3.suptitle('Input', fontsize=16)
 
 
     plt.show()

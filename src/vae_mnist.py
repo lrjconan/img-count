@@ -3,7 +3,7 @@ This code implements VAE (Variational Autoencoder) [1] on MNIST.
 
 Author: Mengye Ren (mren@cs.toronto.edu)
 
-Usage:
+Usage: python vae_mnist.py
 
 Reference:
 [1] D.P. Kingma, M. Welling. Auto-Encoding Variational Bayes. ICLR 2014.
@@ -299,9 +299,11 @@ def parse_args():
 
 def preprocess(x, opt):
     if opt['output_dist'] == 'Bernoulli':
-        return (batch[0] > 0.5).astype('float32').reshape([-1, 28 * 28])
+        x2 = (x > 0.5).astype('float32').reshape([-1, 28 * 28])
     else:
-        return x.reshape([-1, 28 * 28])
+        x2 = x.reshape([-1, 28 * 28])
+
+    return x2
 
 if __name__ == '__main__':
     # Command-line arguments

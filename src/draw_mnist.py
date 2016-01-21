@@ -1301,7 +1301,7 @@ def parse_args():
 
 def preprocess(x, opt):
     if opt['output_dist'] == 'Bernoulli':
-        return (batch[0] > 0.5).astype('float32').reshape([-1, 28, 28])
+        return (x > 0.5).astype('float32').reshape([-1, 28, 28])
     else:
         return x.reshape([-1, 28, 28])
 
@@ -1328,7 +1328,7 @@ if __name__ == '__main__':
         'weight_decay': 5e-5,
         'output_dist': 'Bernoulli',
         'learned_bias': True,
-        'squash': True
+        'squash': False
     }
 
     # Train loop options
