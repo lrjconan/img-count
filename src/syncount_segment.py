@@ -251,9 +251,9 @@ def get_train_model(opt, device='/cpu:0'):
         obj = tf.sigmoid(tf.matmul(h_pool3_reshape, w_fc2) + b_fc2)
         obj_gt = tf.placeholder('float', [None, 1])
 
-    with tf.device('/cpu:0'):
-        obj_ce = -tf.reduce_mean(obj_gt * tf.log(obj + 1e-7) +
-                                 (1 - obj_gt) * tf.log(1 - obj + 1e-7))
+        obj_ce = -tf.reduce_sum(obj_gt * tf.log(obj + 1e-7) +
+                                (1 - obj_gt) * tf.log(1 - obj + 1e-7)) / \
+            tf.to_float(tf.size(obj_gt))
 
         # Constants
         # Mixing coefficient of objectness and segmentation objectives
@@ -265,7 +265,8 @@ def get_train_model(opt, device='/cpu:0'):
 
         # Total objective
         # Only count error for segmentation when there is a positive example.
-        total_err = tf.reduce_mean(segm_ce * obj_gt)
+        total_err = tf.reduce_sum(segm_ce * obj_gt) / \
+            tf.to_float(tf.size(obj_gt))
         total_err += r * obj_ce
         # train_step = GradientClipOptimizer(
         #     tf.train.AdamOptimizer(lr, epsilon=eps)).minimize(total_err)
@@ -538,16 +539,15 @@ if __name__ == '__main__':
             lab_obj_batch = lab_obj_all[st: nd]
             inp_batch, lab_seg_batch, lab_obj_batch = preprocess(
                 inp_batch, lab_seg_batch, lab_obj_batch)
-            sess.run(m['train_step'],
-                     feed_dict={m['inp']: inp_batch,
-                                m['segm_gt']: lab_seg_batch,
-                                m['obj_gt']: lab_obj_batch})
-            train_ce = sess.run(m['total_err'],
-                                feed_dict={m['inp']: inp_batch,
-                                           m['segm_gt']: lab_seg_batch,
-                                           m['obj_gt']: lab_obj_batch})
-            log.info('Step: {:d}, Train CE: {:.4f}'.format(step, train_ce))
-            train_ce_logger.add(step, train_ce)
+            tim = time.time()
+            r = sess.run([m['total_err'], m['train_step']],
+                         feed_dict={m['inp']: inp_batch,
+                                    m['segm_gt']: lab_seg_batch,
+                                    m['obj_gt']: lab_obj_batch})
+            train_ce = r[0]
+            if step % 10 == 0:
+                log.info('{:d} train ce {:.4f} t {:.2f}'.format(step, train_ce))
+                train_ce_logger.add(step, train_ce, time.time() - tim)
             step += 1
 
             # Save model
