@@ -217,10 +217,10 @@ def get_train_model(opt, device='/cpu:0'):
         num_ex = tf.shape(x, name='num_ex')
 
         # Variational lower bound of marginal log-likelihood
-        w_kl = 10.0
+        w_kl = 1.0
         w_logp = 1.0
         log_px_lb = (-w_kl * kl_qzx_pz + w_logp * log_pxz) / \
-            (w_kl + w_logp) / tf.to_float(num_ex[0])
+            (w_kl + w_logp) * 2.0 / tf.to_float(num_ex[0])
         tf.add_to_collection('losses', -log_px_lb)
         total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
 
@@ -401,8 +401,9 @@ if __name__ == '__main__':
                 m['t']: random.normal(0, 1, [x.shape[0], opt['num_hid']])
             })
             if step % 10 == 0:
+                log_px_lb = r[0]
                 log.info('{:d} logp {:.4f} t {:.2f}ms'.format(
-                    step, r[0], (time.time() - st) * 1000))
+                    step, log_px_lb, (time.time() - st) * 1000))
                 train_logger.add(step, log_px_lb)
 
             step += 1

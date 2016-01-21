@@ -96,7 +96,9 @@ class Logger(object):
         if t is None:
             t = datetime.datetime.now()
 
-        timestr = '{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}'.format(
+        # timestr = '{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}'.format(
+        #     t.year, t.month, t.day, t.hour, t.minute, t.second)
+        timestr = '{:04d}{:02d}{:02d}{:02d}{:02d}{:02d}'.format(
             t.year, t.month, t.day, t.hour, t.minute, t.second)
 
         return timestr
@@ -113,21 +115,33 @@ class Logger(object):
             output and log output file (if set).
         """
         if typ == 'info':
-            typstr_print = '{0}INFO:{1}'.format(
+            # typstr_print = '{0}INFO:{1}'.format(
+            #     TERM_COLOR['green'], TERM_COLOR['default'])
+            # typstr_log = 'INFO:'
+            typstr_print = '{0}I{1}'.format(
                 TERM_COLOR['green'], TERM_COLOR['default'])
-            typstr_log = 'INFO:'
+            typstr_log = 'I'
         elif typ == 'warning':
-            typstr_print = '{0}WARNING:{1}'.format(
+            # typstr_print = '{0}WARNING:{1}'.format(
+            #     TERM_COLOR['yellow'], TERM_COLOR['default'])
+            # typstr_log = 'WARNING:'
+            typstr_print = '{0}W{1}'.format(
                 TERM_COLOR['yellow'], TERM_COLOR['default'])
-            typstr_log = 'WARNING'
+            typstr_log = 'W'
         elif typ == 'error':
-            typstr_print = '{0}ERROR:{1}'.format(
+            # typstr_print = '{0}ERROR:{1}'.format(
+            #     TERM_COLOR['red'], TERM_COLOR['default'])
+            # typstr_log = 'ERROR:'
+            typstr_print = '{0}E{1}'.format(
                 TERM_COLOR['red'], TERM_COLOR['default'])
-            typstr_log = 'ERROR'
+            typstr_log = 'E'
         elif typ == 'fatal':
-            typstr_print = '{0}FATAL:{1}'.format(
+            # typstr_print = '{0}FATAL:{1}'.format(
+            #     TERM_COLOR['red'], TERM_COLOR['default'])
+            # typstr_log = 'FATAL:'
+            typstr_print = '{0}F{1}'.format(
                 TERM_COLOR['red'], TERM_COLOR['default'])
-            typstr_log = 'FATAL'
+            typstr_log = 'F'
         else:
             raise Exception('Unknown log type: {0}'.format(typ))
         timestr = self.get_time_str()
@@ -140,7 +154,7 @@ class Logger(object):
             filename = filename[len(cwd):]
         filename = filename.lstrip('/')
         callerstr = '{0}:{1}'.format(filename, line_number)
-        printstr = '{0} {1} {2} {3}'.format(
+        printstr = '{0}{1} {2} {3}'.format(
             typstr_print, timestr, callerstr, message)
         logstr = '{0} {1} {2} {3}'.format(
             typstr_log, timestr, callerstr, message)

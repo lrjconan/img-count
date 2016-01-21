@@ -764,7 +764,7 @@ def get_train_model(opt, device='/cpu:0'):
                            w_logp * log_pxz_sum /
                            (w_kl + w_logp) * 2.0, tf.to_float(num_ex[0]),
                            name='log_px_lb')
-    
+
         tf.add_to_collection('losses', -log_px_lb)
         total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
 
@@ -936,18 +936,15 @@ if __name__ == '__main__':
             x = preprocess(batch[0], opt)
             u = random.normal(
                 0, 1, [x.shape[0], opt['timespan'], opt['hid_dim']])
-            if step % 10 == 0:
-                ce = sess.run(m['ce'], feed_dict={
-                    m['x']: x,
-                    m['u']: u
-                })
-                log.info('step {:d}, train ce {:.4f}'.format(step, ce))
-                train_ce_logger.add(step, ce)
-
-            sess.run(m['train_step'], feed_dict={
+            r = sess.run([m['ce'], m['train_step']], feed_dict={
                 m['x']: x,
                 m['u']: u
             })
+            if step % 10 == 0:
+                ce = r[0]
+                log.info('{:d} train ce {:.4f} t {:.2f}ms'.format(
+                    step, ce, (time.time() - st) * 1000))
+                train_ce_logger.add(step, ce)
 
             step += 1
 
