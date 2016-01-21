@@ -692,7 +692,6 @@ def get_train_model(opt, device='/cpu:0'):
             readout[t] = tf.concat(1, x_and_err[t],
                                    name='readout_{}'.format(t))
 
-        # with tf.device(device):
             # Encoder RNN
             enc_inp = tf.concat(1,
                                 [readout[t], h_dec[t - 1]],
@@ -720,7 +719,6 @@ def get_train_model(opt, device='/cpu:0'):
             # Decoder RNN
             unroll_decoder(inp=z[t], time=t)
 
-        # with tf.device('/cpu:0'):
             # Write to canvas
             unroll_write_controller(ctl_inp=h_dec[t], time=t)
 
@@ -766,13 +764,18 @@ def get_train_model(opt, device='/cpu:0'):
                            w_logp * log_pxz_sum /
                            (w_kl + w_logp) * 2.0, tf.to_float(num_ex[0]),
                            name='log_px_lb')
+    
         tf.add_to_collection('losses', -log_px_lb)
         total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
 
+    # with tf.device('/cpu:0'):
         lr = 1e-4
-        train_step = GradientClipOptimizer(
-            tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(
-            total_loss)
+        # train_step = GradientClipOptimizer(
+        #     tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(
+        #     total_loss)
+        # train_step = tf.train.AdamOptimizer(lr, epsilon=eps).minimize(
+        #     total_loss)
+        train_step = tf.train.GradientDescentOptimizer(lr).minimize(total_loss)
 
     m['x'] = x
     m['u'] = u
