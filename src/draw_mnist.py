@@ -40,9 +40,6 @@ def weight_variable(shape, wd=None, name=None):
 def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
     """Get inference model for autoencoder."""
     m = {}
-    #########################################################
-    # Constants
-    #########################################################
     timespan = opt['timespan']
     inp_height = opt['inp_height']
     inp_width = opt['inp_width']
@@ -52,10 +49,10 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
     hid_dec_dim = opt['hid_dec_dim']
     hid_dim = opt['hid_dim']
 
-    #########################################################
-    # Variables
-    #########################################################
-    with tf.device('/cpu:0'):
+    with tf.device(device):
+        #########################################################
+        # Variables
+        #########################################################
         # Input image
         x = tf.placeholder('float', [None, inp_width, inp_height])
         x_shape = tf.shape(x, name='x_shape')
@@ -115,7 +112,6 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
         canvas[-1] = w_canvas_init
         x_rec = [None] * timespan
 
-    with tf.device(device):
         # Error image
         x_err = [None] * timespan
 
@@ -161,11 +157,10 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
         )
         h_dec = m['h_dec']
 
-    #########################################################
-    # Computation graph
-    #########################################################
-    for t in xrange(timespan):
-        with tf.device('/cpu:0'):
+        #########################################################
+        # Computation graph
+        #########################################################
+        for t in xrange(timespan):
             x_err[t] = tf.sub(x, tf.sigmoid(canvas[t - 1]),
                               name='x_err_{}'.format(t))
 
@@ -173,13 +168,23 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
             unroll_read_controller(ctl_inp=h_dec[t - 1], time=t)
 
             # Read attention selector
-            readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
-                tf.batch_matmul(filter_y_r[t], x, adj_x=True), filter_x_r[t]),
+            # readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
+            #     tf.batch_matmul(filter_y_r[t], x, adj_x=True), filter_x_r[t]),
+            #     name='readout_x_{}'.format(t))
+            # readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
+            #     tf.batch_matmul(filter_y_r[t], x_err[t], adj_x=True),
+            #     filter_x_r[t]),
+            #     name='readout_err_{}'.format(t))
+
+            readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
+                _batch_matmul(filter_y_r[t], x, adj_x=True, rep_x=False),
+                filter_x_r[t]),
                 name='readout_x_{}'.format(t))
-            readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
-                tf.batch_matmul(filter_y_r[t], x_err[t], adj_x=True),
+            readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
+                _batch_matmul(filter_y_r[t], x_err[t], adj_x=True, rep_x=False),
                 filter_x_r[t]),
                 name='readout_err_{}'.format(t))
+
             x_and_err[t] = [tf.reshape(readout_x[t],
                                        [-1, filter_size_r * filter_size_r]),
                             tf.reshape(readout_err[t],
@@ -187,7 +192,6 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
             readout[t] = tf.concat(1, x_and_err[t],
                                    name='readout_{}'.format(t))
 
-        with tf.device(device):
             # Encoder RNN
             enc_inp = tf.concat(1,
                                 [readout[t], h_dec[t - 1]],
@@ -201,7 +205,6 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
             # Decoder RNN
             unroll_decoder(inp=z[t], time=t)
 
-        with tf.device('/cpu:0'):
             # Write attention controller
             unroll_write_controller(ctl_inp=h_dec[t], time=t)
 
@@ -211,11 +214,17 @@ def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
                                      b_writeout,
                                      [-1, filter_size_w, filter_size_w],
                                      name='writeout_{}'.format(t))
+            # canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
+            #                          tf.batch_matmul(
+            #     tf.batch_matmul(filter_y_w[t], writeout[t]),
+            #     filter_x_w[t], adj_y=True),
+            #     name='canvas_delta_{}'.format(t))
             canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
-                                     tf.batch_matmul(
-                tf.batch_matmul(filter_y_w[t], writeout[t]),
-                filter_x_w[t], adj_y=True),
-                name='canvas_delta_{}'.format(t))
+                                     _batch_matmul(_batch_matmul(
+                                         filter_y_w[t], writeout[t], 
+                                         rep_x=False),
+                                     filter_x_w[t], adj_y=True),
+                                     name='canvas_delta_{}'.format(t))
             canvas[t] = canvas[t - 1] + canvas_delta[t]
             x_rec[t] = tf.sigmoid(canvas[t], name='x_rec_{}'.format(t))
 
@@ -502,10 +511,6 @@ def _batch_matmul(x, y, rep_x=True, adj_x=False, adj_y=False):
 def get_train_model(opt, device='/cpu:0'):
     """Get train model for DRAW."""
     m = {}
-
-    #########################################################
-    # Constants
-    #########################################################
     # RNN timespan: T.
     timespan = opt['timespan']
 
@@ -673,15 +678,13 @@ def get_train_model(opt, device='/cpu:0'):
             #     tf.batch_matmul(filter_y_r[t], x_err[t], adj_x=True),
             #     filter_x_r[t]),
             #     name='readout_err_{}'.format(t))
-            # fxt = tf.transpose(filter_x_r[t], [0, 2, 1])
-            # with tf.device('/cpu:0'):
+
             readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
                 _batch_matmul(filter_y_r[t], x, adj_x=True, rep_x=False),
                 filter_x_r[t]),
                 name='readout_x_{}'.format(t))
             readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
-                _batch_matmul(filter_y_r[t], x_err[t],
-                              adj_x=True, rep_x=False),
+                _batch_matmul(filter_y_r[t], x_err[t], adj_x=True, rep_x=False),
                 filter_x_r[t]),
                 name='readout_err_{}'.format(t))
 
@@ -736,8 +739,6 @@ def get_train_model(opt, device='/cpu:0'):
             #     filter_x_w[t], adj_y=True),
             #     name='canvas_delta_{}'.format(t))
 
-            # with tf.device('/cpu:0'):
-            # fyt = tf.transpose(filter_y_w[t], [0, 2, 1])
             canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
                                      _batch_matmul(_batch_matmul(
                                          filter_y_w[t], writeout[t], 
