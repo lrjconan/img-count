@@ -411,3 +411,5 @@ if __name__ == '__main__':
             # Save model
             if step % args.steps_per_ckpt == 0:
                 save_ckpt(exp_folder, sess, opt, global_step=step)
+                
+    sess.close()

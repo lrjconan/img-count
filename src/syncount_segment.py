@@ -554,3 +554,5 @@ if __name__ == '__main__':
             if step % loop_config['steps_per_ckpt'] == 0:
                 save_ckpt(exp_folder, sess, opt, global_step=step)
                 add_catalog(results_folder, model_id)
+
+    sess.close()
