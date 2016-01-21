@@ -1,6 +1,10 @@
+import sys
+sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
+
 from utils import logger
 from utils.batch_iter import BatchIterator
 
+import argparse
 import numpy as np
 import tensorflow as tf
 
@@ -32,7 +36,7 @@ def weight_variable(shape):
     return tf.Variable(initial)
 
 
-def get_model(opt):
+def get_model(opt, device='/cpu:0'):
     """Simple gated recurrent unit."""
     timespan = opt['timespan']
     inp_dim = opt['inp_dim']
@@ -41,75 +45,78 @@ def get_model(opt):
     inp = tf.placeholder('float', [None, timespan, 1])
     inp_list = tf.split(1, timespan, inp)
 
-    # Input gate weights
-    # Input to input gate
-    w_xi = weight_variable([inp_dim, mem_dim])
-    # State to input gate
-    w_si = weight_variable([mem_dim, mem_dim])
-    b_i = tf.Variable(tf.zeros([mem_dim]))  # Initialized to 0
+    with tf.device(device):
+        # Input gate weights
+        # Input to input gate
+        w_xi = weight_variable([inp_dim, mem_dim])
+        # State to input gate
+        w_si = weight_variable([mem_dim, mem_dim])
+        b_i = tf.Variable(tf.zeros([mem_dim]))  # Initialized to 0
 
-    # Recurrent gate weights
-    # Input to recurrent gate
-    w_xr = weight_variable([inp_dim, mem_dim])
-    # State to recurrent gate
-    w_sr = weight_variable([mem_dim, mem_dim])
-    b_r = tf.Variable(tf.ones([mem_dim]))  # Initialized to 1
+        # Recurrent gate weights
+        # Input to recurrent gate
+        w_xr = weight_variable([inp_dim, mem_dim])
+        # State to recurrent gate
+        w_sr = weight_variable([mem_dim, mem_dim])
+        b_r = tf.Variable(tf.ones([mem_dim]))  # Initialized to 1
 
-    # Transformation weights
-    # Input transformation
-    w_xz = weight_variable([inp_dim, mem_dim])
-    # State transformation
-    w_sz = weight_variable([mem_dim, mem_dim])
-    b_z = tf.Variable(tf.zeros([mem_dim]))  # Initialized to 0
+        # Transformation weights
+        # Input transformation
+        w_xz = weight_variable([inp_dim, mem_dim])
+        # State transformation
+        w_sz = weight_variable([mem_dim, mem_dim])
+        b_z = tf.Variable(tf.zeros([mem_dim]))  # Initialized to 0
 
-    # Output transformation
-    w_o = weight_variable([mem_dim, out_dim])
-    b_o = tf.Variable(tf.zeros([out_dim]))
+        # Output transformation
+        w_o = weight_variable([mem_dim, out_dim])
+        b_o = tf.Variable(tf.zeros([out_dim]))
 
-    # State index shifted by 1.
-    # s[0] is the initial state
-    # The t th state is state[t + 1]
-    # init_state = tf.constant(np.zeros(mem_dim, dtype='float32'))
-    init_state_w = tf.constant(np.zeros((inp_dim, mem_dim), dtype='float32'))
-    init_state = tf.matmul(tf.reshape(
-        inp_list[0], [-1, inp_dim]), init_state_w)
+        # State index shifted by 1.
+        # s[0] is the initial state
+        # The t th state is state[t + 1]
+        # init_state = tf.constant(np.zeros(mem_dim, dtype='float32'))
+        init_state_w = tf.constant(
+            np.zeros((inp_dim, mem_dim), dtype='float32'))
+        init_state = tf.matmul(tf.reshape(
+            inp_list[0], [-1, inp_dim]), init_state_w)
 
-    # Activation (hidden state)
-    s = [None] * (timespan + 1)
-    s[0] = init_state
-    x = [None] * timespan
-    # Input gate
-    g_i = [None] * timespan
-    # Recurrent gate
-    g_r = [None] * timespan
-    # Candidate activation
-    z = [None] * timespan
-    # Output
-    y_list = [None] * timespan
-    label = tf.placeholder('float', [None, timespan, 1])
-    label_flat = tf.reshape(label, [-1, timespan])
-    for t in xrange(timespan):
-        x[t] = tf.reshape(inp_list[t], [-1, inp_dim])
-        g_i[t] = tf.sigmoid(tf.matmul(x[t], w_xi) +
-                            tf.matmul(s[t], w_si) + b_i)
-        g_r[t] = tf.sigmoid(tf.matmul(x[t], w_xr) +
-                            tf.matmul(s[t], w_sr) + b_r)
-        z[t] = tf.tanh(tf.matmul(x[t], w_xz) + g_r[t]
-                       * tf.matmul(s[t], w_sz) + b_z)
-        s[t + 1] = s[t] * (1 - g_i[t]) + z[t] * g_i[t]
-        y_list[t] = tf.sigmoid(tf.matmul(s[t + 1], w_o) + b_o)
+        # Activation (hidden state)
+        s = [None] * (timespan + 1)
+        s[0] = init_state
+        x = [None] * timespan
+        # Input gate
+        g_i = [None] * timespan
+        # Recurrent gate
+        g_r = [None] * timespan
+        # Candidate activation
+        z = [None] * timespan
+        # Output
+        y_list = [None] * timespan
+        label = tf.placeholder('float', [None, timespan, 1])
+        label_flat = tf.reshape(label, [-1, timespan])
+        for t in xrange(timespan):
+            x[t] = tf.reshape(inp_list[t], [-1, inp_dim])
+            g_i[t] = tf.sigmoid(tf.matmul(x[t], w_xi) +
+                                tf.matmul(s[t], w_si) + b_i)
+            g_r[t] = tf.sigmoid(tf.matmul(x[t], w_xr) +
+                                tf.matmul(s[t], w_sr) + b_r)
+            z[t] = tf.tanh(tf.matmul(x[t], w_xz) + g_r[t]
+                           * tf.matmul(s[t], w_sz) + b_z)
+            s[t + 1] = s[t] * (1 - g_i[t]) + z[t] * g_i[t]
+            y_list[t] = tf.sigmoid(tf.matmul(s[t + 1], w_o) + b_o)
 
-    # y = tf.reshape(tf.concat(1, y_list), [-1])
-    y = tf.concat(1, y_list)
-    eps = 1e-7
-    ce = -tf.reduce_mean(label_flat * tf.log(y + eps) +
-                         (1 - label_flat) * tf.log(1 - y + eps))
+        y = tf.concat(1, y_list)
+        eps = 1e-7
+        num_ex = tf.to_float(tf.shape(x[0])[0])
+        ce = -tf.reduce_sum(label_flat * tf.log(y + eps) +
+                            (1 - label_flat) * tf.log(1 - y + eps)) / num_ex
+        pred = tf.round(y)
+        correct = tf.equal(pred, label_flat)
+        num_out = tf.to_float(tf.size(y))
+        acc = tf.reduce_sum(tf.to_float(correct)) / num_out
 
-    pred = tf.round(y)
-    correct = tf.equal(pred, label_flat)
-    acc = tf.reduce_mean(tf.cast(correct, 'float'))
-    lr = 1e-2
-    train_step = tf.train.AdamOptimizer(lr, epsilon=eps).minimize(ce)
+        lr = 1e-2
+        train_step = tf.train.AdamOptimizer(lr, epsilon=eps).minimize(ce)
 
     model = {
         'inp': inp,
@@ -141,7 +148,27 @@ def get_model(opt):
 
     return model
 
+
+def parse_args():
+    """Parse input arguments."""
+    parser = argparse.ArgumentParser(
+        description='Train DRAW')
+    parser.add_argument('-gpu', default=-1, type=int,
+                        help='GPU ID, default CPU')
+    args = parser.parse_args()
+
+    return args
+
 if __name__ == '__main__':
+    # Command-line arguments
+    args = parse_args()
+    log.log_args()
+
+    # Set device
+    if args.gpu >= 0:
+        device = '/gpu:{}'.format(args.gpu)
+    else:
+        device = '/cpu:0'
     # Simple parity example
     opt = {
         'timespan': 10,
@@ -162,7 +189,6 @@ if __name__ == '__main__':
 
     step = 0
     for epoch in xrange(1000):
-
         if epoch % 10 == 0:
             ib = inp[0: 1]
             lb = label[0: 1]
@@ -172,22 +198,17 @@ if __name__ == '__main__':
             log.info('Label')
             log.info(''.join(['{:.4f} '.format(lb[0, t, 0])
                               for t in xrange(opt['timespan'])]))
-
             y = sess.run(m['y'], feed_dict={
                 m['inp']: ib, m['label']: lb})
             log.info('Output')
             log.info(''.join(['{:.4f} '.format(y[0, t])
                               for t in xrange(opt['timespan'])]))
-            log.info('CE')
-            ce = sess.run(m['ce'], feed_dict={
-                m['inp']: ib, m['label']: lb})
-            log.info(sess)
 
-        for idx in BatchIterator(num_ex, batch_size=32):
-            ib = inp[idx]
-            lb = label[idx]
-            sess.run(m['train_step'], feed_dict={m['inp']: ib, m['label']: lb})
-            ce = sess.run(m['ce'], feed_dict={m['inp']: ib, m['label']: lb})
-            acc = sess.run(m['acc'], feed_dict={m['inp']: ib, m['label']: lb})
+        for start, end in BatchIterator(num_ex, batch_size=32):
+            ib = inp[start: end]
+            lb = label[start: end]
+            r = sess.run([m['train_step'], m['ce'], m['acc']], feed_dict={m['inp']: ib, m['label']: lb})
+            ce = r[1]
+            acc = r[2]
             log.info('Step: {}, CE: {:.4f}, Acc: {:.4f}'.format(step, ce, acc))
             step += 1
