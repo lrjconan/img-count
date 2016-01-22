@@ -13,6 +13,7 @@ import os
 import pickle as pkl
 import syncount_gen_data as data
 import tensorflow as tf
+import time
 
 log = logger.get()
 
@@ -528,8 +529,9 @@ if __name__ == '__main__':
                            feed_dict={m['inp']: inp_batch,
                                       m['segm_gt']: lab_seg_batch,
                                       m['obj_gt']: lab_obj_batch})
-            log.info('Step: {:d}, Valid CE: {:.4f}'.format(step, vce))
             valid_ce += vce * inp_batch.shape[0] / float(num_ex_val)
+        
+        log.info('{:d} valid ce: {:.4f}'.format(step, valid_ce))
         valid_ce_logger.add(step, valid_ce)
 
         # Train
@@ -546,8 +548,9 @@ if __name__ == '__main__':
                                     m['obj_gt']: lab_obj_batch})
             train_ce = r[0]
             if step % 10 == 0:
-                log.info('{:d} train ce {:.4f} t {:.2f}'.format(step, train_ce))
-                train_ce_logger.add(step, train_ce, time.time() - tim)
+                log.info('{:d} ce {:.4f} t {:.2f}ms'.format(
+                    step, train_ce, time.time() - tim))
+                train_ce_logger.add(step, train_ce)
             step += 1
 
             # Save model

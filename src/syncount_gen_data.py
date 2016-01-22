@@ -302,13 +302,14 @@ def _image_to_segmentation(opt, image_data_entry, random=None):
                  verbose=2)
 
         # Resample the image and segmentation to be uni-size.
-        resize_imag = cv2.resize(crop_imag, output_window_size)
-        resize_segm = cv2.resize(crop_segm, output_window_size)
-        results.append({
-            'input': resize_imag,
-            'label_segmentation': resize_segm,
-            'label_objectness': 1
-        })
+        if crop_imag.size > 0:
+            resize_imag = cv2.resize(crop_imag, output_window_size)
+            resize_segm = cv2.resize(crop_segm, output_window_size)
+            results.append({
+                'input': resize_imag,
+                'label_segmentation': resize_segm,
+                'label_objectness': 1
+            })
 
         # Add negative examples with random sliding windows.
         for kk in xrange(neg_pos_ratio):
@@ -332,13 +333,14 @@ def _image_to_segmentation(opt, image_data_entry, random=None):
                     keep_sample = False
 
             crop_imag = image[y: y + size, x: x + size]
-            resize_imag = cv2.resize(crop_imag, output_window_size)
-            resize_segm = np.zeros(output_window_size, dtype='uint8')
-            results.append({
-                'input': resize_imag,
-                'label_segmentation': resize_segm,
-                'label_objectness': 0
-            })
+            if crop_imag.size > 0:
+                resize_imag = cv2.resize(crop_imag, output_window_size)
+                resize_segm = np.zeros(output_window_size, dtype='uint8')
+                results.append({
+                    'input': resize_imag,
+                    'label_segmentation': resize_segm,
+                    'label_objectness': 0
+                })
 
     return results
 
