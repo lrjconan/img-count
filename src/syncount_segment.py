@@ -1,6 +1,5 @@
 import sys
 sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
-# sys.path.insert(0, '/pkgs/tensorflow-cpu-0.5.0')
 
 from utils import logger
 from utils.batch_iter import BatchIterator
@@ -557,3 +556,5 @@ if __name__ == '__main__':
             if step % loop_config['steps_per_ckpt'] == 0:
                 save_ckpt(exp_folder, sess, opt, global_step=step)
                 add_catalog(results_folder, model_id)
+
+    sess.close()

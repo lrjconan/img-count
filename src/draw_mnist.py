@@ -23,6 +23,7 @@ import numpy as np
 import os
 import pickle as pkl
 import tensorflow as tf
+import time
 
 log = logger.get()
 
@@ -37,253 +38,32 @@ def weight_variable(shape, wd=None, name=None):
     return var
 
 
-def get_autoencoder(opt, sess, train_model, device='/cpu:0'):
-    """Get inference model for autoencoder."""
-    m = {}
-    #########################################################
-    # Constants
-    #########################################################
-    timespan = opt['timespan']
-    inp_height = opt['inp_height']
-    inp_width = opt['inp_width']
-    filter_size_r = opt['filter_size_r']
-    filter_size_w = opt['filter_size_w']
-    hid_enc_dim = opt['hid_enc_dim']
-    hid_dec_dim = opt['hid_dec_dim']
-    hid_dim = opt['hid_dim']
-
-    #########################################################
-    # Variables
-    #########################################################
-    with tf.device('/cpu:0'):
-        # Input image
-        x = tf.placeholder('float', [None, inp_width, inp_height])
-        x_shape = tf.shape(x, name='x_shape')
-        num_ex = x_shape[0: 1]
-        num_ex_mul = tf.concat(0, [num_ex, tf.constant([1])])
-
-        # Read attention controller
-        unroll_read_controller = _add_controller_rnn(
-            model=m,
-            timespan=timespan,
-            inp_width=inp_width,
-            inp_height=inp_height,
-            ctl_inp_dim=hid_dec_dim,
-            filter_size=filter_size_r,
-            name='r',
-            sess=sess,
-            train_model=train_model
-        )
-        lg_gamma_r = m['lg_gamma_r']
-        filter_x_r = m['filter_x_r']
-        filter_y_r = m['filter_y_r']
-
-        # Attention selector
-        readout_x = [None] * timespan
-        readout_err = [None] * timespan
-        x_and_err = [None] * timespan
-        readout = [None] * timespan
-
-        # Write attention controller
-        unroll_write_controller = _add_controller_rnn(
-            model=m,
-            timespan=timespan,
-            inp_width=inp_width,
-            inp_height=inp_height,
-            ctl_inp_dim=hid_dec_dim,
-            filter_size=filter_size_w,
-            name='w',
-            sess=sess,
-            train_model=train_model
-        )
-        lg_gamma_w = m['lg_gamma_w']
-        filter_x_w = m['filter_x_w']
-        filter_y_w = m['filter_y_w']
-
-        # Write to canvas
-        writeout = [None] * timespan
-        w_hdec_writeout = tf.constant(sess.run(train_model['w_hdec_writeout']),
-                                      name='w_hdec_writeout')
-        b_writeout = tf.constant(sess.run(train_model['b_writeout']),
-                                 name='b_writeout')
-
-        canvas_delta = [None] * timespan
-        canvas = [None] * (timespan + 1)
-        # Learned initialization biases.
-        w_canvas_init = tf.constant(sess.run(train_model['w_canvas_init']),
-                                    name='w_canvas_init')
-        canvas[-1] = w_canvas_init
-        x_rec = [None] * timespan
-
-    with tf.device(device):
-        # Error image
-        x_err = [None] * timespan
-
-        # Encoder RNN
-        w_henc_init = tf.constant(
-            sess.run(train_model['w_henc_init']),
-            name='w_henc_init')
-        henc_init = tf.tile(w_henc_init, num_ex_mul, name='henc_init')
-        unroll_encoder = _add_gated_rnn(
-            model=m,
-            timespan=timespan,
-            inp_dim=2 * filter_size_r * filter_size_r + hid_dec_dim,
-            hid_dim=hid_enc_dim,
-            h_init=henc_init,
-            sess=sess,
-            train_model=train_model,
-            name='enc'
-        )
-        h_enc = m['h_enc']
-
-        # Latent distribution
-        z = [None] * timespan
-        w_henc_muz = tf.constant(sess.run(train_model['w_henc_muz']),
-                                 name='w_henc_muz')
-        b_muz = tf.constant(sess.run(train_model['b_muz']),
-                            name='b_muz')
-
-        # Decoder RNN
-        w_hdec_init = tf.constant(
-            sess.run(train_model['w_hdec_init']),
-            name='w_hdec_init')
-        hdec_init = tf.tile(w_hdec_init, num_ex_mul, name='hdec_init')
-
-        unroll_decoder = _add_gated_rnn(
-            model=m,
-            timespan=timespan,
-            inp_dim=hid_dim,
-            hid_dim=hid_dec_dim,
-            h_init=hdec_init,
-            sess=sess,
-            train_model=train_model,
-            name='dec'
-        )
-        h_dec = m['h_dec']
-
-    #########################################################
-    # Computation graph
-    #########################################################
-    for t in xrange(timespan):
-        with tf.device('/cpu:0'):
-            x_err[t] = tf.sub(x, tf.sigmoid(canvas[t - 1]),
-                              name='x_err_{}'.format(t))
-
-            # Read attention controller
-            unroll_read_controller(ctl_inp=h_dec[t - 1], time=t)
-
-            # Read attention selector
-            readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
-                tf.batch_matmul(filter_y_r[t], x, adj_x=True), filter_x_r[t]),
-                name='readout_x_{}'.format(t))
-            readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
-                tf.batch_matmul(filter_y_r[t], x_err[t], adj_x=True),
-                filter_x_r[t]),
-                name='readout_err_{}'.format(t))
-            x_and_err[t] = [tf.reshape(readout_x[t],
-                                       [-1, filter_size_r * filter_size_r]),
-                            tf.reshape(readout_err[t],
-                                       [-1, filter_size_r * filter_size_r])]
-            readout[t] = tf.concat(1, x_and_err[t],
-                                   name='readout_{}'.format(t))
-
-        with tf.device(device):
-            # Encoder RNN
-            enc_inp = tf.concat(1,
-                                [readout[t], h_dec[t - 1]],
-                                name='enc_inp_{}'.format(t))
-            unroll_encoder(inp=enc_inp, time=t)
-
-            # Latent distribution
-            z[t] = tf.add(tf.matmul(h_enc[t], w_henc_muz), b_muz,
-                          name='z_{}'.format(t))
-
-            # Decoder RNN
-            unroll_decoder(inp=z[t], time=t)
-
-        with tf.device('/cpu:0'):
-            # Write attention controller
-            unroll_write_controller(ctl_inp=h_dec[t], time=t)
-
-            # Write to canvas
-            # [B, F, Fw]
-            writeout[t] = tf.reshape(tf.matmul(h_dec[t], w_hdec_writeout) +
-                                     b_writeout,
-                                     [-1, filter_size_w, filter_size_w],
-                                     name='writeout_{}'.format(t))
-            canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
-                                     tf.batch_matmul(
-                tf.batch_matmul(filter_y_w[t], writeout[t]),
-                filter_x_w[t], adj_y=True),
-                name='canvas_delta_{}'.format(t))
-            canvas[t] = canvas[t - 1] + canvas_delta[t]
-            x_rec[t] = tf.sigmoid(canvas[t], name='x_rec_{}'.format(t))
-
-    m['x'] = x
-    m['x_rec'] = x_rec
-    m['readout_x'] = readout_x
-    m['canvas_delta'] = canvas_delta
-
-    return m
-
-
-def _add_gated_rnn(model, timespan, inp_dim, hid_dim, h_init, wd=None, name='', sess=None, train_model=None):
+def _add_gated_rnn(model, timespan, inp_dim, hid_dim, h_init, wd=None, name=''):
     h = [None] * (timespan + 1)
     g_i = [None] * timespan
     g_r = [None] * timespan
     h[-1] = h_init
 
-    if train_model is None:
-        w_xi = weight_variable(
-            [inp_dim, hid_dim], wd=wd, name='w_xi_{}'.format(name))
-        w_hi = weight_variable(
-            [hid_dim, hid_dim], wd=wd, name='w_hi_{}'.format(name))
-        b_i = weight_variable(
-            [hid_dim], wd=wd, name='b_i_{}'.format(name))
+    w_xi = weight_variable(
+        [inp_dim, hid_dim], wd=wd, name='w_xi_{}'.format(name))
+    w_hi = weight_variable(
+        [hid_dim, hid_dim], wd=wd, name='w_hi_{}'.format(name))
+    b_i = weight_variable(
+        [hid_dim], wd=wd, name='b_i_{}'.format(name))
 
-        w_xu = weight_variable(
-            [inp_dim, hid_dim], wd=wd, name='w_xu_{}'.format(name))
-        w_hu = weight_variable(
-            [hid_dim, hid_dim], wd=wd, name='w_hu_{}'.format(name))
-        b_u = weight_variable(
-            [hid_dim], wd=wd, name='b_u_{}'.format(name))
+    w_xu = weight_variable(
+        [inp_dim, hid_dim], wd=wd, name='w_xu_{}'.format(name))
+    w_hu = weight_variable(
+        [hid_dim, hid_dim], wd=wd, name='w_hu_{}'.format(name))
+    b_u = weight_variable(
+        [hid_dim], wd=wd, name='b_u_{}'.format(name))
 
-        w_xr = weight_variable(
-            [inp_dim, hid_dim], wd=wd, name='w_xr_{}'.format(name))
-        w_hr = weight_variable(
-            [hid_dim, hid_dim], wd=wd, name='w_hr_{}'.format(name))
-        b_r = weight_variable(
-            [hid_dim], wd=wd, name='b_r_{}'.format(name))
-    else:
-        w_xi = tf.constant(
-            sess.run(train_model['w_xi_{}'.format(name)]),
-            name='w_xi_{}'.format(name))
-        w_hi = tf.constant(
-            sess.run(train_model['w_hi_{}'.format(name)]),
-            name='w_hi_{}'.format(name))
-        b_i = tf.constant(
-            sess.run(train_model['b_i_{}'.format(name)]),
-            name='b_i_{}'.format(name))
-
-        w_xu = tf.constant(
-            sess.run(train_model['w_xu_{}'.format(name)]),
-            name='w_xu_{}'.format(name))
-        w_hu = tf.constant(
-            sess.run(train_model['w_hu_{}'.format(name)]),
-            name='w_hu_{}'.format(name))
-        b_u = tf.constant(
-            sess.run(train_model['b_u_{}'.format(name)]),
-            name='b_u_{}'.format(name))
-
-        w_xr = tf.constant(
-            sess.run(train_model['w_xr_{}'.format(name)]),
-            name='w_xr_{}'.format(name))
-        w_hr = tf.constant(
-            sess.run(train_model['w_hr_{}'.format(name)]),
-            name='w_hr_{}'.format(name))
-        b_r = tf.constant(
-            sess.run(train_model['b_r_{}'.format(name)]),
-            name='b_r_{}'.format(name))
+    w_xr = weight_variable(
+        [inp_dim, hid_dim], wd=wd, name='w_xr_{}'.format(name))
+    w_hr = weight_variable(
+        [hid_dim, hid_dim], wd=wd, name='w_hr_{}'.format(name))
+    b_r = weight_variable(
+        [hid_dim], wd=wd, name='b_r_{}'.format(name))
 
     def unroll(inp, time):
         t = time
@@ -323,7 +103,7 @@ def _add_gated_rnn(model, timespan, inp_dim, hid_dim, h_init, wd=None, name='', 
     return unroll
 
 
-def _add_controller_rnn(model, timespan, inp_width, inp_height, ctl_inp_dim, filter_size, wd=None, name='', sess=None, train_model=None):
+def _add_controller_rnn(model, timespan, inp_width, inp_height, ctl_inp_dim, filter_size, wd=None, name=''):
     """Add an attention controller."""
     # Constant for computing filter_x. Shape: [1, W, 1].
     span_x = np.reshape(np.arange(inp_width), [1, inp_width, 1])
@@ -354,19 +134,11 @@ def _add_controller_rnn(model, timespan, inp_width, inp_height, ctl_inp_dim, fil
     # Gaussian filter on y direction. Shape: T * [B, H, Fr].
     filter_y = [None] * timespan
 
-    if sess is None:
-        # From hidden decoder to controller variables. Shape: [Hd, 5].
-        w_ctl = weight_variable(
-            [ctl_inp_dim, 5], wd=wd, name='w_ctl_{}'.format(name))
-        # Controller variable bias. Shape: [5].
-        b_ctl = weight_variable([5], wd=wd, name='b_ctl_{}'.format(name))
-    else:
-        w_ctl = tf.constant(
-            sess.run(train_model['w_ctl_{}'.format(name)]),
-            name='w_ctl_{}'.format(name))
-        b_ctl = tf.constant(
-            sess.run(train_model['b_ctl_{}'.format(name)]),
-            name='b_ctl_{}'.format(name))
+    # From hidden decoder to controller variables. Shape: [Hd, 5].
+    w_ctl = weight_variable(
+        [ctl_inp_dim, 5], wd=wd, name='w_ctl_{}'.format(name))
+    # Controller variable bias. Shape: [5].
+    b_ctl = weight_variable([5], wd=wd, name='b_ctl_{}'.format(name))
 
     def unroll(ctl_inp, time):
         """Run controller."""
@@ -499,13 +271,9 @@ def _batch_matmul(x, y, rep_x=True, adj_x=False, adj_y=False):
         return tf.reduce_sum(x3 * y3, reduction_indices=[2])
 
 
-def get_train_model(opt, device='/cpu:0'):
+def get_model(opt, device='/cpu:0', train=True):
     """Get train model for DRAW."""
     m = {}
-
-    #########################################################
-    # Constants
-    #########################################################
     # RNN timespan: T.
     timespan = opt['timespan']
 
@@ -534,6 +302,8 @@ def get_train_model(opt, device='/cpu:0'):
         #########################################################
         # Input image. Shape: [B, T, H, W].
         x = tf.placeholder('float', [None, inp_width, inp_height])
+        m['x'] = x
+
         x_shape = tf.shape(x, name='x_shape')
         num_ex = x_shape[0: 1]
         num_ex_mul = tf.concat(0, [num_ex, tf.constant([1])])
@@ -558,6 +328,7 @@ def get_train_model(opt, device='/cpu:0'):
         x_and_err = [None] * timespan
         # Read out image from the read head. Shape: T * [B, 2 * Fr * Fr].
         readout = [None] * timespan
+        m['readout_x'] = readout_x
 
         # Write attention controller
         unroll_write_controller = _add_controller_rnn(
@@ -585,14 +356,23 @@ def get_train_model(opt, device='/cpu:0'):
         # Shape: [Fw * Fw].
         b_writeout = weight_variable(
             [filter_size_w * filter_size_w], wd=wd, name='b_writeout')
+        m['w_hdec_writeout'] = w_hdec_writeout
+        m['b_writeout'] = b_writeout
 
         # Add to canvas. Shape: T * [B, H, W].
         canvas_delta = [None] * timespan
+        m['canvas_delta'] = canvas_delta
+
         # Canvas accumulating output. Shape: T * [B, H, W].
         canvas = [None] * (timespan + 1)
         w_canvas_init = weight_variable([inp_height, inp_width], wd=wd,
                                         name='w_canvas_init')
         canvas[-1] = w_canvas_init
+        m['w_canvas_init'] = w_canvas_init
+
+        # Reconstruction image.
+        x_rec = [None] * timespan
+        m['x_rec'] = x_rec
 
         # Error images (original substracted by drawn). Shape: T * [B, H, W].
         x_err = [None] * timespan
@@ -611,12 +391,15 @@ def get_train_model(opt, device='/cpu:0'):
             name='enc'
         )
         h_enc = m['h_enc']
+        m['w_henc_init'] = w_henc_init
 
         # Latent distribution
-        # Noise. Shape: [B, T, Hz]
-        u = tf.placeholder('float', [None, timespan, hid_dim])
-        u_l = tf.split(1, timespan, u)
-        u_l_flat = [None] * timespan
+        if train:
+            # Noise. Shape: [B, T, Hz]
+            u = tf.placeholder('float', [None, timespan, hid_dim])
+            u_l = tf.split(1, timespan, u)
+            u_l_flat = [None] * timespan
+            m['u'] = u
 
         # Mean of hidden latent variable. Shape: T * [B, Hz].
         mu_z = [None] * timespan
@@ -624,14 +407,19 @@ def get_train_model(opt, device='/cpu:0'):
         w_henc_muz = weight_variable([hid_enc_dim, hid_dim], wd=wd,
                                      name='w_henc_muz')
         b_muz = weight_variable([hid_dim], wd=wd, name='w_henc_muz')
+        m['w_henc_muz'] = w_henc_muz
+        m['b_muz'] = b_muz
 
-        # Standard deviation of hidden latent variable. Shape: T * [B, Hz].
-        lg_sigma_z = [None] * timespan
-        sigma_z = [None] * timespan
-        # Hidden encoder to latent variable std.
-        w_henc_lgsigmaz = weight_variable(
-            [hid_enc_dim, hid_dim], wd=wd, name='w_henc_lgsigmaz')
-        b_lgsigmaz = weight_variable([hid_dim], wd=wd, name='b_lgsigmaz')
+        if train:
+            # Standard deviation of hidden latent variable. Shape: T * [B, Hz].
+            lg_sigma_z = [None] * timespan
+            sigma_z = [None] * timespan
+            # Hidden encoder to latent variable std.
+            w_henc_lgsigmaz = weight_variable(
+                [hid_enc_dim, hid_dim], wd=wd, name='w_henc_lgsigmaz')
+            b_lgsigmaz = weight_variable([hid_dim], wd=wd, name='b_lgsigmaz')
+            m['w_henc_lgsigmaz'] = w_henc_lgsigmaz
+            m['b_lgsigmaz'] = b_lgsigmaz
 
         # Hidden latent variable. Shape: T * [B, Hz].
         z = [None] * timespan
@@ -642,6 +430,7 @@ def get_train_model(opt, device='/cpu:0'):
         w_hdec_init = weight_variable([1, hid_dec_dim], wd=wd,
                                       name='w_hdec_init')
         hdec_init = tf.tile(w_hdec_init, num_ex_mul, name='hdec_init')
+        m['w_hdec_init'] = w_hdec_init
         unroll_decoder = _add_gated_rnn(
             model=m,
             timespan=timespan,
@@ -659,22 +448,15 @@ def get_train_model(opt, device='/cpu:0'):
             # [B, H * W]
             x_err[t] = tf.sub(x, tf.sigmoid(canvas[t - 1]),
                               name='x_err_{}'.format(t))
-            u_l_flat[t] = tf.reshape(u_l[t], [-1, hid_dim],
-                                     name='u_flat_{}'.format(t))
+
+            if train:
+                u_l_flat[t] = tf.reshape(u_l[t], [-1, hid_dim],
+                                         name='u_flat_{}'.format(t))
 
             # Read attention selector
             unroll_read_controller(ctl_inp=h_dec[t - 1], time=t)
 
             # [B, 1, 1] * [B, F, H] * [B, H, W] * [B, W, F] = [B, F, F]
-            # readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
-            #     tf.batch_matmul(filter_y_r[t], x, adj_x=True), filter_x_r[t]),
-            #     name='readout_x_{}'.format(t))
-            # readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
-            #     tf.batch_matmul(filter_y_r[t], x_err[t], adj_x=True),
-            #     filter_x_r[t]),
-            #     name='readout_err_{}'.format(t))
-            # fxt = tf.transpose(filter_x_r[t], [0, 2, 1])
-            # with tf.device('/cpu:0'):
             readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
                 _batch_matmul(filter_y_r[t], x, adj_x=True, rep_x=False),
                 filter_x_r[t]),
@@ -703,19 +485,21 @@ def get_train_model(opt, device='/cpu:0'):
             # [B, He] * [He, H]
             mu_z[t] = tf.add(tf.matmul(h_enc[t], w_henc_muz), b_muz,
                              name='mu_z_{}'.format(t))
-            lg_sigma_z[t] = tf.add(tf.matmul(h_enc[t], w_henc_lgsigmaz),
-                                   b_lgsigmaz,
-                                   name='lg_sigma_z_{}'.format(t))
-            sigma_z[t] = tf.exp(lg_sigma_z[t], name='sigma_z_{}'.format(t))
-            z[t] = tf.add(mu_z[t], sigma_z[t] * u_l_flat[t],
-                          name='z_{}'.format(t))
-            z[t] = mu_z[t]
-            # KL Divergence
-            kl_qzx_pz[t] = tf.mul(-0.5,
-                                  tf.reduce_sum(1 + 2 * lg_sigma_z[t] -
-                                                mu_z[t] * mu_z[t] -
-                                                tf.exp(2 * lg_sigma_z[t])),
-                                  name='kl_qzx_pz_{}'.format(t))
+            if train:
+                lg_sigma_z[t] = tf.add(tf.matmul(h_enc[t], w_henc_lgsigmaz),
+                                       b_lgsigmaz,
+                                       name='lg_sigma_z_{}'.format(t))
+                sigma_z[t] = tf.exp(lg_sigma_z[t], name='sigma_z_{}'.format(t))
+                z[t] = tf.add(mu_z[t], sigma_z[t] * u_l_flat[t],
+                              name='z_{}'.format(t))
+                # KL Divergence
+                kl_qzx_pz[t] = tf.mul(-0.5,
+                                      tf.reduce_sum(1 + 2 * lg_sigma_z[t] -
+                                                    mu_z[t] * mu_z[t] -
+                                                    tf.exp(2 * lg_sigma_z[t])),
+                                      name='kl_qzx_pz_{}'.format(t))
+            else:
+                z[t] = mu_z[t]
 
             # Decoder RNN
             unroll_decoder(inp=z[t], time=t)
@@ -730,75 +514,47 @@ def get_train_model(opt, device='/cpu:0'):
                                      name='writeout_{}'.format(t))
 
             # [B, H, Fw] * [B, Fw, Fw] * [B, Fw, W] = [B, H, W]
-            # canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
-            #                          tf.batch_matmul(
-            #     tf.batch_matmul(filter_y_w[t], writeout[t]),
-            #     filter_x_w[t], adj_y=True),
-            #     name='canvas_delta_{}'.format(t))
-
-            # with tf.device('/cpu:0'):
-            # fyt = tf.transpose(filter_y_w[t], [0, 2, 1])
             canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
                                      _batch_matmul(_batch_matmul(
-                                         filter_y_w[t], writeout[t], 
+                                         filter_y_w[t], writeout[t],
                                          rep_x=False),
                                      filter_x_w[t], adj_y=True),
                                      name='canvas_delta_{}'.format(t))
             # [B, H, W]
             canvas[t] = canvas[t - 1] + canvas_delta[t]
+            x_rec[t] = tf.sigmoid(canvas[t], name='x_rec')
 
         #########################################################
         # Loss and gradient
         #########################################################
-        x_rec = tf.sigmoid(canvas[timespan - 1], name='x_rec')
-        eps = 1e-7
-        kl_qzx_pz_sum = tf.reduce_sum(tf.pack(kl_qzx_pz))
-        log_pxz_sum = tf.reduce_sum(x * tf.log(x_rec + eps) +
-                                    (1 - x) * tf.log(1 - x_rec + eps),
-                                    name='ce_sum')
-        w_kl = 1.0
-        w_logp = 1.0
+        if train:
+            eps = 1e-7
+            kl_qzx_pz_sum = tf.reduce_sum(tf.pack(kl_qzx_pz))
+            log_pxz_sum = tf.reduce_sum(x * tf.log(x_rec[-1] + eps) +
+                                        (1 - x) * tf.log(1 - x_rec[-1] + eps),
+                                        name='ce_sum')
+            w_kl = 1.0
+            w_logp = 1.0
 
-        # Cross entropy normalized by number of examples.
-        ce = tf.div(-log_pxz_sum, tf.to_float(num_ex[0]), name='ce')
+            # Cross entropy normalized by number of examples.
+            ce = tf.div(-log_pxz_sum, tf.to_float(num_ex[0]), name='ce')
 
-        # Lower bound
-        log_px_lb = tf.div(-w_kl * kl_qzx_pz_sum +
-                           w_logp * log_pxz_sum /
-                           (w_kl + w_logp) * 2.0, tf.to_float(num_ex[0]),
-                           name='log_px_lb')
+            # Lower bound
+            log_px_lb = tf.div(-w_kl * kl_qzx_pz_sum +
+                               w_logp * log_pxz_sum /
+                               (w_kl + w_logp) * 2.0, tf.to_float(num_ex[0]),
+                               name='log_px_lb')
 
-        tf.add_to_collection('losses', -log_px_lb)
-    
-    # with tf.device('/cpu:0'):
-        total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+            tf.add_to_collection('losses', -log_px_lb)
+            total_loss = tf.add_n(tf.get_collection('losses'),
+                                  name='total_loss')
 
-    # with tf.device(device):
-        lr = 1e-4
-            # train_step = GradientClipOptimizer(
-            #     tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(
-            #     total_loss)
-            # train_step = tf.train.AdamOptimizer(lr, epsilon=eps).minimize(
-            #     total_loss)
-        train_step = tf.train.GradientDescentOptimizer(lr).minimize(total_loss)
-
-    m['x'] = x
-    m['u'] = u
-    m['x_rec'] = x_rec
-    m['ce'] = ce
-    m['train_step'] = train_step
-
-    m['w_henc_muz'] = w_henc_muz
-    m['b_muz'] = b_muz
-    m['w_henc_lgsigmaz'] = w_henc_lgsigmaz
-    m['b_lgsigmaz'] = b_lgsigmaz
-
-    m['w_hdec_writeout'] = w_hdec_writeout
-    m['b_writeout'] = b_writeout
-
-    m['w_henc_init'] = w_henc_init
-    m['w_hdec_init'] = w_hdec_init
-    m['w_canvas_init'] = w_canvas_init
+            lr = 1e-4
+            train_step = GradientClipOptimizer(
+                tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(
+                total_loss)
+            m['ce'] = ce
+            m['train_step'] = train_step
 
     return m
 
@@ -889,7 +645,7 @@ if __name__ == '__main__':
     }
 
     dataset = mnist.read_data_sets("../MNIST_data/", one_hot=True)
-    m = get_train_model(opt, device=device)
+    m = get_model(opt, device=device)
     # sess = tf.Session()
     sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
     sess.run(tf.initialize_all_variables())
