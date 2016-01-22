@@ -71,7 +71,7 @@ if __name__ == '__main__':
     saver.restore(sess, ckpt_fname)
     # m_ae = model.get_autoencoder(opt, sess, train_model)
 
-    # Generate random MNIST digits.
+    # Generate reconstruct MNIST digits.
     num_row = 4
     num_col = opt['timespan']
     f1, axarr = plt.subplots(num_row, num_col)
@@ -137,7 +137,7 @@ if __name__ == '__main__':
     mu_y_w       = r[19 * tt: 20 * tt]
     lg_var_w     = r[20 * tt: 21 * tt]
 
-
+    #
     for ii in xrange(num_row):
         for jj in xrange(num_col):
             axarr[ii, jj].set_axis_off()
@@ -200,5 +200,4 @@ if __name__ == '__main__':
                 )
                 axarr[ii, jj].set_axis_off()
 
-    sess.close()
     plt.show()

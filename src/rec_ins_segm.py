@@ -173,11 +173,18 @@ def get_model(opt, device='/cpu:0', train=True):
 
     for t in xrange(timespan):
         unroll_conv_lstm(h_pool3, time=t)
+
+        # Segmentation network
         h_conv4 = tf.nn.relu(conv2d(h_lstm[t], w_conv4) + b_conv4)
         segm_lo[t] = tf.sigmoid(tf.log(tf.nn.softmax(h_conv4)) + b_5)
 
+        # Objectness network
         h_pool4 = max_pool_4x4(h_lstm[t])
         obj[t] = tf.sigmoid(tf.matmul(hpool4, w_6) + b_6)
+
+    # Loss function
+    
+
 
     pass
 

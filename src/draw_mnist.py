@@ -28,42 +28,72 @@ import time
 log = logger.get()
 
 
-def weight_variable(shape, wd=None, name=None):
+def _get_latest_ckpt(folder):
+    """Get the latest checkpoint filename in a folder."""
+
+    ckpt_fname_pattern = os.path.join(folder, 'model.ckpt-*')
+    ckpt_fname_list = []
+    for fname in os.listdir(folder):
+        fullname = os.path.join(folder, fname)
+        if fnmatch.fnmatch(fullname, ckpt_fname_pattern):
+            ckpt_fname_list.append(fullname)
+    if len(ckpt_fname_list) == 0:
+        raise Exception('No checkpoint file found.')
+    ckpt_fname_step = [int(fn.split('-')[-1]) for fn in ckpt_fname_list]
+    latest_step = max(ckpt_fname_step)
+
+    return os.path.join(folder, 'model.ckpt-{}'.format(latest_step)), latest_step
+
+
+
+def weight_variable(shape, wd=None, name=None, sess=None, train_model=None):
     """Initialize weights."""
-    initial = tf.truncated_normal(shape, stddev=0.01)
-    var = tf.Variable(initial, name=name)
-    if wd:
-        weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
-        tf.add_to_collection('losses', weight_decay)
-    return var
+    if sess is None:
+        initial = tf.truncated_normal(shape, stddev=0.01)
+        var = tf.Variable(initial, name=name)
+        if wd:
+            weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
+            tf.add_to_collection('losses', weight_decay)
+        return var
+    else:
+        return tf.constant(sess.run(train_model[name]))
 
 
-def _add_gated_rnn(model, timespan, inp_dim, hid_dim, h_init, wd=None, name=''):
+def _add_gated_rnn(model, timespan, inp_dim, hid_dim, h_init, wd=None, name='', sess=None, train_model=None):
     h = [None] * (timespan + 1)
     g_i = [None] * timespan
     g_r = [None] * timespan
     h[-1] = h_init
 
     w_xi = weight_variable(
-        [inp_dim, hid_dim], wd=wd, name='w_xi_{}'.format(name))
+        [inp_dim, hid_dim], wd=wd, name='w_xi_{}'.format(name),
+            sess=sess, train_model=train_model)
     w_hi = weight_variable(
-        [hid_dim, hid_dim], wd=wd, name='w_hi_{}'.format(name))
+        [hid_dim, hid_dim], wd=wd, name='w_hi_{}'.format(name),
+            sess=sess, train_model=train_model)
     b_i = weight_variable(
-        [hid_dim], wd=wd, name='b_i_{}'.format(name))
+        [hid_dim], wd=wd, name='b_i_{}'.format(name),
+            sess=sess, train_model=train_model)
 
     w_xu = weight_variable(
-        [inp_dim, hid_dim], wd=wd, name='w_xu_{}'.format(name))
+        [inp_dim, hid_dim], wd=wd, name='w_xu_{}'.format(name),
+            sess=sess, train_model=train_model)
     w_hu = weight_variable(
-        [hid_dim, hid_dim], wd=wd, name='w_hu_{}'.format(name))
+        [hid_dim, hid_dim], wd=wd, name='w_hu_{}'.format(name),
+            sess=sess, train_model=train_model)
     b_u = weight_variable(
-        [hid_dim], wd=wd, name='b_u_{}'.format(name))
+        [hid_dim], wd=wd, name='b_u_{}'.format(name),
+            sess=sess, train_model=train_model)
 
     w_xr = weight_variable(
-        [inp_dim, hid_dim], wd=wd, name='w_xr_{}'.format(name))
+        [inp_dim, hid_dim], wd=wd, name='w_xr_{}'.format(name),
+            sess=sess, train_model=train_model)
     w_hr = weight_variable(
-        [hid_dim, hid_dim], wd=wd, name='w_hr_{}'.format(name))
+        [hid_dim, hid_dim], wd=wd, name='w_hr_{}'.format(name),
+            sess=sess, train_model=train_model)
     b_r = weight_variable(
-        [hid_dim], wd=wd, name='b_r_{}'.format(name))
+        [hid_dim], wd=wd, name='b_r_{}'.format(name),
+            sess=sess, train_model=train_model)
 
     def unroll(inp, time):
         t = time
@@ -103,7 +133,7 @@ def _add_gated_rnn(model, timespan, inp_dim, hid_dim, h_init, wd=None, name=''):
     return unroll
 
 
-def _add_controller_rnn(model, timespan, inp_width, inp_height, ctl_inp_dim, filter_size, wd=None, name=''):
+def _add_controller_rnn(model, timespan, inp_width, inp_height, ctl_inp_dim, filter_size, wd=None, name='', sess=None, train_model=None):
     """Add an attention controller."""
     # Constant for computing filter_x. Shape: [1, W, 1].
     span_x = np.reshape(np.arange(inp_width), [1, inp_width, 1])
@@ -136,9 +166,11 @@ def _add_controller_rnn(model, timespan, inp_width, inp_height, ctl_inp_dim, fil
 
     # From hidden decoder to controller variables. Shape: [Hd, 5].
     w_ctl = weight_variable(
-        [ctl_inp_dim, 5], wd=wd, name='w_ctl_{}'.format(name))
+        [ctl_inp_dim, 5], wd=wd, name='w_ctl_{}'.format(name),
+        sess=sess, train_model=train_model)
     # Controller variable bias. Shape: [5].
-    b_ctl = weight_variable([5], wd=wd, name='b_ctl_{}'.format(name))
+    b_ctl = weight_variable([5], wd=wd, name='b_ctl_{}'.format(name),
+                            sess=sess, train_model=train_model)
 
     def unroll(ctl_inp, time):
         """Run controller."""
@@ -269,6 +301,111 @@ def _batch_matmul(x, y, rep_x=True, adj_x=False, adj_y=False):
             x3 = x2
             y3 = tf.tile(y2, t)
         return tf.reduce_sum(x3 * y3, reduction_indices=[2])
+
+
+def get_generator(opt, sess, train_model, device='/cpu:0'):
+    """Get generator model."""
+    m = {}
+    timespan = opt['timespan']
+    inp_height = opt['inp_height']
+    inp_width = opt['inp_width']
+    filter_size_w = opt['filter_size_w']
+    hid_dec_dim = opt['hid_dec_dim']
+    hid_dim = opt['hid_dim']
+    wd = opt['weight_decay']
+
+    with tf.device(device):
+        #########################################################
+        # Variables
+        #########################################################
+        # Write attention controller
+        unroll_write_controller = _add_controller_rnn(
+            model=m,
+            timespan=timespan,
+            inp_width=inp_width,
+            inp_height=inp_height,
+            ctl_inp_dim=hid_dec_dim,
+            filter_size=filter_size_w,
+            wd=wd,
+            name='w',
+            sess=sess,
+            train_model=train_model
+        )
+        lg_gamma_w = m['lg_gamma_w']
+        filter_x_w = m['filter_x_w']
+        filter_y_w = m['filter_y_w']
+
+        # Write to canvas
+        writeout = [None] * timespan
+        w_hdec_writeout = weight_variable(
+            [hid_dec_dim, filter_size_w * filter_size_w], wd=wd,
+            name='w_hdec_writeout',
+            sess=sess, train_model=train_model)
+        b_writeout = weight_variable(
+            [filter_size_w * filter_size_w], wd=wd, name='b_writeout',
+            sess=sess, train_model=train_model)
+        m['w_hdec_writeout'] = w_hdec_writeout
+        m['b_writeout'] = b_writeout
+
+        canvas_delta = [None] * timespan
+        m['canvas_delta'] = canvas_delta
+
+        canvas = [None] * (timespan + 1)
+        w_canvas_init = weight_variable([inp_height, inp_width], wd=wd,
+                                        name='w_canvas_init',
+                                        sess=sess, train_model=train_model)
+        canvas[-1] = w_canvas_init
+        m['w_canvas_init'] = w_canvas_init
+
+        x_rec = [None] * timespan
+        m['x_rec'] = x_rec
+
+        z = tf.placeholder('float', [None, timespan, hid_dim])
+        m['z'] = z
+        z_l = tf.split(1, timespan, z)
+        z_shape = tf.shape(z, name='z_shape')
+        num_ex = z_shape[0: 1]
+        num_ex_mul = tf.concat(0, [num_ex, tf.constant([1])])
+
+        w_hdec_init = weight_variable([1, hid_dec_dim], wd=wd,
+                                      name='w_hdec_init',
+                                      sess=sess, train_model=train_model)
+        hdec_init = tf.tile(w_hdec_init, num_ex_mul, name='hdec_init')
+        m['w_hdec_init'] = w_hdec_init
+        unroll_decoder = _add_gated_rnn(
+            model=m,
+            timespan=timespan,
+            inp_dim=hid_dim,
+            hid_dim=hid_dec_dim,
+            h_init=hdec_init,
+            name='dec',
+            sess=sess,
+            train_model=train_model
+        )
+        h_dec = m['h_dec']
+
+        #########################################################
+        # Computation graph
+        #########################################################
+        for t in xrange(timespan):
+            unroll_decoder(inp=tf.reshape(z_l[t], [-1, hid_dim]), time=t)
+            unroll_write_controller(ctl_inp=h_dec[t], time=t)
+
+            writeout[t] = tf.reshape(tf.matmul(h_dec[t], w_hdec_writeout) +
+                                     b_writeout,
+                                     [-1, filter_size_w, filter_size_w],
+                                     name='writeout_{}'.format(t))
+
+            canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
+                                     _batch_matmul(_batch_matmul(
+                                         filter_y_w[t], writeout[t],
+                                         rep_x=False),
+                                     filter_x_w[t], adj_y=True),
+                                     name='canvas_delta_{}'.format(t))
+            canvas[t] = canvas[t - 1] + canvas_delta[t]
+            x_rec[t] = tf.sigmoid(canvas[t], name='x_rec')
+
+    return m
 
 
 def get_model(opt, device='/cpu:0', train=True):
@@ -410,6 +547,9 @@ def get_model(opt, device='/cpu:0', train=True):
         m['w_henc_muz'] = w_henc_muz
         m['b_muz'] = b_muz
 
+        # Hidden latent variable. Shape: T * [B, Hz].
+        z = [None] * timespan
+
         if train:
             # Standard deviation of hidden latent variable. Shape: T * [B, Hz].
             lg_sigma_z = [None] * timespan
@@ -421,10 +561,8 @@ def get_model(opt, device='/cpu:0', train=True):
             m['w_henc_lgsigmaz'] = w_henc_lgsigmaz
             m['b_lgsigmaz'] = b_lgsigmaz
 
-        # Hidden latent variable. Shape: T * [B, Hz].
-        z = [None] * timespan
-        # KL divergence
-        kl_qzx_pz = [None] * timespan
+            # KL divergence
+            kl_qzx_pz = [None] * timespan
 
         # Decoder RNN
         w_hdec_init = weight_variable([1, hid_dec_dim], wd=wd,
@@ -598,6 +736,8 @@ def parse_args():
                         help='Training curve logs folder')
     parser.add_argument('-localhost', default='localhost',
                         help='Local domain name')
+    parser.add_argument('-restore', default=None,
+                        help='Model save folder to restore from')
     parser.add_argument('-gpu', default=-1, type=int,
                         help='GPU ID, default CPU')
     parser.add_argument('-seed', default=100, type=int,
@@ -648,8 +788,18 @@ if __name__ == '__main__':
     m = get_model(opt, device=device)
     sess = tf.Session()
     # sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
-    sess.run(tf.initialize_all_variables())
     saver = tf.train.Saver(tf.all_variables())
+
+    if args.restore:
+        log.info('Restoring from {}'.format(args.restore))
+        ckpt_fname, latest_step = _get_latest_ckpt(args.restore)
+        saver.restore(sess, ckpt_fname)
+        step = latest_step
+        log.info('Step {}'.format(step))
+    else:
+        log.info('Initializing new model')
+        sess.run(tf.initialize_all_variables())
+        step = 0
 
     task_name = 'draw_mnist'
     time_obj = datetime.datetime.now()
@@ -674,7 +824,6 @@ if __name__ == '__main__':
 
     random = np.random.RandomState(args.seed)
 
-    step = 0
     while step < loop_config['num_steps']:
         # Validation
         valid_ce = 0
