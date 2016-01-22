@@ -646,8 +646,8 @@ if __name__ == '__main__':
 
     dataset = mnist.read_data_sets("../MNIST_data/", one_hot=True)
     m = get_model(opt, device=device)
-    # sess = tf.Session()
-    sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+    sess = tf.Session()
+    # sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
     sess.run(tf.initialize_all_variables())
     saver = tf.train.Saver(tf.all_variables())
 
