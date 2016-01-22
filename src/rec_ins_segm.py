@@ -1,6 +1,11 @@
 """
 This code implements Recurrent Instance Segmentation [1].
 
+Author: Mengye Ren (m.ren@cs.toronto.edu)
+
+Usage: python rec_ins_segm.py --help
+
+Reference:
 [1] B. Romera-Paredes, P. Torr. Recurrent Instance Segmentation. arXiv preprint
 arXiv:1511.08250, 2015.
 """
@@ -23,6 +28,23 @@ import time
 log = logger.get()
 
 
+def conv2d(x, w):
+    """2-D convolution."""
+    return tf.nn.conv2d(x, w, strides=[1, 1, 1, 1], padding='SAME')
+
+
+def max_pool_2x2(x):
+    """2 x 2 max pooling."""
+    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
+                          strides=[1, 2, 2, 1], padding='SAME')
+
+
+def max_pool_4x4(x):
+    """4 x 4 max pooling."""
+    return tf.nn.max_pool(x, ksize=[1, 4, 4, 1],
+                          strides=[1, 4, 4, 1], padding='SAME')
+
+
 def weight_variable(shape, wd=None, name=None):
     """Initialize weights."""
     initial = tf.truncated_normal(shape, stddev=0.01)
@@ -32,18 +54,131 @@ def weight_variable(shape, wd=None, name=None):
         tf.add_to_collection('losses', weight_decay)
     return var
 
-def _add_conv_lstm(inp_height, inp_width, hid_depth):
 
-    w_xi = weight_variable([])
+def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_size, hid_depth, c_init, h_init, wd=None, name=''):
+    """Adds a Conv-LSTM component."""
+    g_i = [None] * timespan
+    g_f = [None] * timespan
+    g_o = [None] * timespan
+    u = [None] * timespan
+    c = [None] * (timespan + 1)
+    h = [None] * (timespan + 1)
+    c[-1] = c_init
+    h[-1] = h_init
+
+    w_xi = weight_variable([filter_size, filter_size, inp_depth, hid_depth],
+                           name='w_xi_{}'.format(name))
+    w_hi = weight_variable([filter_size, filter_size, hid_depth, hid_depth],
+                           name='w_hi_{}'.format(name))
+    b_i = weight_variable([hid_depth],
+                          name='b_i_{}'.format(name))
+    w_xf = weight_variable([filter_size, filter_size, inp_depth, hid_depth],
+                           name='w_xf_{}'.format(name))
+    w_hf = weight_variable([filter_size, filter_size, hid_depth, hid_depth],
+                           name='w_hf_{}'.format(name))
+    b_f = weight_variable([hid_depth],
+                          name='b_f_{}'.format(name))
+    w_xu = weight_variable([filter_size, filter_size, inp_depth, hid_depth],
+                           name='w_xu_{}'.format(name))
+    w_hu = weight_variable([filter_size, filter_size, hid_depth, hid_depth],
+                           name='w_hu_{}'.format(name))
+    b_u = weight_variable([hid_depth],
+                          name='b_u_{}'.format(name))
+    w_xo = weight_variable([filter_size, filter_size, inp_depth, hid_depth],
+                           name='w_xo_{}'.format(name))
+    w_ho = weight_variable([filter_size, filter_size, hid_depth, hid_depth],
+                           name='w_ho_{}'.format(name))
+    b_o = weight_variable([hid_depth],
+                          name='b_o_{}'.format(name))
+
     def unroll(inp, time):
+        g_i[t] = tf.sigmoid(conv2d(inp, w_xi) + conv2d(h[t - 1], w_hi) + b_i)
+        g_f[t] = tf.sigmoid(conv2d(inp, w_xf) + conv2d(h[t - 1], w_hf) + b_f)
+        g_o[t] = tf.sigmoid(conv2d(inp, w_xo) + conv2d(h[t - 1], w_ho) + b_o)
+        u[t] = tf.tanh(conv2d(inp, w_xu) + conv2d(h[t - 1], w_hu) + b_u)
+        c[t] = g_f[t] * c[t - 1] + g_i[t] * u[t]
+        h[t] = g_o[t] * tf.tanh(c[t])
+
         pass
+
+    model['g_i_{}'.format(name)] = g_i
+    model['g_f_{}'.format(name)] = g_f
+    model['g_o_{}'.format(name)] = g_o
+    model['u_{}'.format(name)] = u
+    model['c_{}'.format(name)] = c
+    model['h_{}'.format(name)] = h
 
     return unroll
 
 
 def get_model(opt, device='/cpu:0', train=True):
     """Get model."""
-    inp_height = opt['']
+    m = {}
+    timespan = opt['timespan']
+    inp_height = opt['inp_height']
+    inp_width = opt['inp_width']
+    conv_lstm_filter_size = opt['conv_lstm_filter_size']
+    conv_lstm_hid_depth = opt['conv_lstm_hid_depth']
+    wd = opt['weight_decay']
+
+    # 1st convolution layer
+    w_conv1 = weight_variable([3, 3, 3, 16])
+    b_conv1 = weight_variable([16])
+    h_conv1 = tf.nn.relu(conv2d(inp, w_conv1) + b_conv1)
+    h_pool1 = max_pool_2x2(h_conv1)
+
+    # 2nd convolution layer
+    w_conv2 = weight_variable([3, 3, 16, 32])
+    b_conv2 = weight_variable([32])
+    h_conv2 = tf.nn.relu(conv2d(h_pool1, w_conv2) + b_conv2)
+    h_pool2 = max_pool_2x2(h_conv2)
+
+    # 3rd convolution layer
+    w_conv3 = weight_variable([3, 3, 32, 64])
+    b_conv3 = weight_variable([64])
+    h_conv3 = tf.nn.relu(conv2d(h_pool2, w_conv3) + b_conv3)
+    h_pool3 = max_pool_2x2(h_conv3)
+
+    w_conv4 = weight_variable([3, 3, 16, 1])
+    b_conv4 = weight_variable([1])
+    b_5 = weight_variable([lstm_inp_height, lstm_inp_width])
+
+    w_6 = weight_variable([inp_width / 32 * inp_height / 32, 1])
+    b_6 = weight_variable([1])
+
+    lstm_depth = 16
+    lstm_inp_height = inp_height / 8
+    lstm_inp_width = inp_width / 8
+    c_init = tf.zeros([lstm_inp_height, lstm_inp_width, lstm_depth])
+    h_init = tf.zeros([lstm_inp_height, lstm_inp_width, lstm_depth])
+
+    unroll_conv_lstm = _add_conv_lstm(
+        model=m,
+        timespan=timespan,
+        inp_height=lstm_inp_height,
+        inp_width=lstm_inp_width,
+        inp_depth=64,
+        filter_size=conv_lstm_filter_size,
+        hid_depth=16,
+        c_init=c_init,
+        h_init=h_init,
+        wd=wd,
+        name='lstm'
+    )
+    h_lstm = m['h_lstm']
+
+    h_conv4 = [None] * timespan
+    segm_lo = [None] * timespan
+    obj = [None] * timespan
+
+    for t in xrange(timespan):
+        unroll_conv_lstm(h_pool3, time=t)
+        h_conv4 = tf.nn.relu(conv2d(h_lstm[t], w_conv4) + b_conv4)
+        segm_lo[t] = tf.sigmoid(tf.log(tf.nn.softmax(h_conv4)) + b_5)
+
+        h_pool4 = max_pool_4x4(h_lstm[t])
+        obj[t] = tf.sigmoid(tf.matmul(hpool4, w_6) + b_6)
+
     pass
 
 

@@ -528,7 +528,7 @@ if __name__ == '__main__':
                            feed_dict={m['inp']: inp_batch,
                                       m['segm_gt']: lab_seg_batch,
                                       m['obj_gt']: lab_obj_batch})
-            log.info('Step: {:d}, Valid CE: {:.4f}'.format(step, vce))
+            log.info('{:d} valid ce {:.4f}'.format(step, vce))
             valid_ce += vce * inp_batch.shape[0] / float(num_ex_val)
         valid_ce_logger.add(step, valid_ce)
 
