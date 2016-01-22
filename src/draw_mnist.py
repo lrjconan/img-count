@@ -698,6 +698,7 @@ if __name__ == '__main__':
             x = preprocess(batch[0], opt)
             u = random.normal(
                 0, 1, [x.shape[0], opt['timespan'], opt['hid_dim']])
+            tim = time.time()
             r = sess.run([m['ce'], m['train_step']], feed_dict={
                 m['x']: x,
                 m['u']: u
@@ -705,7 +706,7 @@ if __name__ == '__main__':
             if step % 10 == 0:
                 ce = r[0]
                 log.info('{:d} train ce {:.4f} t {:.2f}ms'.format(
-                    step, ce, (time.time() - st) * 1000))
+                    step, ce, (time.time() - tim) * 1000))
                 train_ce_logger.add(step, ce)
 
             step += 1
