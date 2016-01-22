@@ -19,6 +19,7 @@ from utils.grad_clip_optim import GradientClipOptimizer
 from utils.time_series_logger import TimeSeriesLogger
 import argparse
 import datetime
+import fnmatch
 import numpy as np
 import os
 import pickle as pkl
