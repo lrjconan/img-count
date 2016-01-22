@@ -46,7 +46,6 @@ def _get_latest_ckpt(folder):
     return os.path.join(folder, 'model.ckpt-{}'.format(latest_step)), latest_step
 
 
-
 def weight_variable(shape, wd=None, name=None, sess=None, train_model=None):
     """Initialize weights."""
     if sess is None:
@@ -68,33 +67,33 @@ def _add_gated_rnn(model, timespan, inp_dim, hid_dim, h_init, wd=None, name='', 
 
     w_xi = weight_variable(
         [inp_dim, hid_dim], wd=wd, name='w_xi_{}'.format(name),
-            sess=sess, train_model=train_model)
+        sess=sess, train_model=train_model)
     w_hi = weight_variable(
         [hid_dim, hid_dim], wd=wd, name='w_hi_{}'.format(name),
-            sess=sess, train_model=train_model)
+        sess=sess, train_model=train_model)
     b_i = weight_variable(
         [hid_dim], wd=wd, name='b_i_{}'.format(name),
-            sess=sess, train_model=train_model)
+        sess=sess, train_model=train_model)
 
     w_xu = weight_variable(
         [inp_dim, hid_dim], wd=wd, name='w_xu_{}'.format(name),
-            sess=sess, train_model=train_model)
+        sess=sess, train_model=train_model)
     w_hu = weight_variable(
         [hid_dim, hid_dim], wd=wd, name='w_hu_{}'.format(name),
-            sess=sess, train_model=train_model)
+        sess=sess, train_model=train_model)
     b_u = weight_variable(
         [hid_dim], wd=wd, name='b_u_{}'.format(name),
-            sess=sess, train_model=train_model)
+        sess=sess, train_model=train_model)
 
     w_xr = weight_variable(
         [inp_dim, hid_dim], wd=wd, name='w_xr_{}'.format(name),
-            sess=sess, train_model=train_model)
+        sess=sess, train_model=train_model)
     w_hr = weight_variable(
         [hid_dim, hid_dim], wd=wd, name='w_hr_{}'.format(name),
-            sess=sess, train_model=train_model)
+        sess=sess, train_model=train_model)
     b_r = weight_variable(
         [hid_dim], wd=wd, name='b_r_{}'.format(name),
-            sess=sess, train_model=train_model)
+        sess=sess, train_model=train_model)
 
     def unroll(inp, time):
         t = time
