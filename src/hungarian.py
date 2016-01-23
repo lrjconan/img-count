@@ -162,10 +162,6 @@ def is_bp_match_saturate(M):
     return (M.sum(axis=max_axis) == 1).all()
 
 
-def improve_bp_cover(c_0, c_1, W):
-    pass
-
-
 def get_bp_neighbours(v, G):
     """Gets neighbours of a vertex in a bi-partite graph."""
     return set(G[v, :].nonzero()[0])
@@ -275,9 +271,6 @@ def hungarian(W):
         log.info('---------------------------------------------')
         i += 1
 
-def max_weighted_bp_match(W):
-    """Calculates the max weighted bi-partite matching."""
-
 
 if __name__ == '__main__':
     log.info('---------------------------------------------')
@@ -369,4 +362,9 @@ if __name__ == '__main__':
     log.info('c_1: {}'.format(c_1))
     log.info('max matching')
     print M
+    c_0_t = np.array([2, 1, 1])
+    c_1_t = np.array([1, 1, 0])
+    M_t = np.array([[1, 0, 0],
+                    [0, 1, 0],
+                    [0, 0, 1]]
     log.info('---------------------------------------------')
