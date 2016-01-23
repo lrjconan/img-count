@@ -114,7 +114,7 @@ def max_flow(G):
 
 
 def max_bp_match(G):
-    """Calculates the max matching for bipartite graphs.
+    """Calculates the max matching for bi-partite graphs.
 
     Args:
         G: numpy.ndarray, [n_X, n_Y], edge weight matrix.
