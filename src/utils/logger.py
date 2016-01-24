@@ -58,7 +58,7 @@ def get(default_fname=None):
 
 class Logger(object):
 
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, default_verbose=0):
         """
         Constructs a logger with optional log file output.
 
@@ -67,7 +67,8 @@ class Logger(object):
             written to file
         """
         now = datetime.datetime.now()
-        self.verbose_thresh = os.environ.get('VERBOSE', 0)
+        self.verbose_thresh = int(os.environ.get('VERBOSE', 0))
+        self.default_verbose = default_verbose
         if filename is not None:
             self.filename = \
                 '{}-{:04d}{:02d}{:02d}-{:02d}{:02d}{:02d}.log'.format(
@@ -104,7 +105,7 @@ class Logger(object):
 
         return timestr
 
-    def log(self, message, typ='info', verbose=0):
+    def log(self, message, typ='info', verbose=None):
         """
         Writes a message.
 
@@ -119,30 +120,18 @@ class Logger(object):
             typstr_print = '{0}INFO:{1}'.format(
                 TERM_COLOR['green'], TERM_COLOR['default'])
             typstr_log = 'INFO:'
-            # typstr_print = '{0}I{1}'.format(
-            #     TERM_COLOR['green'], TERM_COLOR['default'])
-            # typstr_log = 'I'
         elif typ == 'warning':
             typstr_print = '{0}WARNING:{1}'.format(
                 TERM_COLOR['yellow'], TERM_COLOR['default'])
             typstr_log = 'WARNING:'
-            # typstr_print = '{0}W{1}'.format(
-            #     TERM_COLOR['yellow'], TERM_COLOR['default'])
-            # typstr_log = 'W'
         elif typ == 'error':
             typstr_print = '{0}ERROR:{1}'.format(
                 TERM_COLOR['red'], TERM_COLOR['default'])
             typstr_log = 'ERROR:'
-            # typstr_print = '{0}E{1}'.format(
-            #     TERM_COLOR['red'], TERM_COLOR['default'])
-            # typstr_log = 'E'
         elif typ == 'fatal':
             typstr_print = '{0}FATAL:{1}'.format(
                 TERM_COLOR['red'], TERM_COLOR['default'])
             typstr_log = 'FATAL:'
-            # typstr_print = '{0}F{1}'.format(
-            #     TERM_COLOR['red'], TERM_COLOR['default'])
-            # typstr_log = 'F'
         else:
             raise Exception('Unknown log type: {0}'.format(typ))
         timestr = self.get_time_str()
@@ -159,8 +148,13 @@ class Logger(object):
             typstr_print, timestr, callerstr, message)
         logstr = '{0} {1} {2} {3}'.format(
             typstr_log, timestr, callerstr, message)
+
+        if verbose is None:
+            verbose = self.default_verbose
+
         if self.verbose_thresh >= verbose:
             print(printstr)
+
         if self.filename is not None:
             with open(self.filename, 'a') as f:
                 f.write(logstr)
@@ -168,7 +162,7 @@ class Logger(object):
 
         pass
 
-    def info(self, message, verbose=0):
+    def info(self, message, verbose=None):
         """
         Writes an info message.
 
@@ -180,7 +174,7 @@ class Logger(object):
 
         pass
 
-    def warning(self, message, verbose=0):
+    def warning(self, message, verbose=None):
         """
         Writes a warning message.
 
@@ -192,7 +186,7 @@ class Logger(object):
 
         pass
 
-    def error(self, message, verbose=0):
+    def error(self, message, verbose=None):
         """
         Writes an info message.
 
@@ -204,7 +198,7 @@ class Logger(object):
 
         pass
 
-    def fatal(self, message, verbose=0):
+    def fatal(self, message, verbose=None):
         """
         Writes a fatal message, and exits the program.
 
@@ -217,7 +211,7 @@ class Logger(object):
 
         pass
 
-    def log_args(self, verbose=0):
+    def log_args(self, verbose=None):
         self.info('Command: {}'.format(' '.join(sys.argv)))
 
         pass
@@ -227,3 +221,26 @@ class Logger(object):
         self.error(tb_str)
 
         pass
+
+    def verbose_level(self, level):
+
+        class VerboseScope():
+
+            def __init__(self, logger, new_level):
+                self._new_level = new_level
+                self._logger = logger
+
+                pass
+
+            def __enter__(self):
+                self._restore = self._logger.default_verbose
+                self._logger.default_verbose = self._new_level
+
+                pass
+
+            def __exit__(self, type, value, traceback):
+                self._logger.default_verbose = self._restore
+
+                pass
+
+        return VerboseScope(self, level)
