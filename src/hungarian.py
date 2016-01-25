@@ -228,6 +228,7 @@ def min_weighted_bp_cover(W):
                 for u in xrange(n_X):
                     if M[u, :].sum() == 0:
                         S.add(u)
+                        break
 
             N_S = get_set_bp_neighbours(S, E)
             log.info('S: {}'.format(S))
@@ -237,7 +238,9 @@ def min_weighted_bp_cover(W):
                 # Update vertex cover.
                 log.info('N_S == T')
                 log.info('update cover')
-                a = np.abs(c_0).max() + np.abs(c_1).max() + np.abs(W).max()
+                # a = np.abs(c_0).max() + np.abs(c_1).max() + np.abs(W).max()
+                # Maximum single precision float.
+                a = 3.4028234e38;
                 for x in S:
                     for y in xrange(n_Y):
                         if y not in T:

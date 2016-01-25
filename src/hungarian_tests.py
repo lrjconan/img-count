@@ -22,7 +22,6 @@ class HungarianTests(unittest.TestCase):
         pass
 
     def test_max_flow_2(self):
-        # Another example.
         # s  -3-> v1
         # s  -3-> v2
         # v1 -3-> v3
@@ -94,24 +93,6 @@ class HungarianTests(unittest.TestCase):
 
         pass
 
-    def test_min_weighted_bp_cover_2(self):
-        W = np.array([[5, 0, 0],
-                      [0, 5, 0],
-                      [4, 0, 3],
-                      [0, 4, 0]])
-        c_0, c_1, M = hungarian.min_weighted_bp_cover(W)
-        c_0_t = np.array([4, 4, 3, 3])
-        c_1_t = np.array([1, 1, 0])
-        M_t = np.array([[1, 0, 0],
-                        [0, 0, 0],
-                        [0, 0, 1],
-                        [0, 1, 0]])
-        self.assertTrue((c_0 == c_0_t).all())
-        self.assertTrue((c_1 == c_1_t).all())
-        self.assertTrue((M == M_t).all())
-
-        pass
-
 
     def test_min_weighted_bp_cover_2(self):
         W = np.array([[5, 0, 4, 0],
@@ -145,6 +126,7 @@ class HungarianTests(unittest.TestCase):
         self.assertTrue((M == M_t).all())
 
         pass
+
 
     def test_min_weighted_bp_cover_4(self):
         W = np.array([[5, 0, 2],
