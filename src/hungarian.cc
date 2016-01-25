@@ -1,6 +1,6 @@
 // Implements the Hungarian algorithm.
-// Input is a 2-D weight matrix w_{i, j}
-// Output is a vertex cover u_{i}, v_{j}, and a matching M_{i, j}
+// Input is a 2-D weight matrix w_{i, j}.
+// Output is a matching M_{i, j}, and vertex covers u_{i, 0}, v_{0, j}. 
 
 #include <deque>
 #include <iostream>
@@ -8,7 +8,6 @@
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/platform/logging.h"
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 
 using namespace tensorflow;
 
