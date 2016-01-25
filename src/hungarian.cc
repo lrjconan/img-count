@@ -144,12 +144,13 @@ class HungarianOp : public OpKernel {
     int n = capacity.innerSize();
     Eigen::MatrixXf flow = Eigen::MatrixXf::Zero(n, n);
     Eigen::MatrixXf residual(capacity);
-    int i = 0;
-    while (Augment(capacity, flow, residual)) {
+    // int i = 0;
+    while (Augment(capacity, flow, residual));
+    // {
       // LOG(INFO) << "iter: " << i << " residual: \n" << residual;
       // LOG(INFO) << "iter: " << i << " flow: \n" << flow;
-      i++;
-    }
+      // i++;
+    // }
 
     return flow;
   }
