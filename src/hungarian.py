@@ -4,18 +4,21 @@ from utils import logger
 log = logger.get()
 
 
-def augment(R):
+def augment(G, F, R):
     """Finds an augmenting path using BFS.
 
     Args:
+        G: numpy.ndarray, [n, n], singly directed graph.
+        F: numpy.ndarray, [n, n], total flow.
         R: numpy.ndarray, [n, n], residual flow, will be updated by the
         function.
     Returns:
-        dF: numpy.ndarray, [n, n], delta flow (upper triangular).
-        success: bool, whether found an augmenting path.
+        dF: numpy.ndarray, [n, n], change in flow.
+        found: bool, whether an augmenting path is found.
     """
     # Number of vertices.
     n = R.shape[0]
+    
     # Vertex index of s.
     s = 0
     # Vertex index of t.
@@ -44,7 +47,6 @@ def augment(R):
                 q.append(u)
                 p[u] = v
 
-    dF = np.zeros([n, n])
     if found:
         # Bottleneck.
         b = R.max()
@@ -56,32 +58,15 @@ def augment(R):
         log.info('parents: {}'.format(p), verbose=3)
         v = t
         while p[v] != -1:
-            if p[v] < v:
-                dF[p[v], v] = b
+            if G[p[v], v] > 0:
+                F[p[v], v] += b
             else:
-                dF[v, p[v]] = -b
+                F[v, p[v]] -= b
             R[p[v], v] -= b
             R[v, p[v]] += b
             v = p[v]
 
-    return dF, found
-
-
-def residual(G, F):
-    """Gets residual flow.
-
-    Args:
-        G: numpy.ndarray, [n, n], edge weight matrix (upper triangular).
-        F: numpy.ndarray, [n, n], current flow matrix (upper triangular).
-    Returns:
-        R: numpy.ndarray, [n, n], residual flow.
-    """
-    # Residual flow in regular direction.
-    R = G - F
-    # Flow in the reverse direction.
-    R += G.T - R.T
-
-    return R
+    return found
 
 
 def max_flow(G):
@@ -99,14 +84,10 @@ def max_flow(G):
             raise Exception('G must be upper triangular')
 
         n = G.shape[0]
+        R = np.copy(G)
         F = np.zeros([n, n], dtype=G.dtype)
-        R = residual(G, F)
         ii = 0
-        while True:
-            dF, success = augment(R)
-            F += dF
-            if not success:
-                break
+        while augment(G, F, R):
             log.info('i: {}, residual: \n{}'.format(ii, R))
             ii += 1
 
