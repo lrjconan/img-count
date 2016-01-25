@@ -291,7 +291,6 @@ class HungarianOp : public OpKernel {
                                  Eigen::MatrixXf* cover_y) {
     int n_X = weights.innerSize();
     int n_Y = weights.outerSize();
-    // float w_max = weights.maxCoeff();
     *cover_x = weights.rowwise().maxCoeff();
     *cover_y = Eigen::MatrixXf::Zero(1, n_Y);
 
@@ -305,7 +304,7 @@ class HungarianOp : public OpKernel {
     std::set<int> S;
     std::set<int> T;
     bool next_match = true;
-    int i = 0;
+    // int i = 0;
 
     while (true) {
       // LOG(INFO) << "-----------------------------";
@@ -401,7 +400,7 @@ class HungarianOp : public OpKernel {
 
       // LOG(INFO) << "end of iteration";
       // LOG(INFO) << "-----------------------------";
-      i++;
+      // i++;
     }
   }
 };
