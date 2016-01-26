@@ -8,14 +8,14 @@ import unittest
 class BatchIouTests(unittest.TestCase):
 
     def test_1(self):
-        pred = np.array([
+        pred = np.array([[
             [[1.0, 0.0], [0.0, 1.0]],
             [[0.0, 1.0], [1.0, 0.0]]
-        ])
-        gt = np.array([
+        ]])
+        gt = np.array([[
             [[1.0, 1.0], [0.0, 1.0]]
-        ])
-        score_t = np.array([[2.0 / 3.0], [1.0 / 4.0]])
+        ]])
+        score_t = np.array([[[2.0 / 3.0], [1.0 / 4.0]]])
         score = tf.user_ops.batch_iou(pred, gt)
         with tf.Session() as sess:
             score = score.eval()

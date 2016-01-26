@@ -23,14 +23,14 @@ class BatchIouOp : public OpKernel {
   explicit BatchIouOp(OpKernelConstruction* context) : OpKernel(context) {}
 
   void Compute(OpKernelContext* context) override {
-    // Grab the input tensor
     const Tensor& pred_tensor = context->input(0);
     const Tensor& gt_tensor = context->input(1);
-    Tensor* output_tensor = NULL;
 
+    Tensor* output_tensor = NULL;
     TensorShape shape_out;
     shape_out.AddDim(pred_tensor.shape().dim_size(0));
-    shape_out.AddDim(gt_tensor.shape().dim_size(0));
+    shape_out.AddDim(pred_tensor.shape().dim_size(1));
+    shape_out.AddDim(gt_tensor.shape().dim_size(1));
 
     OP_REQUIRES_OK(context,
                    context->allocate_output(0, shape_out, &output_tensor));
@@ -38,7 +38,6 @@ class BatchIouOp : public OpKernel {
   }
 
  private:
-
   MatrixXfR Union(const MatrixXfR& a, const MatrixXfR& b) {
     return (a + b) - a.cwiseProduct(b);
   }
@@ -53,26 +52,29 @@ class BatchIouOp : public OpKernel {
 
   void ComputeBatchIou(const Tensor& pred_tensor, const Tensor& gt_tensor,
                        Tensor* output_tensor) {
-    int n = pred_tensor.shape().dim_size(0);
-    int m = gt_tensor.shape().dim_size(0);
-    auto pred = pred_tensor.tensor<float, 3>();
-    auto gt = gt_tensor.tensor<float, 3>();
-    int h = pred_tensor.shape().dim_size(1);
-    int w = pred_tensor.shape().dim_size(2);
-    auto output = output_tensor->matrix<float>();
-    for (int i = 0; i < n; ++i) {
-      for (int j = 0; j < m; ++j) {
-        MatrixXfR a(h, w);
-        MatrixXfR b(h, w);
-        for (int y = 0; y < h; ++y) {
-          for (int x = 0; x < w; ++x) {
-            a(y, x) = pred(i, y, x);
-            b(y, x) = gt(j, y, x);
+    int B = pred_tensor.shape().dim_size(0);
+    int N = pred_tensor.shape().dim_size(1);
+    int M = gt_tensor.shape().dim_size(1);
+    auto pred = pred_tensor.tensor<float, 4>();
+    auto gt = gt_tensor.tensor<float, 4>();
+    int H = pred_tensor.shape().dim_size(2);
+    int W = pred_tensor.shape().dim_size(3);
+    auto output = output_tensor->tensor<float, 3>();
+    for (int i = 0; i < B; ++i) {
+      for (int n = 0; n < N; ++n) {
+        for (int m = 0; m < M; ++m) {
+          MatrixXfR a(H, W);
+          MatrixXfR b(H, W);
+          for (int y = 0; y < H; ++y) {
+            for (int x = 0; x < W; ++x) {
+              a(y, x) = pred(i, n, y, x);
+              b(y, x) = gt(i, m, y, x);
+            }
           }
+          output(i, n, m) = ComputeIou(a, b);
         }
-        output(i, j) = ComputeIou(a, b);
       }
-    } 
+    }
   }
 };
 
