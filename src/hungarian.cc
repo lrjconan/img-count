@@ -1,6 +1,6 @@
 // Implements the Hungarian algorithm.
 // Input is a 2-D weight matrix w_{i, j}.
-// Output is a matching M_{i, j}, and vertex covers u_{i, 0}, v_{0, j}. 
+// Output is a matching M_{i, j}, and vertex covers u_{i, 0}, v_{0, j}.
 
 #include <deque>
 #include <iostream>
@@ -10,6 +10,8 @@
 #include "tensorflow/core/platform/logging.h"
 
 using namespace tensorflow;
+
+typedef Eigen::Matrix<float, -1, -1, Eigen::RowMajor> MatrixXfR;
 
 REGISTER_OP("Hungarian")
     .Input("weights: float")
@@ -25,6 +27,7 @@ class HungarianOp : public OpKernel {
     // Grab the input tensor
     const Tensor& input_tensor = context->input(0);
     const auto& shape = input_tensor.shape();
+
     // Create an output tensor
     Tensor* matching_tensor = NULL;
     Tensor* cover_x_tensor = NULL;
@@ -43,34 +46,27 @@ class HungarianOp : public OpKernel {
                    context->allocate_output(2, shape_y, &cover_y_tensor));
 
     const auto& inp = CopyInput(input_tensor);
-    // LOG(INFO) << "input: \n" << inp;
+    MatrixXfR cover_x = MatrixXfR::Zero(shape.dim_size(0), 1);
+    MatrixXfR cover_y = MatrixXfR::Zero(1, shape.dim_size(1));
+    MatrixXfR matching = MatrixXfR::Zero(shape.dim_size(0), shape.dim_size(1));
 
-    Eigen::MatrixXf cover_x = Eigen::MatrixXf::Zero(shape.dim_size(0), 1);
-    Eigen::MatrixXf cover_y = Eigen::MatrixXf::Zero(1, shape.dim_size(1));
-    Eigen::MatrixXf matching =
-        Eigen::MatrixXf::Zero(shape.dim_size(0), shape.dim_size(1));
     MinWeightedBipartiteCover(inp, &matching, &cover_x, &cover_y);
-
     CopyOutput(matching, matching_tensor);
     CopyOutput(cover_x, cover_x_tensor);
     CopyOutput(cover_y, cover_y_tensor);
   }
 
  private:
-  Eigen::MatrixXf CopyInput(const Tensor& tensor) {
+  MatrixXfR CopyInput(const Tensor& tensor) {
     const auto& shape = tensor.shape();
-    const auto& matrix = tensor.matrix<float>();
-    Eigen::MatrixXf copy(shape.dim_size(0), shape.dim_size(1));
-    for (int i = 0; i < shape.dim_size(0); ++i) {
-      for (int j = 0; j < shape.dim_size(1); ++j) {
-        copy(i, j) = matrix(i, j);
-      }
-    }
+    MatrixXfR copy =
+        Eigen::Map<MatrixXfR>((float*)tensor.tensor_data().data(),
+                              shape.dim_size(0), shape.dim_size(1));
 
     return copy;
   }
 
-  void CopyOutput(const Eigen::MatrixXf& output, Tensor* output_tensor) {
+  void CopyOutput(const MatrixXfR& output, Tensor* output_tensor) {
     auto output_matrix = output_tensor->matrix<float>();
     const auto& shape = output_tensor->shape();
     for (int i = 0; i < shape.dim_size(0); ++i) {
@@ -80,9 +76,9 @@ class HungarianOp : public OpKernel {
     }
   }
 
-  bool Augment(const Eigen::MatrixXf& capacity, Eigen::MatrixXf& flow,
-               Eigen::MatrixXf& residual) {
-    int n = residual.innerSize();
+  bool Augment(const MatrixXfR& capacity, MatrixXfR& flow,
+               MatrixXfR& residual) {
+    int n = residual.outerSize();
     int s = 0;
     int t = n - 1;
 
@@ -140,50 +136,43 @@ class HungarianOp : public OpKernel {
     return found;
   }
 
-  Eigen::MatrixXf MaxFlow(const Eigen::MatrixXf& capacity) {
-    int n = capacity.innerSize();
-    Eigen::MatrixXf flow = Eigen::MatrixXf::Zero(n, n);
-    Eigen::MatrixXf residual(capacity);
-    // int i = 0;
+  MatrixXfR MaxFlow(const MatrixXfR& capacity) {
+    int n = capacity.outerSize();
+    MatrixXfR flow = MatrixXfR::Zero(n, n);
+    MatrixXfR residual(capacity);
     while (Augment(capacity, flow, residual));
-    // {
-      // LOG(INFO) << "iter: " << i << " residual: \n" << residual;
-      // LOG(INFO) << "iter: " << i << " flow: \n" << flow;
-      // i++;
-    // }
 
     return flow;
   }
 
-  Eigen::MatrixXf MaxBipartiteMatching(const Eigen::MatrixXf& graph) {
-    int n_X = graph.innerSize();
-    int n_Y = graph.outerSize();
+  void MaxBipartiteMatching(const MatrixXfR& graph, MatrixXfR* matching) {
+    int n_X = graph.outerSize();
+    int n_Y = graph.innerSize();
     int n = n_X + n_Y + 2;
-    Eigen::MatrixXf capacity = Eigen::MatrixXf::Zero(n, n);
+    MatrixXfR capacity = MatrixXfR::Zero(n, n);
     int s = 0;
     int t = n_X + n_Y + 1;
     int x_start = 1;
     int y_start = n_X + 1;
-    Eigen::MatrixXf ones = Eigen::MatrixXf::Constant(n, n, 1.0);
+    MatrixXfR ones = MatrixXfR::Constant(n, n, 1.0);
     capacity.block(x_start, y_start, n_X, n_Y) = graph.block(0, 0, n_X, n_Y);
     capacity.block(s, x_start, 1, n_X) = ones.block(s, x_start, 1, n_X);
     capacity.block(y_start, t, n_Y, 1) = ones.block(y_start, t, n_Y, 1);
     // LOG(INFO) << "reformed graph: \n" << capacity;
 
-    Eigen::MatrixXf flow_max = MaxFlow(capacity);
+    MatrixXfR flow_max = MaxFlow(capacity);
     // LOG(INFO) << "max flow: \n" << flow_max;
 
-    Eigen::MatrixXf matching = Eigen::MatrixXf::Zero(n_X, n_Y);
-    matching.block(0, 0, n_X, n_Y) = flow_max.block(x_start, y_start, n_X, n_Y);
-    // LOG(INFO) << "matching: \n" << matching;
-    // LOG(INFO) << "saturate: " << IsBipartiteMatchingSaturate(matching);
-
-    return matching;
+    // MatrixXfR matching = MatrixXfR::Zero(n_X, n_Y);
+    matching->block(0, 0, n_X, n_Y) =
+        flow_max.block(x_start, y_start, n_X, n_Y);
+    // LOG(INFO) << "matching: \n" << *matching;
+    // LOG(INFO) << "saturate: " << IsBipartiteMatchingSaturate(*matching);
   }
 
-  bool IsBipartiteMatchingSaturate(const Eigen::MatrixXf& matching) {
-    int n_X = matching.innerSize();
-    int n_Y = matching.outerSize();
+  bool IsBipartiteMatchingSaturate(const MatrixXfR& matching) {
+    int n_X = matching.outerSize();
+    int n_Y = matching.innerSize();
 
     if (n_X >= n_Y) {
       // Each vertex in Y needs to match to vertex in X.
@@ -213,10 +202,10 @@ class HungarianOp : public OpKernel {
   }
 
   void GetSetBipartiteNeighbours(const std::set<int>& set,
-                                 const Eigen::MatrixXf& graph,
+                                 const MatrixXfR& graph,
                                  std::set<int>* neighbours) {
     neighbours->clear();
-    int n_Y = graph.outerSize();
+    int n_Y = graph.innerSize();
     for (std::set<int>::iterator it = set.begin(); it != set.end(); ++it) {
       int v = *it;
       for (int u = 0; u < n_Y; ++u) {
@@ -247,8 +236,8 @@ class HungarianOp : public OpKernel {
     std::cout << "}" << std::endl;
   }
 
-  int GetMatchedX(int y, const Eigen::MatrixXf& matching) {
-    int n_X = matching.innerSize();
+  int GetMatchedX(int y, const MatrixXfR& matching) {
+    int n_X = matching.outerSize();
     for (int u = 0; u < n_X; ++u) {
       if (matching(u, y) == 1.0) {
         return u;
@@ -257,8 +246,8 @@ class HungarianOp : public OpKernel {
     return -1;
   }
 
-  int GetMatchedY(int x, const Eigen::MatrixXf& matching) {
-    int n_Y = matching.outerSize();
+  int GetMatchedY(int x, const MatrixXfR& matching) {
+    int n_Y = matching.innerSize();
     for (int v = 0; v < n_Y; ++v) {
       if (matching(x, v) == 1.0) {
         return v;
@@ -267,12 +256,11 @@ class HungarianOp : public OpKernel {
     return -1;
   }
 
-  Eigen::MatrixXf GetEqualityGraph(const Eigen::MatrixXf& weights,
-                                   const Eigen::MatrixXf& cover_x,
-                                   const Eigen::MatrixXf& cover_y) {
-    int n_X = weights.innerSize();
-    int n_Y = weights.outerSize();
-    Eigen::MatrixXf equality = Eigen::MatrixXf::Zero(n_X, n_Y);
+  MatrixXfR GetEqualityGraph(const MatrixXfR& weights, const MatrixXfR& cover_x,
+                             const MatrixXfR& cover_y) {
+    int n_X = weights.outerSize();
+    int n_Y = weights.innerSize();
+    MatrixXfR equality = MatrixXfR::Zero(n_X, n_Y);
     for (int x = 0; x < n_X; ++x) {
       for (int y = 0; y < n_Y; ++y) {
         // LOG(INFO) << "x: " << x << " y: " << y << " cx: " << cover_x(x, 0)
@@ -285,22 +273,29 @@ class HungarianOp : public OpKernel {
     return equality;
   }
 
-  void MinWeightedBipartiteCover(const Eigen::MatrixXf& weights,
-                                 Eigen::MatrixXf* matching,
-                                 Eigen::MatrixXf* cover_x,
-                                 Eigen::MatrixXf* cover_y) {
-    int n_X = weights.innerSize();
-    int n_Y = weights.outerSize();
-    *cover_x = weights.rowwise().maxCoeff();
-    *cover_y = Eigen::MatrixXf::Zero(1, n_Y);
-
-    Eigen::MatrixXf& c_x = *cover_x;
-    Eigen::MatrixXf& c_y = *cover_y;
+  void MinWeightedBipartiteCover(const MatrixXfR& weights, MatrixXfR* matching,
+                                 MatrixXfR* cover_x, MatrixXfR* cover_y) {
+    int n_X = weights.outerSize();
+    int n_Y = weights.innerSize();
+    MatrixXfR maxCoeff = weights.rowwise().maxCoeff();
+    MatrixXfR& c_x = *cover_x;
+    MatrixXfR& c_y = *cover_y;
+    MatrixXfR& M = *matching;
+    for (int x = 0; x < n_X; ++x) {
+      c_x(x, 0) = maxCoeff(x, 0);
+    }
+    for (int y = 0; y < n_Y; ++y) {
+      c_y(0, y) = 0.0f;
+    }
+    for (int x = 0; x < n_X; ++x) {
+      for (int y = 0; y < n_Y; ++y) {
+        M(x, y) = 0.0f;
+      }
+    }
     // LOG(INFO) << "initial cover x: \n" << c_x;
     // LOG(INFO) << "initial cover y: \n" << c_y;
 
-    Eigen::MatrixXf& M = *matching;
-    Eigen::MatrixXf equality(n_X, n_Y);
+    MatrixXfR equality(n_X, n_Y);
     std::set<int> S;
     std::set<int> T;
     bool next_match = true;
@@ -312,7 +307,7 @@ class HungarianOp : public OpKernel {
       equality = GetEqualityGraph(weights, c_x, c_y);
       // LOG(INFO) << "equality graph: \n" << equality;
       if (next_match) {
-        *matching = MaxBipartiteMatching(equality);
+        MaxBipartiteMatching(equality, matching);
         // LOG(INFO) << "new matching: \n" << M;
         if (IsBipartiteMatchingSaturate(M)) {
           // LOG(INFO) << "found solution, exit";
