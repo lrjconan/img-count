@@ -1,6 +1,7 @@
-import sys
-sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
-sys.path.insert(0, '/u/mren/code/img-count/third_party/tensorflow/_python_build/')
+#import sys
+#sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
+#sys.path.insert(0, '/u/mren/code/img-count/third_party/tensorflow/_python_build/')
+import cslab_environ
 
 import numpy as np
 import tensorflow as tf
