@@ -1,3 +1,7 @@
+import sys
+sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
+sys.path.insert(0, '/u/mren/code/img-count/third_party/tensorflow/_python_build/')
+
 from data_api import mnist
 from utils import logger
 import argparse
@@ -72,7 +76,7 @@ if __name__ == '__main__':
     # m_ae = model.get_autoencoder(opt, sess, train_model)
 
     # Generate reconstruct MNIST digits.
-    num_row = 4
+    num_row = 16
     num_col = opt['timespan']
     f1, axarr = plt.subplots(num_row, num_col)
     x = dataset.test.images[:num_row / 4].reshape(

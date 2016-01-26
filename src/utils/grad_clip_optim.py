@@ -4,7 +4,7 @@ sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0')
 import numpy as np
 import tensorflow as tf
 
-class GradientClipOptimizer(tf.training.optimizer.Optimizer):
+class GradientClipOptimizer(tf.python.training.optimizer.Optimizer):
     """A optimizer wrapper with gradient clipping."""
 
     def __init__(self, optimizer, clip=1.0):

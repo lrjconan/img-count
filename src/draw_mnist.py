@@ -12,6 +12,7 @@ Recurrent Neural Network For Image Generation. ICML 2015.
 
 import sys
 sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
+sys.path.insert(0, '/u/mren/code/img-count/third_party/tensorflow/_python_build/')
 
 from data_api import mnist
 from utils import logger
@@ -732,7 +733,7 @@ def parse_args():
                         type=int, help='Number of steps per checkpoint')
     parser.add_argument('-results', default='../results',
                         help='Model results folder')
-    parser.add_argument('-logs', default='../results',
+    parser.add_argument('-logs', default=None,
                         help='Training curve logs folder')
     parser.add_argument('-localhost', default='localhost',
                         help='Local domain name')
@@ -812,15 +813,16 @@ if __name__ == '__main__':
     exp_logs_folder = os.path.join(logs_folder, model_id)
 
     # Create time series logger
-    train_ce_logger = TimeSeriesLogger(
-        os.path.join(exp_logs_folder, 'train_ce.csv'), 'train_ce',
-        buffer_size=25)
-    valid_ce_logger = TimeSeriesLogger(
-        os.path.join(exp_logs_folder, 'valid_ce.csv'), 'valid_ce',
-        buffer_size=2)
-    log.info(
-        'Curves can be viewed at: http://{}/visualizer?id={}'.format(
-            args.localhost, model_id))
+    if args.logs:
+        train_ce_logger = TimeSeriesLogger(
+            os.path.join(exp_logs_folder, 'train_ce.csv'), 'train_ce',
+            buffer_size=25)
+        valid_ce_logger = TimeSeriesLogger(
+            os.path.join(exp_logs_folder, 'valid_ce.csv'), 'valid_ce',
+            buffer_size=2)
+        log.info(
+            'Curves can be viewed at: http://{}/visualizer?id={}'.format(
+                args.localhost, model_id))
 
     random = np.random.RandomState(args.seed)
 
@@ -839,7 +841,9 @@ if __name__ == '__main__':
             })
             valid_ce += ce * 100 / 10000.0
         log.info('step {:d}, valid ce {:.4f}'.format(step, valid_ce))
-        valid_ce_logger.add(step, valid_ce)
+
+        if args.logs:
+            valid_ce_logger.add(step, valid_ce)
 
         # Train
         for ii in xrange(500):
@@ -856,7 +860,8 @@ if __name__ == '__main__':
                 ce = r[0]
                 log.info('{:d} train ce {:.4f} t {:.2f}ms'.format(
                     step, ce, (time.time() - tim) * 1000))
-                train_ce_logger.add(step, ce)
+                if args.logs:
+                    train_ce_logger.add(step, ce)
 
             step += 1
 

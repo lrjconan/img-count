@@ -12,6 +12,7 @@ arXiv:1511.08250, 2015.
 
 import sys
 sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
+sys.path.insert(0, '/u/mren/code/img-count/third_party/tensorflow/_python_build/')
 
 from data_api import mnist
 from utils import logger
@@ -183,7 +184,7 @@ def get_model(opt, device='/cpu:0', train=True):
         obj[t] = tf.sigmoid(tf.matmul(hpool4, w_6) + b_6)
 
     # Loss function
-    
+    segm_gt = tf.placeholder()
 
 
     pass
