@@ -9,10 +9,7 @@ Reference:
 [1] K. Gregor, I. Danihelka, A. Grabes, D.J. Rezende, D. Wierstra. DRAW: A
 Recurrent Neural Network For Image Generation. ICML 2015.
 """
-
-import sys
-sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
-sys.path.insert(0, '/u/mren/code/img-count/third_party/tensorflow/_python_build/')
+import cslab_environ
 
 from data_api import mnist
 from utils import logger

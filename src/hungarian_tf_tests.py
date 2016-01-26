@@ -1,6 +1,3 @@
-#import sys
-#sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
-#sys.path.insert(0, '/u/mren/code/img-count/third_party/tensorflow/_python_build/')
 import cslab_environ
 
 import numpy as np
@@ -24,6 +21,9 @@ class HungarianTests(unittest.TestCase):
         M_t = np.array([[1, 0, 0],
                         [0, 1, 0],
                         [0, 0, 1]])
+        print M
+        print c_0
+        print c_1
         self.assertTrue((c_0.flatten() == c_0_t.flatten()).all())
         self.assertTrue((c_1.flatten() == c_1_t.flatten()).all())
         self.assertTrue((M == M_t).all())
@@ -44,6 +44,9 @@ class HungarianTests(unittest.TestCase):
         M_t = np.array([[1, 0, 0, 0],
                         [0, 0, 1, 0],
                         [0, 0, 0, 1]])
+        print M
+        print c_0
+        print c_1
         self.assertTrue((c_0.flatten() == c_0_t.flatten()).all())
         self.assertTrue((c_1.flatten() == c_1_t.flatten()).all())
         self.assertTrue((M == M_t).all())
@@ -64,6 +67,9 @@ class HungarianTests(unittest.TestCase):
         M_t = np.array([[0, 1, 0, 0],
                         [1, 0, 0, 0],
                         [0, 0, 1, 0]])
+        print M
+        print c_0
+        print c_1
         self.assertTrue((c_0.flatten() == c_0_t.flatten()).all())
         self.assertTrue((c_1.flatten() == c_1_t.flatten()).all())
         self.assertTrue((M == M_t).all())
@@ -84,6 +90,9 @@ class HungarianTests(unittest.TestCase):
         M_t = np.array([[0, 0, 1],
                         [1, 0, 0],
                         [0, 1, 0]])
+        print M
+        print c_0
+        print c_1
         self.assertTrue((c_0.flatten() == c_0_t.flatten()).all())
         self.assertTrue((c_1.flatten() == c_1_t.flatten()).all())
         self.assertTrue((M == M_t).all())

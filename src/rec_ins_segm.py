@@ -9,10 +9,7 @@ Reference:
 [1] B. Romera-Paredes, P. Torr. Recurrent Instance Segmentation. arXiv preprint
 arXiv:1511.08250, 2015.
 """
-
-import sys
-sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
-sys.path.insert(0, '/u/mren/code/img-count/third_party/tensorflow/_python_build/')
+import cslab_environ
 
 from data_api import mnist
 from utils import logger
@@ -112,6 +109,21 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
     return unroll
 
 
+def iou(a, b):
+    return tf.reduce_sum(tf.logical_and(a, b)) / tf.reduce_sum(tf.logical_or(a, b))
+
+def batch_iou(A, B):
+    result_0 = tf.zeros([1, 1])
+    A_shape = tf.shape(A, name='A_shape')
+    B_shape = tf.shape(B, name='B_shape')
+    num_ex_A = A_shape[0: 1]
+    num_ex_B = B_shape[0: 1]
+    num_ex_mul = tf.concat(0, [num_ex_A, num_ex_B])
+    result = tf.tile(result_0, num_ex_mul)
+    
+
+
+
 def get_model(opt, device='/cpu:0', train=True):
     """Get model."""
     m = {}
@@ -122,10 +134,12 @@ def get_model(opt, device='/cpu:0', train=True):
     conv_lstm_hid_depth = opt['conv_lstm_hid_depth']
     wd = opt['weight_decay']
 
+    x = tf.placeholder('float', [None, inp_width, inp_height, 3])
+
     # 1st convolution layer
     w_conv1 = weight_variable([3, 3, 3, 16])
     b_conv1 = weight_variable([16])
-    h_conv1 = tf.nn.relu(conv2d(inp, w_conv1) + b_conv1)
+    h_conv1 = tf.nn.relu(conv2d(x, w_conv1) + b_conv1)
     h_pool1 = max_pool_2x2(h_conv1)
 
     # 2nd convolution layer
@@ -184,8 +198,8 @@ def get_model(opt, device='/cpu:0', train=True):
         obj[t] = tf.sigmoid(tf.matmul(hpool4, w_6) + b_6)
 
     # Loss function
-    segm_gt = tf.placeholder()
-
+    y_gt = tf.placeholder('float', [None, None, inp_height, inp_width])
+    # y_gt_list = 
 
     pass
 
