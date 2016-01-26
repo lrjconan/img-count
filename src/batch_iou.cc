@@ -2,9 +2,6 @@
 // Input is two 4-d tensors [B, N, H, W], [B, M, H, W].
 // Output is 3-d tensor [B, N, M].
 
-#include <deque>
-#include <iostream>
-#include <limits>
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/platform/logging.h"
@@ -55,8 +52,8 @@ class BatchIouOp : public OpKernel {
     int B = pred_tensor.shape().dim_size(0);
     int N = pred_tensor.shape().dim_size(1);
     int M = gt_tensor.shape().dim_size(1);
-    auto pred = pred_tensor.tensor<float, 4>();
-    auto gt = gt_tensor.tensor<float, 4>();
+    const auto& pred = pred_tensor.tensor<float, 4>();
+    const auto& gt = gt_tensor.tensor<float, 4>();
     int H = pred_tensor.shape().dim_size(2);
     int W = pred_tensor.shape().dim_size(3);
     auto output = output_tensor->tensor<float, 3>();

@@ -84,10 +84,9 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
                           name='b_u_{}'.format(name))
     w_xo = weight_variable([filter_size, filter_size, inp_depth, hid_depth],
                            name='w_xo_{}'.format(name))
-    w_ho = weight_variable([filter_size, filter_size, hid_depth, hid_depth],
+    w_ho = weight_variable([filter_size, filter_size, hid_depth, hid_depth], 
                            name='w_ho_{}'.format(name))
-    b_o = weight_variable([hid_depth],
-                          name='b_o_{}'.format(name))
+    b_o = weight_variable([hid_depth], name='b_o_{}'.format(name))
 
     def unroll(inp, time):
         g_i[t] = tf.sigmoid(conv2d(inp, w_xi) + conv2d(h[t - 1], w_hi) + b_i)
@@ -112,6 +111,7 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
 def iou(a, b):
     return tf.reduce_sum(tf.logical_and(a, b)) / tf.reduce_sum(tf.logical_or(a, b))
 
+
 def batch_iou(A, B):
     result_0 = tf.zeros([1, 1])
     A_shape = tf.shape(A, name='A_shape')
@@ -120,8 +120,6 @@ def batch_iou(A, B):
     num_ex_B = B_shape[0: 1]
     num_ex_mul = tf.concat(0, [num_ex_A, num_ex_B])
     result = tf.tile(result_0, num_ex_mul)
-    
-
 
 
 def get_model(opt, device='/cpu:0', train=True):
@@ -198,8 +196,10 @@ def get_model(opt, device='/cpu:0', train=True):
         obj[t] = tf.sigmoid(tf.matmul(hpool4, w_6) + b_6)
 
     # Loss function
+    y_out = 
+    s_out = tf.concat()
     y_gt = tf.placeholder('float', [None, None, inp_height, inp_width])
-    # y_gt_list = 
+    # y_gt_list =
 
     pass
 

@@ -18,7 +18,7 @@ def augment(G, F, R):
     """
     # Number of vertices.
     n = R.shape[0]
-    
+
     # Vertex index of s.
     s = 0
     # Vertex index of t.
@@ -72,8 +72,8 @@ def augment(G, F, R):
 def max_flow(G):
     """Calculates the max flow for any graph.
 
-    Args:
-        G: numpy.ndarray, [n, n], edge weight matrix (upper triangular).
+    Args: 
+        G: numpy.ndarray, [n, n], edge weight matrix (upper triangular). 
     Returns:
         F: numpy.ndarray, [n, n], flow matrix (upper triangular).
     """
@@ -240,7 +240,7 @@ def min_weighted_bp_cover(W):
                 log.info('update cover')
                 # a = np.abs(c_0).max() + np.abs(c_1).max() + np.abs(W).max()
                 # Maximum single precision float.
-                a = 3.4028234e38;
+                a = 3.4028234e38
                 for x in S:
                     for y in xrange(n_Y):
                         if y not in T:
