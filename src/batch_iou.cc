@@ -1,5 +1,5 @@
 // Computes IOU score in batch.
-// Input is two 4-D matrix [B, N, H, W], [B, M, H, W].
+// Input is two 4-d tensors [B, N, H, W], [B, M, H, W].
 // Output is 3-d tensor [B, N, M].
 
 #include <deque>
