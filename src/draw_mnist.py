@@ -804,13 +804,14 @@ if __name__ == '__main__':
     model_id = timestr = '{}-{:04d}{:02d}{:02d}{:02d}{:02d}{:02d}'.format(
         task_name, time_obj.year, time_obj.month, time_obj.day,
         time_obj.hour, time_obj.minute, time_obj.second)
+    
     results_folder = args.results
     logs_folder = args.logs
     exp_folder = os.path.join(results_folder, model_id)
-    exp_logs_folder = os.path.join(logs_folder, model_id)
 
     # Create time series logger
     if args.logs:
+        exp_logs_folder = os.path.join(logs_folder, model_id)
         train_ce_logger = TimeSeriesLogger(
             os.path.join(exp_logs_folder, 'train_ce.csv'), 'train_ce',
             buffer_size=25)

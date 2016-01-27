@@ -37,10 +37,10 @@ def max_pool_2x2(x):
                           strides=[1, 2, 2, 1], padding='SAME')
 
 
-def max_pool_4x4(x):
-    """4 x 4 max pooling."""
-    return tf.nn.max_pool(x, ksize=[1, 4, 4, 1],
-                          strides=[1, 4, 4, 1], padding='SAME')
+def avg_pool_8x8(x):
+    """8 x 8 avg pooling."""
+    return tf.nn.avg_pool(x, ksize=[1, 8, 8, 1],
+                          strides=[1, 8, 8, 1], padding='SAME')
 
 
 def weight_variable(shape, wd=None, name=None):
@@ -84,7 +84,7 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
                           name='b_u_{}'.format(name))
     w_xo = weight_variable([filter_size, filter_size, inp_depth, hid_depth],
                            name='w_xo_{}'.format(name))
-    w_ho = weight_variable([filter_size, filter_size, hid_depth, hid_depth], 
+    w_ho = weight_variable([filter_size, filter_size, hid_depth, hid_depth],
                            name='w_ho_{}'.format(name))
     b_o = weight_variable([hid_depth], name='b_o_{}'.format(name))
 
@@ -108,18 +108,41 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
     return unroll
 
 
-def iou(a, b):
-    return tf.reduce_sum(tf.logical_and(a, b)) / tf.reduce_sum(tf.logical_or(a, b))
+def bce(y_out, y_gt):
+    """
+    Binary cross entropy.
+
+    Args:
+        y_out:
+        y_gt:
+    """
+    eps = 1e-7
+    return -y_gt * tf.log(y_out + eps) - (1 - y_gt) * tf.log(1 - y_out + eps)
 
 
-def batch_iou(A, B):
-    result_0 = tf.zeros([1, 1])
-    A_shape = tf.shape(A, name='A_shape')
-    B_shape = tf.shape(B, name='B_shape')
-    num_ex_A = A_shape[0: 1]
-    num_ex_B = B_shape[0: 1]
-    num_ex_mul = tf.concat(0, [num_ex_A, num_ex_B])
-    result = tf.tile(result_0, num_ex_mul)
+def ins_segm_loss(y_out, y_gt, s_out, s_gt, r):
+    """
+    Instance segmentation loss.
+
+    Args:
+        y_out: [B, N, H, W], output segmentations.
+        y_gt: [B, M, H, W], groundtruth segmentations.
+        s: [B, N], confidence score.
+        r: float, mixing coefficient for combining segmentation loss and 
+        confidence score loss.
+    """
+    # IOU score, [B, N, M]
+    iou = tf.user_ops.batch_iou(y_out, y_gt)
+    # Matching score, [B, N, M]
+    delta = tf.user_ops.hungarian(iou)
+    # 
+    y_gt_shape = tf.shape(y_gt)
+    num_segm = tf.reshapey_gt_shape[1: 2]
+    num_segm_mul = tf.concat(0, [tf.constant([1]), tf.constant([1]), num_segm])
+    
+    # [B, N] => [B, N, M]
+    s_rep = tf.tile(tf.expand_dims(tf.cum_min(s_out), dim=3), num_segm_mul)
+    return -tf.reduce_sum(iou * delta * s_gt) + r * bce(delta, s_rep)
 
 
 def get_model(opt, device='/cpu:0', train=True):
@@ -132,7 +155,14 @@ def get_model(opt, device='/cpu:0', train=True):
     conv_lstm_hid_depth = opt['conv_lstm_hid_depth']
     wd = opt['weight_decay']
 
-    x = tf.placeholder('float', [None, inp_width, inp_height, 3])
+    # Input image, [B, H, W, 3]
+    x = tf.placeholder('float', [None, inp_height, inp_width, 3])
+    # Groundtruth segmentation maps, [B, T, H, W]
+    y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
+    # Groundtruth confidence score, [B, T]
+    s_gt = tf.placeholder('float', [None, timespan])
+
+    y_gt_list = tf.split(1, timespan, y_gt)
 
     # 1st convolution layer
     w_conv1 = weight_variable([3, 3, 3, 16])
@@ -182,6 +212,7 @@ def get_model(opt, device='/cpu:0', train=True):
 
     h_conv4 = [None] * timespan
     segm_lo = [None] * timespan
+    segm_gt_lo = [None] * timespan
     obj = [None] * timespan
 
     for t in xrange(timespan):
@@ -189,19 +220,42 @@ def get_model(opt, device='/cpu:0', train=True):
 
         # Segmentation network
         h_conv4 = tf.nn.relu(conv2d(h_lstm[t], w_conv4) + b_conv4)
-        segm_lo[t] = tf.sigmoid(tf.log(tf.nn.softmax(h_conv4)) + b_5)
+        segm_lo[t] = tf.expand_dims(tf.siigmoid(
+            tf.log(tf.nn.softmax(h_conv4)) + b_5), dim=1)
+        segm_gt_lo[t] = avg_pool_4x4(tf.reshape(
+            y_gt_list, [-1, inp_height, inp_width, 1]))
 
         # Objectness network
         h_pool4 = max_pool_4x4(h_lstm[t])
-        obj[t] = tf.sigmoid(tf.matmul(hpool4, w_6) + b_6)
+        obj[t] = tf.expand_dims(tf.sigmoid(
+            tf.matmul(hpool4, w_6) + b_6), dim=1)
 
     # Loss function
-    y_out = 
-    s_out = tf.concat()
-    y_gt = tf.placeholder('float', [None, None, inp_height, inp_width])
-    # y_gt_list =
+    y_out = tf.concat(1, segm_lo)
+    y_gt = tf.concat(1, segm_gt_lo)
+    s_out = tf.concat(1, obj)
+    # Subsample groundtruth
 
-    pass
+    segm_gt = tf.placeholder('float', [None, out_size, out_size])
+    segm_gt_reshape = tf.reshape(y_gt_list, [-1, out_size, out_size, 1])
+
+    if opt['output_downsample'] > 1:
+        segm_gt_lo = avg_pool_4x4(segm_gt_reshape)
+    else:
+        segm_gt_lo = segm_gt_reshape
+    y_gt = tf.placeholder('float', [None, None, inp_height, inp_width])
+
+    r = 1.0
+    loss = ins_segm_loss(y_out, y_gt, s_out, s_gt, r)
+    m['loss'] = loss
+    tf.add_to_collection('losses', loss)
+
+    train_step = GradientClipOptimizer(
+        tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(
+        total_loss)
+    m['train_step'] = train_step
+
+    return m
 
 
 def save_ckpt(folder, sess, opt, global_step=None):
