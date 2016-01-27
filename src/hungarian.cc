@@ -140,7 +140,8 @@ class HungarianOp : public OpKernel {
     int n = capacity.outerSize();
     MatrixXfR flow = MatrixXfR::Zero(n, n);
     MatrixXfR residual(capacity);
-    while (Augment(capacity, flow, residual));
+    while (Augment(capacity, flow, residual))
+      ;
 
     return flow;
   }

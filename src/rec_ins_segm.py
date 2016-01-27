@@ -120,29 +120,49 @@ def bce(y_out, y_gt):
     return -y_gt * tf.log(y_out + eps) - (1 - y_gt) * tf.log(1 - y_out + eps)
 
 
-def ins_segm_loss(y_out, y_gt, s_out, s_gt, r):
+def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
     """
     Instance segmentation loss.
 
     Args:
         y_out: [B, N, H, W], output segmentations.
         y_gt: [B, M, H, W], groundtruth segmentations.
-        s: [B, N], confidence score.
+        s_out: [B, N], output confidence score.
+        s_gt: [B. M], groundtruth confidence score.
         r: float, mixing coefficient for combining segmentation loss and 
         confidence score loss.
     """
     # IOU score, [B, N, M]
     iou = tf.user_ops.batch_iou(y_out, y_gt)
+    model['iou'] = iou
     # Matching score, [B, N, M]
     delta = tf.user_ops.hungarian(iou)
-    # 
+    model['delta'] = delta
+
+    # [1, N, 1]
+    y_out_shape = tf.shape(y_out)
+    num_segm_out = y_out_shape[1: 2]
+    num_segm_out_mul = tf.concat(
+        0, [tf.constant([1]), num_segm_out, tf.constant([1])])
+    # [B, M] => [B, 1, M] => [B, N, M]
+    s_gt_rep = tf.tile(tf.expand_dims(s_gt, dim=1), num_segm_out_mul)
+
+    # [1, M, 1]
     y_gt_shape = tf.shape(y_gt)
-    num_segm = tf.reshapey_gt_shape[1: 2]
-    num_segm_mul = tf.concat(0, [tf.constant([1]), tf.constant([1]), num_segm])
-    
-    # [B, N] => [B, N, M]
-    s_rep = tf.tile(tf.expand_dims(tf.cum_min(s_out), dim=3), num_segm_mul)
-    return -tf.reduce_sum(iou * delta * s_gt) + r * bce(delta, s_rep)
+    num_segm_gt = y_gt_shape[1: 2]
+    num_segm_gt_mul = tf.concat(
+        0, [tf.constant([1]), tf.constant([1]), num_segm_gt])
+    # [B, N] => [B, N, 1] => [B, N, M]
+    s_out_min_rep = tf.tile(tf.expand_dims(
+        tf.user_ops.cum_min(s_out), dim=2), num_segm_gt_mul)
+
+    # [B, N, M] => scalar
+    segm_loss = -tf.reduce_sum(iou * delta * s_gt_rep)
+    conf_loss = tf.reduce_sum(r * s_gt_rep * bce(delta, s_out_min_rep))
+    loss = segm_loss + conf_loss
+    model['loss'] = loss
+
+    pass
 
 
 def get_model(opt, device='/cpu:0', train=True):
@@ -246,13 +266,12 @@ def get_model(opt, device='/cpu:0', train=True):
     y_gt = tf.placeholder('float', [None, None, inp_height, inp_width])
 
     r = 1.0
-    loss = ins_segm_loss(y_out, y_gt, s_out, s_gt, r)
-    m['loss'] = loss
+    _add_ins_segm_loss(y_out, y_gt, s_out, s_gt, r)
+    loss = m['loss']
     tf.add_to_collection('losses', loss)
 
     train_step = GradientClipOptimizer(
-        tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(
-        total_loss)
+        tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(loss)
     m['train_step'] = train_step
 
     return m

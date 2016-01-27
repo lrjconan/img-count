@@ -1,5 +1,4 @@
-import sys
-sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
+import cslab_environ
 
 from utils import logger
 from utils.batch_iter import BatchIterator
@@ -207,7 +206,8 @@ if __name__ == '__main__':
         for start, end in BatchIterator(num_ex, batch_size=32):
             ib = inp[start: end]
             lb = label[start: end]
-            r = sess.run([m['train_step'], m['ce'], m['acc']], feed_dict={m['inp']: ib, m['label']: lb})
+            r = sess.run([m['train_step'], m['ce'], m['acc']],
+                         feed_dict={m['inp']: ib, m['label']: lb})
             ce = r[1]
             acc = r[2]
             log.info('Step: {}, CE: {:.4f}, Acc: {:.4f}'.format(step, ce, acc))

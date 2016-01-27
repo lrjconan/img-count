@@ -740,6 +740,11 @@ def parse_args():
                         help='GPU ID, default CPU')
     parser.add_argument('-seed', default=100, type=int,
                         help='Training seed')
+    parser.add_argument('-filter_size_r', default=2, type=int,
+                        help='Read filter size')
+    parser.add_argument('-filter_size_w', default=5, type=int,
+                        help='Write filter size')
+    
     args = parser.parse_args()
 
     return args
@@ -766,8 +771,8 @@ if __name__ == '__main__':
         'inp_height': 28,
         'inp_width': 28,
         'timespan': 64,
-        'filter_size_r': 2,
-        'filter_size_w': 5,
+        'filter_size_r': args.filter_size_r,
+        'filter_size_w': args.filter_size_w,
         'hid_enc_dim': 256,
         'hid_dim': 100,
         'hid_dec_dim': 256,
@@ -804,7 +809,7 @@ if __name__ == '__main__':
     model_id = timestr = '{}-{:04d}{:02d}{:02d}{:02d}{:02d}{:02d}'.format(
         task_name, time_obj.year, time_obj.month, time_obj.day,
         time_obj.hour, time_obj.minute, time_obj.second)
-    
+
     results_folder = args.results
     logs_folder = args.logs
     exp_folder = os.path.join(results_folder, model_id)
