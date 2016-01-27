@@ -823,6 +823,9 @@ if __name__ == '__main__':
         valid_ce_logger = TimeSeriesLogger(
             os.path.join(exp_logs_folder, 'valid_ce.csv'), 'valid_ce',
             buffer_size=2)
+        step_time_logger = TimeSeriesLogger(
+            os.path.join(exp_logs_folder, 'step_time.csv'), 'step time (ms)',
+            buffer_size=25)
         log.info(
             'Curves can be viewed at: http://{}/visualizer?id={}'.format(
                 args.localhost, model_id))
@@ -861,10 +864,12 @@ if __name__ == '__main__':
             })
             if step % 10 == 0:
                 ce = r[0]
+                step_time = (time.time() - tim) * 1000
                 log.info('{:d} train ce {:.4f} t {:.2f}ms'.format(
-                    step, ce, (time.time() - tim) * 1000))
+                    step, ce, step_time))
                 if args.logs:
                     train_ce_logger.add(step, ce)
+                    step_time_logger.add(step, step_time)
 
             step += 1
 
