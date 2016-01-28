@@ -99,6 +99,39 @@ class HungarianTests(unittest.TestCase):
 
         pass
 
+    def test_min_weighted_bp_cover_5(self):
+        W = np.array([
+                      [[5, 0, 2],
+                       [3, 1, -2],
+                       [0, 5, 0]],
+
+                      [[3, 2, 2],
+                       [1, 2, 0],
+                       [2, 2, 1]]
+                    ])
+        M, c_0, c_1 = tf.user_ops.hungarian(W)
+        with tf.Session() as sess:
+            M = M.eval()
+            c_0 = c_0.eval()
+            c_1 = c_1.eval()
+        c_0_t = np.array([[2, 0, 4], [2, 1, 1]])
+        c_1_t = np.array([[3, 1, 0], [1, 1, 0]])
+        M_t = np.array([[[0, 0, 1],
+                         [1, 0, 0],
+                         [0, 1, 0]],
+                        [[1, 0, 0],
+                         [0, 1, 0],
+                         [0, 0, 1]]])
+        print M
+        print c_0
+        print c_1
+        self.assertTrue((c_0.flatten() == c_0_t.flatten()).all())
+        self.assertTrue((c_1.flatten() == c_1_t.flatten()).all())
+        self.assertTrue((M == M_t).all())
+
+        pass
+
+
 if __name__ == '__main__':
     suite = unittest.TestLoader().loadTestsFromTestCase(HungarianTests)
     unittest.TextTestRunner(verbosity=2).run(suite)

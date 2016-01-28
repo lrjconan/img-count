@@ -6,7 +6,7 @@ Author: Mengye Ren (mren@cs.toronto.edu)
 Usage: python vae_mnist.py
 
 Reference:
-[1] D.P. Kingma, M. Welling. Auto-Encoding Variational Bayes. ICLR 2014.
+[1] D.P. Kingma, M. Welling. Auto-encoding variational Bayes. ICLR 2014.
 """
 
 import sys

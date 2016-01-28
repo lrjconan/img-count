@@ -7,7 +7,7 @@ Usage:
 
 Reference:
 [1] K. Gregor, I. Danihelka, A. Grabes, D.J. Rezende, D. Wierstra. DRAW: A
-Recurrent Neural Network For Image Generation. ICML 2015.
+recurrent neural network for image generation. ICML 2015.
 """
 import cslab_environ
 
