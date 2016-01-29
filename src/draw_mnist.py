@@ -745,7 +745,7 @@ def parse_args():
                         help='Read filter size')
     parser.add_argument('-filter_size_w', default=5, type=int,
                         help='Write filter size')
-    parser.add_argument('-w_kl', default=1, type=flaot,
+    parser.add_argument('-w_kl', default=1, type=float,
                         help='Mixing ratio of KL divergence')
     
     args = parser.parse_args()
