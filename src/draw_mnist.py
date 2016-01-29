@@ -809,9 +809,7 @@ if __name__ == '__main__':
         step = 0
 
     m = get_model(opt, device=device)
-
     sess = tf.Session()
-
     saver = tf.train.Saver(tf.all_variables())
 
     if args.restore:

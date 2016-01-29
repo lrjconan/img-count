@@ -12,7 +12,9 @@ arXiv:1511.08250, 2015.
 import cslab_environ
 
 from data_api import mnist
+from tensorflow.python.framework import ops
 from utils import logger
+from utils import saver
 from utils.grad_clip_optim import GradientClipOptimizer
 from utils.time_series_logger import TimeSeriesLogger
 import argparse
@@ -20,13 +22,64 @@ import datetime
 import numpy as np
 import os
 import pickle as pkl
+import syncount_gen_data as data
 import tensorflow as tf
 import time
 
 log = logger.get()
 
 
-def conv2d(x, w):
+def get_dataset(opt, num_train, num_valid):
+    """Get train-valid split dataset for instance segmentation.
+
+    Args:
+        opt
+        num_train
+        num_valid
+    Returns:
+        dataset
+            train
+            valid
+    """
+    dataset = {}
+    opt['num_examples'] = num_train
+    raw_data = data.get_raw_data(opt, seed=2)
+    image_data = data.get_image_data(opt, raw_data)
+    segm_data = data.get_instance_segmentation_data(opt, image_data)
+    dataset['train'] = segm_data
+
+    opt['num_examples'] = num_valid
+    raw_data = data.get_raw_data(opt, seed=3)
+    image_data = data.get_image_data(opt, raw_data)
+    segm_data = data.get_instance_segmentation_data(opt, image_data)
+    dataset['valid'] = segm_data
+
+    return dataset
+
+
+def _get_batch_fn(dataset):
+    """
+    Preprocess mini-batch data given start and end indices.
+    """
+    def get_batch(start, end):
+        x_bat = dataset['input'][start: end]
+        y_bat = dataset['label_segmentation'][start: end]
+        s_bat = dataset['label_segmentation'][start: end]
+        x_bat, y_bat, s_bat = preprocess(x_bat, y_bat, s_bat)
+
+        return x_bat, y_bat, s_bat
+
+    return get_batch
+
+
+def preprocess(inp, label_segmentation, label_score):
+    """Preprocess training data."""
+    return (inp.astype('float32') / 255,
+            label_segmentation.astype('float32'),
+            label_score.astype('float32'))
+
+
+def _conv2d(x, w):
     """2-D convolution."""
     return tf.nn.conv2d(x, w, strides=[1, 1, 1, 1], padding='SAME')
 
@@ -38,7 +91,7 @@ def _max_pool_2x2(x):
 
 
 def _avg_pool_8x8(x):
-    """8 x 8 avg pooling."""
+    """g_i8 x 8 avg pooling."""
     return tf.nn.avg_pool(x, ksize=[1, 8, 8, 1],
                           strides=[1, 8, 8, 1], padding='SAME')
 
@@ -89,10 +142,12 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
     b_o = _weight_variable([hid_depth], name='b_o_{}'.format(name))
 
     def unroll(inp, time):
-        g_i[t] = tf.sigmoid(conv2d(inp, w_xi) + conv2d(h[t - 1], w_hi) + b_i)
-        g_f[t] = tf.sigmoid(conv2d(inp, w_xf) + conv2d(h[t - 1], w_hf) + b_f)
-        g_o[t] = tf.sigmoid(conv2d(inp, w_xo) + conv2d(h[t - 1], w_ho) + b_o)
-        u[t] = tf.tanh(conv2d(inp, w_xu) + conv2d(h[t - 1], w_hu) + b_u)
+        t = time
+        log.info(inp.get_shape())
+        g_i[t] = tf.sigmoid(_conv2d(inp, w_xi) + _conv2d(h[t - 1], w_hi) + b_i)
+        g_f[t] = tf.sigmoid(_conv2d(inp, w_xf) + _conv2d(h[t - 1], w_hf) + b_f)
+        g_o[t] = tf.sigmoid(_conv2d(inp, w_xo) + _conv2d(h[t - 1], w_ho) + b_o)
+        u[t] = tf.tanh(_conv2d(inp, w_xu) + _conv2d(h[t - 1], w_hu) + b_u)
         c[t] = g_f[t] * c[t - 1] + g_i[t] * u[t]
         h[t] = g_o[t] * tf.tanh(c[t])
 
@@ -106,6 +161,27 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
     model['h_{}'.format(name)] = h
 
     return unroll
+
+
+# Register gradient for Hungarian algorithm.
+ops.NoGradient("Hungarian")
+
+
+# Register gradient for cumulative minimum operation.
+@ops.RegisterGradient("CumMin")
+def _cum_min_grad(op, grad):
+    """The gradients for `cum_min`.
+
+    Args:
+        op: The `cum_min` `Operation` that we are differentiating, which we can
+        use to find the inputs and outputs of the original op.
+        grad: Gradient with respect to the output of the `cum_min` op.
+
+    Returns:
+        Gradients with respect to the input of `cum_min`.
+    """
+    x = op.inputs[0]
+    return [tf.user_ops.cum_min_grad(grad, x)]
 
 
 def _bce(y_out, y_gt):
@@ -162,7 +238,7 @@ def _f_iou(a, b, pairwise=False):
         b: [B, N, H, W], or [N, H, W], or [H, W]
            in pairwise mode, the second dimension can be different,
            e.g. [B, M, H, W], or [M, H, W], or [H, W]
-        pariwise: whether the inputs are already aligned, outputs [B, N] or 
+        pariwise: whether the inputs are already aligned, outputs [B, N] or
                   the inputs are orderless, outputs [B, N, M].
     """
     if pairwise:
@@ -187,7 +263,7 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
         y_gt: [B, M, H, W], groundtruth segmentations.
         s_out: [B, N], output confidence score.
         s_gt: [B. M], groundtruth confidence score.
-        r: float, mixing coefficient for combining segmentation loss and 
+        r: float, mixing coefficient for combining segmentation loss and
         confidence score loss.
     """
     # IOU score, [B, N, M]
@@ -197,7 +273,7 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
     delta = tf.user_ops.hungarian(iou)
     model['delta'] = delta
 
-    # [1, N, 1]
+    # [1, N, 1, 1]
     y_out_shape = tf.shape(y_out)
     num_segm_out = y_out_shape[1: 2]
     num_segm_out_mul = tf.concat(
@@ -205,7 +281,7 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
     # [B, M] => [B, 1, M] => [B, N, M]
     s_gt_rep = tf.tile(tf.expand_dims(s_gt, dim=1), num_segm_out_mul)
 
-    # [1, M, 1]
+    # [1, M, 1, 1]
     y_gt_shape = tf.shape(y_gt)
     num_segm_gt = y_gt_shape[1: 2]
     num_segm_gt_mul = tf.concat(
@@ -239,26 +315,37 @@ def get_model(opt, device='/cpu:0', train=True):
     y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
     # Groundtruth confidence score, [B, T]
     s_gt = tf.placeholder('float', [None, timespan])
-
     y_gt_list = tf.split(1, timespan, y_gt)
 
     # 1st convolution layer
     w_conv1 = _weight_variable([3, 3, 3, 16])
     b_conv1 = _weight_variable([16])
-    h_conv1 = tf.nn.relu(conv2d(x, w_conv1) + b_conv1)
+    h_conv1 = tf.nn.relu(_conv2d(x, w_conv1) + b_conv1)
     h_pool1 = _max_pool_2x2(h_conv1)
 
     # 2nd convolution layer
     w_conv2 = _weight_variable([3, 3, 16, 32])
     b_conv2 = _weight_variable([32])
-    h_conv2 = tf.nn.relu(conv2d(h_pool1, w_conv2) + b_conv2)
+    h_conv2 = tf.nn.relu(_conv2d(h_pool1, w_conv2) + b_conv2)
     h_pool2 = _max_pool_2x2(h_conv2)
 
     # 3rd convolution layer
     w_conv3 = _weight_variable([3, 3, 32, 64])
     b_conv3 = _weight_variable([64])
-    h_conv3 = tf.nn.relu(conv2d(h_pool2, w_conv3) + b_conv3)
+    h_conv3 = tf.nn.relu(_conv2d(h_pool2, w_conv3) + b_conv3)
     h_pool3 = _max_pool_2x2(h_conv3)
+
+    lstm_depth = 16
+    lstm_inp_height = inp_height / 8
+    lstm_inp_width = inp_width / 8
+    c_init_0 = tf.zeros([1, lstm_inp_height, lstm_inp_width, lstm_depth])
+    h_init_0 = tf.zeros([1, lstm_inp_height, lstm_inp_width, lstm_depth])
+
+    x_shape = tf.shape(x)
+    num_ex = x_shape[0: 1]
+    num_ex_mul = tf.concat(0, [num_ex, tf.constant([1, 1, 1])])
+    h_init = tf.tile(h_init_0, num_ex_mul, name='h_init')
+    c_init = tf.tile(c_init_0, num_ex_mul, name='c_init')
 
     w_conv4 = _weight_variable([3, 3, 16, 1])
     b_conv4 = _weight_variable([1])
@@ -266,12 +353,6 @@ def get_model(opt, device='/cpu:0', train=True):
 
     w_6 = _weight_variable([inp_width / 32 * inp_height / 32, 1])
     b_6 = _weight_variable([1])
-
-    lstm_depth = 16
-    lstm_inp_height = inp_height / 8
-    lstm_inp_width = inp_width / 8
-    c_init = tf.zeros([lstm_inp_height, lstm_inp_width, lstm_depth])
-    h_init = tf.zeros([lstm_inp_height, lstm_inp_width, lstm_depth])
 
     unroll_conv_lstm = _add_conv_lstm(
         model=m,
@@ -291,37 +372,44 @@ def get_model(opt, device='/cpu:0', train=True):
     h_conv4 = [None] * timespan
     segm_lo = [None] * timespan
     segm_gt_lo = [None] * timespan
-    obj = [None] * timespan
+    score = [None] * timespan
 
     for t in xrange(timespan):
+        # We can potentially have another canvas that substract this one.
         unroll_conv_lstm(h_pool3, time=t)
 
         # Segmentation network
-        h_conv4 = tf.nn.relu(conv2d(h_lstm[t], w_conv4) + b_conv4)
-        segm_lo[t] = tf.expand_dims(tf.siigmoid(
-            tf.log(tf.nn.softmax(h_conv4)) + b_5), dim=1)
-        segm_gt_lo[t] = avg_pool_4x4(tf.reshape(
-            y_gt_list, [-1, inp_height, inp_width, 1]))
+        # [B, LH, LW, 1]
+        h_conv4 = tf.nn.relu(_conv2d(h_lstm[t], w_conv4) + b_conv4)
+        # [B, LH * LW]
+        h_conv4_reshape = tf.reshape(
+            h_conv4, [-1, lstm_inp_height * lstm_inp_width])
+        # [B, LH * LW] => [B, LH, LW] => [B, 1, LH, LW]
+        segm_lo[t] = tf.expand_dims(tf.sigmoid(
+            tf.log(tf.nn.softmax(h_conv4_reshape)) + b_5), dim=1)
+        # [B, H, W] => [B, 1, LH, LW]
+        # Subsample groundtruth
+        segm_gt_lo[t] = tf.expand_dims(avg_pool_8x8(tf.reshape(
+            y_gt_list[t], [-1, inp_height, inp_width])), dim=1)
 
         # Objectness network
-        h_pool4 = max_pool_4x4(h_lstm[t])
-        obj[t] = tf.expand_dims(tf.sigmoid(
-            tf.matmul(hpool4, w_6) + b_6), dim=1)
+        # [B, LH, LW, 1] => [B, LLH * LLW]
+        h_pool4 = tf.reshape(max_pool_4x4(
+            h_lstm[t]), [-1, lstm_inp_height / 4 * lstm_inp_width / 4])
+        # [B, LLH * LLW] => [B, 1]
+        score[t] = tf.sigmoid(tf.matmul(hpool4, w_6) + b_6)
 
     # Loss function
+    # T * [B, 1, LH, LW] = [B, T, LH, LW]
     y_out = tf.concat(1, segm_lo)
     y_gt = tf.concat(1, segm_gt_lo)
-    s_out = tf.concat(1, obj)
-    # Subsample groundtruth
-
-    segm_gt = tf.placeholder('float', [None, out_size, out_size])
-    segm_gt_reshape = tf.reshape(y_gt_list, [-1, out_size, out_size, 1])
+    # T * [B, 1] = [B, T]
+    s_out = tf.concat(1, score)
 
     if opt['output_downsample'] > 1:
         segm_gt_lo = avg_pool_4x4(segm_gt_reshape)
     else:
         segm_gt_lo = segm_gt_reshape
-    y_gt = tf.placeholder('float', [None, None, inp_height, inp_width])
 
     r = 1.0
     _add_ins_segm_loss(y_out, y_gt, s_out, s_gt, r)
@@ -335,35 +423,74 @@ def get_model(opt, device='/cpu:0', train=True):
     return m
 
 
-def save_ckpt(folder, sess, opt, global_step=None):
-    """Save checkpoint.
-
-    Args:
-        folder:
-        sess:
-        global_step:
-    """
-    if not os.path.exists(folder):
-        os.makedirs(folder)
-    ckpt_path = os.path.join(
-        folder, 'model.ckpt'.format(model_id))
-    log.info('Saving checkpoint to {}'.format(ckpt_path))
-    saver.save(sess, ckpt_path, global_step=global_step)
-    opt_path = os.path.join(folder, 'opt.pkl')
-    with open(opt_path, 'wb') as f_opt:
-        pkl.dump(opt, f_opt)
-
-    pass
-
-
-def parse_args():
+def _parse_args():
     """Parse input arguments."""
+    # Default dataset options
+    # Full image height.
+    kHeight = 224
+    # Full image width.
+    kWidth = 224
+    # Object radius lower bound.
+    kRadiusLower = 5
+    # Object radius upper bound.
+    kRadiusUpper = 20
+    # Object border thickness.
+    kBorderThickness = 2
+    # Number of examples.
+    kNumExamples = 100
+    # Maximum number of objects.
+    kMaxNumObjects = 10
+    # Number of object types, currently support up to three types (circles,
+    # triangles, and squares).
+    kNumObjectTypes = 3
+    # Random window size variance.
+    kSizeVar = 20
+    # Random window center variance.
+    kCenterVar = 20
+    # Resample window size (segmentation output unisize).
+    kOutputWindowSize = 128
+    # Ratio of negative and positive examples for segmentation data.
+    kNegPosRatio = 5
+
+    # Default model options
+    kWeightDecay = 5e-5
+
+    # Default training options
     # Number of steps
     kNumSteps = 500000
     # Number of steps per checkpoint
     kStepsPerCkpt = 1000
+
     parser = argparse.ArgumentParser(
         description='Train DRAW')
+
+    # Dataset options
+    parser.add_argument('-height', default=kHeight, type=int,
+                        help='Image height')
+    parser.add_argument('-width', default=kWidth, type=int,
+                        help='Image width')
+    parser.add_argument('-radius_upper', default=kRadiusUpper, type=int,
+                        help='Radius upper bound')
+    parser.add_argument('-radius_lower', default=kRadiusLower, type=int,
+                        help='Radius lower bound')
+    parser.add_argument('-border_thickness', default=kBorderThickness,
+                        type=int, help='Object border thickness')
+    parser.add_argument('-num_ex', default=kNumExamples, type=int,
+                        help='Number of examples')
+    parser.add_argument('-max_num_objects', default=kMaxNumObjects, type=int,
+                        help='Maximum number of objects')
+    parser.add_argument('-num_object_types', default=kNumObjectTypes, type=int,
+                        help='Number of object types')
+    parser.add_argument('-center_var', default=kCenterVar, type=float,
+                        help='Image patch center variance')
+    parser.add_argument('-size_var', default=kSizeVar, type=float,
+                        help='Image patch size variance')
+
+    # Model options
+    parser.add_argument('-weight_decay', default=kWeightDecay, type=float,
+                        help='Weight L2 regularization.')
+
+    # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
                         type=int, help='Number of steps to train')
     parser.add_argument('-steps_per_ckpt', default=kStepsPerCkpt,
@@ -374,17 +501,17 @@ def parse_args():
                         help='Training curve logs folder')
     parser.add_argument('-localhost', default='localhost',
                         help='Local domain name')
+    parser.add_argument('-restore', default=None,
+                        help='Model save folder to restore from')
     parser.add_argument('-gpu', default=-1, type=int,
                         help='GPU ID, default CPU')
-    parser.add_argument('-seed', default=100, type=int,
-                        help='Training seed')
     args = parser.parse_args()
 
     return args
 
 if __name__ == '__main__':
     # Command-line arguments
-    args = parse_args()
+    args = _parse_args()
     log.log_args()
 
     # Set device
@@ -393,85 +520,131 @@ if __name__ == '__main__':
     else:
         device = '/cpu:0'
 
-    opt = {
-    }
-
     # Train loop options
-    loop_config = {
+    train_opt = {
         'num_steps': args.num_steps,
         'steps_per_ckpt': args.steps_per_ckpt
     }
 
-    # dataset = mnist.read_data_sets("../MNIST_data/", one_hot=True)
+    # Restore previously saved checkpoints.
+    if args.restore:
+        restore_files = saver.restore_ckpt(args.restore)
+        model_opt = restore_files['model_opt']
+        data_opt = restore_files['data_opt']
+        ckpt_fname = restore_files['ckpt_fname']
+        step = restore_files['latest_step']
+    else:
+        log.info('Initializing new model')
+        model_opt = {
+            'inp_height': args.height,
+            'inp_width': args.width,
+            'timespan': args.max_num_objects,
+            'weight_decay': 5e-5,
+            'conv_lstm_filter_size': 5,
+            'conv_lstm_hid_depth': 64
+        }
+        data_opt = {
+            'height': args.height,
+            'width': args.width,
+            'radius_upper': args.radius_upper,
+            'radius_lower': args.radius_lower,
+            'border_thickness': args.border_thickness,
+            'max_num_objects': args.max_num_objects,
+            'num_object_types': args.num_object_types,
+            'center_var': args.center_var,
+            'size_var': args.size_var
+        }
+        step = 0
 
-    m = get_model(opt, device=device)
+    dataset = get_dataset(data_opt, args.num_ex, args.num_ex / 10)
+    m = get_model(model_opt, device=device)
     sess = tf.Session()
-    # sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
-    sess.run(tf.initialize_all_variables())
-    saver = tf.train.Saver(tf.all_variables())
+    tf_saver = tf.train.Saver(tf.all_variables())
 
-    task_name = 'draw_mnist'
+    if args.restore:
+        tf_saver.restore(sess, ckpt_fname)
+    else:
+        sess.run(tf.initialize_all_variables())
+
+    task_name = 'rec_ins_segm'
     time_obj = datetime.datetime.now()
     model_id = timestr = '{}-{:04d}{:02d}{:02d}{:02d}{:02d}{:02d}'.format(
         task_name, time_obj.year, time_obj.month, time_obj.day,
         time_obj.hour, time_obj.minute, time_obj.second)
+
     results_folder = args.results
     logs_folder = args.logs
     exp_folder = os.path.join(results_folder, model_id)
-    exp_logs_folder = os.path.join(logs_folder, model_id)
 
     # Create time series logger
-    train_ce_logger = TimeSeriesLogger(
-        os.path.join(exp_logs_folder, 'train_ce.csv'), 'train_ce',
-        buffer_size=25)
-    valid_ce_logger = TimeSeriesLogger(
-        os.path.join(exp_logs_folder, 'valid_ce.csv'), 'valid_ce',
-        buffer_size=2)
-    log.info(
-        'Curves can be viewed at: http://{}/visualizer?id={}'.format(
-            args.localhost, model_id))
-
-    random = np.random.RandomState(args.seed)
+    if args.logs:
+        exp_logs_folder = os.path.join(logs_folder, model_id)
+        train_loss_logger = TimeSeriesLogger(
+            os.path.join(exp_logs_folder, 'train_loss.csv'), 'train loss',
+            buffer_size=25)
+        valid_loss_logger = TimeSeriesLogger(
+            os.path.join(exp_logs_folder, 'valid_loss.csv'), 'valid loss',
+            buffer_size=2)
+        step_time_logger = TimeSeriesLogger(
+            os.path.join(exp_logs_folder, 'step_time.csv'), 'step time (ms)',
+            buffer_size=25)
+        log.info(
+            'Curves can be viewed at: http://{}/visualizer?id={}'.format(
+                args.localhost, model_id))
 
     step = 0
-    while step < loop_config['num_steps']:
+    num_ex_train = dataset['train']['input'].shape[0]
+    num_ex_val = dataset['valid']['input'].shape[0]
+    get_batch_train = _get_batch_fn(dataset['train'])
+    get_batch_valid = _get_batch_fn(dataset['valid'])
+
+    # Train loop
+    while step < trian_opt['num_steps']:
         # Validation
-        valid_ce = 0
+        valid_loss = 0
         log.info('Running validation')
-        for ii in xrange(100):
-            batch = dataset.test.next_batch(100)
-            x = preprocess(batch[0], opt)
-            u = random.normal(
-                0, 1, [x.shape[0], opt['timespan'], opt['hid_dim']])
-            ce = sess.run(m['ce'], feed_dict={
-                m['x']: x,
-                m['u']: u
+        batch_size_val = 100
+        for x_bat, y_bat, s_bat in BatchIterator(num_ex_val,
+                                                 batch_size=batch_size_val,
+                                                 get_fn=get_batch_valid,
+                                                 progress_bar=False):
+            loss = sess.run(m['loss'], feed_dict={
+                m['x']: x_bat,
+                m['y_gt']: y_bat,
+                m['s_gt']: s_bat
             })
-            valid_ce += ce * 100 / 10000.0
-        log.info('step {:d}, valid ce {:.4f}'.format(step, valid_ce))
-        valid_ce_logger.add(step, valid_ce)
+
+            valid_loss += loss * batch_size_val / float(num_ex_val)
+        log.info('step {:d}, valid loss {:.4f}'.format(step, valid_loss))
+        valid_loss_logger.add(step, valid_loss)
 
         # Train
-        for ii in xrange(500):
-            batch = dataset.train.next_batch(100)
-            x = preprocess(batch[0], opt)
-            u = random.normal(
-                0, 1, [x.shape[0], opt['timespan'], opt['hid_dim']])
-            r = sess.run([m['ce'], m['train_step']], feed_dict={
-                m['x']: x,
-                m['u']: u
+        for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
+                                                 batch_size=32,
+                                                 get_fn=get_batch_train,
+                                                 progress_bar=False):
+            start_time = time.time()
+            r = sess.run([m['loss'], m['train_step']], feed_dict={
+                m['x']: x_bat,
+                m['y_gt']: y_bat,
+                m['s_gt']: s_bat
             })
-            if step % 10 == 0:
-                ce = r[0]
-                log.info('{:d} train ce {:.4f} t {:.2f}ms'.format(
-                    step, ce, (time.time() - st) * 1000))
-                train_ce_logger.add(step, ce)
 
-            step += 1
+            # Print statistics
+            if step % 10 == 0:
+                step_time = (time.time() - start_time) * 1000
+                loss = r[0]
+                log.info('{:d} train loss {:.4f} t {:.2f}ms'.format(
+                    step, loss, step_time))
+                train_loss_logger.add(step, loss)
+                step_time_logger.add(step, step_time)
 
             # Save model
-            if step % args.steps_per_ckpt == 0:
-                save_ckpt(exp_folder, sess, opt, global_step=step)
+            if step % train_opt['steps_per_ckpt'] == 0:
+                saver.save_ckpt(exp_folder, sess, model_opt,
+                                data_opt, global_step=step)
+
+            step += 1
 
     sess.close()
     pass

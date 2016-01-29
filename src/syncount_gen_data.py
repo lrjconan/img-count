@@ -507,6 +507,55 @@ def _plot_segmentation_data(img, segm_label, obj_label, title=''):
     return f, axarr
 
 
+def _image_to_instance_segmentation(opt, image_data_entry):
+    """
+    Convert from image data to instance segmentation training data.
+    """
+    height = opt['height']
+    width = opt['width']
+    timespan = opt['max_num_objects']
+    image = image_data_entry['image']
+    ins_segm = np.zeros([timespan, height, width], dtype='uint8')
+    num_segmentations = len(image_data_entry['segmentations'])
+    for tt, segm in enumerate(image_data_entry['segmentations']):
+        ins_segm[tt] = image_data_entry['segmentations'][tt]
+
+    return {
+        'image': image,
+        'segmentations': ins_segm,
+        'num_segmentations': num_segmentations
+    }
+
+
+def get_instance_segmentation_data(opt, image_data):
+    """
+    Gets instance segmentation data.
+
+    Args:
+        opt
+        image_data
+    """
+    num_ex = len(image_data)
+    height = opt['height']
+    width = opt['width']
+    timespan = opt['max_num_objects']
+    inp = np.zeros([num_ex, height, width, 3], dtype='uint8')
+    label_segmentation = np.zeros(
+        [num_ex, timespan, height, width], dtype='uint8')
+    label_score = np.zeros([num_ex, timespan], dtype='uint8')
+    for ii, image_data_entry in enumerate(image_data):
+        ins_segm = _image_to_instance_segmentation(opt, image_data_entry)
+        inp[ii] = ins_segm['image']
+        label_segmentation[ii] = ins_segm['segmentations']
+        label_score[ii, :ins_segm['num_segmentations']] = 1
+
+    return {
+        'input': inp,
+        'label_segmentation': label_segmentation,
+        'label_score': label_score
+    }
+
+
 def parse_args():
     """Parse input arguments."""
     # Default constants
@@ -608,6 +657,15 @@ if __name__ == '__main__':
     log.info('Segmentation input: {}'.format(segm_data['input'].shape))
     log.info('Segmentation label: {}'.format(
         segm_data['label_segmentation'].shape))
+
+    ins_segm_data = get_instance_segmentation_data(opt, image_data)
+    log.info('Instance segmentation input: {}'.format(
+        ins_segm_data['input'].shape))
+    log.info('Instance segmentation label: {}'.format(
+        ins_segm_data['label_segmentation'].shape))
+    log.info(ins_segm_data['input'][0])
+    log.info(ins_segm_data['label_segmentation'][0][0])
+    log.info(ins_segm_data['label_score'][0])
 
     # Write training data to file.
     if args.output:

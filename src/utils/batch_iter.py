@@ -14,7 +14,7 @@ import progress_bar as pb
 
 class BatchIterator(object):
 
-    def __init__(self, num, batch_size=1, progress_bar=False):
+    def __init__(self, num, batch_size=1, progress_bar=False, get_fn=None):
         """Construct a batch iterator.
 
         Args:
@@ -29,6 +29,7 @@ class BatchIterator(object):
         self._step = 0
         self._num_steps = np.ceil(self._num / batch_size)
         self._pb = None
+        self._get_fn = get_fn
         if progress_bar:
             self._pb = pb.get(num)
 
@@ -50,7 +51,10 @@ class BatchIterator(object):
             start = self._batch_size * self._step
             end = min(self._num, self._batch_size * (self._step + 1))
             self._step += 1
-            return (start, end)
+            if self._get_fn:
+                return self._get_batch_fn(start, end)
+            else
+                return (start, end)
         else:
             raise StopIteration()
 
