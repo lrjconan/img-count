@@ -669,6 +669,7 @@ def get_model(opt, device='/cpu:0', train=True):
             log_pxz_sum = tf.reduce_sum(x * tf.log(x_rec[-1] + eps) +
                                         (1 - x) * tf.log(1 - x_rec[-1] + eps),
                                         name='ce_sum')
+            # w_kl = opt['w_kl']
             w_kl = 1.0
             w_logp = 1.0
 
@@ -744,6 +745,8 @@ def parse_args():
                         help='Read filter size')
     parser.add_argument('-filter_size_w', default=5, type=int,
                         help='Write filter size')
+    parser.add_argument('-w_kl', default=1, type=flaot,
+                        help='Mixing ratio of KL divergence')
     
     args = parser.parse_args()
 
@@ -767,20 +770,6 @@ if __name__ == '__main__':
     else:
         device = '/cpu:0'
 
-    opt = {
-        'inp_height': 28,
-        'inp_width': 28,
-        'timespan': 64,
-        'filter_size_r': args.filter_size_r,
-        'filter_size_w': args.filter_size_w,
-        'hid_enc_dim': 256,
-        'hid_dim': 100,
-        'hid_dec_dim': 256,
-        'weight_decay': 5e-5,
-        'output_dist': 'Bernoulli',
-        'squash': False
-    }
-
     # Train loop options
     loop_config = {
         'num_steps': args.num_steps,
@@ -788,21 +777,47 @@ if __name__ == '__main__':
     }
 
     dataset = mnist.read_data_sets("../MNIST_data/", one_hot=True)
-    m = get_model(opt, device=device)
-    sess = tf.Session()
-    # sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
-    saver = tf.train.Saver(tf.all_variables())
 
     if args.restore:
         log.info('Restoring from {}'.format(args.restore))
+        opt_fname = os.path.join(args.restore, 'opt.pkl')
+
+        # Load model configs.
+        with open(opt_fname, 'rb') as f_opt:
+            opt = pkl.load(f_opt)
+        log.info(opt)
+
         ckpt_fname, latest_step = _get_latest_ckpt(args.restore)
-        saver.restore(sess, ckpt_fname)
         step = latest_step
         log.info('Step {}'.format(step))
     else:
         log.info('Initializing new model')
-        sess.run(tf.initialize_all_variables())
+        opt = {
+            'inp_height': 28,
+            'inp_width': 28,
+            'timespan': 64,
+            'filter_size_r': args.filter_size_r,
+            'filter_size_w': args.filter_size_w,
+            'hid_enc_dim': 256,
+            'hid_dim': 100,
+            'hid_dec_dim': 256,
+            'weight_decay': 5e-5,
+            'output_dist': 'Bernoulli',
+            'squash': False,
+            'w_kl': args.w_kl
+        }
         step = 0
+
+    m = get_model(opt, device=device)
+
+    sess = tf.Session()
+
+    saver = tf.train.Saver(tf.all_variables())
+
+    if args.restore:
+        saver.restore(sess, ckpt_fname)
+    else:
+        sess.run(tf.initialize_all_variables())
 
     task_name = 'draw_mnist'
     time_obj = datetime.datetime.now()

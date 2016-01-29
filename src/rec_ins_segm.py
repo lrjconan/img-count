@@ -31,19 +31,19 @@ def conv2d(x, w):
     return tf.nn.conv2d(x, w, strides=[1, 1, 1, 1], padding='SAME')
 
 
-def max_pool_2x2(x):
+def _max_pool_2x2(x):
     """2 x 2 max pooling."""
     return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
                           strides=[1, 2, 2, 1], padding='SAME')
 
 
-def avg_pool_8x8(x):
+def _avg_pool_8x8(x):
     """8 x 8 avg pooling."""
     return tf.nn.avg_pool(x, ksize=[1, 8, 8, 1],
                           strides=[1, 8, 8, 1], padding='SAME')
 
 
-def weight_variable(shape, wd=None, name=None):
+def _weight_variable(shape, wd=None, name=None):
     """Initialize weights."""
     initial = tf.truncated_normal(shape, stddev=0.01)
     var = tf.Variable(initial, name=name)
@@ -64,29 +64,29 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
     c[-1] = c_init
     h[-1] = h_init
 
-    w_xi = weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                           name='w_xi_{}'.format(name))
-    w_hi = weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                           name='w_hi_{}'.format(name))
-    b_i = weight_variable([hid_depth],
-                          name='b_i_{}'.format(name))
-    w_xf = weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                           name='w_xf_{}'.format(name))
-    w_hf = weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                           name='w_hf_{}'.format(name))
-    b_f = weight_variable([hid_depth],
-                          name='b_f_{}'.format(name))
-    w_xu = weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                           name='w_xu_{}'.format(name))
-    w_hu = weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                           name='w_hu_{}'.format(name))
-    b_u = weight_variable([hid_depth],
-                          name='b_u_{}'.format(name))
-    w_xo = weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                           name='w_xo_{}'.format(name))
-    w_ho = weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                           name='w_ho_{}'.format(name))
-    b_o = weight_variable([hid_depth], name='b_o_{}'.format(name))
+    w_xi = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
+                            name='w_xi_{}'.format(name))
+    w_hi = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
+                            name='w_hi_{}'.format(name))
+    b_i = _weight_variable([hid_depth],
+                           name='b_i_{}'.format(name))
+    w_xf = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
+                            name='w_xf_{}'.format(name))
+    w_hf = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
+                            name='w_hf_{}'.format(name))
+    b_f = _weight_variable([hid_depth],
+                           name='b_f_{}'.format(name))
+    w_xu = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
+                            name='w_xu_{}'.format(name))
+    w_hu = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
+                            name='w_hu_{}'.format(name))
+    b_u = _weight_variable([hid_depth],
+                           name='b_u_{}'.format(name))
+    w_xo = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
+                            name='w_xo_{}'.format(name))
+    w_ho = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
+                            name='w_ho_{}'.format(name))
+    b_o = _weight_variable([hid_depth], name='b_o_{}'.format(name))
 
     def unroll(inp, time):
         g_i[t] = tf.sigmoid(conv2d(inp, w_xi) + conv2d(h[t - 1], w_hi) + b_i)
@@ -108,7 +108,7 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
     return unroll
 
 
-def bce(y_out, y_gt):
+def _bce(y_out, y_gt):
     """
     Binary cross entropy.
 
@@ -118,6 +118,64 @@ def bce(y_out, y_gt):
     """
     eps = 1e-7
     return -y_gt * tf.log(y_out + eps) - (1 - y_gt) * tf.log(1 - y_out + eps)
+
+
+def _get_reduction_indices(a):
+    """
+    Gets the list of axes to sum over.
+    """
+    dim = len(a.get_shape())
+
+    return [dim - 2, dim - 1]
+
+
+def _inter(a, b):
+    """
+    Computes intersection.
+
+    Args:
+        a: [B, N, H, W], or [N, H, W], or [H, W]
+        b: [B, M, H, W], or [M, H, W], or [H, W]
+    """
+    reduction_indices = _get_iou_reduction_indices(a)
+    return tf.reduce_sum(a * b, reduction_indices=reduction_indices)
+
+
+def _union(a, b):
+    """
+    Computes union.
+
+    Args:
+        a: [B, N, H, W], or [N, H, W], or [H, W]
+        b: [B, M, H, W], or [M, H, W], or [H, W]
+    """
+    reduction_indices = _get_iou_reduction_indices(a)
+    return tf.reduce_sum(a + b - (a * b), reduction_indices=reduction_indices)
+
+
+def _f_iou(a, b, pairwise=False):
+    """
+    Computes IOU score.
+
+    Args:
+        a: [B, N, H, W], or [N, H, W], or [H, W]
+        b: [B, N, H, W], or [N, H, W], or [H, W]
+           in pairwise mode, the second dimension can be different,
+           e.g. [B, M, H, W], or [M, H, W], or [H, W]
+        pariwise: whether the inputs are already aligned, outputs [B, N] or 
+                  the inputs are orderless, outputs [B, N, M].
+    """
+    if pairwise:
+        b_shape = tf.shape(b)
+        # [1, 1, M, 1, 1]
+        a_shape2 = tf.concat(0, [tf.constant([1]), tf.constant([1]),
+                                 b_shape[1: 2], tf.constant([1]),
+                                 tf.constant([1])])
+        # [B, N, H, W] => [B, N, 1, H, W] => [B, N, M, H, W]
+        a = tf.tile(tf.expand_dims(a, 2), a_shape2)
+        # [B, M, H, W] => [B, 1, M, H, W]
+        b = tf.expand_dims(b, 1)
+    return inter(a, b) / union(a, b)
 
 
 def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
@@ -133,7 +191,7 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
         confidence score loss.
     """
     # IOU score, [B, N, M]
-    iou = tf.user_ops.batch_iou(y_out, y_gt)
+    iou = _f_iou(y_out, y_gt, pariwise=True)
     model['iou'] = iou
     # Matching score, [B, N, M]
     delta = tf.user_ops.hungarian(iou)
@@ -158,7 +216,7 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
 
     # [B, N, M] => scalar
     segm_loss = -tf.reduce_sum(iou * delta * s_gt_rep)
-    conf_loss = tf.reduce_sum(r * s_gt_rep * bce(delta, s_out_min_rep))
+    conf_loss = tf.reduce_sum(r * s_gt_rep * _bce(delta, s_out_min_rep))
     loss = segm_loss + conf_loss
     model['loss'] = loss
 
@@ -185,29 +243,29 @@ def get_model(opt, device='/cpu:0', train=True):
     y_gt_list = tf.split(1, timespan, y_gt)
 
     # 1st convolution layer
-    w_conv1 = weight_variable([3, 3, 3, 16])
-    b_conv1 = weight_variable([16])
+    w_conv1 = _weight_variable([3, 3, 3, 16])
+    b_conv1 = _weight_variable([16])
     h_conv1 = tf.nn.relu(conv2d(x, w_conv1) + b_conv1)
-    h_pool1 = max_pool_2x2(h_conv1)
+    h_pool1 = _max_pool_2x2(h_conv1)
 
     # 2nd convolution layer
-    w_conv2 = weight_variable([3, 3, 16, 32])
-    b_conv2 = weight_variable([32])
+    w_conv2 = _weight_variable([3, 3, 16, 32])
+    b_conv2 = _weight_variable([32])
     h_conv2 = tf.nn.relu(conv2d(h_pool1, w_conv2) + b_conv2)
-    h_pool2 = max_pool_2x2(h_conv2)
+    h_pool2 = _max_pool_2x2(h_conv2)
 
     # 3rd convolution layer
-    w_conv3 = weight_variable([3, 3, 32, 64])
-    b_conv3 = weight_variable([64])
+    w_conv3 = _weight_variable([3, 3, 32, 64])
+    b_conv3 = _weight_variable([64])
     h_conv3 = tf.nn.relu(conv2d(h_pool2, w_conv3) + b_conv3)
-    h_pool3 = max_pool_2x2(h_conv3)
+    h_pool3 = _max_pool_2x2(h_conv3)
 
-    w_conv4 = weight_variable([3, 3, 16, 1])
-    b_conv4 = weight_variable([1])
-    b_5 = weight_variable([lstm_inp_height, lstm_inp_width])
+    w_conv4 = _weight_variable([3, 3, 16, 1])
+    b_conv4 = _weight_variable([1])
+    b_5 = _weight_variable([lstm_inp_height, lstm_inp_width])
 
-    w_6 = weight_variable([inp_width / 32 * inp_height / 32, 1])
-    b_6 = weight_variable([1])
+    w_6 = _weight_variable([inp_width / 32 * inp_height / 32, 1])
+    b_6 = _weight_variable([1])
 
     lstm_depth = 16
     lstm_inp_height = inp_height / 8
