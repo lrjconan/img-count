@@ -15,7 +15,7 @@ class TimeSeriesLogger():
         self.buffer = []
         self.buffer.append('step,time,{}\n'.format(self.label))
         self.buffer_size = buffer_size
-        log.info('Time series log to {}'.format(filename))
+        log.info('"{}" log to "{}"'.format(label, filename))
         pass
 
     def add(self, step, value):

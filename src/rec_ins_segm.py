@@ -15,6 +15,7 @@ from data_api import mnist
 from tensorflow.python.framework import ops
 from utils import logger
 from utils import saver
+from utils.batch_iter import BatchIterator
 from utils.grad_clip_optim import GradientClipOptimizer
 from utils.time_series_logger import TimeSeriesLogger
 import argparse
@@ -64,7 +65,7 @@ def _get_batch_fn(dataset):
     def get_batch(start, end):
         x_bat = dataset['input'][start: end]
         y_bat = dataset['label_segmentation'][start: end]
-        s_bat = dataset['label_segmentation'][start: end]
+        s_bat = dataset['label_score'][start: end]
         x_bat, y_bat, s_bat = preprocess(x_bat, y_bat, s_bat)
 
         return x_bat, y_bat, s_bat
@@ -88,6 +89,12 @@ def _max_pool_2x2(x):
     """2 x 2 max pooling."""
     return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
                           strides=[1, 2, 2, 1], padding='SAME')
+
+
+def _max_pool_4x4(x):
+    """2 x 2 max pooling."""
+    return tf.nn.max_pool(x, ksize=[1, 4, 4, 1],
+                          strides=[1, 4, 4, 1], padding='SAME')
 
 
 def _avg_pool_8x8(x):
@@ -184,51 +191,6 @@ def _cum_min_grad(op, grad):
     return [tf.user_ops.cum_min_grad(grad, x)]
 
 
-def _bce(y_out, y_gt):
-    """
-    Binary cross entropy.
-
-    Args:
-        y_out:
-        y_gt:
-    """
-    eps = 1e-7
-    return -y_gt * tf.log(y_out + eps) - (1 - y_gt) * tf.log(1 - y_out + eps)
-
-
-def _get_reduction_indices(a):
-    """
-    Gets the list of axes to sum over.
-    """
-    dim = len(a.get_shape())
-
-    return [dim - 2, dim - 1]
-
-
-def _inter(a, b):
-    """
-    Computes intersection.
-
-    Args:
-        a: [B, N, H, W], or [N, H, W], or [H, W]
-        b: [B, M, H, W], or [M, H, W], or [H, W]
-    """
-    reduction_indices = _get_iou_reduction_indices(a)
-    return tf.reduce_sum(a * b, reduction_indices=reduction_indices)
-
-
-def _union(a, b):
-    """
-    Computes union.
-
-    Args:
-        a: [B, N, H, W], or [N, H, W], or [H, W]
-        b: [B, M, H, W], or [M, H, W], or [H, W]
-    """
-    reduction_indices = _get_iou_reduction_indices(a)
-    return tf.reduce_sum(a + b - (a * b), reduction_indices=reduction_indices)
-
-
 def _f_iou(a, b, pairwise=False):
     """
     Computes IOU score.
@@ -238,9 +200,26 @@ def _f_iou(a, b, pairwise=False):
         b: [B, N, H, W], or [N, H, W], or [H, W]
            in pairwise mode, the second dimension can be different,
            e.g. [B, M, H, W], or [M, H, W], or [H, W]
-        pariwise: whether the inputs are already aligned, outputs [B, N] or
+        pairwise: whether the inputs are already aligned, outputs [B, N] or
                   the inputs are orderless, outputs [B, N, M].
     """
+
+    def _get_reduction_indices(a):
+        """Gets the list of axes to sum over."""
+        dim = len(a.get_shape())
+
+        return [dim - 2, dim - 1]
+
+    def _inter(a, b):
+        """Computes intersection."""
+        reduction_indices = _get_reduction_indices(a)
+        return tf.reduce_sum(a * b, reduction_indices=reduction_indices)
+
+    def _union(a, b):
+        """Computes union."""
+        reduction_indices = _get_reduction_indices(a)
+        return tf.reduce_sum(a + b - (a * b),
+                             reduction_indices=reduction_indices)
     if pairwise:
         b_shape = tf.shape(b)
         # [1, 1, M, 1, 1]
@@ -251,7 +230,8 @@ def _f_iou(a, b, pairwise=False):
         a = tf.tile(tf.expand_dims(a, 2), a_shape2)
         # [B, M, H, W] => [B, 1, M, H, W]
         b = tf.expand_dims(b, 1)
-    return inter(a, b) / union(a, b)
+
+    return _inter(a, b) / _union(a, b)
 
 
 def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
@@ -266,11 +246,29 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
         r: float, mixing coefficient for combining segmentation loss and
         confidence score loss.
     """
+
+    def _bce(y_out, y_gt):
+        """Binary cross entropy."""
+        eps = 1e-7
+        # log.error(y_gt.get_shape())
+        # log.fatal(y_out.get_shape())
+        a = y_gt * tf.log(y_out + eps)
+        b = (1 - y_gt) * tf.log(1 - y_out + eps)
+        return -a - b
+        # return -y_gt * tf.log(y_out + eps) - \
+        #     (1 - y_gt) * tf.log(1 - y_out + eps)
+
     # IOU score, [B, N, M]
-    iou = _f_iou(y_out, y_gt, pariwise=True)
+    iou = _f_iou(y_out, y_gt, pairwise=True)
     model['iou'] = iou
     # Matching score, [B, N, M]
-    delta = tf.user_ops.hungarian(iou)
+    # Add small epsilon because the matching algorithm only accepts complete
+    # bipartite graph with positive weights.
+    epsilon = 1e-5
+    delta_eps = tf.user_ops.hungarian(iou + epsilon)[0]
+    # Mask the graph algorithm output.
+    mask = tf.to_float(iou > 0)
+    delta = delta_eps * mask
     model['delta'] = delta
 
     # [1, N, 1, 1]
@@ -291,6 +289,9 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
         tf.user_ops.cum_min(s_out), dim=2), num_segm_gt_mul)
 
     # [B, N, M] => scalar
+    log.info(iou)
+    log.info(delta)
+    log.info(s_gt_rep)
     segm_loss = -tf.reduce_sum(iou * delta * s_gt_rep)
     conf_loss = tf.reduce_sum(r * s_gt_rep * _bce(delta, s_out_min_rep))
     loss = segm_loss + conf_loss
@@ -316,6 +317,9 @@ def get_model(opt, device='/cpu:0', train=True):
     # Groundtruth confidence score, [B, T]
     s_gt = tf.placeholder('float', [None, timespan])
     y_gt_list = tf.split(1, timespan, y_gt)
+    m['x'] = x
+    m['y_gt'] = y_gt
+    m['s_gt'] = s_gt
 
     # 1st convolution layer
     w_conv1 = _weight_variable([3, 3, 3, 16])
@@ -349,7 +353,7 @@ def get_model(opt, device='/cpu:0', train=True):
 
     w_conv4 = _weight_variable([3, 3, 16, 1])
     b_conv4 = _weight_variable([1])
-    b_5 = _weight_variable([lstm_inp_height, lstm_inp_width])
+    b_5 = _weight_variable([lstm_inp_height * lstm_inp_width])
 
     w_6 = _weight_variable([inp_width / 32 * inp_height / 32, 1])
     b_6 = _weight_variable([1])
@@ -385,19 +389,21 @@ def get_model(opt, device='/cpu:0', train=True):
         h_conv4_reshape = tf.reshape(
             h_conv4, [-1, lstm_inp_height * lstm_inp_width])
         # [B, LH * LW] => [B, LH, LW] => [B, 1, LH, LW]
-        segm_lo[t] = tf.expand_dims(tf.sigmoid(
-            tf.log(tf.nn.softmax(h_conv4_reshape)) + b_5), dim=1)
+        segm_lo[t] = tf.expand_dims(tf.reshape(tf.sigmoid(
+            tf.log(tf.nn.softmax(h_conv4_reshape)) + b_5),
+            [-1, lstm_inp_height, lstm_inp_width]), dim=1)
         # [B, H, W] => [B, 1, LH, LW]
         # Subsample groundtruth
-        segm_gt_lo[t] = tf.expand_dims(avg_pool_8x8(tf.reshape(
-            y_gt_list[t], [-1, inp_height, inp_width])), dim=1)
+        segm_gt_lo[t] = tf.reshape(_avg_pool_8x8(tf.reshape(
+            y_gt_list[t], [-1, inp_height, inp_width, 1])),
+            [-1, 1, lstm_inp_height, lstm_inp_width])
 
         # Objectness network
         # [B, LH, LW, 1] => [B, LLH * LLW]
-        h_pool4 = tf.reshape(max_pool_4x4(
+        h_pool4 = tf.reshape(_max_pool_4x4(
             h_lstm[t]), [-1, lstm_inp_height / 4 * lstm_inp_width / 4])
         # [B, LLH * LLW] => [B, 1]
-        score[t] = tf.sigmoid(tf.matmul(hpool4, w_6) + b_6)
+        score[t] = tf.sigmoid(tf.matmul(h_pool4, w_6) + b_6)
 
     # Loss function
     # T * [B, 1, LH, LW] = [B, T, LH, LW]
@@ -406,13 +412,10 @@ def get_model(opt, device='/cpu:0', train=True):
     # T * [B, 1] = [B, T]
     s_out = tf.concat(1, score)
 
-    if opt['output_downsample'] > 1:
-        segm_gt_lo = avg_pool_4x4(segm_gt_reshape)
-    else:
-        segm_gt_lo = segm_gt_reshape
-
-    r = 1.0
-    _add_ins_segm_loss(y_out, y_gt, s_out, s_gt, r)
+    r = opt['loss_mix_ratio']
+    lr = opt['learning_rate']
+    eps = 1e-7
+    _add_ins_segm_loss(m, y_out, y_gt, s_out, s_gt, r)
     loss = m['loss']
     tf.add_to_collection('losses', loss)
 
@@ -454,6 +457,10 @@ def _parse_args():
 
     # Default model options
     kWeightDecay = 5e-5
+    kLearningRate = 1e-2
+    kLossMixRatio = 1.0
+    kConvLstmFilterSize = 5
+    kConvLstmHiddenDepth = 64
 
     # Default training options
     # Number of steps
@@ -488,7 +495,15 @@ def _parse_args():
 
     # Model options
     parser.add_argument('-weight_decay', default=kWeightDecay, type=float,
-                        help='Weight L2 regularization.')
+                        help='Weight L2 regularization')
+    parser.add_argument('-learning_rate', default=kLearningRate, type=float,
+                        help='Model learning rate')
+    parser.add_argument('-loss_mix_ratio', default=kLossMixRatio, type=float,
+                        help='Mix ratio between segmentation and score loss')
+    parser.add_argument('-conv_lstm_filter_size', default=kConvLstmFilterSize,
+                        type=int, help='Conv LSTM filter size')
+    parser.add_argument('-conv_lstm_hid_depth', default=kConvLstmHiddenDepth,
+                        type=int, help='Conv LSTM hidden depth')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -539,9 +554,11 @@ if __name__ == '__main__':
             'inp_height': args.height,
             'inp_width': args.width,
             'timespan': args.max_num_objects,
-            'weight_decay': 5e-5,
-            'conv_lstm_filter_size': 5,
-            'conv_lstm_hid_depth': 64
+            'weight_decay': args.weight_decay,
+            'learning_rate': args.learning_rate,
+            'loss_mix_ratio': args.loss_mix_ratio,
+            'conv_lstm_filter_size': args.conv_lstm_filter_size,
+            'conv_lstm_hid_depth': args.conv_lstm_hid_depth
         }
         data_opt = {
             'height': args.height,
@@ -599,7 +616,7 @@ if __name__ == '__main__':
     get_batch_valid = _get_batch_fn(dataset['valid'])
 
     # Train loop
-    while step < trian_opt['num_steps']:
+    while step < train_opt['num_steps']:
         # Validation
         valid_loss = 0
         log.info('Running validation')
@@ -613,6 +630,7 @@ if __name__ == '__main__':
                 m['y_gt']: y_bat,
                 m['s_gt']: s_bat
             })
+            log.info(loss)
 
             valid_loss += loss * batch_size_val / float(num_ex_val)
         log.info('step {:d}, valid loss {:.4f}'.format(step, valid_loss))

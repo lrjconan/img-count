@@ -52,8 +52,8 @@ class BatchIterator(object):
             end = min(self._num, self._batch_size * (self._step + 1))
             self._step += 1
             if self._get_fn:
-                return self._get_batch_fn(start, end)
-            else
+                return self._get_fn(start, end)
+            else:
                 return (start, end)
         else:
             raise StopIteration()
