@@ -35,6 +35,11 @@ class CumMinOp : public OpKernel {
         output_mat(i, j) = cum_min;
       }
     }
+    // LOG(INFO) << "Input shape: " << shape.dim_size(0) << ", "
+    //           << shape.dim_size(1);
+    // LOG(INFO) << "Output shape: " << output_tensor->shape().dim_size(0) << ", "
+    //           << output_tensor->shape().dim_size(1);
+    // LOG(INFO) << "Cum min output: " << output_mat;
   }
 };
 
