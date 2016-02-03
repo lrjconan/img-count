@@ -602,7 +602,7 @@ if __name__ == '__main__':
     if args.logs:
         train_loss_logger = TimeSeriesLogger(
             os.path.join(exp_logs_folder, 'train_loss.csv'), 'train loss',
-            name='Training loss'
+            name='Training loss',
             buffer_size=25)
         valid_loss_logger = TimeSeriesLogger(
             os.path.join(exp_logs_folder, 'valid_loss.csv'), 'valid loss',
@@ -610,7 +610,7 @@ if __name__ == '__main__':
             buffer_size=2)
         step_time_logger = TimeSeriesLogger(
             os.path.join(exp_logs_folder, 'step_time.csv'), 'step time (ms)',
-            name='Step time'
+            name='Step time',
             buffer_size=25)
         log_manager.register(log.filename, 'plain', 'Raw logs')
         log.info(
