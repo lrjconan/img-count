@@ -634,6 +634,7 @@ if __name__ == '__main__':
         # Validation
         valid_loss = 0
         log.info('Running validation')
+        run_delta = False
         for x_bat, y_bat, s_bat in BatchIterator(num_ex_valid,
                                                  batch_size=batch_size_valid,
                                                  get_fn=get_batch_valid,
@@ -656,14 +657,15 @@ if __name__ == '__main__':
             # log.info(h_pool4_0)
             # log.info(h_pool4_0.shape)
 
-            delta = sess.run(m['delta'], feed_dict={
-                m['x']: x_bat,
-                m['y_gt']: y_bat
-            })
-            log.info('Sample delta shape: {}'.format(delta.shape))
-            # log.info('Sample delta: \n{}'.format(delta[0]))
-            for ii in xrange(min(10, delta.shape[0])):
-                log.info('Sample delta {} : \n{}'.format(ii, delta[ii]))
+            if not run_delta:
+                delta = sess.run(m['delta'], feed_dict={
+                    m['x']: x_bat,
+                    m['y_gt']: y_bat
+                })
+                log.info('Sample delta shape: {}'.format(delta.shape))
+                for ii in xrange(min(10, delta.shape[0])):
+                    log.info('Sample delta {} : \n{}'.format(ii, delta[ii]))
+                run_delta = True
 
             losses = sess.run([m['loss'], m['segm_loss'], m['conf_loss']],
                               feed_dict={
