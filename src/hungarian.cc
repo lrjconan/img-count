@@ -336,8 +336,8 @@ class HungarianOp : public OpKernel {
         M(x, y) = 0.0f;
       }
     }
-    VLOG(1) << "initial cover x: \n" << c_x;
-    VLOG(1) << "initial cover y: \n" << c_y;
+    LOG(INFO) << "initial cover x: \n" << c_x;
+    LOG(INFO) << "initial cover y: \n" << c_y;
 
     MatrixXfR equality(n_X, n_Y);
     std::set<int> S;
@@ -347,19 +347,19 @@ class HungarianOp : public OpKernel {
 
     // for (int i = 0; i < 30;) {
     while (i < MAX_NUM_ITERATION) {
-      VLOG(1) << "-----------------------------";
-      VLOG(1) << "iteration " << i;
-      VLOG(1) << "input graph: \n" << weights;
-      VLOG(1) << "cover x: \n" << c_x;
-      VLOG(1) << "cover y: \n" << c_y;
+      LOG(INFO) << "-----------------------------";
+      LOG(INFO) << "iteration " << i;
+      LOG(INFO) << "input graph: \n" << weights;
+      LOG(INFO) << "cover x: \n" << c_x;
+      LOG(INFO) << "cover y: \n" << c_y;
       equality = GetEqualityGraph(weights, c_x, c_y);
-      VLOG(1) << "equality graph: \n" << equality;
+      LOG(INFO) << "equality graph: \n" << equality;
       if (next_match) {
         MaxBipartiteMatching(equality, matching);
         
         if (IsBipartiteMatchingSaturate(M)) {
-          VLOG(1) << "found solution, exit";
-          VLOG(1) << "-----------------------------";
+          LOG(INFO) << "found solution, exit";
+          LOG(INFO) << "-----------------------------";
           return;
         }
 
@@ -367,8 +367,8 @@ class HungarianOp : public OpKernel {
           if (GetMatchedY(u, M) == -1) {
             S.clear();
             S.insert(u);
-            VLOG(1) << "Clearing S and T";
-            VLOG(1) << "Adding " << u << " into S";
+            LOG(INFO) << "Clearing S and T";
+            LOG(INFO) << "Adding " << u << " into S";
             T.clear();
             break;
           }
@@ -377,16 +377,16 @@ class HungarianOp : public OpKernel {
 
       std::set<int> N_S;
       GetSetBipartiteNeighbours(S, equality, &N_S);
-      VLOG(1) << "S: ";
+      LOG(INFO) << "S: ";
       PrintSet(S);
-      VLOG(1) << "T: ";
+      LOG(INFO) << "T: ";
       PrintSet(T);
-      VLOG(1) << "N_S: ";
+      LOG(INFO) << "N_S: ";
       PrintSet(N_S);
 
       if (SetEquals(N_S, T)) {
-        VLOG(1) << "N_S == T";
-        VLOG(1) << "Update cover";
+        LOG(INFO) << "N_S == T";
+        LOG(INFO) << "Update cover";
         float a = std::numeric_limits<float>::max();
         for (auto it = S.begin(); it != S.end(); ++it) {
           int x = *it;
@@ -396,43 +396,43 @@ class HungarianOp : public OpKernel {
             }
           }
         }
-        VLOG(1) << "a: " << a;
+        LOG(INFO) << "a: " << a;
         if (a < EPSILON) {
           next_match = true;
           continue;
         }
         for (auto it = S.begin(); it != S.end(); ++it) {
           int x = *it;
-          VLOG(1) << "Update X cover " << x;
+          LOG(INFO) << "Update X cover " << x;
           c_x(x, 0) -= a;
         }
         for (auto it = T.begin(); it != T.end(); ++it) {
           int y = *it;
-          VLOG(1) << "Update Y cover " << y;
+          LOG(INFO) << "Update Y cover " << y;
           c_y(0, y) += a;
         }
-        VLOG(1) << "cover x: \n" << c_x;
-        VLOG(1) << "cover y: \n" << c_y;
+        LOG(INFO) << "cover x: \n" << c_x;
+        LOG(INFO) << "cover y: \n" << c_y;
       } else {
-        VLOG(1) << "N_S != T";
+        LOG(INFO) << "N_S != T";
         while (N_S.size() > T.size()) {
           int y;
           for (auto it = N_S.begin(); it != N_S.end();
                ++it) {
             y = *it;
             if (!SetContains(T, y)) {
-              VLOG(1) << "pick y in N_S not in T: " << y;
+              LOG(INFO) << "pick y in N_S not in T: " << y;
               break;
             }
           }
 
           int z = GetMatchedX(y, M);
           if (z == -1) {
-            VLOG(1) << "y unmatched, look for matching";
+            LOG(INFO) << "y unmatched, look for matching";
             next_match = true;
             break;
           } else {
-            VLOG(1) << "y matched, increase S and T";
+            LOG(INFO) << "y matched, increase S and T";
             next_match = false;
             S.insert(z);
             for (int v = 0; v < n_Y; ++v) {
@@ -441,18 +441,18 @@ class HungarianOp : public OpKernel {
               }
             }
             T.insert(y);
-            VLOG(1) << "S: ";
+            LOG(INFO) << "S: ";
             PrintSet(S);
-            VLOG(1) << "T: ";
+            LOG(INFO) << "T: ";
             PrintSet(T);
-            VLOG(1) << "N_S: ";
+            LOG(INFO) << "N_S: ";
             PrintSet(N_S);
           }
         }
       }
 
-      VLOG(1) << "end of iteration";
-      VLOG(1) << "-----------------------------";
+      LOG(INFO) << "end of iteration";
+      LOG(INFO) << "-----------------------------";
       i++;
     }
     if (i == MAX_NUM_ITERATION) {

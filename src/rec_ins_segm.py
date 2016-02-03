@@ -529,6 +529,7 @@ def _parse_args():
 if __name__ == '__main__':
     # Command-line arguments
     args = _parse_args()
+    tf.set_random_seed(1234)
 
     # Logistics
     task_name = 'rec_ins_segm'
