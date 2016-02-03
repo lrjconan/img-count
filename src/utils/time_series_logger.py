@@ -1,4 +1,5 @@
 import datetime
+import log_manager
 import logger
 import os
 
@@ -8,14 +9,18 @@ log = logger.get()
 class TimeSeriesLogger():
     """Log time series data to CSV file."""
 
-    def __init__(self, filename, label, buffer_size=100):
+    def __init__(self, filename, label, name=None, buffer_size=100):
         self.filename = filename
         self.written_catalog = False
+        if name is None:
+            self.name = label
+        else:
+            self.name = name
         self.label = label
         self.buffer = []
         self.buffer.append('step,time,{}\n'.format(self.label))
         self.buffer_size = buffer_size
-        log.info('"{}" log to "{}"'.format(label, filename))
+        log.info('Time series data "{}" log to "{}"'.format(label, filename))
         pass
 
     def add(self, step, value):
@@ -32,19 +37,7 @@ class TimeSeriesLogger():
         """Write the buffer to file."""
 
         if not self.written_catalog:
-            folder = os.path.dirname(self.filename)
-            if not os.path.exists(folder):
-                os.makedirs(folder)
-            
-            catalog = os.path.join(folder, 'catalog')
-            basename = os.path.basename(self.filename)
-            if not os.path.exists(catalog):
-                with open(catalog, 'w') as f:
-                    f.write('filename\n');
-                    f.write('{}\n'.format(basename))
-            else:
-                with open(catalog, 'a') as f:
-                    f.write('{}\n'.format(basename))
+            log_manager.register(self.filename, 'csv', self.name)
             self.written_catalog = True
 
         if not os.path.exists(self.filename):

@@ -41,19 +41,21 @@ TERM_COLOR = {
 log = None
 
 
-def get(default_fname=None):
+def get(fname=None):
     """
     Returns a logger instance, with optional log file output.
     """
     global log
-    if log is not None:
+    if log is not None and fname is None:
         return log
-    fname = os.environ.get('LOGTO', None)
-    if fname is None:
-        fname = default_fname
-    log = Logger(fname)
 
-    return log
+        # fname = os.environ.get('LOGTO', None)
+        # if fname is None:
+        #     fname = default_fname
+    else:
+        log = Logger(fname)
+
+        return log
 
 
 class Logger(object):
@@ -137,7 +139,8 @@ class Logger(object):
         timestr = self.get_time_str()
         for (frame, filename, line_number, function_name, lines, index) in \
                 inspect.getouterframes(inspect.currentframe()):
-            if not filename.endswith('logger.py'):
+            fn = os.path.basename(filename)
+            if fn != 'logger.py':
                 break
         cwd = os.getcwd()
         if filename.startswith(cwd):

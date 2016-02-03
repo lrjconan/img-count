@@ -14,6 +14,7 @@ import cslab_environ
 from data_api import mnist
 from tensorflow.python.framework import ops
 from utils import logger
+from utils import log_manager
 from utils import saver
 from utils.batch_iter import BatchIterator
 from utils.grad_clip_optim import GradientClipOptimizer
@@ -26,8 +27,6 @@ import pickle as pkl
 import syncount_gen_data as data
 import tensorflow as tf
 import time
-
-log = logger.get()
 
 
 def get_dataset(opt, num_train, num_valid):
@@ -150,7 +149,6 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
 
     def unroll(inp, time):
         t = time
-        log.info(inp.get_shape())
         g_i[t] = tf.sigmoid(_conv2d(inp, w_xi) + _conv2d(h[t - 1], w_hi) + b_i)
         g_f[t] = tf.sigmoid(_conv2d(inp, w_xf) + _conv2d(h[t - 1], w_hf) + b_f)
         g_o[t] = tf.sigmoid(_conv2d(inp, w_xo) + _conv2d(h[t - 1], w_ho) + b_o)
@@ -289,20 +287,19 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
         tf.user_ops.cum_min(s_out), dim=2), num_segm_gt_mul)
 
     # [B, N, M] => scalar
-    log.info(iou)
-    log.info(delta)
-    log.info(s_gt_rep)
     segm_loss = -tf.reduce_sum(iou * delta * s_gt_rep)
     conf_loss = tf.reduce_sum(r * s_gt_rep * _bce(delta, s_out_min_rep))
+    model['segm_loss'] = segm_loss
+    model['conf_loss'] = conf_loss
     loss = segm_loss + conf_loss
     model['loss'] = loss
 
-    pass
+    return loss
 
 
 def get_model(opt, device='/cpu:0', train=True):
     """Get model."""
-    m = {}
+    model = {}
     timespan = opt['timespan']
     inp_height = opt['inp_height']
     inp_width = opt['inp_width']
@@ -317,9 +314,9 @@ def get_model(opt, device='/cpu:0', train=True):
     # Groundtruth confidence score, [B, T]
     s_gt = tf.placeholder('float', [None, timespan])
     y_gt_list = tf.split(1, timespan, y_gt)
-    m['x'] = x
-    m['y_gt'] = y_gt
-    m['s_gt'] = s_gt
+    model['x'] = x
+    model['y_gt'] = y_gt
+    model['s_gt'] = s_gt
 
     # 1st convolution layer
     w_conv1 = _weight_variable([3, 3, 3, 16])
@@ -355,11 +352,11 @@ def get_model(opt, device='/cpu:0', train=True):
     b_conv4 = _weight_variable([1])
     b_5 = _weight_variable([lstm_inp_height * lstm_inp_width])
 
-    w_6 = _weight_variable([inp_width / 32 * inp_height / 32, 1])
+    w_6 = _weight_variable([lstm_inp_height * lstm_inp_height, 1])
     b_6 = _weight_variable([1])
 
     unroll_conv_lstm = _add_conv_lstm(
-        model=m,
+        model=model,
         timespan=timespan,
         inp_height=lstm_inp_height,
         inp_width=lstm_inp_width,
@@ -371,12 +368,13 @@ def get_model(opt, device='/cpu:0', train=True):
         wd=wd,
         name='lstm'
     )
-    h_lstm = m['h_lstm']
+    h_lstm = model['h_lstm']
 
     h_conv4 = [None] * timespan
     segm_lo = [None] * timespan
     segm_gt_lo = [None] * timespan
     score = [None] * timespan
+    h_pool4 = [None] * timespan
 
     for t in xrange(timespan):
         # We can potentially have another canvas that substract this one.
@@ -400,30 +398,34 @@ def get_model(opt, device='/cpu:0', train=True):
 
         # Objectness network
         # [B, LH, LW, 1] => [B, LLH * LLW]
-        h_pool4 = tf.reshape(_max_pool_4x4(
-            h_lstm[t]), [-1, lstm_inp_height / 4 * lstm_inp_width / 4])
+        h_pool4[t] = tf.reshape(_max_pool_4x4(
+            h_lstm[t]), [-1, lstm_inp_height * lstm_inp_width])
         # [B, LLH * LLW] => [B, 1]
-        score[t] = tf.sigmoid(tf.matmul(h_pool4, w_6) + b_6)
+        score[t] = tf.sigmoid(tf.matmul(h_pool4[t], w_6) + b_6)
 
     # Loss function
     # T * [B, 1, LH, LW] = [B, T, LH, LW]
     y_out = tf.concat(1, segm_lo)
     y_gt = tf.concat(1, segm_gt_lo)
     # T * [B, 1] = [B, T]
+    model['h_pool4_0'] = h_pool4[0]
+    model['s_0'] = score[0]
     s_out = tf.concat(1, score)
+    model['s_out'] = s_out
 
     r = opt['loss_mix_ratio']
     lr = opt['learning_rate']
     eps = 1e-7
-    _add_ins_segm_loss(m, y_out, y_gt, s_out, s_gt, r)
-    loss = m['loss']
+    loss = _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r)
     tf.add_to_collection('losses', loss)
+    total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+    model['total_loss'] = total_loss
 
     train_step = GradientClipOptimizer(
-        tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(loss)
-    m['train_step'] = train_step
+        tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(total_loss)
+    model['train_step'] = train_step
 
-    return m
+    return model
 
 
 def _parse_args():
@@ -440,7 +442,7 @@ def _parse_args():
     # Object border thickness.
     kBorderThickness = 2
     # Number of examples.
-    kNumExamples = 100
+    kNumExamples = 2000
     # Maximum number of objects.
     kMaxNumObjects = 10
     # Number of object types, currently support up to three types (circles,
@@ -527,6 +529,20 @@ def _parse_args():
 if __name__ == '__main__':
     # Command-line arguments
     args = _parse_args()
+
+    # Logistics
+    task_name = 'rec_ins_segm'
+    time_obj = datetime.datetime.now()
+    model_id = timestr = '{}-{:04d}{:02d}{:02d}{:02d}{:02d}{:02d}'.format(
+        task_name, time_obj.year, time_obj.month, time_obj.day,
+        time_obj.hour, time_obj.minute, time_obj.second)
+    results_folder = args.results
+    logs_folder = args.logs
+    exp_folder = os.path.join(results_folder, model_id)
+    exp_logs_folder = os.path.join(logs_folder, model_id)
+
+    # Logger
+    log = logger.get(os.path.join(exp_logs_folder, 'raw'))
     log.log_args()
 
     # Set device
@@ -543,11 +559,11 @@ if __name__ == '__main__':
 
     # Restore previously saved checkpoints.
     if args.restore:
-        restore_files = saver.restore_ckpt(args.restore)
-        model_opt = restore_files['model_opt']
-        data_opt = restore_files['data_opt']
-        ckpt_fname = restore_files['ckpt_fname']
-        step = restore_files['latest_step']
+        ckpt_info = saver.get_ckpt_info(args.restore)
+        model_opt = ckpt_info['model_opt']
+        data_opt = ckpt_info['data_opt']
+        ckpt_fname = ckpt_info['ckpt_fname']
+        step = ckpt_info['latest_step']
     else:
         log.info('Initializing new model')
         model_opt = {
@@ -576,69 +592,97 @@ if __name__ == '__main__':
     dataset = get_dataset(data_opt, args.num_ex, args.num_ex / 10)
     m = get_model(model_opt, device=device)
     sess = tf.Session()
-    tf_saver = tf.train.Saver(tf.all_variables())
 
     if args.restore:
-        tf_saver.restore(sess, ckpt_fname)
+        saver.restore_ckpt(sess, ckpt_fname)
     else:
         sess.run(tf.initialize_all_variables())
 
-    task_name = 'rec_ins_segm'
-    time_obj = datetime.datetime.now()
-    model_id = timestr = '{}-{:04d}{:02d}{:02d}{:02d}{:02d}{:02d}'.format(
-        task_name, time_obj.year, time_obj.month, time_obj.day,
-        time_obj.hour, time_obj.minute, time_obj.second)
-
-    results_folder = args.results
-    logs_folder = args.logs
-    exp_folder = os.path.join(results_folder, model_id)
-
     # Create time series logger
     if args.logs:
-        exp_logs_folder = os.path.join(logs_folder, model_id)
         train_loss_logger = TimeSeriesLogger(
             os.path.join(exp_logs_folder, 'train_loss.csv'), 'train loss',
+            name='Training loss'
             buffer_size=25)
         valid_loss_logger = TimeSeriesLogger(
             os.path.join(exp_logs_folder, 'valid_loss.csv'), 'valid loss',
+            name='Validation loss',
             buffer_size=2)
         step_time_logger = TimeSeriesLogger(
             os.path.join(exp_logs_folder, 'step_time.csv'), 'step time (ms)',
+            name='Step time'
             buffer_size=25)
+        log_manager.register(log.filename, 'plain', 'Raw logs')
         log.info(
-            'Curves can be viewed at: http://{}/visualizer?id={}'.format(
+            'Visualization can be viewed at: http://{}/visualizer?id={}'.format(
                 args.localhost, model_id))
 
     step = 0
     num_ex_train = dataset['train']['input'].shape[0]
-    num_ex_val = dataset['valid']['input'].shape[0]
+    num_ex_valid = dataset['valid']['input'].shape[0]
     get_batch_train = _get_batch_fn(dataset['train'])
     get_batch_valid = _get_batch_fn(dataset['valid'])
+    batch_size_train = 32
+    batch_size_valid = 100
+    log.info('Number of validation examples: {}'.format(num_ex_valid))
+    log.info('Validation batch size: {}'.format(batch_size_valid))
+    log.info('Number of training examples: {}'.format(num_ex_train))
+    log.info('Training batch size: {}'.format(batch_size_train))
 
     # Train loop
     while step < train_opt['num_steps']:
         # Validation
         valid_loss = 0
         log.info('Running validation')
-        batch_size_val = 100
-        for x_bat, y_bat, s_bat in BatchIterator(num_ex_val,
-                                                 batch_size=batch_size_val,
+        for x_bat, y_bat, s_bat in BatchIterator(num_ex_valid,
+                                                 batch_size=batch_size_valid,
                                                  get_fn=get_batch_valid,
                                                  progress_bar=False):
-            loss = sess.run(m['loss'], feed_dict={
+            # s_out = sess.run(m['s_out'], feed_dict={
+            #     m['x']: x_bat
+            # })
+            # log.info(s_out)
+            # log.info(s_out.shape)
+
+            # s_0 = sess.run(m['s_0'], feed_dict={
+            #     m['x']: x_bat
+            # })
+            # log.info(s_0)
+            # log.info(s_0.shape)
+
+            # h_pool4_0 = sess.run(m['h_pool4_0'], feed_dict={
+            #     m['x']: x_bat
+            # })
+            # log.info(h_pool4_0)
+            # log.info(h_pool4_0.shape)
+
+            delta = sess.run(m['delta'], feed_dict={
+                m['x']: x_bat,
+                m['y_gt']: y_bat
+            })
+            log.info('Sample delta shape: {}'.format(delta.shape))
+            # log.info('Sample delta: \n{}'.format(delta[0]))
+            for ii in xrange(min(10, delta.shape[0])):
+                log.info('Sample delta {} : \n{}'.format(ii, delta[ii]))
+
+            losses = sess.run([m['loss'], m['segm_loss'], m['conf_loss']],
+                              feed_dict={
                 m['x']: x_bat,
                 m['y_gt']: y_bat,
                 m['s_gt']: s_bat
             })
-            log.info(loss)
+            loss = losses[0]
+            log.info(('Total loss: {}, Segmentation loss: {}, Confidence '
+                      'score loss: {}').format(
+                losses[0], losses[1], losses[2]))
 
-            valid_loss += loss * batch_size_val / float(num_ex_val)
+            valid_loss += loss * batch_size_valid / float(num_ex_valid)
         log.info('step {:d}, valid loss {:.4f}'.format(step, valid_loss))
         valid_loss_logger.add(step, valid_loss)
 
         # Train
         for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
-                                                 batch_size=32,
+                                                 batch_size=batch_size_train,
                                                  get_fn=get_batch_train,
                                                  progress_bar=False):
             start_time = time.time()
