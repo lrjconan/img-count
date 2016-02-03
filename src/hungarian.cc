@@ -17,6 +17,7 @@
 #include "tensorflow/core/platform/logging.h"
 #define EPSILON 1e-7
 #define ABS(x) (((x) > 0) ? (x) : -(x))
+#define MAX_NUM_ITERATION 1000
 
 using namespace tensorflow;
 
@@ -345,7 +346,7 @@ class HungarianOp : public OpKernel {
     int i = 0;
 
     // for (int i = 0; i < 30;) {
-    while (true) {
+    while (i < MAX_NUM_ITERATION) {
       VLOG(1) << "-----------------------------";
       VLOG(1) << "iteration " << i;
       VLOG(1) << "input graph: \n" << weights;
@@ -453,6 +454,12 @@ class HungarianOp : public OpKernel {
       VLOG(1) << "end of iteration";
       VLOG(1) << "-----------------------------";
       i++;
+    }
+    if (i == MAX_NUM_ITERATION) {
+        LOG(ERROR) << "Max number of iteration reached. Exit iteration possibly due to non-termination condition.";
+        LOG(ERROR) << "Input: " << weights;
+        LOG(ERROR) << "Matching: " << *matching;
+        LOG(FATAL) << "Exit";
     }
   }
 
