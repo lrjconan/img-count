@@ -643,7 +643,7 @@ if __name__ == '__main__':
                                                  get_fn=get_batch_valid,
                                                  progress_bar=False):
             if not run_sample:
-                results = sess.run([m['match'], m['iou'], m[['s_bce']]],
+                results = sess.run([m['match'], m['iou'], m['s_bce']],
                              feed_dict={
                     m['x']: x_bat,
                     m['y_gt']: y_bat,
