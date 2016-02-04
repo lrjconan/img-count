@@ -201,6 +201,7 @@ def _f_iou(a, b, pairwise=False):
         pairwise: whether the inputs are already aligned, outputs [B, N] or
                   the inputs are orderless, outputs [B, N, M].
     """
+    eps = 1e-5
 
     def _get_reduction_indices(a):
         """Gets the list of axes to sum over."""
@@ -216,7 +217,7 @@ def _f_iou(a, b, pairwise=False):
     def _union(a, b):
         """Computes union."""
         reduction_indices = _get_reduction_indices(a)
-        return tf.reduce_sum(a + b - (a * b),
+        return tf.reduce_sum(a + b - (a * b) + eps,
                              reduction_indices=reduction_indices)
     if pairwise:
         b_shape = tf.shape(b)
@@ -257,8 +258,8 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
     # Matching score, [B, N, M]
     # Add small epsilon because the matching algorithm only accepts complete
     # bipartite graph with positive weights.
-    epsilon = 1e-5
-    match_eps = tf.user_ops.hungarian(iou + epsilon)[0]
+    eps = 1e-5
+    match_eps = tf.user_ops.hungarian(iou + eps)[0]
 
     # [1, N, 1, 1]
     y_out_shape = tf.shape(y_out)
@@ -666,11 +667,11 @@ if __name__ == '__main__':
                 m['s_gt']: s_bat
             })
             loss = losses[0]
-            log.info(('Loss: {}, Segm loss: {}, Conf loss: {}').format(
+            log.info(('Loss {:.4f}, segm: {:.4f}, conf {:.4f}').format(
                 losses[0], losses[1], losses[2]))
 
             valid_loss += loss * batch_size_valid / float(num_ex_valid)
-        log.info('step {:d}, valid loss {:.4f}'.format(step, valid_loss))
+        log.info('{:d} valid loss {:.4f}'.format(step, valid_loss))
         valid_loss_logger.add(step, valid_loss)
 
         # Train
