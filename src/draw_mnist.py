@@ -265,12 +265,14 @@ def _batch_matmul(x, y, rep_x=True, rep=1, adj_x=False, adj_y=False):
         x2 = tf.expand_dims(x, dim=3)
         y2 = tf.expand_dims(y, dim=2)
         if rep_x:
-            t = tf.constant([1, 1, 1, rep])
+            t = [1, 1, 1, rep]
+            # t = tf.constant([1, 1, 1, rep])
             # t = tf.constant([1, 1, 1, y.get_shape()[2].value])
             x3 = tf.tile(x2, t)
             y3 = y2
         else:
-            t = tf.constant([1, 1, rep, 1])
+            t = [1, 1, rep, 1]
+            # t = tf.constant([1, 1, rep, 1])
             # t = tf.constant([1, 1, x.get_shape()[2].value, 1])
             x3 = x2
             y3 = tf.tile(y2, t)
@@ -281,12 +283,14 @@ def _batch_matmul(x, y, rep_x=True, rep=1, adj_x=False, adj_y=False):
         x2 = tf.expand_dims(x, dim=2)
         y2 = tf.expand_dims(y, dim=1)
         if rep_x:
-            t = tf.constant([1, 1, rep, 1])
+            t = [1, 1, rep, 1]
+            # t = tf.constant([1, 1, rep, 1])
             # t = tf.constant([1, 1, y.get_shape()[1].value, 1])
             x3 = tf.tile(x2, t)
             y3 = y2
         else:
-            t = tf.constant([1, rep, 1, 1])
+            t = [1, rep, 1, 1]
+            # t = tf.constant([1, rep, 1, 1])
             # t = tf.constant([1, x.get_shape()[1].value, 1, 1])
             x3 = x2
             y3 = tf.tile(y2, t)
@@ -297,12 +301,14 @@ def _batch_matmul(x, y, rep_x=True, rep=1, adj_x=False, adj_y=False):
         x2 = tf.expand_dims(x, dim=3)
         y2 = tf.expand_dims(y, dim=1)
         if rep_x:
-            t = tf.constant([1, 1, 1, rep])
+            t = [1, 1, 1, rep]
+            # t = tf.constant([1, 1, 1, rep])
             # t = tf.constant([1, 1, 1, y.get_shape()[2].value])
             x3 = tf.tile(x2, t)
             y3 = y2
         else:
-            t = tf.constant([1, rep, 1, 1])
+            t = [1, rep, 1, 1]
+            # t = tf.constant([1, rep, 1, 1])
             # t = tf.constant([1, x.get_shape()[1].value, 1, 1])
             x3 = x2
             y3 = tf.tile(y2, t)
@@ -403,18 +409,18 @@ def get_generator(opt, sess, train_model, device='/cpu:0'):
                                      [-1, filter_size_w, filter_size_w],
                                      name='writeout_{}'.format(t))
 
-            canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
-                                     _batch_matmul(_batch_matmul(
-                                         filter_y_w[t], writeout[t], 
-                                         rep=filter_size_w),
-                                     filter_x_w[t], adj_y=True,
-                                     rep=inp_width),
-                                     name='canvas_delta_{}'.format(t))
             # canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
-            #                          tf.batch_matmul(tf.batch_matmul(
-            #                              filter_y_w[t], writeout[t]),
-            #                          filter_x_w[t], adj_y=True),
+            #                          _batch_matmul(_batch_matmul(
+            #                              filter_y_w[t], writeout[t], 
+            #                              rep=filter_size_w),
+            #                          filter_x_w[t], adj_y=True,
+            #                          rep=inp_width),
             #                          name='canvas_delta_{}'.format(t))
+            canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
+                                     tf.batch_matmul(tf.batch_matmul(
+                                         filter_y_w[t], writeout[t]),
+                                     filter_x_w[t], adj_y=True),
+                                     name='canvas_delta_{}'.format(t))
             canvas[t] = canvas[t - 1] + canvas_delta[t]
             x_rec[t] = tf.sigmoid(canvas[t], name='x_rec')
 
@@ -608,26 +614,26 @@ def get_model(opt, device='/cpu:0', train=True):
             unroll_read_controller(ctl_inp=h_dec[t - 1], time=t)
 
             # [B, 1, 1] * [B, F, H] * [B, H, W] * [B, W, F] = [B, F, F]
-            readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
-                _batch_matmul(filter_y_r[t], x, adj_x=True, rep_x=False,
-                              rep=filter_size_r),
-                filter_x_r[t], rep=filter_size_r),
-                name='readout_x_{}'.format(t))
-            readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
-                _batch_matmul(filter_y_r[t], x_err[t],
-                              adj_x=True, rep_x=False, rep=filter_size_r),
-                filter_x_r[t], rep=filter_size_r),
-                name='readout_err_{}'.format(t))
-
-            # readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
-            #     tf.batch_matmul(filter_y_r[t], x, adj_x=True),
-            #     filter_x_r[t]),
+            # readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
+            #     _batch_matmul(filter_y_r[t], x, adj_x=True, rep_x=False,
+            #                   rep=filter_size_r),
+            #     filter_x_r[t], rep=filter_size_r),
             #     name='readout_x_{}'.format(t))
-            # readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
-            #     tf.batch_matmul(filter_y_r[t], x_err[t],
-            #                     adj_x=True),
-            #     filter_x_r[t]),
+            # readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
+            #     _batch_matmul(filter_y_r[t], x_err[t],
+            #                   adj_x=True, rep_x=False, rep=filter_size_r),
+            #     filter_x_r[t], rep=filter_size_r),
             #     name='readout_err_{}'.format(t))
+
+            readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
+                tf.batch_matmul(filter_y_r[t], x, adj_x=True),
+                filter_x_r[t]),
+                name='readout_x_{}'.format(t))
+            readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
+                tf.batch_matmul(filter_y_r[t], x_err[t],
+                                adj_x=True),
+                filter_x_r[t]),
+                name='readout_err_{}'.format(t))
 
             # [B, 2 * F * F]
             x_and_err[t] = [tf.reshape(readout_x[t],
@@ -676,18 +682,18 @@ def get_model(opt, device='/cpu:0', train=True):
                                      name='writeout_{}'.format(t))
 
             # [B, H, Fw] * [B, Fw, Fw] * [B, Fw, W] = [B, H, W]
-            canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
-                                     _batch_matmul(_batch_matmul(
-                                         filter_y_w[t], writeout[t],
-                                         rep=filter_size_w),
-                                     filter_x_w[t], adj_y=True, 
-                                     rep=inp_width),
-                                     name='canvas_delta_{}'.format(t))
             # canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
-            #                          tf.batch_matmul(tf.batch_matmul(
-            #                              filter_y_w[t], writeout[t]),
-            #     filter_x_w[t], adj_y=True),
-            #     name='canvas_delta_{}'.format(t))
+            #                          _batch_matmul(_batch_matmul(
+            #                              filter_y_w[t], writeout[t],
+            #                              rep=filter_size_w),
+            #                          filter_x_w[t], adj_y=True, 
+            #                          rep=inp_width),
+            #                          name='canvas_delta_{}'.format(t))
+            canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
+                                     tf.batch_matmul(tf.batch_matmul(
+                                         filter_y_w[t], writeout[t]),
+                filter_x_w[t], adj_y=True),
+                name='canvas_delta_{}'.format(t))
             # [B, H, W]
             canvas[t] = canvas[t - 1] + canvas_delta[t]
             x_rec[t] = tf.sigmoid(canvas[t], name='x_rec')
@@ -879,22 +885,22 @@ if __name__ == '__main__':
 
     while step < loop_config['num_steps']:
         # Validation
-        valid_ce = 0
-        log.info('Running validation')
-        for ii in xrange(100):
-            batch = dataset.test.next_batch(100)
-            x = preprocess(batch[0], opt)
-            u = random.normal(
-                0, 1, [x.shape[0], opt['timespan'], opt['hid_dim']])
-            ce = sess.run(m['ce'], feed_dict={
-                m['x']: x,
-                m['u']: u
-            })
-            valid_ce += ce * 100 / 10000.0
-        log.info('step {:d}, valid ce {:.4f}'.format(step, valid_ce))
+        # valid_ce = 0
+        # log.info('Running validation')
+        # for ii in xrange(100):
+        #     batch = dataset.test.next_batch(100)
+        #     x = preprocess(batch[0], opt)
+        #     u = random.normal(
+        #         0, 1, [x.shape[0], opt['timespan'], opt['hid_dim']])
+        #     ce = sess.run(m['ce'], feed_dict={
+        #         m['x']: x,
+        #         m['u']: u
+        #     })
+        #     valid_ce += ce * 100 / 10000.0
+        # log.info('step {:d}, valid ce {:.4f}'.format(step, valid_ce))
 
-        if args.logs:
-            valid_ce_logger.add(step, valid_ce)
+        # if args.logs:
+        #     valid_ce_logger.add(step, valid_ce)
 
         # Train
         for ii in xrange(500):
