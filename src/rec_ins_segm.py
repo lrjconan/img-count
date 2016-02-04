@@ -414,7 +414,7 @@ def get_model(opt, device='/cpu:0', train=True):
 
     # T * [B, 1] = [B, T]
     s_out = tf.concat(1, score)
-    
+
     model['h_pool4_0'] = h_pool4[0]
     model['s_0'] = score[0]
     model['s_out'] = s_out
@@ -465,7 +465,7 @@ def _parse_args():
 
     # Default model options
     kWeightDecay = 5e-5
-    kLearningRate = 1e-2
+    kLearningRate = 1e-3
     kLossMixRatio = 1.0
     kConvLstmFilterSize = 5
     kConvLstmHiddenDepth = 64
