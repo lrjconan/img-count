@@ -439,29 +439,33 @@ def get_model(opt, device='/cpu:0', train=True):
         # [B, LLH * LLW * LD] => [B, 1]
         score[t] = tf.sigmoid(tf.matmul(h_pool4_reshape[t], w_6) + b_6)
 
-    # Loss function
+    # Concatenate output
     # T * [B, 1, H, W] = [B, T, H, W]
     y_out = tf.concat(1, segm_out)
+    model['y_out'] = y_out
 
     # T * [B, 1] = [B, T]
     s_out = tf.concat(1, score)
+    model['s_out'] = s_out
 
     model['h_lstm_0'] = h_lstm[0]
     model['h_pool4_0'] = h_pool4[0]
     model['s_0'] = score[0]
     model['s_out'] = s_out
 
-    r = opt['loss_mix_ratio']
-    lr = opt['learning_rate']
-    eps = 1e-7
-    loss = _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r)
-    tf.add_to_collection('losses', loss)
-    total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
-    model['total_loss'] = total_loss
+    # Loss function
+    if train:
+        r = opt['loss_mix_ratio']
+        lr = opt['learning_rate']
+        eps = 1e-7
+        loss = _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r)
+        tf.add_to_collection('losses', loss)
+        total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+        model['total_loss'] = total_loss
 
-    train_step = GradientClipOptimizer(
-        tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(total_loss)
-    model['train_step'] = train_step
+        train_step = GradientClipOptimizer(
+            tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(total_loss)
+        model['train_step'] = train_step
 
     return model
 

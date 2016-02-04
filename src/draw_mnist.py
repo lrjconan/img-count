@@ -394,10 +394,15 @@ def get_generator(opt, sess, train_model, device='/cpu:0'):
                                      [-1, filter_size_w, filter_size_w],
                                      name='writeout_{}'.format(t))
 
+            # canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
+            #                          _batch_matmul(_batch_matmul(
+            #                              filter_y_w[t], writeout[t],
+            #                              rep_x=False),
+            #                          filter_x_w[t], adj_y=True),
+            #                          name='canvas_delta_{}'.format(t))
             canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
-                                     _batch_matmul(_batch_matmul(
-                                         filter_y_w[t], writeout[t],
-                                         rep_x=False),
+                                     tf.batch_matmul(tf.batch_matmul(
+                                         filter_y_w[t], writeout[t]),
                                      filter_x_w[t], adj_y=True),
                                      name='canvas_delta_{}'.format(t))
             canvas[t] = canvas[t - 1] + canvas_delta[t]
@@ -593,13 +598,22 @@ def get_model(opt, device='/cpu:0', train=True):
             unroll_read_controller(ctl_inp=h_dec[t - 1], time=t)
 
             # [B, 1, 1] * [B, F, H] * [B, H, W] * [B, W, F] = [B, F, F]
-            readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
-                _batch_matmul(filter_y_r[t], x, adj_x=True, rep_x=False),
+            # readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
+            #     _batch_matmul(filter_y_r[t], x, adj_x=True, rep_x=False),
+            #     filter_x_r[t]),
+            #     name='readout_x_{}'.format(t))
+            # readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
+            #     _batch_matmul(filter_y_r[t], x_err[t],
+            #                   adj_x=True, rep_x=False),
+            #     filter_x_r[t]),
+            #     name='readout_err_{}'.format(t))
+            readout_x[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
+                tf.batch_matmul(filter_y_r[t], x, adj_x=True),
                 filter_x_r[t]),
                 name='readout_x_{}'.format(t))
-            readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), _batch_matmul(
-                _batch_matmul(filter_y_r[t], x_err[t],
-                              adj_x=True, rep_x=False),
+            readout_err[t] = tf.mul(tf.exp(lg_gamma_r[t]), tf.batch_matmul(
+                tf.batch_matmul(filter_y_r[t], x_err[t],
+                                adj_x=True),
                 filter_x_r[t]),
                 name='readout_err_{}'.format(t))
 
@@ -650,12 +664,17 @@ def get_model(opt, device='/cpu:0', train=True):
                                      name='writeout_{}'.format(t))
 
             # [B, H, Fw] * [B, Fw, Fw] * [B, Fw, W] = [B, H, W]
+            # canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
+            #                          _batch_matmul(_batch_matmul(
+            #                              filter_y_w[t], writeout[t],
+            #                              rep_x=False),
+            #                          filter_x_w[t], adj_y=True),
+            #                          name='canvas_delta_{}'.format(t))
             canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
-                                     _batch_matmul(_batch_matmul(
-                                         filter_y_w[t], writeout[t],
-                                         rep_x=False),
-                                     filter_x_w[t], adj_y=True),
-                                     name='canvas_delta_{}'.format(t))
+                                     tf.batch_matmul(tf.batch_matmul(
+                                         filter_y_w[t], writeout[t]),
+                filter_x_w[t], adj_y=True),
+                name='canvas_delta_{}'.format(t))
             # [B, H, W]
             canvas[t] = canvas[t - 1] + canvas_delta[t]
             x_rec[t] = tf.sigmoid(canvas[t], name='x_rec')
@@ -747,7 +766,7 @@ def parse_args():
                         help='Write filter size')
     parser.add_argument('-w_kl', default=1, type=float,
                         help='Mixing ratio of KL divergence')
-    
+
     args = parser.parse_args()
 
     return args
