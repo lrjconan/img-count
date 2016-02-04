@@ -325,147 +325,148 @@ def get_model(opt, device='/cpu:0', train=True):
     conv_lstm_hid_depth = opt['conv_lstm_hid_depth']
     wd = opt['weight_decay']
 
-    # Input image, [B, H, W, 3]
-    x = tf.placeholder('float', [None, inp_height, inp_width, 3])
-    # Groundtruth segmentation maps, [B, T, H, W]
-    y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
-    # Groundtruth confidence score, [B, T]
-    s_gt = tf.placeholder('float', [None, timespan])
-    y_gt_list = tf.split(1, timespan, y_gt)
-    model['x'] = x
-    model['y_gt'] = y_gt
-    model['s_gt'] = s_gt
+    with tf.device(device):
+        # Input image, [B, H, W, 3]
+        x = tf.placeholder('float', [None, inp_height, inp_width, 3])
+        # Groundtruth segmentation maps, [B, T, H, W]
+        y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
+        # Groundtruth confidence score, [B, T]
+        s_gt = tf.placeholder('float', [None, timespan])
+        y_gt_list = tf.split(1, timespan, y_gt)
+        model['x'] = x
+        model['y_gt'] = y_gt
+        model['s_gt'] = s_gt
 
-    # Possibly add random image transformation layers here in training time.
-    # Need to combine x and y together to crop.
-    # Other operations on x only.
-    # x = tf.image.random_crop()
-    # x = tf.image.random_flip()
+        # Possibly add random image transformation layers here in training time.
+        # Need to combine x and y together to crop.
+        # Other operations on x only.
+        # x = tf.image.random_crop()
+        # x = tf.image.random_flip()
 
-    # 1st convolution layer
-    # [B, H, W, 3] => [B, H / 2, W / 2, 16]
-    w_conv1 = _weight_variable([3, 3, 3, 16])
-    b_conv1 = _weight_variable([16])
-    h_conv1 = tf.nn.relu(_conv2d(x, w_conv1) + b_conv1)
-    h_pool1 = _max_pool_2x2(h_conv1)
+        # 1st convolution layer
+        # [B, H, W, 3] => [B, H / 2, W / 2, 16]
+        w_conv1 = _weight_variable([3, 3, 3, 16])
+        b_conv1 = _weight_variable([16])
+        h_conv1 = tf.nn.relu(_conv2d(x, w_conv1) + b_conv1)
+        h_pool1 = _max_pool_2x2(h_conv1)
 
-    # 2nd convolution layer
-    # [B, H / 2, W / 2, 16] => [B, H / 4, W / 4, 32]
-    w_conv2 = _weight_variable([3, 3, 16, 32])
-    b_conv2 = _weight_variable([32])
-    h_conv2 = tf.nn.relu(_conv2d(h_pool1, w_conv2) + b_conv2)
-    h_pool2 = _max_pool_2x2(h_conv2)
+        # 2nd convolution layer
+        # [B, H / 2, W / 2, 16] => [B, H / 4, W / 4, 32]
+        w_conv2 = _weight_variable([3, 3, 16, 32])
+        b_conv2 = _weight_variable([32])
+        h_conv2 = tf.nn.relu(_conv2d(h_pool1, w_conv2) + b_conv2)
+        h_pool2 = _max_pool_2x2(h_conv2)
 
-    # 3rd convolution layer
-    # [B, H / 4, W / 4, 32] => [B, H / 8, W / 8, 64]
-    w_conv3 = _weight_variable([3, 3, 32, 64])
-    b_conv3 = _weight_variable([64])
-    h_conv3 = tf.nn.relu(_conv2d(h_pool2, w_conv3) + b_conv3)
-    h_pool3 = _max_pool_2x2(h_conv3)
+        # 3rd convolution layer
+        # [B, H / 4, W / 4, 32] => [B, H / 8, W / 8, 64]
+        w_conv3 = _weight_variable([3, 3, 32, 64])
+        b_conv3 = _weight_variable([64])
+        h_conv3 = tf.nn.relu(_conv2d(h_pool2, w_conv3) + b_conv3)
+        h_pool3 = _max_pool_2x2(h_conv3)
 
-    lstm_depth = 16
-    lstm_height = inp_height / 8
-    lstm_width = inp_width / 8
+        lstm_depth = 16
+        lstm_height = inp_height / 8
+        lstm_width = inp_width / 8
 
-    # ConvLSTM hidden state initialization
-    # [B, LH, LW, LD]
-    c_init_0 = tf.zeros([1, lstm_height, lstm_width, lstm_depth])
-    h_init_0 = tf.zeros([1, lstm_height, lstm_width, lstm_depth])
-    x_shape = tf.shape(x)
-    num_ex = x_shape[0: 1]
-    num_ex_mul = tf.concat(0, [num_ex, tf.constant([1, 1, 1])])
-    h_init = tf.tile(h_init_0, num_ex_mul, name='h_init')
-    c_init = tf.tile(c_init_0, num_ex_mul, name='c_init')
+        # ConvLSTM hidden state initialization
+        # [B, LH, LW, LD]
+        c_init_0 = tf.zeros([1, lstm_height, lstm_width, lstm_depth])
+        h_init_0 = tf.zeros([1, lstm_height, lstm_width, lstm_depth])
+        x_shape = tf.shape(x)
+        num_ex = x_shape[0: 1]
+        num_ex_mul = tf.concat(0, [num_ex, tf.constant([1, 1, 1])])
+        h_init = tf.tile(h_init_0, num_ex_mul, name='h_init')
+        c_init = tf.tile(c_init_0, num_ex_mul, name='c_init')
 
-    # 4th convolution layer (on ConvLSTM output).
-    w_conv4 = _weight_variable([3, 3, 16, 1])
-    b_conv4 = _weight_variable([1])
+        # 4th convolution layer (on ConvLSTM output).
+        w_conv4 = _weight_variable([3, 3, 16, 1])
+        b_conv4 = _weight_variable([1])
 
-    # Bias towards segmentation output.
-    b_5 = _weight_variable([lstm_height * lstm_width])
+        # Bias towards segmentation output.
+        b_5 = _weight_variable([lstm_height * lstm_width])
 
-    # Linear layer for output confidence score.
-    w_6 = _weight_variable([lstm_height * lstm_height / 16 * lstm_depth, 1])
-    b_6 = _weight_variable([1])
+        # Linear layer for output confidence score.
+        w_6 = _weight_variable([lstm_height * lstm_height / 16 * lstm_depth, 1])
+        b_6 = _weight_variable([1])
 
-    unroll_conv_lstm = _add_conv_lstm(
-        model=model,
-        timespan=timespan,
-        inp_height=lstm_height,
-        inp_width=lstm_width,
-        inp_depth=64,
-        filter_size=conv_lstm_filter_size,
-        hid_depth=16,
-        c_init=c_init,
-        h_init=h_init,
-        wd=wd,
-        name='lstm'
-    )
-    h_lstm = model['h_lstm']
+        unroll_conv_lstm = _add_conv_lstm(
+            model=model,
+            timespan=timespan,
+            inp_height=lstm_height,
+            inp_width=lstm_width,
+            inp_depth=64,
+            filter_size=conv_lstm_filter_size,
+            hid_depth=16,
+            c_init=c_init,
+            h_init=h_init,
+            wd=wd,
+            name='lstm'
+        )
+        h_lstm = model['h_lstm']
 
-    h_conv4 = [None] * timespan
-    segm_lo = [None] * timespan
-    segm_out = [None] * timespan
-    score = [None] * timespan
-    h_pool4 = [None] * timespan
+        h_conv4 = [None] * timespan
+        segm_lo = [None] * timespan
+        segm_out = [None] * timespan
+        score = [None] * timespan
+        h_pool4 = [None] * timespan
 
-    for t in xrange(timespan):
-        # We can potentially have another canvas that substract this one.
-        unroll_conv_lstm(h_pool3, time=t)
+        for t in xrange(timespan):
+            # We can potentially have another canvas that substract this one.
+            unroll_conv_lstm(h_pool3, time=t)
 
-        # Segmentation network
-        # [B, LH, LW, 1]
-        h_conv4 = tf.nn.relu(_conv2d(h_lstm[t], w_conv4) + b_conv4)
-        # [B, LH * LW]
-        h_conv4_reshape = tf.reshape(
-            h_conv4, [-1, lstm_height * lstm_width])
-        # [B, LH * LW] => [B, LH, LW] => [B, 1, LH, LW]
-        # [B, LH * LW] => [B, LH, LW] => [B, LH, LW, 1]
-        segm_lo[t] = tf.expand_dims(tf.reshape(tf.sigmoid(
-            tf.log(tf.nn.softmax(h_conv4_reshape)) + b_5),
-            [-1, lstm_height, lstm_width]), dim=3)
+            # Segmentation network
+            # [B, LH, LW, 1]
+            h_conv4 = tf.nn.relu(_conv2d(h_lstm[t], w_conv4) + b_conv4)
+            # [B, LH * LW]
+            h_conv4_reshape = tf.reshape(
+                h_conv4, [-1, lstm_height * lstm_width])
+            # [B, LH * LW] => [B, LH, LW] => [B, 1, LH, LW]
+            # [B, LH * LW] => [B, LH, LW] => [B, LH, LW, 1]
+            segm_lo[t] = tf.expand_dims(tf.reshape(tf.sigmoid(
+                tf.log(tf.nn.softmax(h_conv4_reshape)) + b_5),
+                [-1, lstm_height, lstm_width]), dim=3)
 
-        # [B, LH, LW, 1] => [B, H, W, 1] => [B, 1, H, W]
-        # Possibly running convolution again here.
-        segm_out[t] = tf.reshape(
-            tf.image.resize_bilinear(segm_lo[t], [inp_height, inp_width]),
-            [-1, 1, inp_height, inp_width])
+            # [B, LH, LW, 1] => [B, H, W, 1] => [B, 1, H, W]
+            # Possibly running convolution again here.
+            segm_out[t] = tf.reshape(
+                tf.image.resize_bilinear(segm_lo[t], [inp_height, inp_width]),
+                [-1, 1, inp_height, inp_width])
 
-        # Objectness network
-        # [B, LH, LW, LD] => [B, LLH, LLW, LD] => [B, LLH * LLW * LD]
-        h_pool4[t] = tf.reshape(_max_pool_4x4(h_lstm[t]),
-                                [-1,
-                                 lstm_height * lstm_width / 16 * lstm_depth])
-        # [B, LLH * LLW * LD] => [B, 1]
-        score[t] = tf.sigmoid(tf.matmul(h_pool4_reshape[t], w_6) + b_6)
+            # Objectness network
+            # [B, LH, LW, LD] => [B, LLH, LLW, LD] => [B, LLH * LLW * LD]
+            h_pool4[t] = tf.reshape(_max_pool_4x4(h_lstm[t]),
+                                    [-1,
+                                     lstm_height * lstm_width / 16 * lstm_depth])
+            # [B, LLH * LLW * LD] => [B, 1]
+            score[t] = tf.sigmoid(tf.matmul(h_pool4_reshape[t], w_6) + b_6)
 
-    # Concatenate output
-    # T * [B, 1, H, W] = [B, T, H, W]
-    y_out = tf.concat(1, segm_out)
-    model['y_out'] = y_out
+        # Concatenate output
+        # T * [B, 1, H, W] = [B, T, H, W]
+        y_out = tf.concat(1, segm_out)
+        model['y_out'] = y_out
 
-    # T * [B, 1] = [B, T]
-    s_out = tf.concat(1, score)
-    model['s_out'] = s_out
+        # T * [B, 1] = [B, T]
+        s_out = tf.concat(1, score)
+        model['s_out'] = s_out
 
-    model['h_lstm_0'] = h_lstm[0]
-    model['h_pool4_0'] = h_pool4[0]
-    model['s_0'] = score[0]
-    model['s_out'] = s_out
+        model['h_lstm_0'] = h_lstm[0]
+        model['h_pool4_0'] = h_pool4[0]
+        model['s_0'] = score[0]
+        model['s_out'] = s_out
 
-    # Loss function
-    if train:
-        r = opt['loss_mix_ratio']
-        lr = opt['learning_rate']
-        eps = 1e-7
-        loss = _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r)
-        tf.add_to_collection('losses', loss)
-        total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
-        model['total_loss'] = total_loss
+        # Loss function
+        if train:
+            r = opt['loss_mix_ratio']
+            lr = opt['learning_rate']
+            eps = 1e-7
+            loss = _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r)
+            tf.add_to_collection('losses', loss)
+            total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+            model['total_loss'] = total_loss
 
-        train_step = GradientClipOptimizer(
-            tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(total_loss)
-        model['train_step'] = train_step
+            train_step = GradientClipOptimizer(
+                tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(total_loss)
+            model['train_step'] = train_step
 
     return model
 
