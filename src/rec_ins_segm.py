@@ -248,13 +248,8 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
     def _bce(y_out, y_gt):
         """Binary cross entropy."""
         eps = 1e-7
-        # log.error(y_gt.get_shape())
-        # log.fatal(y_out.get_shape())
-        a = y_gt * tf.log(y_out + eps)
-        b = (1 - y_gt) * tf.log(1 - y_out + eps)
-        return -a - b
-        # return -y_gt * tf.log(y_out + eps) - \
-        #     (1 - y_gt) * tf.log(1 - y_out + eps)
+        return -y_gt * tf.log(y_out + eps) - \
+            (1 - y_gt) * tf.log(1 - y_out + eps)
 
     # IOU score, [B, N, M]
     iou = _f_iou(y_out, y_gt, pairwise=True)
@@ -263,11 +258,7 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
     # Add small epsilon because the matching algorithm only accepts complete
     # bipartite graph with positive weights.
     epsilon = 1e-5
-    delta_eps = tf.user_ops.hungarian(iou + epsilon)[0]
-    # Mask the graph algorithm output.
-    mask = tf.to_float(iou > 0)
-    delta = delta_eps * mask
-    model['delta'] = delta
+    match_eps = tf.user_ops.hungarian(iou + epsilon)[0]
 
     # [1, N, 1, 1]
     y_out_shape = tf.shape(y_out)
@@ -275,23 +266,34 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
     num_segm_out_mul = tf.concat(
         0, [tf.constant([1]), num_segm_out, tf.constant([1])])
     # [B, M] => [B, 1, M] => [B, N, M]
-    s_gt_rep = tf.tile(tf.expand_dims(s_gt, dim=1), num_segm_out_mul)
+    # Mask the graph algorithm output.
+    mask = tf.tile(tf.expand_dims(s_gt, dim=1), num_segm_out_mul)
+    match = match_eps * mask
+    model['match'] = match
 
     # [1, M, 1, 1]
     y_gt_shape = tf.shape(y_gt)
     num_segm_gt = y_gt_shape[1: 2]
     num_segm_gt_mul = tf.concat(
         0, [tf.constant([1]), tf.constant([1]), num_segm_gt])
-    # [B, N] => [B, N, 1] => [B, N, M]
-    s_out_min_rep = tf.tile(tf.expand_dims(
-        tf.user_ops.cum_min(s_out), dim=2), num_segm_gt_mul)
+    # [B, N]
+    s_out_min = tf.user_ops.cum_min(s_out)
+    model['s_out_min'] = s_out_min
+    # [B, N, M] => [B, N]
+    match_sum = tf.reduce_sum(match, reduction_indices=[2])
+    # [B, N]
+    s_bce = _bce(s_out_min, match_sum)
+    model['s_bce'] = s_bce
 
+    # Loss normalized by number of examples.
+    num_ex = tf.to_float(y_gt_shape[0])
     # [B, N, M] => scalar
-    segm_loss = -tf.reduce_sum(iou * delta * s_gt_rep)
-    conf_loss = tf.reduce_sum(r * s_gt_rep * _bce(delta, s_out_min_rep))
+    segm_loss = -tf.reduce_sum(iou * match) / num_ex
+    conf_loss = tf.reduce_sum(r * s_bce) / num_ex
+    loss = segm_loss + conf_loss
+
     model['segm_loss'] = segm_loss
     model['conf_loss'] = conf_loss
-    loss = segm_loss + conf_loss
     model['loss'] = loss
 
     return loss
@@ -635,38 +637,27 @@ if __name__ == '__main__':
         # Validation
         valid_loss = 0
         log.info('Running validation')
-        run_delta = False
+        run_sample = False
         for x_bat, y_bat, s_bat in BatchIterator(num_ex_valid,
                                                  batch_size=batch_size_valid,
                                                  get_fn=get_batch_valid,
                                                  progress_bar=False):
-            # s_out = sess.run(m['s_out'], feed_dict={
-            #     m['x']: x_bat
-            # })
-            # log.info(s_out)
-            # log.info(s_out.shape)
-
-            # s_0 = sess.run(m['s_0'], feed_dict={
-            #     m['x']: x_bat
-            # })
-            # log.info(s_0)
-            # log.info(s_0.shape)
-
-            # h_pool4_0 = sess.run(m['h_pool4_0'], feed_dict={
-            #     m['x']: x_bat
-            # })
-            # log.info(h_pool4_0)
-            # log.info(h_pool4_0.shape)
-
-            if not run_delta:
-                delta = sess.run(m['delta'], feed_dict={
+            if not run_sample:
+                results = sess.run([m['match'], m['iou'], m[['s_bce']]],
+                             feed_dict={
                     m['x']: x_bat,
-                    m['y_gt']: y_bat
+                    m['y_gt']: y_bat,
+                    m['s_gt']: s_bat
                 })
-                log.info('Sample delta shape: {}'.format(delta.shape))
-                for ii in xrange(min(10, delta.shape[0])):
-                    log.info('Sample delta {} : \n{}'.format(ii, delta[ii]))
-                run_delta = True
+                match = results[0]
+                iou = results[1]
+                s_bce = results[2]
+                log.info('Sample match shape: {}'.format(match.shape))
+                for ii in xrange(min(10, match.shape[0])):
+                    log.info('Sample match {} : \n{}'.format(ii, match[ii]))
+                    log.info('Sample IOU {} : \n{}'.format(ii, iou[ii]))
+                    log.info('Sample BCE {} : \n{}'.format(ii, s_bce[ii]))
+                run_sample = True
 
             losses = sess.run([m['loss'], m['segm_loss'], m['conf_loss']],
                               feed_dict={
@@ -675,8 +666,7 @@ if __name__ == '__main__':
                 m['s_gt']: s_bat
             })
             loss = losses[0]
-            log.info(('Total loss: {}, Segmentation loss: {}, Confidence '
-                      'score loss: {}').format(
+            log.info(('Loss: {}, Segm loss: {}, Conf loss: {}').format(
                 losses[0], losses[1], losses[2]))
 
             valid_loss += loss * batch_size_valid / float(num_ex_valid)
