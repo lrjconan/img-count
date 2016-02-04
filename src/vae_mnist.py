@@ -8,9 +8,7 @@ Usage: python vae_mnist.py
 Reference:
 [1] D.P. Kingma, M. Welling. Auto-encoding variational Bayes. ICLR 2014.
 """
-
-import sys
-sys.path.insert(0, '/pkgs/tensorflow-gpu-0.5.0/lib/python2.7/site-packages')
+import cslab_environ
 
 from data_api import mnist
 from utils import logger

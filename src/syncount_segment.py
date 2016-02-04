@@ -268,10 +268,10 @@ def get_train_model(opt, device='/cpu:0'):
         total_err = tf.reduce_sum(segm_ce * obj_gt) / \
             tf.to_float(tf.size(obj_gt))
         total_err += r * obj_ce
+        # train_step = tf.train.GradientDescentOptimizer(lr).minimize(total_err)
         # train_step = GradientClipOptimizer(
         #     tf.train.AdamOptimizer(lr, epsilon=eps)).minimize(total_err)
-        train_step = tf.train.AdamOptimizer(
-            lr, epsilon=eps).minimize(total_err)
+        train_step = tf.train.AdamOptimizer(lr, epsilon=eps).minimize(total_err)
 
     model = {
         'inp': inp,
