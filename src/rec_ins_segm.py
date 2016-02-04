@@ -96,12 +96,6 @@ def _max_pool_4x4(x):
                           strides=[1, 4, 4, 1], padding='SAME')
 
 
-def _avg_pool_8x8(x):
-    """g_i8 x 8 avg pooling."""
-    return tf.nn.avg_pool(x, ksize=[1, 8, 8, 1],
-                          strides=[1, 8, 8, 1], padding='SAME')
-
-
 def _weight_variable(shape, wd=None, name=None):
     """Initialize weights."""
     initial = tf.truncated_normal(shape, stddev=0.01)
@@ -113,7 +107,21 @@ def _weight_variable(shape, wd=None, name=None):
 
 
 def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_size, hid_depth, c_init, h_init, wd=None, name=''):
-    """Adds a Conv-LSTM component."""
+    """Adds a Conv-LSTM component.
+
+    Args:
+        model: Model dictionary
+        timespan: Maximum length of the LSTM
+        inp_height: Input image height
+        inp_width: Input image width
+        inp_depth: Input image depth
+        filter_size: Conv gate filter size
+        hid_depth: Hidden state depth
+        c_init: Cell state initialization
+        h_init: Hidden state initialization
+        wd: Weight decay
+        name: Prefix
+    """
     g_i = [None] * timespan
     g_f = [None] * timespan
     g_o = [None] * timespan
@@ -123,28 +131,35 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
     c[-1] = c_init
     h[-1] = h_init
 
+    # Input gate
     w_xi = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                            name='w_xi_{}'.format(name))
+                            wd=wd, name='w_xi_{}'.format(name))
     w_hi = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                            name='w_hi_{}'.format(name))
+                            wd=wd, name='w_hi_{}'.format(name))
     b_i = _weight_variable([hid_depth],
-                           name='b_i_{}'.format(name))
+                           wd=wd, name='b_i_{}'.format(name))
+
+    # Forget gate
     w_xf = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                            name='w_xf_{}'.format(name))
+                            wd=wd, name='w_xf_{}'.format(name))
     w_hf = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                            name='w_hf_{}'.format(name))
+                            wd=wd, name='w_hf_{}'.format(name))
     b_f = _weight_variable([hid_depth],
-                           name='b_f_{}'.format(name))
+                           wd=wd, name='b_f_{}'.format(name))
+
+    # Input activation
     w_xu = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                            name='w_xu_{}'.format(name))
+                            wd=wd, name='w_xu_{}'.format(name))
     w_hu = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                            name='w_hu_{}'.format(name))
+                            wd=wd, name='w_hu_{}'.format(name))
     b_u = _weight_variable([hid_depth],
-                           name='b_u_{}'.format(name))
+                           wd=wd, name='b_u_{}'.format(name))
+
+    # Output gate
     w_xo = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                            name='w_xo_{}'.format(name))
+                            wd=wd, name='w_xo_{}'.format(name))
     w_ho = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                            name='w_ho_{}'.format(name))
+                            wd=wd, name='w_ho_{}'.format(name))
     b_o = _weight_variable([hid_depth], name='b_o_{}'.format(name))
 
     def unroll(inp, time):
@@ -321,48 +336,63 @@ def get_model(opt, device='/cpu:0', train=True):
     model['y_gt'] = y_gt
     model['s_gt'] = s_gt
 
+    # Possibly add random image transformation layers here in training time.
+    # Need to combine x and y together to crop.
+    # Other operations on x only.
+    # x = tf.image.random_crop()
+    # x = tf.image.random_flip()
+
     # 1st convolution layer
+    # [B, H, W, 3] => [B, H / 2, W / 2, 16]
     w_conv1 = _weight_variable([3, 3, 3, 16])
     b_conv1 = _weight_variable([16])
     h_conv1 = tf.nn.relu(_conv2d(x, w_conv1) + b_conv1)
     h_pool1 = _max_pool_2x2(h_conv1)
 
     # 2nd convolution layer
+    # [B, H / 2, W / 2, 16] => [B, H / 4, W / 4, 32]
     w_conv2 = _weight_variable([3, 3, 16, 32])
     b_conv2 = _weight_variable([32])
     h_conv2 = tf.nn.relu(_conv2d(h_pool1, w_conv2) + b_conv2)
     h_pool2 = _max_pool_2x2(h_conv2)
 
     # 3rd convolution layer
+    # [B, H / 4, W / 4, 32] => [B, H / 8, W / 8, 64]
     w_conv3 = _weight_variable([3, 3, 32, 64])
     b_conv3 = _weight_variable([64])
     h_conv3 = tf.nn.relu(_conv2d(h_pool2, w_conv3) + b_conv3)
     h_pool3 = _max_pool_2x2(h_conv3)
 
     lstm_depth = 16
-    lstm_inp_height = inp_height / 8
-    lstm_inp_width = inp_width / 8
-    c_init_0 = tf.zeros([1, lstm_inp_height, lstm_inp_width, lstm_depth])
-    h_init_0 = tf.zeros([1, lstm_inp_height, lstm_inp_width, lstm_depth])
+    lstm_height = inp_height / 8
+    lstm_width = inp_width / 8
 
+    # ConvLSTM hidden state initialization
+    # [B, LH, LW, LD]
+    c_init_0 = tf.zeros([1, lstm_height, lstm_width, lstm_depth])
+    h_init_0 = tf.zeros([1, lstm_height, lstm_width, lstm_depth])
     x_shape = tf.shape(x)
     num_ex = x_shape[0: 1]
     num_ex_mul = tf.concat(0, [num_ex, tf.constant([1, 1, 1])])
     h_init = tf.tile(h_init_0, num_ex_mul, name='h_init')
     c_init = tf.tile(c_init_0, num_ex_mul, name='c_init')
 
+    # 4th convolution layer (on ConvLSTM output).
     w_conv4 = _weight_variable([3, 3, 16, 1])
     b_conv4 = _weight_variable([1])
-    b_5 = _weight_variable([lstm_inp_height * lstm_inp_width])
 
-    w_6 = _weight_variable([lstm_inp_height * lstm_inp_height, 1])
+    # Bias towards segmentation output.
+    b_5 = _weight_variable([lstm_height * lstm_width])
+
+    # Linear layer for output confidence score.
+    w_6 = _weight_variable([lstm_height * lstm_height / 16 * lstm_depth, 1])
     b_6 = _weight_variable([1])
 
     unroll_conv_lstm = _add_conv_lstm(
         model=model,
         timespan=timespan,
-        inp_height=lstm_inp_height,
-        inp_width=lstm_inp_width,
+        inp_height=lstm_height,
+        inp_width=lstm_width,
         inp_depth=64,
         filter_size=conv_lstm_filter_size,
         hid_depth=16,
@@ -388,12 +418,12 @@ def get_model(opt, device='/cpu:0', train=True):
         h_conv4 = tf.nn.relu(_conv2d(h_lstm[t], w_conv4) + b_conv4)
         # [B, LH * LW]
         h_conv4_reshape = tf.reshape(
-            h_conv4, [-1, lstm_inp_height * lstm_inp_width])
+            h_conv4, [-1, lstm_height * lstm_width])
         # [B, LH * LW] => [B, LH, LW] => [B, 1, LH, LW]
         # [B, LH * LW] => [B, LH, LW] => [B, LH, LW, 1]
         segm_lo[t] = tf.expand_dims(tf.reshape(tf.sigmoid(
             tf.log(tf.nn.softmax(h_conv4_reshape)) + b_5),
-            [-1, lstm_inp_height, lstm_inp_width]), dim=3)
+            [-1, lstm_height, lstm_width]), dim=3)
 
         # [B, LH, LW, 1] => [B, H, W, 1] => [B, 1, H, W]
         # Possibly running convolution again here.
@@ -402,11 +432,12 @@ def get_model(opt, device='/cpu:0', train=True):
             [-1, 1, inp_height, inp_width])
 
         # Objectness network
-        # [B, LH, LW, 1] => [B, LLH * LLW]
-        h_pool4[t] = tf.reshape(_max_pool_4x4(
-            h_lstm[t]), [-1, lstm_inp_height * lstm_inp_width])
-        # [B, LLH * LLW] => [B, 1]
-        score[t] = tf.sigmoid(tf.matmul(h_pool4[t], w_6) + b_6)
+        # [B, LH, LW, LD] => [B, LLH, LLW, LD] => [B, LLH * LLW * LD]
+        h_pool4[t] = tf.reshape(_max_pool_4x4(h_lstm[t]),
+                                [-1,
+                                 lstm_height * lstm_width / 16 * lstm_depth])
+        # [B, LLH * LLW * LD] => [B, 1]
+        score[t] = tf.sigmoid(tf.matmul(h_pool4_reshape[t], w_6) + b_6)
 
     # Loss function
     # T * [B, 1, H, W] = [B, T, H, W]
@@ -415,6 +446,7 @@ def get_model(opt, device='/cpu:0', train=True):
     # T * [B, 1] = [B, T]
     s_out = tf.concat(1, score)
 
+    model['h_lstm_0'] = h_lstm[0]
     model['h_pool4_0'] = h_pool4[0]
     model['s_0'] = score[0]
     model['s_out'] = s_out
@@ -647,7 +679,7 @@ if __name__ == '__main__':
                                                  get_fn=get_batch_valid,
                                                  progress_bar=False):
             if not run_sample:
-                results = sess.run([m['match'], m['iou'], m['s_bce']],
+                results = sess.run([m['match'], m['iou'], m['s_bce'], m['s_out'], m['h_pool4_0'], m['h_lstm_0']],
                                    feed_dict={
                     m['x']: x_bat,
                     m['y_gt']: y_bat,
@@ -656,11 +688,19 @@ if __name__ == '__main__':
                 match = results[0]
                 iou = results[1]
                 s_bce = results[2]
+                s_out = results[3]
+                h_pool4_0 = results[4]
+                h_lstm_0 = results[5]
                 log.info('Sample match shape: {}'.format(match.shape))
-                for ii in xrange(min(10, match.shape[0])):
+                log.info('Sample score shape: {}'.format(s_out.shape))
+
+                log.info('Sample h_pool4_0 shape: {}'.format(h_pool4_0.shape))
+                log.info('Sample h_lstm_0 shape: {}'.format(h_lstm_0.shape))
+                for ii in xrange(min(3, match.shape[0])):
                     log.info('Sample match {} : \n{}'.format(ii, match[ii]))
                     log.info('Sample IOU {} : \n{}'.format(ii, iou[ii]))
                     log.info('Sample BCE {} : \n{}'.format(ii, s_bce[ii]))
+                    log.info('Sample score {}: \n{}'.format(ii, s_out[ii]))
                 run_sample = True
 
             losses = sess.run([m['loss'], m['segm_loss'], m['conf_loss']],
