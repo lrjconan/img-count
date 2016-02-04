@@ -375,7 +375,7 @@ def get_model(opt, device='/cpu:0', train=True):
 
     h_conv4 = [None] * timespan
     segm_lo = [None] * timespan
-    segm_gt_lo = [None] * timespan
+    segm_out = [None] * timespan
     score = [None] * timespan
     h_pool4 = [None] * timespan
 
@@ -390,14 +390,16 @@ def get_model(opt, device='/cpu:0', train=True):
         h_conv4_reshape = tf.reshape(
             h_conv4, [-1, lstm_inp_height * lstm_inp_width])
         # [B, LH * LW] => [B, LH, LW] => [B, 1, LH, LW]
+        # [B, LH * LW] => [B, LH, LW] => [B, LH, LW, 1]
         segm_lo[t] = tf.expand_dims(tf.reshape(tf.sigmoid(
             tf.log(tf.nn.softmax(h_conv4_reshape)) + b_5),
-            [-1, lstm_inp_height, lstm_inp_width]), dim=1)
-        # [B, H, W] => [B, 1, LH, LW]
-        # Subsample groundtruth
-        segm_gt_lo[t] = tf.reshape(_avg_pool_8x8(tf.reshape(
-            y_gt_list[t], [-1, inp_height, inp_width, 1])),
-            [-1, 1, lstm_inp_height, lstm_inp_width])
+            [-1, lstm_inp_height, lstm_inp_width]), dim=3)
+
+        # [B, LH, LW, 1] => [B, H, W, 1] => [B, 1, H, W]
+        # Possibly running convolution again here.
+        segm_out[t] = tf.reshape(
+            tf.image.resize_bilinear(segm_lo[t], [inp_height, inp_width]),
+            [-1, 1, inp_height, inp_width])
 
         # Objectness network
         # [B, LH, LW, 1] => [B, LLH * LLW]
@@ -407,13 +409,14 @@ def get_model(opt, device='/cpu:0', train=True):
         score[t] = tf.sigmoid(tf.matmul(h_pool4[t], w_6) + b_6)
 
     # Loss function
-    # T * [B, 1, LH, LW] = [B, T, LH, LW]
-    y_out = tf.concat(1, segm_lo)
-    y_gt = tf.concat(1, segm_gt_lo)
+    # T * [B, 1, H, W] = [B, T, H, W]
+    y_out = tf.concat(1, segm_out)
+
     # T * [B, 1] = [B, T]
+    s_out = tf.concat(1, score)
+    
     model['h_pool4_0'] = h_pool4[0]
     model['s_0'] = score[0]
-    s_out = tf.concat(1, score)
     model['s_out'] = s_out
 
     r = opt['loss_mix_ratio']
@@ -645,7 +648,7 @@ if __name__ == '__main__':
                                                  progress_bar=False):
             if not run_sample:
                 results = sess.run([m['match'], m['iou'], m['s_bce']],
-                             feed_dict={
+                                   feed_dict={
                     m['x']: x_bat,
                     m['y_gt']: y_bat,
                     m['s_gt']: s_bat
