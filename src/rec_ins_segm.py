@@ -220,7 +220,7 @@ def _cum_min_grad(op, grad):
     return [tf.user_ops.cum_min_grad(grad, x)]
 
 
-def _f_iou(a, b, pairwise=False):
+def _f_iou(a, b, timespan, pairwise=False):
     """
     Computes IOU score.
 
@@ -262,18 +262,17 @@ def _f_iou(a, b, pairwise=False):
         # b = tf.expand_dims(b, 1)
         # a = tf.tile(a, a_shape2)
         # return _inter(a, b) / _union(a, b)
-        
-        N = 10
-        y_list = [None] * N
-        a_list = [None] * N
+
+        y_list = [None] * timespan
+        a_list = [None] * timespan
         # [B, N, H, W] => [B, N, 1, H, W]
         a = tf.expand_dims(a, 2)
         # [B, N, 1, H, W] => N * [B, 1, 1, H, W]
-        a_list = tf.split(1, N, a)
+        a_list = tf.split(1, timespan, a)
         # [B, M, H, W] => [B, 1, M, H, W]
         b = tf.expand_dims(b, 1)
 
-        for ii in xrange(N):
+        for ii in xrange(timespan):
             # [B, 1, M]
             y_list[ii] = _inter(a_list[ii], b) / _union(a_list[ii], b)
 
@@ -284,7 +283,17 @@ def _f_iou(a, b, pairwise=False):
         return _inter(a, b) / _union(a, b)
 
 
-def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
+def _cum_min(s, d):
+    """Calculates cumulative minimum."""
+    s_min_list = [None] * d
+    s_min_list[0] = s[:, 0: 1]
+    for ii in xrange(1, d):
+        s_min_list[ii] = tf.minimum(s_min_list[ii - 1], s[:, ii: ii + 1])
+
+    return tf.concat(1, s_min_list)
+
+
+def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan):
     """
     Instance segmentation loss.
 
@@ -304,26 +313,31 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
             (1 - y_gt) * tf.log(1 - y_out + eps)
 
     # IOU score, [B, N, M]
-    iou = _f_iou(y_out, y_gt, pairwise=True)
+    iou = _f_iou(y_out, y_gt, timespan, pairwise=True)
     model['iou'] = iou
     # Matching score, [B, N, M]
     # Add small epsilon because the matching algorithm only accepts complete
     # bipartite graph with positive weights.
     eps = 1e-5
-    match_eps = tf.user_ops.hungarian(iou + eps)[0]
+    # Mask out the items beyond the total groudntruth count.
+    # Mask X, [B, M] => [B, 1, M]
+    mask_x = tf.expand_dims(s_gt, dim=1)
+    # Mask Y, [B, M] => [B, N, 1]
+    mask_y = tf.expand_dims(s_gt, dim=2)
+    iou_mask = iou * mask_x * mask_y
+    match_eps = tf.user_ops.hungarian(iou_mask + eps)[0]
 
     # [1, N, 1, 1]
     y_out_shape = tf.shape(y_out)
     num_segm_out = y_out_shape[1: 2]
     num_segm_out_mul = tf.concat(
         0, [tf.constant([1]), num_segm_out, tf.constant([1])])
-    # [B, M] => [B, 1, M] Mask the graph algorithm output.
-    mask = tf.expand_dims(s_gt, dim=1)
-    match = match_eps * mask
+    # Mask the graph algorithm output.
+    match = match_eps * mask_x * mask_y
     model['match'] = match
 
     # [B, N]
-    s_out_min = tf.user_ops.cum_min(s_out)
+    s_out_min = _cum_min(s_out, timespan)
     model['s_out_min'] = s_out_min
 
     # [1, M, 1, 1]
@@ -503,15 +517,16 @@ def get_model(opt, device='/cpu:0', train=True):
             r = opt['loss_mix_ratio']
             lr = opt['learning_rate']
             eps = 1e-7
-            loss = _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r)
+            loss = _add_ins_segm_loss(
+                model, y_out, y_gt, s_out, s_gt, r, timespan)
             tf.add_to_collection('losses', loss)
             total_loss = tf.add_n(tf.get_collection(
                 'losses'), name='total_loss')
             model['total_loss'] = total_loss
 
             train_step = GradientClipOptimizer(
-                 tf.train.AdamOptimizer(lr, epsilon=eps),
-                 clip=1.0).minimize(total_loss)
+                tf.train.AdamOptimizer(lr, epsilon=eps),
+                clip=1.0).minimize(total_loss)
             # train_step = tf.train.GradientDescentOptimizer(
             #         lr).minimize(total_loss)
             model['train_step'] = train_step
