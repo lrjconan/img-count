@@ -268,12 +268,12 @@ def _f_iou(a, b, pairwise=False):
         a_list = [None] * N
         # [B, N, H, W] => [B, N, 1, H, W]
         a = tf.expand_dims(a, 2)
+        # [B, N, 1, H, W] => N * [B, 1, 1, H, W]
+        a_list = tf.split(1, N, a)
         # [B, M, H, W] => [B, 1, M, H, W]
         b = tf.expand_dims(b, 1)
 
         for ii in xrange(N):
-            # [B, N, 1, H, W] => [B, 1, 1, H, W]
-            a_list[ii] = a[:, ii: ii + 1, :, :, :]
             # [B, 1, M]
             y_list[ii] = _inter(a_list[ii], b) / _union(a_list[ii], b)
 
@@ -497,7 +497,6 @@ def get_model(opt, device='/cpu:0', train=True):
         model['h_lstm_0'] = h_lstm[0]
         model['h_pool4_0'] = h_pool4[0]
         model['s_0'] = score[0]
-        model['s_out'] = s_out
 
         # Loss function
         if train:
