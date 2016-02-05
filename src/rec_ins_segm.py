@@ -284,7 +284,7 @@ def _f_iou(a, b, pairwise=False):
         return _inter(a, b) / _union(a, b)
 
 
-def _add_ins_segm_loss(model, y_out, y_gt, s_out_min, s_gt, r):
+def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
     """
     Instance segmentation loss.
 
@@ -317,11 +317,14 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out_min, s_gt, r):
     num_segm_out = y_out_shape[1: 2]
     num_segm_out_mul = tf.concat(
         0, [tf.constant([1]), num_segm_out, tf.constant([1])])
-    # [B, M] => [B, 1, M] => [B, N, M]
-    # Mask the graph algorithm output.
+    # [B, M] => [B, 1, M] Mask the graph algorithm output.
     mask = tf.expand_dims(s_gt, dim=1)
     match = match_eps * mask
     model['match'] = match
+
+    # [B, N]
+    s_out_min = tf.user_ops.cum_min(s_out)
+    model['s_out_min'] = s_out_min
 
     # [1, M, 1, 1]
     y_gt_shape = tf.shape(y_gt)
@@ -489,10 +492,7 @@ def get_model(opt, device='/cpu:0', train=True):
 
         # T * [B, 1] = [B, T]
         s_out = tf.concat(1, score)
-        # [B, N]
-        s_out_min = tf.user_ops.cum_min(s_out)
         model['s_out'] = s_out
-        model['s_out_min'] = s_out_min
 
         model['h_lstm_0'] = h_lstm[0]
         model['h_pool4_0'] = h_pool4[0]
@@ -504,7 +504,7 @@ def get_model(opt, device='/cpu:0', train=True):
             r = opt['loss_mix_ratio']
             lr = opt['learning_rate']
             eps = 1e-7
-            loss = _add_ins_segm_loss(model, y_out, y_gt, s_out_min, s_gt, r)
+            loss = _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r)
             tf.add_to_collection('losses', loss)
             total_loss = tf.add_n(tf.get_collection(
                 'losses'), name='total_loss')
