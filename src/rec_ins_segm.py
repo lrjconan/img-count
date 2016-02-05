@@ -284,7 +284,15 @@ def _f_iou(a, b, timespan, pairwise=False):
 
 
 def _cum_min(s, d):
-    """Calculates cumulative minimum."""
+    """Calculates cumulative minimum.
+    
+    Args:
+        s: Input matrix [B, D].
+        d: Second dim.
+
+    Returns:
+        s_min: [B, D], cumulative minimum accross the second dim.
+    """
     s_min_list = [None] * d
     s_min_list[0] = s[:, 0: 1]
     for ii in xrange(1, d):

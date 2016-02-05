@@ -121,7 +121,10 @@ class HungarianOp : public OpKernel {
       p[v] = -1;
     }
 
-    while (q.size() > 0) {
+    for (int i = 0; q.size() > 0 && i <= MAX_NUM_ITERATION; ++i) {
+      if (i == MAX_NUM_ITERATION) {
+        LOG(FATAL) << "Max number of iteration reached at BFS.";
+      }
       int v = q.front();
       q.pop_front();
       mark[v] = true;
@@ -140,19 +143,21 @@ class HungarianOp : public OpKernel {
     if (found) {
       float b = capacity.maxCoeff();
       int v = t;
-      int i = 0;
-      while (p[v] != -1 && i < MAX_NUM_ITERATION) {
+      for (int i = 0; p[v] != -1 && i <= MAX_NUM_ITERATION; ++i) {
+        if (i == MAX_NUM_ITERATION) {
+          LOG(FATAL)
+              << "Max number of iteration reached at search parent list.";
+        }
         b = MIN(b, residual(p[v], v));
         v = p[v];
-        i++;
-      }
-      if (i == MAX_NUM_ITERATION) {
-        LOG(FATAL) << "Max number of iteration reached at search parent list.";
       }
 
       v = t;
-      i = 0;
-      while (p[v] != -1 && i < MAX_NUM_ITERATION) {
+      for (int i = 0; p[v] != -1 && i <= MAX_NUM_ITERATION; ++i) {
+        if (i == MAX_NUM_ITERATION) {
+          LOG(FATAL)
+              << "Max number of iteration reached at search parent list.";
+        }
         if (capacity(p[v], v) > 0) {
           flow(p[v], v) += b;
         } else {
@@ -161,10 +166,6 @@ class HungarianOp : public OpKernel {
         residual(p[v], v) -= b;
         residual(v, p[v]) += b;
         v = p[v];
-        i++;
-      }
-      if (i == MAX_NUM_ITERATION) {
-        LOG(FATAL) << "Max number of iteration reached at search parent list.";
       }
     }
 
@@ -180,13 +181,11 @@ class HungarianOp : public OpKernel {
     MatrixXfR flow = MatrixXfR::Zero(n, n);
     MatrixXfR residual(capacity);
 
-    int i = 0;
-    while (Augment(capacity, flow, residual) && i < MAX_NUM_ITERATION) {
-      i++;
-    }
-
-    if (i == MAX_NUM_ITERATION) {
-      LOG(FATAL) << "Max number of iteration reached at max flow.";
+    for (int i = 0; Augment(capacity, flow, residual) && i <= MAX_NUM_ITERATION;
+         ++i) {
+      if (i == MAX_NUM_ITERATION) {
+        LOG(FATAL) << "Max number of iteration reached at max flow.";
+      }
     }
 
     return flow;
@@ -359,10 +358,20 @@ class HungarianOp : public OpKernel {
     std::set<int> S;
     std::set<int> T;
     bool next_match = true;
-    int i = 0;
 
-    // for (int i = 0; i < 30;) {
-    while (i < MAX_NUM_ITERATION) {
+    for (int i = 0; i <= MAX_NUM_ITERATION; ++i) {
+      if (i == MAX_NUM_ITERATION) {
+        LOG(ERROR) << "Max number of iteration reached. Exit iteration "
+                      "possibly due to non-termination condition.";
+        LOG(ERROR) << "Input: " << weights;
+        LOG(ERROR) << "Matching: " << *matching;
+        LOG(ERROR) << "Equality: " << equality;
+        LOG(ERROR) << "S: ";
+        PrintSet(S);
+        LOG(ERROR) << "T: ";
+        PrintSet(T);
+        LOG(FATAL) << "Exit";
+      }
       VLOG(1) << "-----------------------------";
       VLOG(1) << "iteration " << i;
       VLOG(1) << "input graph: \n" << weights;
@@ -372,7 +381,7 @@ class HungarianOp : public OpKernel {
       VLOG(1) << "equality graph: \n" << equality;
       if (next_match) {
         MaxBipartiteMatching(equality, matching);
-        
+
         if (IsBipartiteMatchingSaturate(M)) {
           VLOG(1) << "found solution, exit";
           VLOG(1) << "-----------------------------";
@@ -431,11 +440,13 @@ class HungarianOp : public OpKernel {
         VLOG(1) << "cover y: \n" << c_y;
       } else {
         VLOG(1) << "N_S != T";
-        int j = 0;
-        while (N_S.size() > T.size() && j < MAX_NUM_ITERATION) {
+        for (int j = 0; N_S.size() > T.size() && j <= MAX_NUM_ITERATION; ++j) {
+          if (j == MAX_NUM_ITERATION) {
+            LOG(FATAL)
+                << "Max number of iteration reached at equalizing N_S, T.";
+          }
           int y;
-          for (auto it = N_S.begin(); it != N_S.end();
-               ++it) {
+          for (auto it = N_S.begin(); it != N_S.end(); ++it) {
             y = *it;
             if (!SetContains(T, y)) {
               VLOG(1) << "pick y in N_S not in T: " << y;
@@ -465,27 +476,11 @@ class HungarianOp : public OpKernel {
             VLOG(1) << "N_S: ";
             // PrintSet(N_S);
           }
-          j++;
-        }
-        if (j == MAX_NUM_ITERATION) {
-          LOG(FATAL) << "Max number of iteration reached at equalizing N_S, T.";
         }
       }
 
       VLOG(1) << "end of iteration";
       VLOG(1) << "-----------------------------";
-      i++;
-    }
-    if (i == MAX_NUM_ITERATION) {
-        LOG(ERROR) << "Max number of iteration reached. Exit iteration possibly due to non-termination condition.";
-        LOG(ERROR) << "Input: " << weights;
-        LOG(ERROR) << "Matching: " << *matching;
-        LOG(ERROR) << "Equality: " << equality;
-        LOG(ERROR) << "S: ";
-        PrintSet(S);
-        LOG(ERROR) << "T: ";
-        PrintSet(T);
-        LOG(FATAL) << "Exit";
     }
   }
 
