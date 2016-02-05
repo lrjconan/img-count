@@ -266,13 +266,20 @@ def _f_iou(a, b, pairwise=False):
         N = 10
         y_list = [None] * N
         a_list = [None] * N
+        # [B, N, H, W] => [B, N, 1, H, W]
         a = tf.expand_dims(a, 2)
+        # [B, M, H, W] => [B, 1, M, H, W]
         b = tf.expand_dims(b, 1)
+
         for ii in xrange(N):
+            # [B, N, 1, H, W] => [B, 1, 1, H, W]
             a_list[ii] = a[:, ii: ii + 1, :, :, :]
+            # [B, 1, M]
             y_list[ii] = _inter(a_list[ii], b) / _union(a_list[ii], b)
 
+        # N * [B, 1, M] => [B, N, M]
         return tf.concat(1, y_list)
+
     else:
         return _inter(a, b) / _union(a, b)
 
@@ -497,7 +504,7 @@ def get_model(opt, device='/cpu:0', train=True):
             r = opt['loss_mix_ratio']
             lr = opt['learning_rate']
             eps = 1e-7
-            loss = _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r)
+            loss = _add_ins_segm_loss(model, y_out, y_gt, s_out_min, s_gt, r)
             tf.add_to_collection('losses', loss)
             total_loss = tf.add_n(tf.get_collection(
                 'losses'), name='total_loss')
