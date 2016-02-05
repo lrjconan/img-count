@@ -140,13 +140,19 @@ class HungarianOp : public OpKernel {
     if (found) {
       float b = capacity.maxCoeff();
       int v = t;
-      while (p[v] != -1) {
+      int i = 0;
+      while (p[v] != -1 && i < MAX_NUM_ITERATION) {
         b = MIN(b, residual(p[v], v));
         v = p[v];
+        i++;
+      }
+      if (i == MAX_NUM_ITERATION) {
+        LOG(FATAL) << "Max number of iteration reached at search parent list.";
       }
 
       v = t;
-      while (p[v] != -1) {
+      i = 0;
+      while (p[v] != -1 && i < MAX_NUM_ITERATION) {
         if (capacity(p[v], v) > 0) {
           flow(p[v], v) += b;
         } else {
@@ -155,6 +161,10 @@ class HungarianOp : public OpKernel {
         residual(p[v], v) -= b;
         residual(v, p[v]) += b;
         v = p[v];
+        i++;
+      }
+      if (i == MAX_NUM_ITERATION) {
+        LOG(FATAL) << "Max number of iteration reached at search parent list.";
       }
     }
 
@@ -170,8 +180,14 @@ class HungarianOp : public OpKernel {
     MatrixXfR flow = MatrixXfR::Zero(n, n);
     MatrixXfR residual(capacity);
 
-    while (Augment(capacity, flow, residual))
-      ;
+    int i = 0;
+    while (Augment(capacity, flow, residual) && i < MAX_NUM_ITERATION) {
+      i++;
+    }
+
+    if (i == MAX_NUM_ITERATION) {
+      LOG(FATAL) << "Max number of iteration reached at max flow.";
+    }
 
     return flow;
   }
@@ -415,7 +431,8 @@ class HungarianOp : public OpKernel {
         VLOG(1) << "cover y: \n" << c_y;
       } else {
         VLOG(1) << "N_S != T";
-        while (N_S.size() > T.size()) {
+        int j = 0;
+        while (N_S.size() > T.size() && j < MAX_NUM_ITERATION) {
           int y;
           for (auto it = N_S.begin(); it != N_S.end();
                ++it) {
@@ -448,6 +465,10 @@ class HungarianOp : public OpKernel {
             VLOG(1) << "N_S: ";
             // PrintSet(N_S);
           }
+          j++;
+        }
+        if (j == MAX_NUM_ITERATION) {
+          LOG(FATAL) << "Max number of iteration reached at equalizing N_S, T.";
         }
       }
 
