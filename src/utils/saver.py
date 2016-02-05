@@ -1,5 +1,6 @@
 import cslab_environ
 
+import fnmatch
 import logger
 import os
 import yaml
@@ -79,8 +80,8 @@ def get_ckpt_info(folder):
     else:
         data_opt = None
 
-    ckpt_fname, latest_step = _get_latest_ckpt(folder)
-    log.info('Restoring at step {}'.format(step))
+    ckpt_fname, latest_step = get_latest_ckpt(folder)
+    log.info('Restoring at step {}'.format(latest_step))
 
     return {
         'ckpt_fname': ckpt_fname,

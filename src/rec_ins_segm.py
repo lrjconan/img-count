@@ -57,6 +57,22 @@ def get_dataset(opt, num_train, num_valid):
     return dataset
 
 
+def _get_device_fn(device):
+    """Choose device for different ops."""
+    OPS_ON_CPU = set(['ResizeBilinear', 'ResizeBilinearGrad', 'CumMin',
+                      'CumMinGrad', 'Hungarian', 'Reverse'])
+
+    def _device_fn(op):
+        if op.type in OPS_ON_CPU:
+            return "/cpu:0"
+        else:
+            # Other ops will be placed on GPU if available, otherwise
+            # CPU.
+            return device
+
+    return _device_fn
+
+
 def _get_batch_fn(dataset):
     """
     Preprocess mini-batch data given start and end indices.
@@ -235,20 +251,33 @@ def _f_iou(a, b, pairwise=False):
         return tf.reduce_sum(a + b - (a * b) + eps,
                              reduction_indices=reduction_indices)
     if pairwise:
-        b_shape = tf.shape(b)
-        # [1, 1, M, 1, 1]
-        a_shape2 = tf.concat(0, [tf.constant([1]), tf.constant([1]),
-                                 b_shape[1: 2], tf.constant([1]),
-                                 tf.constant([1])])
-        # [B, N, H, W] => [B, N, 1, H, W] => [B, N, M, H, W]
-        a = tf.tile(tf.expand_dims(a, 2), a_shape2)
-        # [B, M, H, W] => [B, 1, M, H, W]
+        # b_shape = tf.shape(b)
+        # # [1, 1, M, 1, 1]
+        # a_shape2 = tf.concat(0, [tf.constant([1, 1]),
+        #                          b_shape[1: 2],
+        #                          tf.constant([1, 1])])
+        # # [B, N, H, W] => [B, N, 1, H, W] => [B, N, M, H, W]
+        # a = tf.expand_dims(a, 2)
+        # # [B, M, H, W] => [B, 1, M, H, W]
+        # b = tf.expand_dims(b, 1)
+        # a = tf.tile(a, a_shape2)
+        # return _inter(a, b) / _union(a, b)
+        
+        N = 10
+        y_list = [None] * N
+        a_list = [None] * N
+        a = tf.expand_dims(a, 2)
         b = tf.expand_dims(b, 1)
+        for ii in xrange(N):
+            a_list[ii] = a[:, ii: ii + 1, :, :, :]
+            y_list[ii] = _inter(a_list[ii], b) / _union(a_list[ii], b)
 
-    return _inter(a, b) / _union(a, b)
+        return tf.concat(1, y_list)
+    else:
+        return _inter(a, b) / _union(a, b)
 
 
-def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
+def _add_ins_segm_loss(model, y_out, y_gt, s_out_min, s_gt, r):
     """
     Instance segmentation loss.
 
@@ -283,7 +312,7 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
         0, [tf.constant([1]), num_segm_out, tf.constant([1])])
     # [B, M] => [B, 1, M] => [B, N, M]
     # Mask the graph algorithm output.
-    mask = tf.tile(tf.expand_dims(s_gt, dim=1), num_segm_out_mul)
+    mask = tf.expand_dims(s_gt, dim=1)
     match = match_eps * mask
     model['match'] = match
 
@@ -292,9 +321,6 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
     num_segm_gt = y_gt_shape[1: 2]
     num_segm_gt_mul = tf.concat(
         0, [tf.constant([1]), tf.constant([1]), num_segm_gt])
-    # [B, N]
-    s_out_min = tf.user_ops.cum_min(s_out)
-    model['s_out_min'] = s_out_min
     # [B, N, M] => [B, N]
     match_sum = tf.reduce_sum(match, reduction_indices=[2])
     # [B, N]
@@ -326,7 +352,7 @@ def get_model(opt, device='/cpu:0', train=True):
     conv_lstm_hid_depth = opt['conv_lstm_hid_depth']
     wd = opt['weight_decay']
 
-    with tf.device(device):
+    with tf.device(_get_device_fn(device)):
         # Input image, [B, H, W, 3]
         x = tf.placeholder('float', [None, inp_height, inp_width, 3])
         # Groundtruth segmentation maps, [B, T, H, W]
@@ -371,13 +397,12 @@ def get_model(opt, device='/cpu:0', train=True):
 
         # ConvLSTM hidden state initialization
         # [B, LH, LW, LD]
-        c_init_0 = tf.zeros([1, lstm_height, lstm_width, lstm_depth])
-        h_init_0 = tf.zeros([1, lstm_height, lstm_width, lstm_depth])
         x_shape = tf.shape(x)
         num_ex = x_shape[0: 1]
-        num_ex_mul = tf.concat(0, [num_ex, tf.constant([1, 1, 1])])
-        h_init = tf.tile(h_init_0, num_ex_mul, name='h_init')
-        c_init = tf.tile(c_init_0, num_ex_mul, name='c_init')
+        c_init = tf.zeros(tf.concat(0,
+                                    [num_ex, tf.constant([lstm_height, lstm_width, lstm_depth])]))
+        h_init = tf.zeros(tf.concat(0,
+                                    [num_ex, tf.constant([lstm_height, lstm_width, lstm_depth])]))
 
         # 4th convolution layer (on ConvLSTM output).
         w_conv4 = _weight_variable([3, 3, 16, 1])
@@ -387,7 +412,8 @@ def get_model(opt, device='/cpu:0', train=True):
         b_5 = _weight_variable([lstm_height * lstm_width])
 
         # Linear layer for output confidence score.
-        w_6 = _weight_variable([lstm_height * lstm_height / 16 * lstm_depth, 1])
+        w_6 = _weight_variable(
+            [lstm_height * lstm_height / 16 * lstm_depth, 1])
         b_6 = _weight_variable([1])
 
         unroll_conv_lstm = _add_conv_lstm(
@@ -407,7 +433,7 @@ def get_model(opt, device='/cpu:0', train=True):
 
         h_conv4 = [None] * timespan
         segm_lo = [None] * timespan
-        segm_out = [None] * timespan
+        # segm_out = [None] * timespan
         score = [None] * timespan
         h_pool4 = [None] * timespan
 
@@ -429,9 +455,9 @@ def get_model(opt, device='/cpu:0', train=True):
 
             # [B, LH, LW, 1] => [B, H, W, 1] => [B, 1, H, W]
             # Possibly running convolution again here.
-            segm_out[t] = tf.reshape(
-                tf.image.resize_bilinear(segm_lo[t], [inp_height, inp_width]),
-                [-1, 1, inp_height, inp_width])
+            # segm_out[t] = tf.reshape(
+            #     tf.image.resize_bilinear(segm_lo[t], [inp_height, inp_width]),
+            #     [-1, 1, inp_height, inp_width])
 
             # Objectness network
             # [B, LH, LW, LD] => [B, LLH, LLW, LD] => [B, LLH * LLW * LD]
@@ -439,16 +465,27 @@ def get_model(opt, device='/cpu:0', train=True):
                                     [-1,
                                      lstm_height * lstm_width / 16 * lstm_depth])
             # [B, LLH * LLW * LD] => [B, 1]
-            score[t] = tf.sigmoid(tf.matmul(h_pool4_reshape[t], w_6) + b_6)
+            score[t] = tf.sigmoid(tf.matmul(h_pool4[t], w_6) + b_6)
+
+        # [B * T, LH, LW, 1]
+        segm_lo_all = tf.concat(0, segm_lo)
+
+        # [B * T, LH, LW, 1] => [B * T, H, W, 1] => [B, T, H, W]
+        y_out = tf.reshape(
+            tf.image.resize_bilinear(segm_lo_all, [inp_height, inp_width]),
+            [-1, timespan, inp_height, inp_width])
 
         # Concatenate output
         # T * [B, 1, H, W] = [B, T, H, W]
-        y_out = tf.concat(1, segm_out)
+        #y_out = tf.concat(1, segm_out)
         model['y_out'] = y_out
 
         # T * [B, 1] = [B, T]
         s_out = tf.concat(1, score)
+        # [B, N]
+        s_out_min = tf.user_ops.cum_min(s_out)
         model['s_out'] = s_out
+        model['s_out_min'] = s_out_min
 
         model['h_lstm_0'] = h_lstm[0]
         model['h_pool4_0'] = h_pool4[0]
@@ -462,11 +499,15 @@ def get_model(opt, device='/cpu:0', train=True):
             eps = 1e-7
             loss = _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r)
             tf.add_to_collection('losses', loss)
-            total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+            total_loss = tf.add_n(tf.get_collection(
+                'losses'), name='total_loss')
             model['total_loss'] = total_loss
 
             train_step = GradientClipOptimizer(
-                tf.train.AdamOptimizer(lr, epsilon=eps), clip=1.0).minimize(total_loss)
+                 tf.train.AdamOptimizer(lr, epsilon=eps),
+                 clip=1.0).minimize(total_loss)
+            # train_step = tf.train.GradientDescentOptimizer(
+            #         lr).minimize(total_loss)
             model['train_step'] = train_step
 
     return model
@@ -608,7 +649,7 @@ if __name__ == '__main__':
         model_opt = ckpt_info['model_opt']
         data_opt = ckpt_info['data_opt']
         ckpt_fname = ckpt_info['ckpt_fname']
-        step = ckpt_info['latest_step']
+        step = ckpt_info['step']
     else:
         log.info('Initializing new model')
         model_opt = {
@@ -636,7 +677,8 @@ if __name__ == '__main__':
 
     dataset = get_dataset(data_opt, args.num_ex, args.num_ex / 10)
     m = get_model(model_opt, device=device)
-    sess = tf.Session()
+    # sess = tf.Session()
+    sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
     if args.restore:
         saver.restore_ckpt(sess, ckpt_fname)

@@ -27,6 +27,20 @@ import time
 log = logger.get()
 
 
+def _get_device_fn(device):
+    OPS_ON_CPU = set(['BatchMatMul'])
+
+    def _device_fn(op):
+        if op.type in OPS_ON_CPU:
+            return "/cpu:0"
+        else:
+            # Other ops will be placed on GPU if available, otherwise
+            # CPU.
+            return device
+
+    return _device_fn
+
+
 def _get_latest_ckpt(folder):
     """Get the latest checkpoint filename in a folder."""
 
@@ -327,7 +341,7 @@ def get_generator(opt, sess, train_model, device='/cpu:0'):
     hid_dim = opt['hid_dim']
     wd = opt['weight_decay']
 
-    with tf.device(device):
+    with tf.device(_get_device_fn(device)):
         #########################################################
         # Variables
         #########################################################
@@ -383,7 +397,9 @@ def get_generator(opt, sess, train_model, device='/cpu:0'):
         w_hdec_init = weight_variable([1, hid_dec_dim], wd=wd,
                                       name='w_hdec_init',
                                       sess=sess, train_model=train_model)
-        hdec_init = tf.tile(w_hdec_init, num_ex_mul, name='hdec_init')
+        #hdec_init = tf.tile(w_hdec_init, num_ex_mul, name='hdec_init')
+        hdec_shape = tf.concat(0, [num_ex, tf.constant([hid_dec_dim])])
+        hdec_init = tf.zeros(hdec_shape) + w_hdec_init
         m['w_hdec_init'] = w_hdec_init
         unroll_decoder = _add_gated_rnn(
             model=m,
@@ -411,7 +427,7 @@ def get_generator(opt, sess, train_model, device='/cpu:0'):
 
             # canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
             #                          _batch_matmul(_batch_matmul(
-            #                              filter_y_w[t], writeout[t], 
+            #                              filter_y_w[t], writeout[t],
             #                              rep=filter_size_w),
             #                          filter_x_w[t], adj_y=True,
             #                          rep=inp_width),
@@ -452,7 +468,7 @@ def get_model(opt, device='/cpu:0', train=True):
     # Weight L2 regularization.
     wd = opt['weight_decay']
 
-    with tf.device(device):
+    with tf.device(_get_device_fn(device)):
         #########################################################
         # Variables
         #########################################################
@@ -536,7 +552,10 @@ def get_model(opt, device='/cpu:0', train=True):
         # Encoder RNN
         w_henc_init = weight_variable([1, hid_enc_dim], wd=wd,
                                       name='w_henc_init')
-        henc_init = tf.tile(w_henc_init, num_ex_mul, name='henc_init')
+        # henc_init = tf.tile(w_henc_init, num_ex_mul, name='henc_init')
+        henc_shape = tf.concat(0, [num_ex, tf.constant([hid_enc_dim])])
+        henc_init = tf.zeros(henc_shape) + w_henc_init
+
         unroll_encoder = _add_gated_rnn(
             model=m,
             timespan=timespan,
@@ -586,7 +605,10 @@ def get_model(opt, device='/cpu:0', train=True):
         # Decoder RNN
         w_hdec_init = weight_variable([1, hid_dec_dim], wd=wd,
                                       name='w_hdec_init')
-        hdec_init = tf.tile(w_hdec_init, num_ex_mul, name='hdec_init')
+        # hdec_init = tf.tile(w_hdec_init, num_ex_mul, name='hdec_init')
+        hdec_shape = tf.concat(0, [num_ex, tf.constant([hid_dec_dim])])
+        hdec_init = tf.zeros(hdec_shape) + w_hdec_init
+
         m['w_hdec_init'] = w_hdec_init
         unroll_decoder = _add_gated_rnn(
             model=m,
@@ -686,7 +708,7 @@ def get_model(opt, device='/cpu:0', train=True):
             #                          _batch_matmul(_batch_matmul(
             #                              filter_y_w[t], writeout[t],
             #                              rep=filter_size_w),
-            #                          filter_x_w[t], adj_y=True, 
+            #                          filter_x_w[t], adj_y=True,
             #                          rep=inp_width),
             #                          name='canvas_delta_{}'.format(t))
             canvas_delta[t] = tf.mul(1 / tf.exp(lg_gamma_w[t]),
