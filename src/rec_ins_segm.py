@@ -303,9 +303,10 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r):
 
     # Loss normalized by number of examples.
     num_ex = tf.to_float(y_gt_shape[0])
+    max_num_obj = tf.to_float(y_gt_shape[1])
     # [B, N, M] => scalar
-    segm_loss = -tf.reduce_sum(iou * match) / num_ex
-    conf_loss = tf.reduce_sum(r * s_bce) / num_ex
+    segm_loss = -tf.reduce_sum(iou * match) / num_ex / max_num_obj
+    conf_loss = tf.reduce_sum(r * s_bce) / num_ex / max_num_obj
     loss = segm_loss + conf_loss
 
     model['segm_loss'] = segm_loss
