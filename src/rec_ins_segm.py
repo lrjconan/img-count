@@ -326,13 +326,18 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan):
     # Matching score, [B, N, M]
     # Add small epsilon because the matching algorithm only accepts complete
     # bipartite graph with positive weights.
-    eps = 1e-5
     # Mask out the items beyond the total groudntruth count.
     # Mask X, [B, M] => [B, 1, M]
     mask_x = tf.expand_dims(s_gt, dim=1)
     # Mask Y, [B, M] => [B, N, 1]
     mask_y = tf.expand_dims(s_gt, dim=2)
     iou_mask = iou * mask_x * mask_y
+
+    # Keep certain precision so that we can get optimal matching within
+    # reasonable time.
+    eps = 1e-5
+    precision = 1e6
+    iou_mask = tf.round(iou_mask * precision) / precision
     match_eps = tf.user_ops.hungarian(iou_mask + eps)[0]
 
     # [1, N, 1, 1]
