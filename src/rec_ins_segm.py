@@ -738,7 +738,6 @@ if __name__ == '__main__':
             'Visualization can be viewed at: http://{}/visualizer?id={}'.format(
                 args.localhost, model_id))
 
-    step = 0
     num_ex_train = dataset['train']['input'].shape[0]
     num_ex_valid = dataset['valid']['input'].shape[0]
     get_batch_train = _get_batch_fn(dataset['train'])
