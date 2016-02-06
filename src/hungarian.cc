@@ -403,11 +403,11 @@ class HungarianOp : public OpKernel {
       std::set<int> N_S;
       GetSetBipartiteNeighbours(S, equality, &N_S);
       VLOG(1) << "S: ";
-      PrintSet(S);
+      // PrintSet(S);
       VLOG(1) << "T: ";
-      PrintSet(T);
+      // PrintSet(T);
       VLOG(1) << "N_S: ";
-      PrintSet(N_S);
+      // PrintSet(N_S);
 
       if (SetEquals(N_S, T)) {
         VLOG(1) << "N_S == T";
@@ -470,11 +470,11 @@ class HungarianOp : public OpKernel {
             }
             T.insert(y);
             VLOG(1) << "S: ";
-            PrintSet(S);
+            // PrintSet(S);
             VLOG(1) << "T: ";
-            PrintSet(T);
+            // PrintSet(T);
             VLOG(1) << "N_S: ";
-            PrintSet(N_S);
+            // PrintSet(N_S);
           }
         }
       }
