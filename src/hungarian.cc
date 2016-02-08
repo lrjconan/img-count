@@ -370,7 +370,10 @@ class HungarianOp : public OpKernel {
         PrintSet(S);
         LOG(ERROR) << "T: ";
         PrintSet(T);
-        LOG(FATAL) << "Exit";
+        LOG(ERROR) << "Exit";
+        // Just return the unfinished matching here.
+        // Other loops will be fatal, this one willl not.
+        break;
       }
       VLOG(1) << "-----------------------------";
       VLOG(1) << "iteration " << i;
