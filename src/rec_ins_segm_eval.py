@@ -1,6 +1,7 @@
 import cslab_environ
 
 from data_api import mnist
+from utils.batch_iter import BatchIterator
 from utils import logger
 from utils import saver
 import argparse
@@ -23,6 +24,8 @@ def parse_args():
     parser.add_argument('-model', default=None, help='Model save folder')
     parser.add_argument('-plot', action='store_true',
                         help='Whether to plot generated data.')
+    parser.add_argument('-gpu', default=-1, type=int,
+                        help='GPU ID, default CPU')
     args = parser.parse_args()
 
     return args
@@ -35,10 +38,16 @@ if __name__ == '__main__':
     data_opt = ckpt_info['data_opt']
     ckpt_fname = ckpt_info['ckpt_fname']
 
-    num_ex_valid = 10000
+    # Set device
+    if args.gpu >= 0:
+        device = '/gpu:{}'.format(args.gpu)
+    else:
+        device = '/cpu:0'
+
+    num_ex_valid = 1000
     dataset = model.get_dataset(data_opt, 10, num_ex_valid)
     sess = tf.Session()
-    m = model.get_model(model_opt, train=False)
+    m = model.get_model(model_opt, device=device, train=False)
 
     saver.restore_ckpt(sess, ckpt_fname)
 
@@ -80,7 +89,7 @@ if __name__ == '__main__':
     def get_batch(start, end):
         return x[start: end], y_gt[start: end], s_gt[start: end]
 
-    batch_size_valid = 1000
+    batch_size_valid = 100
     count_acc = 0
     iou = 0
     for x_bat, y_bat, s_bat in BatchIterator(num_ex_valid,
@@ -91,9 +100,12 @@ if __name__ == '__main__':
             m['x']: x_bat
         })
         count_out = (s_out > 0.5).astype('float').sum(axis=1)
+        # log.info(count_out)
+        # log.info(count_out.shape)
         count_gt = s_bat.sum(axis=1)
-        count_acc += (s_out == s_bat).astype('float').sum()
-        
+        # log.info(count_gt)
+        # log.info(count_gt.shape)
+        count_acc += (count_out == count_gt).astype('float').sum()
         # You need optimal matching to compute the IOU score.
         # y_out_hard = (y_out > 0.5).astype('float')
         # iou += ((y_out_hard * y_bat).sum(axis=1) / \

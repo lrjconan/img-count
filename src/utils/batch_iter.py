@@ -27,11 +27,11 @@ class BatchIterator(object):
         self._num = num
         self._batch_size = batch_size
         self._step = 0
-        self._num_steps = np.ceil(self._num / float(batch_size))
+        self._num_steps = int(np.ceil(self._num / float(batch_size)))
         self._pb = None
         self._get_fn = get_fn
         if progress_bar:
-            self._pb = pb.get(num)
+            self._pb = pb.get(self._num_steps)
 
         pass
 
