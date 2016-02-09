@@ -285,7 +285,7 @@ def _f_iou(a, b, timespan, pairwise=False):
 
 def _cum_min(s, d):
     """Calculates cumulative minimum.
-    
+
     Args:
         s: Input matrix [B, D].
         d: Second dim.
@@ -827,4 +827,7 @@ if __name__ == '__main__':
             step += 1
 
     sess.close()
+    train_loss_logger.close()
+    valid_loss_logger.close()
+    step_time_logger.close()
     pass
