@@ -301,7 +301,7 @@ def _cum_min(s, d):
     return tf.concat(1, s_min_list)
 
 
-def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan):
+def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min=True):
     """
     Instance segmentation loss.
 
@@ -349,27 +349,29 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan):
     match = match_eps * mask_x * mask_y
     model['match'] = match
 
-    # [B, N]
-    s_out_min = _cum_min(s_out, timespan)
-    model['s_out_min'] = s_out_min
+    # Loss for confidence scores.
+    if use_cum_min:
+        # [B, N]
+        s_out_min = _cum_min(s_out, timespan)
+        # [B, N, M] => [B, N]
+        match_sum = tf.reduce_sum(match, reduction_indices=[2])
+        # [B, N]
+        s_bce = _bce(s_out_min, match_sum)
+        model['s_out_min'] = s_out_min
+    else:
+        # Try simply do binary xent for confidence sequence.
+        s_bce = _bce(s_out, s_gt)
 
-    # [1, M, 1, 1]
-    y_gt_shape = tf.shape(y_gt)
-    num_segm_gt = y_gt_shape[1: 2]
-    num_segm_gt_mul = tf.concat(
-        0, [tf.constant([1]), tf.constant([1]), num_segm_gt])
-    # [B, N, M] => [B, N]
-    match_sum = tf.reduce_sum(match, reduction_indices=[2])
-    # [B, N]
-    s_bce = _bce(s_out_min, match_sum)
     model['s_bce'] = s_bce
 
     # Loss normalized by number of examples.
+    y_gt_shape = tf.shape(y_gt)
     num_ex = tf.to_float(y_gt_shape[0])
     max_num_obj = tf.to_float(y_gt_shape[1])
+
     # [B, N, M] => scalar
     segm_loss = -tf.reduce_sum(iou * match) / num_ex / max_num_obj
-    conf_loss = tf.reduce_sum(r * s_bce) / num_ex / max_num_obj
+    conf_loss = r * tf.reduce_sum(s_bce) / num_ex / max_num_obj
     loss = segm_loss + conf_loss
 
     model['segm_loss'] = segm_loss
@@ -529,9 +531,11 @@ def get_model(opt, device='/cpu:0', train=True):
         if train:
             r = opt['loss_mix_ratio']
             lr = opt['learning_rate']
+            use_cum_min = ('cum_min' not in opt) or opt['cum_min']
             eps = 1e-7
             loss = _add_ins_segm_loss(
-                model, y_out, y_gt, s_out, s_gt, r, timespan)
+                model, y_out, y_gt, s_out, s_gt, r, timespan,
+                use_cum_min=use_cum_min)
             tf.add_to_collection('losses', loss)
             total_loss = tf.add_n(tf.get_collection(
                 'losses'), name='total_loss')
@@ -561,7 +565,7 @@ def _parse_args():
     # Object border thickness.
     kBorderThickness = 2
     # Number of examples.
-    kNumExamples = 2000
+    kNumExamples = 200
     # Maximum number of objects.
     kMaxNumObjects = 10
     # Number of object types, currently support up to three types (circles,
@@ -625,6 +629,8 @@ def _parse_args():
                         type=int, help='Conv LSTM filter size')
     parser.add_argument('-conv_lstm_hid_depth', default=kConvLstmHiddenDepth,
                         type=int, help='Conv LSTM hidden depth')
+    parser.add_argument('-no_cum_min', action='store_true',
+                        help='Whether cumulative minimum. Default yes.')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -694,7 +700,8 @@ if __name__ == '__main__':
             'learning_rate': args.learning_rate,
             'loss_mix_ratio': args.loss_mix_ratio,
             'conv_lstm_filter_size': args.conv_lstm_filter_size,
-            'conv_lstm_hid_depth': args.conv_lstm_hid_depth
+            'conv_lstm_hid_depth': args.conv_lstm_hid_depth,
+            'cum_min': not args.no_cum_min
         }
         data_opt = {
             'height': args.height,
