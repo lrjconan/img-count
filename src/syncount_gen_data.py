@@ -513,7 +513,7 @@ def _image_to_instance_segmentation(opt, image_data_entry):
     """
     height = opt['height']
     width = opt['width']
-    timespan = opt['max_num_objects']
+    timespan = opt['max_num_objects'] + 1
     image = image_data_entry['image']
     ins_segm = np.zeros([timespan, height, width], dtype='uint8')
     num_segmentations = len(image_data_entry['segmentations'])
@@ -538,7 +538,7 @@ def get_instance_segmentation_data(opt, image_data):
     num_ex = len(image_data)
     height = opt['height']
     width = opt['width']
-    timespan = opt['max_num_objects']
+    timespan = opt['max_num_objects'] + 1
     inp = np.zeros([num_ex, height, width, 3], dtype='uint8')
     label_segmentation = np.zeros(
         [num_ex, timespan, height, width], dtype='uint8')

@@ -344,16 +344,34 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
         return -y_gt * tf.log(y_out + eps) - \
             (1 - y_gt) * tf.log(1 - y_out + eps)
 
-    def _match_bce(y_out, y_gt, match):
+    def _match_bce(y_out, y_gt, match, match_count, timespan):
         """Binary cross entropy with matching.
 
         Args:
-            y_out: [B, N, D]
-            y_gt: [B, N, D]
+            y_out: [B, N, H, W]
+            y_gt: [B, N, H, W]
             match: [B, N, N]
+            match_count: [B]
+            num_ex: [1]
+            timespan: N
         """
+        # N * [B, 1, H, W]
+        y_out_list = tf.split(1, timespan, y_out)
+        match_list = tf.split(1, timespan, match)
+        bce_list = [None] * timespan
+        shape = tf.shape(y_out)
+        num_ex = tf.to_float(shape[0])
+        height = tf.to_float(shape[2])
+        width = tf.to_float(shape[3])
 
-        pass
+        for ii in xrange(timespan):
+            # [B, N, H, W] * [B, 1, H, W] => [B, N, H, W] => [B] => [B, 1]
+            bce_list[ii] = tf.expand_dims(tf.reduce_sum(
+                _bce(y_gt, y_out_list[ii]), reduction_indices=[1, 2, 3]), 1)
+
+        # N * [B, 1] => [B, N] => [B]
+        bce_total = tf.reduce_sum(tf.concat(1, bce_list), reduction_indices=[1])
+        return tf.reduce_sum(bce_total / match_count) / num_ex / height / width
 
     # IOU score, [B, N, M]
     iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
@@ -420,7 +438,8 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
     if segm_loss_fn == 'iou':
         segm_loss = -iou_soft
     elif segm_loss_fn == 'bce':
-        pass
+        segm_loss = _match_bce(
+            y_out, y_gt, match, match_count, timespan)
 
     model['segm_loss'] = segm_loss
     if has_segm:
@@ -608,7 +627,8 @@ def get_model(opt, device='/cpu:0', train=True):
             eps = 1e-7
             loss = _add_ins_segm_loss(
                 model, y_out, y_gt, s_out, s_gt, r, timespan,
-                use_cum_min=use_cum_min, has_segm=has_segm)
+                use_cum_min=use_cum_min, has_segm=has_segm,
+                segm_loss_fn=opt['segm_loss_fn'])
             tf.add_to_collection('losses', loss)
             total_loss = tf.add_n(tf.get_collection(
                 'losses'), name='total_loss')
@@ -714,6 +734,9 @@ def _parse_args():
     # Stores a map that has already been segmented.
     parser.add_argument('-store_segm_map', action='store_true',
                         help='Whether to store objects that has been segmented.')
+    # Segmentation loss function
+    parser.add_argument('-segm_loss_fn', default='iou',
+                        help='Segmentation loss function, "iou" or "bce"')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -780,7 +803,7 @@ if __name__ == '__main__':
         model_opt = {
             'inp_height': args.height,
             'inp_width': args.width,
-            'timespan': args.max_num_objects,
+            'timespan': args.max_num_objects + 1,
             'weight_decay': args.weight_decay,
             'learning_rate': args.learning_rate,
             'loss_mix_ratio': args.loss_mix_ratio,
@@ -790,7 +813,8 @@ if __name__ == '__main__':
             # Test arguments
             'cum_min': not args.no_cum_min,
             'has_segm': not args.no_segm,
-            'store_segm_map': args.store_segm_map
+            'store_segm_map': args.store_segm_map,
+            'segm_loss_fn': args.segm_loss_fn
         }
         data_opt = {
             'height': args.height,
