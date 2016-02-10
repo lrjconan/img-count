@@ -322,7 +322,7 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
 
     # IOU score, [B, N, M]
     iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
-    model['iou_soft'] = iou_soft
+    
     # Matching score, [B, N, M]
     # Add small epsilon because the matching algorithm only accepts complete
     # bipartite graph with positive weights.
@@ -386,10 +386,12 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
     count_acc = tf.reduce_sum(tf.to_float(count_out == count_gt)) / num_ex
     model['count_acc'] = count_acc
 
-    # Hard IOU
+    # IOU
     iou_hard = _f_iou(tf.to_float(y_out > 0.5), y_gt, timespan, pairwise=True)
-    iou_hard = iou_hard * match / num_ex / max_num_obj
+    iou_hard = tf.reduce_sum(iou_hard * match) / num_ex / max_num_obj
+    iou_soft = tf.reduce_sum(iou_soft * match) / num_ex / max_num_obj
     model['iou_hard'] = iou_hard
+    model['iou_soft'] = iou_soft
 
     return loss
 
@@ -780,7 +782,7 @@ if __name__ == '__main__':
     get_batch_train = _get_batch_fn(dataset['train'])
     get_batch_valid = _get_batch_fn(dataset['valid'])
     batch_size_train = 32
-    batch_size_valid = 100
+    batch_size_valid = 32
     log.info('Number of validation examples: {}'.format(num_ex_valid))
     log.info('Validation batch size: {}'.format(batch_size_valid))
     log.info('Number of training examples: {}'.format(num_ex_train))
@@ -790,8 +792,8 @@ if __name__ == '__main__':
     while step < train_opt['num_steps']:
         # Validation
         loss = 0.0
-        hard_iou = 0.0
-        soft_iou = 0.0
+        iou_hard = 0.0
+        iou_soft = 0.0
         count_acc = 0.0
         segm_loss = 0.0
         conf_loss = 0.0
@@ -823,9 +825,9 @@ if __name__ == '__main__':
         log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} conf_loss {:.4f} '
                   'iou soft {:.4f} iou hard {:.4f} count acc {:.4f}').format(
             step, loss, segm_loss, conf_loss, iou_soft, iou_hard, count_acc))
-        valid_loss_logger.add(step, valid_loss)
-        valid_iou_soft_logger(step, iou_soft)
-        valid_iou_hard_logger(ste, iou_hard)
+        valid_loss_logger.add(step, loss)
+        valid_iou_soft_logger.add(step, iou_soft)
+        valid_iou_hard_logger.add(step, iou_hard)
         valid_count_acc_logger.add(step, count_acc)
 
         # Train
