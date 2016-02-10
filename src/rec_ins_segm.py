@@ -406,6 +406,7 @@ def get_model(opt, device='/cpu:0', train=True):
     conv_lstm_hid_depth = opt['conv_lstm_hid_depth']
     wd = opt['weight_decay']
     has_segm = ('has_segm' not in opt) or opt['has_segm']
+    store_segm_map = ('store_segm_map' not in opt) or opt['store_segm_map']
 
     with tf.device(_get_device_fn(device)):
         # Input image, [B, H, W, 3]
@@ -493,10 +494,19 @@ def get_model(opt, device='/cpu:0', train=True):
         # segm_out = [None] * timespan
         score = [None] * timespan
         h_pool4 = [None] * timespan
+        segm_canvas = [None] * timespan
+        segm_canvas[0] = tf.zeros(tf.concat(
+            0, [num_ex, tf.constant([lstm_height, lstm_width, 1])]))
+        lstm_inp = [None] * timespan
+        y_out = [None] * timespan
 
         for t in xrange(timespan):
-            # We can potentially have another canvas that substract this one.
-            unroll_conv_lstm(h_pool3, time=t)
+            # If we also send the cumulative output maps.
+            if store_segm_map:
+                lstm_inp[t] = tf.concat(h_pool3, segm_canvas)
+            else:
+                lstm_inp[t] = h_pool3
+            unroll_conv_lstm(lstm_inp[t], time=t)
 
             # Segmentation network
             # [B, LH, LW, 1]
@@ -509,6 +519,8 @@ def get_model(opt, device='/cpu:0', train=True):
             segm_lo[t] = tf.expand_dims(tf.reshape(tf.sigmoid(
                 tf.log(tf.nn.softmax(h_conv4_reshape)) + b_5),
                 [-1, lstm_height, lstm_width]), dim=3)
+            # [B, LH, LW, 1]
+            segm_canvas = segm_canvas + segm_lo[t]
 
             # Objectness network
             # [B, LH, LW, LD] => [B, LLH, LLW, LD] => [B, LLH * LLW * LD]
@@ -639,16 +651,17 @@ def _parse_args():
     parser.add_argument('-conv_lstm_hid_depth', default=kConvLstmHiddenDepth,
                         type=int, help='Conv LSTM hidden depth')
 
-    # Test arguments.
+    # Test model argument.
     # To see the effect of cumulative minimum.
     parser.add_argument('-no_cum_min', action='store_true',
                         help='Whether cumulative minimum. Default yes.')
-
-    # Test arguments.
     # Only to use when only care about the count.
     # Still segment images, the segmentation loss does not get back propagated.
     parser.add_argument('-no_segm', action='store_true',
                         help='Whether has segmentation network.')
+    # Stores a map that has already been segmented.
+    parser.add_argument('-store_segm_map', action='store_true',
+                        help='Whether to store objects that has been segmented.')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -719,8 +732,11 @@ if __name__ == '__main__':
             'loss_mix_ratio': args.loss_mix_ratio,
             'conv_lstm_filter_size': args.conv_lstm_filter_size,
             'conv_lstm_hid_depth': args.conv_lstm_hid_depth,
+
+            # Test arguments
             'cum_min': not args.no_cum_min,
-            'has_segm': not args.no_segm
+            'has_segm': not args.no_segm,
+            'store_segm_map': store_segm_map
         }
         data_opt = {
             'height': args.height,
