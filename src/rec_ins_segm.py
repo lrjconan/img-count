@@ -784,8 +784,8 @@ if __name__ == '__main__':
 
     dataset = get_dataset(data_opt, args.num_ex, args.num_ex / 10)
     m = get_model(model_opt, device=device)
-    # sess = tf.Session()
-    sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+    sess = tf.Session()
+    # sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
     if args.restore:
         saver.restore_ckpt(sess, ckpt_fname)
