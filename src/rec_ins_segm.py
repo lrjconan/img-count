@@ -853,7 +853,7 @@ if __name__ == '__main__':
                                                  get_fn=get_batch_valid,
                                                  progress_bar=False):
             r = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-                          m['iou_soft'], m['iou_hard'], m['count_acc']
+                          m['iou_soft'], m['iou_hard'], m['count_acc'],
                           m['y_out'], m['s_out']],
                          feed_dict={
                 m['x']: x_bat,
@@ -879,8 +879,9 @@ if __name__ == '__main__':
             step, loss, segm_loss, conf_loss, iou_soft, iou_hard, count_acc))
 
         if args.logs:
-            _y_out = r[6]
-            _s_out = r[7]
+            _y_out = r[6][: num_samples_plot]
+            _s_out = r[7][: num_samples_plot]
+            plot_samples(valid_sample_img_fname, _y_out, _s_out)
             valid_loss_logger.add(step, loss)
             valid_iou_soft_logger.add(step, iou_soft)
             valid_iou_hard_logger.add(step, iou_hard)
