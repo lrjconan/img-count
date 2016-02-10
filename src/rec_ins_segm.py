@@ -322,7 +322,7 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
 
     # IOU score, [B, N, M]
     iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
-    
+
     # Matching score, [B, N, M]
     # Add small epsilon because the matching algorithm only accepts complete
     # bipartite graph with positive weights.
@@ -384,6 +384,8 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
     count_out = tf.reduce_sum(tf.to_float(s_out > 0.5), reduction_indices=[1])
     count_gt = tf.reduce_sum(s_gt, reduction_indices=[1])
     count_acc = tf.reduce_sum(tf.to_float(count_out == count_gt)) / num_ex
+    model['count_out'] = count_out
+    model['count_gt'] = count_gt
     model['count_acc'] = count_acc
 
     # IOU
@@ -794,6 +796,9 @@ if __name__ == '__main__':
             name='Step time',
             buffer_size=10)
         log_manager.register(log.filename, 'plain', 'Raw logs')
+        # valid_sample_img_fname = 'valid_sample_img.png'
+        # log_manager.register(valid_sample_img_fname, 'image',
+        #                      'Validation samples')
         log.info(
             'Visualization can be viewed at: http://{}/visualizer?id={}'.format(
                 args.localhost, model_id))
@@ -824,7 +829,8 @@ if __name__ == '__main__':
                                                  get_fn=get_batch_valid,
                                                  progress_bar=False):
             r = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-                          m['iou_soft'], m['iou_hard'], m['count_acc']],
+                          m['iou_soft'], m['iou_hard'], m['count_acc'], m['count_out'], m['count_gt'],
+                          m['y_out'], m['s_out']],
                          feed_dict={
                 m['x']: x_bat,
                 m['y_gt']: y_bat,
@@ -836,6 +842,9 @@ if __name__ == '__main__':
             _iou_soft = r[3]
             _iou_hard = r[4]
             _count_acc = r[5]
+            print r[6]
+            print r[7]
+            
             loss += _loss * batch_size_valid / float(num_ex_valid)
             segm_loss += _segm_loss * batch_size_valid / float(num_ex_valid)
             conf_loss += _conf_loss * batch_size_valid / float(num_ex_valid)
@@ -846,10 +855,14 @@ if __name__ == '__main__':
         log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} conf_loss {:.4f} '
                   'iou soft {:.4f} iou hard {:.4f} count acc {:.4f}').format(
             step, loss, segm_loss, conf_loss, iou_soft, iou_hard, count_acc))
-        valid_loss_logger.add(step, loss)
-        valid_iou_soft_logger.add(step, iou_soft)
-        valid_iou_hard_logger.add(step, iou_hard)
-        valid_count_acc_logger.add(step, count_acc)
+
+        if args.logs:
+            _y_out = r[6]
+            _s_out = r[7]
+            valid_loss_logger.add(step, loss)
+            valid_iou_soft_logger.add(step, iou_soft)
+            valid_iou_hard_logger.add(step, iou_hard)
+            valid_count_acc_logger.add(step, count_acc)
 
         # Train
         for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
@@ -869,8 +882,10 @@ if __name__ == '__main__':
                 loss = r[0]
                 log.info('{:d} train loss {:.4f} t {:.2f}ms'.format(
                     step, loss, step_time))
-                train_loss_logger.add(step, loss)
-                step_time_logger.add(step, step_time)
+
+                if args.logs:
+                    train_loss_logger.add(step, loss)
+                    step_time_logger.add(step, step_time)
 
             # Save model
             if step % train_opt['steps_per_ckpt'] == 0:
