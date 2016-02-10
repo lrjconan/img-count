@@ -383,7 +383,8 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
     # Counting accuracy
     count_out = tf.reduce_sum(tf.to_float(s_out > 0.5), reduction_indices=[1])
     count_gt = tf.reduce_sum(s_gt, reduction_indices=[1])
-    count_acc = tf.reduce_sum(tf.to_float(count_out == count_gt)) / num_ex
+    count_acc = tf.reduce_sum(tf.to_float(
+        tf.equal(count_out, count_gt))) / num_ex
     model['count_out'] = count_out
     model['count_gt'] = count_gt
     model['count_acc'] = count_acc
@@ -829,7 +830,7 @@ if __name__ == '__main__':
                                                  get_fn=get_batch_valid,
                                                  progress_bar=False):
             r = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-                          m['iou_soft'], m['iou_hard'], m['count_acc'], m['count_out'], m['count_gt'],
+                          m['iou_soft'], m['iou_hard'], m['count_acc'],
                           m['y_out'], m['s_out']],
                          feed_dict={
                 m['x']: x_bat,
@@ -842,9 +843,7 @@ if __name__ == '__main__':
             _iou_soft = r[3]
             _iou_hard = r[4]
             _count_acc = r[5]
-            print r[6]
-            print r[7]
-            
+
             loss += _loss * batch_size_valid / float(num_ex_valid)
             segm_loss += _segm_loss * batch_size_valid / float(num_ex_valid)
             conf_loss += _conf_loss * batch_size_valid / float(num_ex_valid)
