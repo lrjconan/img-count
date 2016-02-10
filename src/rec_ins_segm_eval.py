@@ -24,6 +24,8 @@ def parse_args():
     parser.add_argument('-model', default=None, help='Model save folder')
     parser.add_argument('-plot', action='store_true',
                         help='Whether to plot generated data.')
+    parser.add_argument('-count', action='store_true',
+                        help='Whether to test counting accuracy.')
     parser.add_argument('-gpu', default=-1, type=int,
                         help='GPU ID, default CPU')
     args = parser.parse_args()

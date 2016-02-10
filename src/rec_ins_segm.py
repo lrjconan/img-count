@@ -301,7 +301,7 @@ def _cum_min(s, d):
     return tf.concat(1, s_min_list)
 
 
-def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min=True):
+def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min=True, has_segm=True):
     """
     Instance segmentation loss.
 
@@ -321,8 +321,8 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
             (1 - y_gt) * tf.log(1 - y_out + eps)
 
     # IOU score, [B, N, M]
-    iou = _f_iou(y_out, y_gt, timespan, pairwise=True)
-    model['iou'] = iou
+    iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
+    model['iou_soft'] = iou_soft
     # Matching score, [B, N, M]
     # Add small epsilon because the matching algorithm only accepts complete
     # bipartite graph with positive weights.
@@ -331,7 +331,7 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
     mask_x = tf.expand_dims(s_gt, dim=1)
     # Mask Y, [B, M] => [B, N, 1]
     mask_y = tf.expand_dims(s_gt, dim=2)
-    iou_mask = iou * mask_x * mask_y
+    iou_mask = iou_soft * mask_x * mask_y
 
     # Keep certain precision so that we can get optimal matching within
     # reasonable time.
@@ -361,7 +361,6 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
     else:
         # Try simply do binary xent for confidence sequence.
         s_bce = _bce(s_out, s_gt)
-
     model['s_bce'] = s_bce
 
     # Loss normalized by number of examples.
@@ -370,13 +369,27 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
     max_num_obj = tf.to_float(y_gt_shape[1])
 
     # [B, N, M] => scalar
-    segm_loss = -tf.reduce_sum(iou * match) / num_ex / max_num_obj
     conf_loss = r * tf.reduce_sum(s_bce) / num_ex / max_num_obj
-    loss = segm_loss + conf_loss
-
+    segm_loss = -tf.reduce_sum(iou_soft * match) / num_ex / max_num_obj
     model['segm_loss'] = segm_loss
+    if has_segm:
+        loss = segm_loss + conf_loss
+    else:
+        loss = conf_loss
+
     model['conf_loss'] = conf_loss
     model['loss'] = loss
+
+    # Counting accuracy
+    count_out = tf.reduce_sum(tf.to_float(s_out > 0.5), reduction_indices=[1])
+    count_gt = tf.reduce_sum(s_gt, reduction_indices=[1])
+    count_acc = tf.reduce_sum(tf.to_float(count_out == count_gt)) / num_ex
+    model['count_acc'] = count_acc
+
+    # Hard IOU
+    iou_hard = _f_iou(tf.to_float(y_out > 0.5), y_gt, timespan, pairwise=True)
+    iou_hard = iou_hard * match / num_ex / max_num_obj
+    model['iou_hard'] = iou_hard
 
     return loss
 
@@ -390,6 +403,7 @@ def get_model(opt, device='/cpu:0', train=True):
     conv_lstm_filter_size = opt['conv_lstm_filter_size']
     conv_lstm_hid_depth = opt['conv_lstm_hid_depth']
     wd = opt['weight_decay']
+    has_segm = ('has_segm' not in opt) or opt['has_segm']
 
     with tf.device(_get_device_fn(device)):
         # Input image, [B, H, W, 3]
@@ -438,11 +452,12 @@ def get_model(opt, device='/cpu:0', train=True):
         # [B, LH, LW, LD]
         x_shape = tf.shape(x)
         num_ex = x_shape[0: 1]
-        c_init = tf.zeros(tf.concat(0,
-                                    [num_ex, tf.constant([lstm_height, lstm_width, lstm_depth])]))
-        h_init = tf.zeros(tf.concat(0,
-                                    [num_ex, tf.constant([lstm_height, lstm_width, lstm_depth])]))
+        c_init = tf.zeros(tf.concat(
+            0, [num_ex, tf.constant([lstm_height, lstm_width, lstm_depth])]))
+        h_init = tf.zeros(tf.concat(
+            0, [num_ex, tf.constant([lstm_height, lstm_width, lstm_depth])]))
 
+        # Segmentation network
         # 4th convolution layer (on ConvLSTM output).
         w_conv4 = _weight_variable([3, 3, 16, 1])
         b_conv4 = _weight_variable([1])
@@ -450,6 +465,7 @@ def get_model(opt, device='/cpu:0', train=True):
         # Bias towards segmentation output.
         b_5 = _weight_variable([lstm_height * lstm_width])
 
+        # Confidence network
         # Linear layer for output confidence score.
         w_6 = _weight_variable(
             [lstm_height * lstm_height / 16 * lstm_depth, 1])
@@ -492,12 +508,6 @@ def get_model(opt, device='/cpu:0', train=True):
                 tf.log(tf.nn.softmax(h_conv4_reshape)) + b_5),
                 [-1, lstm_height, lstm_width]), dim=3)
 
-            # [B, LH, LW, 1] => [B, H, W, 1] => [B, 1, H, W]
-            # Possibly running convolution again here.
-            # segm_out[t] = tf.reshape(
-            #     tf.image.resize_bilinear(segm_lo[t], [inp_height, inp_width]),
-            #     [-1, 1, inp_height, inp_width])
-
             # Objectness network
             # [B, LH, LW, LD] => [B, LLH, LLW, LD] => [B, LLH * LLW * LD]
             h_pool4[t] = tf.reshape(_max_pool_4x4(h_lstm[t]),
@@ -514,9 +524,6 @@ def get_model(opt, device='/cpu:0', train=True):
             tf.image.resize_bilinear(segm_lo_all, [inp_height, inp_width]),
             [-1, timespan, inp_height, inp_width])
 
-        # Concatenate output
-        # T * [B, 1, H, W] = [B, T, H, W]
-        #y_out = tf.concat(1, segm_out)
         model['y_out'] = y_out
 
         # T * [B, 1] = [B, T]
@@ -535,7 +542,7 @@ def get_model(opt, device='/cpu:0', train=True):
             eps = 1e-7
             loss = _add_ins_segm_loss(
                 model, y_out, y_gt, s_out, s_gt, r, timespan,
-                use_cum_min=use_cum_min)
+                use_cum_min=use_cum_min, has_segm=has_segm)
             tf.add_to_collection('losses', loss)
             total_loss = tf.add_n(tf.get_collection(
                 'losses'), name='total_loss')
@@ -629,8 +636,17 @@ def _parse_args():
                         type=int, help='Conv LSTM filter size')
     parser.add_argument('-conv_lstm_hid_depth', default=kConvLstmHiddenDepth,
                         type=int, help='Conv LSTM hidden depth')
+
+    # Test arguments.
+    # To see the effect of cumulative minimum.
     parser.add_argument('-no_cum_min', action='store_true',
                         help='Whether cumulative minimum. Default yes.')
+
+    # Test arguments.
+    # Only to use when only care about the count.
+    # Still segment images, the segmentation loss does not get back propagated.
+    parser.add_argument('-no_segm', action='store_true',
+                        help='Whether has segmentation network.')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -701,7 +717,8 @@ if __name__ == '__main__':
             'loss_mix_ratio': args.loss_mix_ratio,
             'conv_lstm_filter_size': args.conv_lstm_filter_size,
             'conv_lstm_hid_depth': args.conv_lstm_hid_depth,
-            'cum_min': not args.no_cum_min
+            'cum_min': not args.no_cum_min,
+            'has_segm': not args.no_segm
         }
         data_opt = {
             'height': args.height,
@@ -731,15 +748,28 @@ if __name__ == '__main__':
         train_loss_logger = TimeSeriesLogger(
             os.path.join(exp_logs_folder, 'train_loss.csv'), 'train loss',
             name='Training loss',
-            buffer_size=25)
+            buffer_size=10)
         valid_loss_logger = TimeSeriesLogger(
             os.path.join(exp_logs_folder, 'valid_loss.csv'), 'valid loss',
             name='Validation loss',
-            buffer_size=2)
+            buffer_size=1)
+        valid_iou_hard_logger = TimeSeriesLogger(
+            os.path.join(exp_logs_folder, 'valid_iou_hard.csv'), 'valid iou',
+            name='Validation IoU hard',
+            buffer_size=1)
+        valid_iou_soft_logger = TimeSeriesLogger(
+            os.path.join(exp_logs_folder, 'valid_iou_soft.csv'), 'valid iou',
+            name='Validation IoU soft',
+            buffer_size=1)
+        valid_count_acc_logger = TimeSeriesLogger(
+            os.path.join(exp_logs_folder, 'valid_count_acc.csv'),
+            'valid count acc',
+            name='Validation count accuracy',
+            buffer_size=1)
         step_time_logger = TimeSeriesLogger(
             os.path.join(exp_logs_folder, 'step_time.csv'), 'step time (ms)',
             name='Step time',
-            buffer_size=25)
+            buffer_size=10)
         log_manager.register(log.filename, 'plain', 'Raw logs')
         log.info(
             'Visualization can be viewed at: http://{}/visualizer?id={}'.format(
@@ -759,51 +789,44 @@ if __name__ == '__main__':
     # Train loop
     while step < train_opt['num_steps']:
         # Validation
-        valid_loss = 0
+        loss = 0.0
+        hard_iou = 0.0
+        soft_iou = 0.0
+        count_acc = 0.0
+        segm_loss = 0.0
+        conf_loss = 0.0
         log.info('Running validation')
-        run_sample = False
         for x_bat, y_bat, s_bat in BatchIterator(num_ex_valid,
                                                  batch_size=batch_size_valid,
                                                  get_fn=get_batch_valid,
                                                  progress_bar=False):
-            if not run_sample:
-                results = sess.run([m['match'], m['iou'], m['s_bce'], m['s_out'], m['h_pool4_0'], m['h_lstm_0']],
-                                   feed_dict={
-                    m['x']: x_bat,
-                    m['y_gt']: y_bat,
-                    m['s_gt']: s_bat
-                })
-                match = results[0]
-                iou = results[1]
-                s_bce = results[2]
-                s_out = results[3]
-                h_pool4_0 = results[4]
-                h_lstm_0 = results[5]
-                log.info('Sample match shape: {}'.format(match.shape))
-                log.info('Sample score shape: {}'.format(s_out.shape))
-
-                log.info('Sample h_pool4_0 shape: {}'.format(h_pool4_0.shape))
-                log.info('Sample h_lstm_0 shape: {}'.format(h_lstm_0.shape))
-                for ii in xrange(min(3, match.shape[0])):
-                    log.info('Sample match {} : \n{}'.format(ii, match[ii]))
-                    log.info('Sample IOU {} : \n{}'.format(ii, iou[ii]))
-                    log.info('Sample BCE {} : \n{}'.format(ii, s_bce[ii]))
-                    log.info('Sample score {}: \n{}'.format(ii, s_out[ii]))
-                run_sample = True
-
-            losses = sess.run([m['loss'], m['segm_loss'], m['conf_loss']],
-                              feed_dict={
+            r = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
+                          m['iou_soft'], m['iou_hard'], m['count_acc']],
+                         feed_dict={
                 m['x']: x_bat,
                 m['y_gt']: y_bat,
                 m['s_gt']: s_bat
             })
-            loss = losses[0]
-            log.info(('Loss {:.4f}, segm: {:.4f}, conf {:.4f}').format(
-                losses[0], losses[1], losses[2]))
+            _loss = r[0]
+            _segm_loss = r[1]
+            _conf_loss = r[2]
+            _iou_soft = r[3]
+            _iou_hard = r[4]
+            _count_acc = r[5]
+            loss += _loss * batch_size_valid / float(num_ex_valid)
+            segm_loss += _segm_loss * batch_size_valid / float(num_ex_valid)
+            conf_loss += _conf_loss * batch_size_valid / float(num_ex_valid)
+            iou_soft += _iou_soft * batch_size_valid / float(num_ex_valid)
+            iou_hard += _iou_hard * batch_size_valid / float(num_ex_valid)
+            count_acc += _count_acc * batch_size_valid / float(num_ex_valid)
 
-            valid_loss += loss * batch_size_valid / float(num_ex_valid)
-        log.info('{:d} valid loss {:.4f}'.format(step, valid_loss))
+        log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} conf_loss {:.4f} '
+                  'iou soft {:.4f} iou hard {:.4f} count acc {:.4f}').format(
+            step, loss, segm_loss, conf_loss, iou_soft, iou_hard, count_acc))
         valid_loss_logger.add(step, valid_loss)
+        valid_iou_soft_logger(step, iou_soft)
+        valid_iou_hard_logger(ste, iou_hard)
+        valid_count_acc_logger.add(step, count_acc)
 
         # Train
         for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
@@ -836,5 +859,8 @@ if __name__ == '__main__':
     sess.close()
     train_loss_logger.close()
     valid_loss_logger.close()
+    valid_iou_soft_logger.close()
+    valid_iou_hard_logger.close()
+    valid_count_acc_logger.close()
     step_time_logger.close()
     pass
