@@ -35,7 +35,7 @@ def plot_samples(fname, x, y_out, s_out):
 
     num_row = y_out.shape[0]
     num_col = y_out.shape[1] + 1
-    f1, axarr = plt.subplots(num_row, num_col)
+    f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
 
     for ii in xrange(num_row):
         for jj in xrange(num_col):
@@ -47,7 +47,8 @@ def plot_samples(fname, x, y_out, s_out):
                 axarr[ii, jj].text(0, 0, '{:.2f}'.format(s_out[ii, jj - 1]),
                                    color=(0, 0, 0), size=8)
 
-    plt.savefig(fname)
+    plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
+    plt.savefig(fname, dpi=80)
 
 
 def get_dataset(opt, num_train, num_valid):
@@ -609,18 +610,18 @@ def _parse_args():
     # Full image width.
     kWidth = 224
     # Object radius lower bound.
-    kRadiusLower = 5
+    kRadiusLower = 15
     # Object radius upper bound.
-    kRadiusUpper = 20
+    kRadiusUpper = 45
     # Object border thickness.
-    kBorderThickness = 2
+    kBorderThickness = 3
     # Number of examples.
-    kNumExamples = 200
+    kNumExamples = 1000
     # Maximum number of objects.
-    kMaxNumObjects = 10
+    kMaxNumObjects = 6
     # Number of object types, currently support up to three types (circles,
     # triangles, and squares).
-    kNumObjectTypes = 3
+    kNumObjectTypes = 1
     # Random window size variance.
     kSizeVar = 20
     # Random window center variance.
@@ -820,9 +821,9 @@ if __name__ == '__main__':
             name='Step time',
             buffer_size=10)
         log_manager.register(log.filename, 'plain', 'Raw logs')
-        # valid_sample_img_fname = 'valid_sample_img.png'
-        # log_manager.register(valid_sample_img_fname, 'image',
-        #                      'Validation samples')
+        valid_sample_img_fname = os.path.join(
+            exp_logs_folder, 'valid_sample_img.png')
+        registered_image = False
         log.info(
             'Visualization can be viewed at: http://{}/visualizer?id={}'.format(
                 args.localhost, model_id))
@@ -852,20 +853,14 @@ if __name__ == '__main__':
                                                  batch_size=batch_size_valid,
                                                  get_fn=get_batch_valid,
                                                  progress_bar=False):
-            r = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-                          m['iou_soft'], m['iou_hard'], m['count_acc'],
-                          m['y_out'], m['s_out']],
+            _loss, _segm_loss, _conf_loss, _iou_soft, _iou_hard, _count_acc = \
+                sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
+                          m['iou_soft'], m['iou_hard'], m['count_acc']],
                          feed_dict={
                 m['x']: x_bat,
                 m['y_gt']: y_bat,
                 m['s_gt']: s_bat
             })
-            _loss = r[0]
-            _segm_loss = r[1]
-            _conf_loss = r[2]
-            _iou_soft = r[3]
-            _iou_hard = r[4]
-            _count_acc = r[5]
 
             loss += _loss * batch_size_valid / float(num_ex_valid)
             segm_loss += _segm_loss * batch_size_valid / float(num_ex_valid)
@@ -879,13 +874,19 @@ if __name__ == '__main__':
             step, loss, segm_loss, conf_loss, iou_soft, iou_hard, count_acc))
 
         if args.logs:
-            _y_out = r[6][: num_samples_plot]
-            _s_out = r[7][: num_samples_plot]
-            plot_samples(valid_sample_img_fname, _y_out, _s_out)
+            _x, _y_gt, _s_gt = get_batch_valid(0, args.num_samples_plot)
+            _y_out, _s_out = sess.run([m['y_out'], m['s_out']], feed_dict={
+                m['x']: _x
+            })
+            plot_samples(valid_sample_img_fname, _x, _y_out, _s_out)
             valid_loss_logger.add(step, loss)
             valid_iou_soft_logger.add(step, iou_soft)
             valid_iou_hard_logger.add(step, iou_hard)
             valid_count_acc_logger.add(step, count_acc)
+            if not registered_image:
+                log_manager.register(valid_sample_img_fname, 'image',
+                                     'Validation samples')
+                registered_image = True
 
         # Train
         for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
