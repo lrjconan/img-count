@@ -357,8 +357,10 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
         """
         # N * [B, 1, H, W]
         y_out_list = tf.split(1, timespan, y_out)
+        # N * [B, 1, N]
         match_list = tf.split(1, timespan, match)
         bce_list = [None] * timespan
+        bce_tmp = [None] * timespan
         shape = tf.shape(y_out)
         num_ex = tf.to_float(shape[0])
         height = tf.to_float(shape[2])
@@ -366,12 +368,12 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
 
         for ii in xrange(timespan):
             # [B, N, H, W] * [B, 1, H, W] => [B, N, H, W] => [B, N]
-            bce_ = tf.reduce_sum(
-                _bce(y_gt, y_out_list[ii]), reduction_indices=[2, 3])
             # [B, N] * [B, N] => [B]
-            bce_ = tf.reduce_sum(bce_ * match_list[ii], reduction_indices=[1])
             # [B] => [B, 1]
-            bce_list[ii] = tf.expand_dims(bce_, 1)
+            bce_list[ii] = tf.expand_dims(tf.reduce_sum(tf.reduce_sum(
+                _bce(y_gt, y_out_list[ii]), reduction_indices=[2, 3]) *
+                tf.reshape(match_list[ii], [-1, timespan]), 
+                reduction_indices=[1]), 1)
 
         # N * [B, 1] => [B, N] => [B]
         bce_total = tf.reduce_sum(
