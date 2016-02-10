@@ -21,6 +21,8 @@ from utils.grad_clip_optim import GradientClipOptimizer
 from utils.time_series_logger import TimeSeriesLogger
 import argparse
 import datetime
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import os
