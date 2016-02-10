@@ -447,6 +447,10 @@ def get_model(opt, device='/cpu:0', train=True):
         h_conv3 = tf.nn.relu(_conv2d(h_pool2, w_conv3) + b_conv3)
         h_pool3 = _max_pool_2x2(h_conv3)
 
+        if store_segm_map:
+            lstm_inp_depth = 65
+        else:
+            lstm_inp_depth = 64
         lstm_depth = 16
         lstm_height = inp_height / 8
         lstm_width = inp_width / 8
@@ -462,7 +466,7 @@ def get_model(opt, device='/cpu:0', train=True):
 
         # Segmentation network
         # 4th convolution layer (on ConvLSTM output).
-        w_conv4 = _weight_variable([3, 3, 16, 1])
+        w_conv4 = _weight_variable([3, 3, lstm_depth, 1])
         b_conv4 = _weight_variable([1])
 
         # Bias towards segmentation output.
@@ -471,7 +475,7 @@ def get_model(opt, device='/cpu:0', train=True):
         # Confidence network
         # Linear layer for output confidence score.
         w_6 = _weight_variable(
-            [lstm_height * lstm_height / 16 * lstm_depth, 1])
+            [lstm_height * lstm_width / 16 * lstm_depth, 1])
         b_6 = _weight_variable([1])
 
         unroll_conv_lstm = _add_conv_lstm(
@@ -479,9 +483,9 @@ def get_model(opt, device='/cpu:0', train=True):
             timespan=timespan,
             inp_height=lstm_height,
             inp_width=lstm_width,
-            inp_depth=64,
+            inp_depth=lstm_inp_depth,
             filter_size=conv_lstm_filter_size,
-            hid_depth=16,
+            hid_depth=lstm_depth,
             c_init=c_init,
             h_init=h_init,
             wd=wd,
@@ -503,7 +507,7 @@ def get_model(opt, device='/cpu:0', train=True):
         for t in xrange(timespan):
             # If we also send the cumulative output maps.
             if store_segm_map:
-                lstm_inp[t] = tf.concat(h_pool3, segm_canvas)
+                lstm_inp[t] = tf.concat(3, [h_pool3, segm_canvas[t]])
             else:
                 lstm_inp[t] = h_pool3
             unroll_conv_lstm(lstm_inp[t], time=t)
@@ -520,7 +524,8 @@ def get_model(opt, device='/cpu:0', train=True):
                 tf.log(tf.nn.softmax(h_conv4_reshape)) + b_5),
                 [-1, lstm_height, lstm_width]), dim=3)
             # [B, LH, LW, 1]
-            segm_canvas = segm_canvas + segm_lo[t]
+            if t != timespan - 1:
+                segm_canvas[t + 1] = segm_canvas[t] + segm_lo[t]
 
             # Objectness network
             # [B, LH, LW, LD] => [B, LLH, LLW, LD] => [B, LLH * LLW * LD]
@@ -736,7 +741,7 @@ if __name__ == '__main__':
             # Test arguments
             'cum_min': not args.no_cum_min,
             'has_segm': not args.no_segm,
-            'store_segm_map': store_segm_map
+            'store_segm_map': args.store_segm_map
         }
         data_opt = {
             'height': args.height,
