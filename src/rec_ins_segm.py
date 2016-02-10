@@ -365,12 +365,17 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
         width = tf.to_float(shape[3])
 
         for ii in xrange(timespan):
-            # [B, N, H, W] * [B, 1, H, W] => [B, N, H, W] => [B] => [B, 1]
-            bce_list[ii] = tf.expand_dims(tf.reduce_sum(
-                _bce(y_gt, y_out_list[ii]), reduction_indices=[1, 2, 3]), 1)
+            # [B, N, H, W] * [B, 1, H, W] => [B, N, H, W] => [B, N]
+            bce_ = tf.reduce_sum(
+                _bce(y_gt, y_out_list[ii]), reduction_indices=[2, 3])
+            # [B, N] * [B, N] => [B]
+            bce_ = tf.reduce_sum(bce_ * match_list[ii], reduction_indices=[1])
+            # [B] => [B, 1]
+            bce_list[ii] = tf.expand_dims(bce_, 1)
 
         # N * [B, 1] => [B, N] => [B]
-        bce_total = tf.reduce_sum(tf.concat(1, bce_list), reduction_indices=[1])
+        bce_total = tf.reduce_sum(
+            tf.concat(1, bce_list), reduction_indices=[1])
         return tf.reduce_sum(bce_total / match_count) / num_ex / height / width
 
     # IOU score, [B, N, M]
