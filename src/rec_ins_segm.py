@@ -325,7 +325,7 @@ def _cum_min(s, d):
     return tf.concat(1, s_min_list)
 
 
-def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min=True, has_segm=True):
+def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min=True, has_segm=True, segm_loss_fn='iou'):
     """
     Instance segmentation loss.
 
@@ -343,6 +343,17 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
         eps = 1e-7
         return -y_gt * tf.log(y_out + eps) - \
             (1 - y_gt) * tf.log(1 - y_out + eps)
+
+    def _match_bce(y_out, y_gt, match):
+        """Binary cross entropy with matching.
+
+        Args:
+            y_out: [B, N, D]
+            y_gt: [B, N, D]
+            match: [B, N, N]
+        """
+
+        pass
 
     # IOU score, [B, N, M]
     iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
@@ -372,13 +383,15 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
     # Mask the graph algorithm output.
     match = match_eps * mask_x * mask_y
     model['match'] = match
+    # [B, N, M] => [B, N]
+    match_sum = tf.reduce_sum(match, reduction_indices=[2])
+    # [B, N] => [B]
+    match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
 
     # Loss for confidence scores.
     if use_cum_min:
         # [B, N]
         s_out_min = _cum_min(s_out, timespan)
-        # [B, N, M] => [B, N]
-        match_sum = tf.reduce_sum(match, reduction_indices=[2])
         # [B, N]
         s_bce = _bce(s_out_min, match_sum)
         model['s_out_min'] = s_out_min
@@ -392,9 +405,23 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
     num_ex = tf.to_float(y_gt_shape[0])
     max_num_obj = tf.to_float(y_gt_shape[1])
 
+    # IOU
+    iou_hard = _f_iou(tf.to_float(y_out > 0.5), y_gt, timespan, pairwise=True)
+    # [B, M, N] * [B, M, N] => [B] * [B] => [1]
+    iou_hard = tf.reduce_sum(tf.reduce_sum(
+        iou_hard * match, reduction_indices=[1, 2]) / match_count) / num_ex
+    iou_soft = tf.reduce_sum(tf.reduce_sum(
+        iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
+    model['iou_hard'] = iou_hard
+    model['iou_soft'] = iou_soft
+
     # [B, N, M] => scalar
     conf_loss = r * tf.reduce_sum(s_bce) / num_ex / max_num_obj
-    segm_loss = -tf.reduce_sum(iou_soft * match) / num_ex / max_num_obj
+    if segm_loss_fn == 'iou':
+        segm_loss = -iou_soft
+    elif segm_loss_fn == 'bce':
+        pass
+
     model['segm_loss'] = segm_loss
     if has_segm:
         loss = segm_loss + conf_loss
@@ -412,13 +439,6 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
     model['count_out'] = count_out
     model['count_gt'] = count_gt
     model['count_acc'] = count_acc
-
-    # IOU
-    iou_hard = _f_iou(tf.to_float(y_out > 0.5), y_gt, timespan, pairwise=True)
-    iou_hard = tf.reduce_sum(iou_hard * match) / num_ex / max_num_obj
-    iou_soft = tf.reduce_sum(iou_soft * match) / num_ex / max_num_obj
-    model['iou_hard'] = iou_hard
-    model['iou_soft'] = iou_soft
 
     return loss
 
@@ -859,10 +879,10 @@ if __name__ == '__main__':
                 sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
                           m['iou_soft'], m['iou_hard'], m['count_acc']],
                          feed_dict={
-                m['x']: x_bat,
-                m['y_gt']: y_bat,
-                m['s_gt']: s_bat
-            })
+                    m['x']: x_bat,
+                    m['y_gt']: y_bat,
+                    m['s_gt']: s_bat
+                })
 
             loss += _loss * batch_size_valid / float(num_ex_valid)
             segm_loss += _segm_loss * batch_size_valid / float(num_ex_valid)
