@@ -419,8 +419,8 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
         s_bce = _bce(s_out_min, match_sum)
         model['s_out_min'] = s_out_min
     else:
-        # Try simply do binary xent for confidence sequence.
-        s_bce = _bce(s_out, s_gt)
+        # Try simply do binary xent for matching sequence.
+        s_bce = _bce(s_out, match_sum)
     model['s_bce'] = s_bce
 
     # Loss normalized by number of examples.
