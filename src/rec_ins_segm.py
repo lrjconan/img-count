@@ -13,20 +13,41 @@ import cslab_environ
 
 from data_api import mnist
 from tensorflow.python.framework import ops
-from utils import logger
 from utils import log_manager
+from utils import logger
 from utils import saver
 from utils.batch_iter import BatchIterator
 from utils.grad_clip_optim import GradientClipOptimizer
 from utils.time_series_logger import TimeSeriesLogger
 import argparse
 import datetime
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pickle as pkl
 import syncount_gen_data as data
 import tensorflow as tf
 import time
+
+
+def plot_samples(fname, x, y_out, s_out):
+    """Plot some test samples."""
+
+    num_row = y_out.shape[0]
+    num_col = y_out.shape[1] + 1
+    f1, axarr = plt.subplots(num_row, num_col)
+
+    for ii in xrange(num_row):
+        for jj in xrange(num_col):
+            axarr[ii, jj].set_axis_off()
+            if jj == 0:
+                axarr[ii, jj].imshow(x[ii])
+            else:
+                axarr[ii, jj].imshow(y_out[ii, jj - 1])
+                axarr[ii, jj].text(0, 0, '{:.2f}'.format(s_out[ii, jj - 1]),
+                                   color=(0, 0, 0), size=8)
+
+    plt.savefig(fname)
 
 
 def get_dataset(opt, num_train, num_valid):
@@ -685,6 +706,8 @@ def _parse_args():
                         help='Model save folder to restore from')
     parser.add_argument('-gpu', default=-1, type=int,
                         help='GPU ID, default CPU')
+    parser.add_argument('-num_samples_plot', default=10, type=int,
+                        help='Number of samples to plot')
     args = parser.parse_args()
 
     return args
@@ -829,7 +852,8 @@ if __name__ == '__main__':
                                                  get_fn=get_batch_valid,
                                                  progress_bar=False):
             r = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-                          m['iou_soft'], m['iou_hard'], m['count_acc'], m['count_out'], m['count_gt'],
+                          m['iou_soft'], m['iou_hard'], m[
+                              'count_acc'], m['count_out'], m['count_gt'],
                           m['y_out'], m['s_out']],
                          feed_dict={
                 m['x']: x_bat,
@@ -844,7 +868,7 @@ if __name__ == '__main__':
             _count_acc = r[5]
             print r[6]
             print r[7]
-            
+
             loss += _loss * batch_size_valid / float(num_ex_valid)
             segm_loss += _segm_loss * batch_size_valid / float(num_ex_valid)
             conf_loss += _conf_loss * batch_size_valid / float(num_ex_valid)

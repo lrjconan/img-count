@@ -1,9 +1,9 @@
 import cslab_environ
 
 from data_api import mnist
-from utils.batch_iter import BatchIterator
 from utils import logger
 from utils import saver
+from utils.batch_iter import BatchIterator
 import argparse
 import matplotlib.cm as cm
 import matplotlib.patches as patches
