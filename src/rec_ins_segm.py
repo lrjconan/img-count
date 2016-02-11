@@ -372,7 +372,7 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
             # [B] => [B, 1]
             bce_list[ii] = tf.expand_dims(tf.reduce_sum(tf.reduce_sum(
                 _bce(y_gt, y_out_list[ii]), reduction_indices=[2, 3]) *
-                tf.reshape(match_list[ii], [-1, timespan]), 
+                tf.reshape(match_list[ii], [-1, timespan]),
                 reduction_indices=[1]), 1)
 
         # N * [B, 1] => [B, N] => [B]
@@ -766,37 +766,20 @@ def _parse_args():
 
     return args
 
-if __name__ == '__main__':
-    # Command-line arguments
-    args = _parse_args()
-    tf.set_random_seed(1234)
 
-    # Logistics
-    task_name = 'rec_ins_segm'
+def get_model_id(task_name):
     time_obj = datetime.datetime.now()
     model_id = timestr = '{}-{:04d}{:02d}{:02d}{:02d}{:02d}{:02d}'.format(
         task_name, time_obj.year, time_obj.month, time_obj.day,
         time_obj.hour, time_obj.minute, time_obj.second)
-    results_folder = args.results
-    logs_folder = args.logs
-    exp_folder = os.path.join(results_folder, model_id)
-    exp_logs_folder = os.path.join(logs_folder, model_id)
 
-    # Logger
-    log = logger.get(os.path.join(exp_logs_folder, 'raw'))
-    log.log_args()
+    return model_id
 
-    # Set device
-    if args.gpu >= 0:
-        device = '/gpu:{}'.format(args.gpu)
-    else:
-        device = '/cpu:0'
 
-    # Train loop options
-    train_opt = {
-        'num_steps': args.num_steps,
-        'steps_per_ckpt': args.steps_per_ckpt
-    }
+if __name__ == '__main__':
+    # Command-line arguments
+    args = _parse_args()
+    tf.set_random_seed(1234)
 
     # Restore previously saved checkpoints.
     if args.restore:
@@ -805,8 +788,10 @@ if __name__ == '__main__':
         data_opt = ckpt_info['data_opt']
         ckpt_fname = ckpt_info['ckpt_fname']
         step = ckpt_info['step']
+        model_id = ckpt_info['model_id']
     else:
         log.info('Initializing new model')
+        model_id = get_model_id('rec_ins_segm')
         model_opt = {
             'inp_height': args.height,
             'inp_width': args.width,
@@ -835,6 +820,33 @@ if __name__ == '__main__':
             'size_var': args.size_var
         }
         step = 0
+
+    # Logistics
+    results_folder = args.results
+    exp_folder = os.path.join(results_folder, model_id)
+
+    # Logger
+    if args.logs:
+        logs_folder = args.logs
+        exp_logs_folder = os.path.join(logs_folder, model_id)
+        log = logger.get(os.path.join(exp_logs_folder, 'raw'))
+    else:
+        log = logger.get()
+
+    # Log arguments
+    log.log_args()
+
+    # Set device
+    if args.gpu >= 0:
+        device = '/gpu:{}'.format(args.gpu)
+    else:
+        device = '/cpu:0'
+
+    # Train loop options
+    train_opt = {
+        'num_steps': args.num_steps,
+        'steps_per_ckpt': args.steps_per_ckpt
+    }
 
     dataset = get_dataset(data_opt, args.num_ex, args.num_ex / 10)
     m = get_model(model_opt, device=device)
@@ -964,10 +976,13 @@ if __name__ == '__main__':
                     train_loss_logger.add(step, loss)
                     step_time_logger.add(step, step_time)
 
+            if step % 100 == 0:
+                log.info('model id {}'.format(model_id))
+
             # Save model
             if step % train_opt['steps_per_ckpt'] == 0:
-                saver.save_ckpt(exp_folder, sess, model_opt,
-                                data_opt, global_step=step)
+                saver.save_ckpt(exp_folder, sess, model_opt=model_opt,
+                                data_opt=data_opt, global_step=step)
 
             step += 1
 

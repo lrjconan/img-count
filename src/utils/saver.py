@@ -62,6 +62,7 @@ def get_ckpt_info(folder):
     if not os.path.exists(folder):
         raise Exception('Folder "{}" does not exist'.format(folder))
 
+    model_id = os.path.basename(folder.rstrip('/'))
     log.info('Restoring from {}'.format(folder))
     model_opt_fname = os.path.join(folder, kModelOptFilename)
     data_opt_fname = os.path.join(folder, kDatasetOptFilename)
@@ -87,7 +88,8 @@ def get_ckpt_info(folder):
         'ckpt_fname': ckpt_fname,
         'model_opt': model_opt,
         'data_opt': data_opt,
-        'step': latest_step
+        'step': latest_step,
+        'model_id': model_id
     }
 
 def restore_ckpt(sess, ckpt_fname):
