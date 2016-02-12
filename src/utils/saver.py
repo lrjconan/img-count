@@ -11,6 +11,8 @@ log = logger.get()
 kModelOptFilename = 'model_opt.yaml'
 kDatasetOptFilename = 'dataset_opt.yaml'
 
+tf_saver = None
+
 
 def save_ckpt(folder, sess, model_opt=None, data_opt=None, global_step=None):
     """Save checkpoint.
@@ -24,7 +26,8 @@ def save_ckpt(folder, sess, model_opt=None, data_opt=None, global_step=None):
         os.makedirs(folder)
     ckpt_path = os.path.join(folder, 'model.ckpt')
     log.info('Saving checkpoint to {}'.format(ckpt_path))
-    tf_saver = tf.train.Saver(tf.all_variables())
+    if tf_saver is None:
+        tf_saver = tf.train.Saver(tf.all_variables())
     tf_saver.save(sess, ckpt_path, global_step=global_step)
 
     if model_opt is not None:
@@ -92,9 +95,12 @@ def get_ckpt_info(folder):
         'model_id': model_id
     }
 
+
 def restore_ckpt(sess, ckpt_fname):
     """Restore the checkpoint file."""
-    tf_saver = tf.train.Saver(tf.all_variables())
+    if tf_saver is None:
+        tf_saver = tf.train.Saver(tf.all_variables())
+
     tf_saver.restore(sess, ckpt_fname)
 
     pass
