@@ -15,9 +15,9 @@ from data_api import mnist
 from tensorflow.python.framework import ops
 from utils import log_manager
 from utils import logger
-from utils import saver
 from utils.batch_iter import BatchIterator
 from utils.grad_clip_optim import GradientClipOptimizer
+from utils.saver import Saver
 from utils.time_series_logger import TimeSeriesLogger
 import argparse
 import datetime
@@ -65,7 +65,7 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
                             fill=True,
                             color=cmap[kk]))
                         axarr[ii, jj].text(
-                            top_left_x + 5, top_left_y - 5, 
+                            top_left_x + 5, top_left_y - 5,
                             '{}'.format(kk), size=5)
             else:
                 axarr[ii, jj].imshow(y_out[ii, jj - 1])
@@ -805,15 +805,18 @@ if __name__ == '__main__':
     # Command-line arguments
     args = _parse_args()
     tf.set_random_seed(1234)
+    saver = None
 
     # Restore previously saved checkpoints.
     if args.restore:
-        ckpt_info = saver.get_ckpt_info(args.restore)
+        saver = Saver(args.restore)
+        ckpt_info = saver.get_ckpt_info()
         model_opt = ckpt_info['model_opt']
         data_opt = ckpt_info['data_opt']
         ckpt_fname = ckpt_info['ckpt_fname']
         step = ckpt_info['step']
         model_id = ckpt_info['model_id']
+        exp_folder = args.restore
     else:
         model_id = get_model_id('rec_ins_segm')
         model_opt = {
@@ -844,10 +847,8 @@ if __name__ == '__main__':
             'size_var': args.size_var
         }
         step = 0
-
-    # Logistics
-    results_folder = args.results
-    exp_folder = os.path.join(results_folder, model_id)
+        exp_folder = os.path.join(args.results, model_id)
+        saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
 
     # Logger
     if args.logs:
@@ -878,7 +879,7 @@ if __name__ == '__main__':
     # sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
     if args.restore:
-        saver.restore_ckpt(sess, ckpt_fname)
+        saver.restore(sess, ckpt_fname)
     else:
         sess.run(tf.initialize_all_variables())
 
@@ -938,29 +939,29 @@ if __name__ == '__main__':
         segm_loss = 0.0
         conf_loss = 0.0
         log.info('Running validation')
-        # for x_bat, y_bat, s_bat in BatchIterator(num_ex_valid,
-        #                                          batch_size=batch_size_valid,
-        #                                          get_fn=get_batch_valid,
-        #                                          progress_bar=False):
-        #     _loss, _segm_loss, _conf_loss, _iou_soft, _iou_hard, _count_acc = \
-        #         sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-        #                   m['iou_soft'], m['iou_hard'], m['count_acc']],
-        #                  feed_dict={
-        #             m['x']: x_bat,
-        #             m['y_gt']: y_bat,
-        #             m['s_gt']: s_bat
-        #         })
+        for x_bat, y_bat, s_bat in BatchIterator(num_ex_valid,
+                                                 batch_size=batch_size_valid,
+                                                 get_fn=get_batch_valid,
+                                                 progress_bar=False):
+            _loss, _segm_loss, _conf_loss, _iou_soft, _iou_hard, _count_acc = \
+                sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
+                          m['iou_soft'], m['iou_hard'], m['count_acc']],
+                         feed_dict={
+                    m['x']: x_bat,
+                    m['y_gt']: y_bat,
+                    m['s_gt']: s_bat
+                })
 
-        #     loss += _loss * batch_size_valid / float(num_ex_valid)
-        #     segm_loss += _segm_loss * batch_size_valid / float(num_ex_valid)
-        #     conf_loss += _conf_loss * batch_size_valid / float(num_ex_valid)
-        #     iou_soft += _iou_soft * batch_size_valid / float(num_ex_valid)
-        #     iou_hard += _iou_hard * batch_size_valid / float(num_ex_valid)
-        #     count_acc += _count_acc * batch_size_valid / float(num_ex_valid)
+            loss += _loss * batch_size_valid / float(num_ex_valid)
+            segm_loss += _segm_loss * batch_size_valid / float(num_ex_valid)
+            conf_loss += _conf_loss * batch_size_valid / float(num_ex_valid)
+            iou_soft += _iou_soft * batch_size_valid / float(num_ex_valid)
+            iou_hard += _iou_hard * batch_size_valid / float(num_ex_valid)
+            count_acc += _count_acc * batch_size_valid / float(num_ex_valid)
 
-        # log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} conf_loss {:.4f} '
-        #           'iou soft {:.4f} iou hard {:.4f} count acc {:.4f}').format(
-        #     step, loss, segm_loss, conf_loss, iou_soft, iou_hard, count_acc))
+        log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} conf_loss {:.4f} '
+                  'iou soft {:.4f} iou hard {:.4f} count acc {:.4f}').format(
+            step, loss, segm_loss, conf_loss, iou_soft, iou_hard, count_acc))
 
         if args.logs:
             _x, _y_gt, _s_gt = get_batch_valid(0, args.num_samples_plot)
@@ -1009,8 +1010,7 @@ if __name__ == '__main__':
 
             # Save model
             if step % train_opt['steps_per_ckpt'] == 0:
-                saver.save_ckpt(exp_folder, sess, model_opt=model_opt,
-                                data_opt=data_opt, global_step=step)
+                saver.save(sess, global_step=step)
 
             step += 1
 
