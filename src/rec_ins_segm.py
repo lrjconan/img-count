@@ -392,11 +392,11 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
         width = tf.to_float(shape[3])
 
         for ii in xrange(timespan):
-            # [B, N, H, W] * [B, 1, H, W] => [B, N, H, W] => [B, N]
+            # [B, 1, H, W] * [B, N, H, W] => [B, N, H, W] => [B, N]
             # [B, N] * [B, N] => [B]
             # [B] => [B, 1]
             bce_list[ii] = tf.expand_dims(tf.reduce_sum(tf.reduce_sum(
-                _bce(y_gt, y_out_list[ii]), reduction_indices=[2, 3]) *
+                _bce(y_out_list[ii], y_gt), reduction_indices=[2, 3]) *
                 tf.reshape(match_list[ii], [-1, timespan]),
                 reduction_indices=[1]), 1)
 
