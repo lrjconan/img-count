@@ -23,6 +23,7 @@ import argparse
 import datetime
 import matplotlib
 matplotlib.use('Agg')
+import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -32,22 +33,46 @@ import tensorflow as tf
 import time
 
 
-def plot_samples(fname, x, y_out, s_out):
+def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
     """Plot some test samples."""
-
     num_row = y_out.shape[0]
     num_col = y_out.shape[1] + 1
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
+    cmap = ['r', 'y', 'c', 'g', 'm', 'o']
 
     for ii in xrange(num_row):
+        mnz = match[ii].nonzero()
         for jj in xrange(num_col):
             axarr[ii, jj].set_axis_off()
             if jj == 0:
                 axarr[ii, jj].imshow(x[ii])
+                for kk in xrange(y_gt.shape[1]):
+                    nz = y_gt[ii, kk].nonzero()
+                    if nz[0].size > 0:
+                        top_left_x = nz[1].min()
+                        top_left_y = nz[0].min()
+                        bot_right_x = nz[1].max()
+                        bot_right_y = nz[0].max()
+                        axarr[ii, jj].add_patch(patches.Rectangle(
+                            (top_left_x, top_left_y),
+                            bot_right_x - top_left_x,
+                            bot_right_y - top_left_y,
+                            fill=False,
+                            color=cmap[kk]))
+                        axarr[ii, jj].add_patch(patches.Rectangle(
+                            (top_left_x, top_left_y - 25),
+                            25, 25,
+                            fill=True,
+                            color=cmap[kk]))
+                        axarr[ii, jj].text(
+                            top_left_x + 5, top_left_y - 5, 
+                            '{}'.format(kk), size=5)
             else:
                 axarr[ii, jj].imshow(y_out[ii, jj - 1])
-                axarr[ii, jj].text(0, 0, '{:.2f}'.format(s_out[ii, jj - 1]),
-                                   color=(0, 0, 0), size=8)
+                matched = match[ii, jj - 1].nonzero()[0]
+                axarr[ii, jj].text(0, 0, '{:.2f} {}'.format(
+                    s_out[ii, jj - 1], matched),
+                    color=(0, 0, 0), size=8)
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=80)
@@ -790,7 +815,6 @@ if __name__ == '__main__':
         step = ckpt_info['step']
         model_id = ckpt_info['model_id']
     else:
-        log.info('Initializing new model')
         model_id = get_model_id('rec_ins_segm')
         model_opt = {
             'inp_height': args.height,
@@ -914,36 +938,40 @@ if __name__ == '__main__':
         segm_loss = 0.0
         conf_loss = 0.0
         log.info('Running validation')
-        for x_bat, y_bat, s_bat in BatchIterator(num_ex_valid,
-                                                 batch_size=batch_size_valid,
-                                                 get_fn=get_batch_valid,
-                                                 progress_bar=False):
-            _loss, _segm_loss, _conf_loss, _iou_soft, _iou_hard, _count_acc = \
-                sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-                          m['iou_soft'], m['iou_hard'], m['count_acc']],
-                         feed_dict={
-                    m['x']: x_bat,
-                    m['y_gt']: y_bat,
-                    m['s_gt']: s_bat
-                })
+        # for x_bat, y_bat, s_bat in BatchIterator(num_ex_valid,
+        #                                          batch_size=batch_size_valid,
+        #                                          get_fn=get_batch_valid,
+        #                                          progress_bar=False):
+        #     _loss, _segm_loss, _conf_loss, _iou_soft, _iou_hard, _count_acc = \
+        #         sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
+        #                   m['iou_soft'], m['iou_hard'], m['count_acc']],
+        #                  feed_dict={
+        #             m['x']: x_bat,
+        #             m['y_gt']: y_bat,
+        #             m['s_gt']: s_bat
+        #         })
 
-            loss += _loss * batch_size_valid / float(num_ex_valid)
-            segm_loss += _segm_loss * batch_size_valid / float(num_ex_valid)
-            conf_loss += _conf_loss * batch_size_valid / float(num_ex_valid)
-            iou_soft += _iou_soft * batch_size_valid / float(num_ex_valid)
-            iou_hard += _iou_hard * batch_size_valid / float(num_ex_valid)
-            count_acc += _count_acc * batch_size_valid / float(num_ex_valid)
+        #     loss += _loss * batch_size_valid / float(num_ex_valid)
+        #     segm_loss += _segm_loss * batch_size_valid / float(num_ex_valid)
+        #     conf_loss += _conf_loss * batch_size_valid / float(num_ex_valid)
+        #     iou_soft += _iou_soft * batch_size_valid / float(num_ex_valid)
+        #     iou_hard += _iou_hard * batch_size_valid / float(num_ex_valid)
+        #     count_acc += _count_acc * batch_size_valid / float(num_ex_valid)
 
-        log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} conf_loss {:.4f} '
-                  'iou soft {:.4f} iou hard {:.4f} count acc {:.4f}').format(
-            step, loss, segm_loss, conf_loss, iou_soft, iou_hard, count_acc))
+        # log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} conf_loss {:.4f} '
+        #           'iou soft {:.4f} iou hard {:.4f} count acc {:.4f}').format(
+        #     step, loss, segm_loss, conf_loss, iou_soft, iou_hard, count_acc))
 
         if args.logs:
             _x, _y_gt, _s_gt = get_batch_valid(0, args.num_samples_plot)
-            _y_out, _s_out = sess.run([m['y_out'], m['s_out']], feed_dict={
-                m['x']: _x
-            })
-            plot_samples(valid_sample_img_fname, _x, _y_out, _s_out)
+            _y_out, _s_out, _match = sess.run(
+                [m['y_out'], m['s_out'], m['match']], feed_dict={
+                    m['x']: _x,
+                    m['y_gt']: _y_gt,
+                    m['s_gt']: _s_gt
+                })
+            plot_samples(valid_sample_img_fname, _x,
+                         _y_out, _s_out, _y_gt, _s_gt, _match)
             valid_loss_logger.add(step, loss)
             valid_iou_soft_logger.add(step, iou_soft)
             valid_iou_hard_logger.add(step, iou_hard)
