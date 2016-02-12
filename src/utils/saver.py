@@ -20,7 +20,7 @@ class Saver():
             os.makedirs(folder)
 
         self.folder = folder
-        self.tf_saver = tf.train.Saver(tf.all_variables())
+        self.tf_saver = None
 
         if model_opt is not None:
             with open(os.path.join(folder, kModelOptFilename), 'w') as f:
@@ -32,12 +32,14 @@ class Saver():
 
         pass
 
-    def save(sess, global_step=None):
+    def save(self, sess, global_step=None):
         """Save checkpoint.
 
         Args:
             global_step:
         """
+        if self.tf_saver is None:
+            self.tf_saver = tf.train.Saver(tf.all_variables())
         ckpt_path = os.path.join(self.folder, 'model.ckpt')
         log.info('Saving checkpoint to {}'.format(ckpt_path))
         self.tf_saver.save(sess, ckpt_path, global_step=global_step)
@@ -102,6 +104,9 @@ class Saver():
         """Restore the checkpoint file."""
         if ckpt_fname is None:
             ckpt_fname = self.get_latest_ckpt()[0]
+
+        if self.tf_saver is None:
+            self.tf_saver = tf.train.Saver(tf.all_variables())
 
         tf_saver.restore(sess, ckpt_fname)
 
