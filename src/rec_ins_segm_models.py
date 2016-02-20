@@ -289,17 +289,20 @@ def _add_dcnn(model, x, f, ch, pool, wd=None):
 
     for ii in xrange(nlayers):
         cum_pool *= pool[ii]
-        out_shape[ii] = tf.concat(0, [batch, inp_size * cum_pool, tf.constant(ch[ii: ii + 1])])
+        out_shape[ii] = tf.concat(
+            0, [batch, inp_size * cum_pool, tf.constant(ch[ii: ii + 1])])
         w[ii] = _weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]], wd=wd)
-        b[ii] = _weight_variable([ch[ii + 1]], wd=wd)
+        # b[ii] = _weight_variable([ch[ii + 1]], wd=wd)
         if ii == 0:
-            h[ii] = tf.nn.relu(tf.nn.conv2d_transpose(
+            h[ii] = tf.nn.conv2d_transpose(
                 x, w[ii], out_shape[ii],
-                strides=[1, pool[ii], pool[ii], 1]) + b[ii])
+                strides=[1, pool[ii], pool[ii], 1])
+            # + b[ii]
         else:
-            h[ii] = tf.nn.relu(tf.nn.conv2d_transpose(
+            h[ii] = tf.nn.conv2d_transpose(
                 h[ii - 1], w[ii], out_shape[ii],
-                strides=[1, pool[ii], pool[ii], 1]) + b[ii])
+                strides=[1, pool[ii], pool[ii], 1])
+            # + b[ii]
 
     return h[-1]
 
@@ -785,9 +788,10 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             dcnn_filters = [3, 3, 3]
             dcnn_channels = [1, 1, 1, 1]
 
-            y_out = tf.reshape(_add_dcnn(model, segm_lo_all,
-                                         dcnn_filters, dcnn_channels, cnn_pool,
-                                         wd=wd),
+            y_out = tf.reshape(tf.sigmoid(_add_dcnn(model, segm_lo_all,
+                                                    dcnn_filters, 
+                                                    dcnn_channels, cnn_pool,
+                                                    wd=wd)),
                                [-1, timespan, inp_height, inp_width])
             # w_dconv1 = _weight_variable([3, 3, 1, 1])
             # out_shape1 = tf.concat(
