@@ -151,7 +151,7 @@ def _parse_args():
 
     # Default model options
     kWeightDecay = 5e-5
-    kLearningRate = 1e-3
+    kLearningRate = 1e-4
     kLossMixRatio = 1.0
     # kConvLstmFilterSize = 3
     kConvLstmFilterSize = 5
@@ -510,6 +510,12 @@ if __name__ == '__main__':
 
         # Train step
         start_time = time.time()
+        r = sess.run([m['loss'], m['train_step']], feed_dict={
+            m['x']: x_bat,
+            m['phase_train']: True,
+            m['y_gt']: y_bat,
+            m['s_gt']: s_bat
+        })
         results = sess.run(m['s_out'],
                            feed_dict={
             m['x']: x_bat,
@@ -518,12 +524,6 @@ if __name__ == '__main__':
             m['s_gt']: s_bat
         })
         print results
-        r = sess.run([m['loss'], m['train_step']], feed_dict={
-            m['x']: x_bat,
-            m['phase_train']: True,
-            m['y_gt']: y_bat,
-            m['s_gt']: s_bat
-        })
 
         # Print statistics
         if step % 10 == 0:
