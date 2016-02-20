@@ -377,11 +377,17 @@ def _add_mlp(model, x, dims, activations, wd=None):
         nout = dims[ii + 1]
         w[ii] = _weight_variable([nin, nout], wd=wd)
         b[ii] = _weight_variable([nout], wd=wd)
-        if ii == 0:
-            h[ii] = activations[ii](tf.matmul(x, w[ii]) + b[ii])
-        else:
-            h[ii] = activations[ii](tf.matmul(h[ii - 1], w[ii]) + b[ii])
 
+        if ii == 0:
+            prev_inp = x
+        else:
+            prev_inp = h[ii - 1]
+
+        h[ii] = tf.matmul(prev_inp, w[ii]) + b[ii]
+        
+        if activations[ii]:
+            h[ii] = activations[ii](h[ii])
+            
     return h
 
 
