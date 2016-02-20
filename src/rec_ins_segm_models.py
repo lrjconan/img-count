@@ -913,9 +913,9 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                 h_cnn1_shape = tf.shape(h_cnn[1])
                 h_cnn0_shape = tf.shape(h_cnn[0])
                 zeros1 = tf.concat(
-                    1, [h_cnn1_shape[0: 1], tf.constant([timespan]), h_cnn1_shape[1:]])
+                    0, [h_cnn1_shape[0: 1], tf.constant([timespan]), h_cnn1_shape[1:]])
                 zeros1 = tf.concat(
-                    1, [h_cnn0_shape[0: 1], tf.constant([timespan]), h_cnn0_shape[1:]])
+                    0, [h_cnn0_shape[0: 1], tf.constant([timespan]), h_cnn0_shape[1:]])
                 skip = [None, tf.expand_dim(
                     1, h_cnn[1]) + zeros1, tf.expand_dim(1, h_cnn[0]) + zeros0]
                 skip_ch = [0, cnn_channels[2], cnn_channels[1]]
