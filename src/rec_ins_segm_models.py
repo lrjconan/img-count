@@ -912,10 +912,10 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             if opt['add_skip_conn']:
                 h_cnn1_shape = tf.shape(h_cnn[1])
                 h_cnn0_shape = tf.shape(h_cnn[0])
-                zeros1 = tf.concat(
-                    0, [h_cnn1_shape[0: 1], tf.constant([timespan]), h_cnn1_shape[1:]])
-                zeros1 = tf.concat(
-                    0, [h_cnn0_shape[0: 1], tf.constant([timespan]), h_cnn0_shape[1:]])
+                zeros1 = tf.zeros(tf.concat(
+                    0, [h_cnn1_shape[0: 1], tf.constant([timespan]), h_cnn1_shape[1:]]))
+                zeros1 = tf.zeros(tf.concat(
+                    0, [h_cnn0_shape[0: 1], tf.constant([timespan]), h_cnn0_shape[1:]]))
                 h_cnn1_reshape = tf.reshape(tf.expand_dims(
                     h_cnn[1], 1) + zeros1,
                     [-1, inp_height / 4, inp_width / 4, cnn_channel[2]])
