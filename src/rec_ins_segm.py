@@ -328,7 +328,8 @@ if __name__ == '__main__':
             'segm_loss_fn': args.segm_loss_fn,
             'use_deconv': args.use_deconv,
             'use_bn': args.use_bn,
-            'segm_dense_conn': args.segm_dense_conn
+            'segm_dense_conn': args.segm_dense_conn,
+            'add_skip_conn': args.add_skip_conn
         }
         data_opt = {
             'height': args.height,
