@@ -117,7 +117,6 @@ def _get_batch_fn(dataset):
     Preprocess mini-batch data given start and end indices.
     """
     def get_batch(idx):
-        print idx
         x_bat = dataset['input'][idx]
         y_bat = dataset['label_segmentation'][idx]
         s_bat = dataset['label_score'][idx]
