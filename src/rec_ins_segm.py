@@ -151,7 +151,7 @@ def _parse_args():
 
     # Default model options
     kWeightDecay = 5e-5
-    kLearningRate = 1e-4
+    kLearningRate = 1e-3
     kLossMixRatio = 1.0
     # kConvLstmFilterSize = 3
     kConvLstmFilterSize = 5
