@@ -355,10 +355,9 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
 
         out_shape[ii] = tf.concat(
             0, [batch, inp_size * cum_pool, tf.constant([out_ch])])
-        print [f[ii], f[ii], out_ch, in_ch]
+        print[f[ii], f[ii], out_ch, in_ch]
         w[ii] = _weight_variable([f[ii], f[ii], out_ch, in_ch], wd=wd)
         b[ii] = _weight_variable([out_ch], wd=wd)
-
 
         h[ii] = tf.nn.conv2d_transpose(
             prev_inp, w[ii], out_shape[ii],
@@ -911,7 +910,14 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                 dcnn_use_bn = [False] * 3
 
             if opt['add_skip_conn']:
-                skip = [None, h_cnn[1], h_cnn[0]]
+                h_cnn1_shape = tf.shape(h_cnn[1])
+                h_cnn0_shape = tf.shape(h_cnn[0])
+                zeros1 = tf.concat(
+                    1, [h_cnn1_shape[0: 1], tf.constant([timespan]), h_cnn1_shape[1:]])
+                zeros1 = tf.concat(
+                    1, [h_cnn0_shape[0: 1], tf.constant([timespan]), h_cnn0_shape[1:]])
+                skip = [None, tf.expand_dim(
+                    1, h_cnn[1]) + zeros1, tf.expand_dim(1, h_cnn[0]) + zeros0]
                 skip_ch = [0, cnn_channels[2], cnn_channels[1]]
             else:
                 skip = None
