@@ -330,7 +330,7 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
     batch = tf.shape(x)[0: 1]
     inp_size = tf.shape(x)[1: 3]
     cum_pool = 1
-    in_ch = ch[ii]
+    in_ch = ch[0]
 
     for ii in xrange(nlayers):
         cum_pool *= pool[ii]
