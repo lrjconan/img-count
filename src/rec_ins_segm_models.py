@@ -713,7 +713,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         # Input image, [B, H, W, 3]
         x = tf.placeholder('float', [None, inp_height, inp_width, 3])
         # Whether in training stage, required for batch norm.
-        phase_train = tf.placeholder('bool', [1])
+        phase_train = tf.placeholder('bool')
         # Groundtruth segmentation maps, [B, T, H, W]
         y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
         # Groundtruth confidence score, [B, T]
