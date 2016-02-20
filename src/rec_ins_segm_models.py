@@ -49,7 +49,7 @@ def _batch_norm(x, n_out, phase_train, scope='bn', affine=True):
         def mean_var_with_update():
             with tf.control_dependencies([ema_apply_op]):
                 return tf.identity(batch_mean), tf.identity(batch_var)
-        mean, var = control_flow_ops.cond(phase_train,
+        mean, var = control_flow_ops.cond(phase_train[0],
                                           mean_var_with_update,
                                           lambda: (ema_mean, ema_var))
 
@@ -713,7 +713,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         # Input image, [B, H, W, 3]
         x = tf.placeholder('float', [None, inp_height, inp_width, 3])
         # Whether in training stage, required for batch norm.
-        phase_train = tf.placeholder('bool')
+        phase_train = tf.placeholder('bool', [1])
         # Groundtruth segmentation maps, [B, T, H, W]
         y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
         # Groundtruth confidence score, [B, T]
@@ -853,7 +853,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             # else:
             #     h_dc = h_dc_
             h_dc = h_dc_
-            
+
             # Add sigmoid outside RNN.
             y_out = tf.reshape(tf.sigmoid(h_dc),
                                [-1, timespan, inp_height, inp_width])
