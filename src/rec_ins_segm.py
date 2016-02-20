@@ -153,8 +153,19 @@ def _parse_args():
     kWeightDecay = 5e-5
     kLearningRate = 1e-3
     kLossMixRatio = 1.0
-    kConvLstmFilterSize = 5
-    kConvLstmHiddenDepth = 64
+    kConvLstmFilterSize = 3
+    kConvLstmHiddenDepth = 32
+    kCnn1FilterSize = 3
+    kCnn2FilterSize = 3
+    kCnn3FilterSize = 3
+    kCnn1Depth = 8
+    kCnn2Depth = 16
+    kCnn3Depth = 32
+    kDcnn3FilterSize = 3
+    kDcnn2FilterSize = 3
+    kDcnn1FilterSize = 3
+    kDcnn3Depth = 16
+    kDcnn2Depth = 8
 
     # Default training options
     kNumSteps = 500000
@@ -199,6 +210,28 @@ def _parse_args():
                         type=int, help='Conv LSTM filter size')
     parser.add_argument('-conv_lstm_hid_depth', default=kConvLstmHiddenDepth,
                         type=int, help='Conv LSTM hidden depth')
+    parser.add_argument('-cnn_1_filter_size', default=kCnn1FilterSize,
+                        type=int, help='CNN 1st layer filter size')
+    parser.add_argument('-cnn_2_filter_size', default=kCnn2FilterSize,
+                        type=int, help='CNN 2nd layer filter size')
+    parser.add_argument('-cnn_3_filter_size', default=kCnn3FilterSize,
+                        type=int, help='CNN 3rd layer filter size')
+    parser.add_argument('-dcnn_3_filter_size', default=kDcnn3FilterSize,
+                        type=int, help='DCNN 3rd layer filter size')
+    parser.add_argument('-dcnn_2_filter_size', default=kDcnn2FilterSize,
+                        type=int, help='DCNN 2nd layer filter size')
+    parser.add_argument('-dcnn_1_filter_size', default=kDcnn1FilterSize,
+                        type=int, help='DCNN 1st layer filter size')
+    parser.add_argument('-cnn_1_depth', default=kCnn1Depth,
+                        type=int, help='CNN 1st layer depth')
+    parser.add_argument('-cnn_2_depth', default=kCnn2Depth,
+                        type=int, help='CNN 2nd layer depth')
+    parser.add_argument('-cnn_3_depth', default=kCnn3Depth,
+                        type=int, help='CNN 3rd layer depth')
+    parser.add_argument('-dcnn_3_depth', default=kDcnn3Depth,
+                        type=int, help='DCNN 3rd layer depth')
+    parser.add_argument('-dcnn_2_depth', default=kDcnn2FilterSize,
+                        type=int, help='DCNN 2nd layer depth')
 
     # Extra model options (beta)
     parser.add_argument('-no_cum_min', action='store_true',
@@ -211,6 +244,10 @@ def _parse_args():
                         help='Whether to use deconvolution layer to upsample.')
     parser.add_argument('-use_bn', action='store_true',
                         help='Whether to use batch normalization.')
+    parser.add_argument('-segm_dense_conn', action='store_true',
+                        help='Whether to use dense connection to output segmentation.')
+    parser.add_argument('-add_skip_conn', action='store_true',
+                        help='Whether to add skip connection in the DCNN.')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -273,13 +310,18 @@ if __name__ == '__main__':
             'loss_mix_ratio': args.loss_mix_ratio,
             'conv_lstm_filter_size': args.conv_lstm_filter_size,
             'conv_lstm_hid_depth': args.conv_lstm_hid_depth,
+            'cnn_filter_size': [args.cnn_1_filter_size, args.cnn_2_filter_size, args.cnn_3_filter_size],
+            'cnn_depth': [args.cnn_1_depth, args.cnn_2_depth, args.cnn_3_depth],
+            'dcnn_filter_size': [args.dcnn_3_filter_size, args.dcnn_2_filter_size, args.dcnn_1_filter_size],
+            'dcnn_depth': [args.dcnn_3_depth, args.dcnn_2_depth],
 
             # Test arguments
             'cum_min': not args.no_cum_min,
             'store_segm_map': args.store_segm_map,
             'segm_loss_fn': args.segm_loss_fn,
             'use_deconv': args.use_deconv,
-            'use_bn': args.use_bn
+            'use_bn': args.use_bn,
+            'segm_dense_conn': args.segm_dense_conn
         }
         data_opt = {
             'height': args.height,
@@ -357,7 +399,7 @@ if __name__ == '__main__':
             os.path.join(exp_logs_folder, 'step_time.csv'), 'step time (ms)',
             name='Step time',
             buffer_size=10)
-        
+
         log_manager.register(log.filename, 'plain', 'Raw logs')
 
         model_opt_fname = os.path.join(exp_logs_folder, 'model_opt.yaml')

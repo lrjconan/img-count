@@ -270,7 +270,7 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
     return unroll
 
 
-def _add_cnn(model, x, f, ch, pool, use_bn=False, phase_train=None, wd=None):
+def _add_cnn(model, x, f, ch, pool, activations, use_bn, phase_train=None, wd=None):
     """Add CNN, with standard Conv-Relu-MaxPool layers.
 
     Args:
@@ -284,33 +284,32 @@ def _add_cnn(model, x, f, ch, pool, use_bn=False, phase_train=None, wd=None):
     nlayers = len(f)
     w = [None] * nlayers
     b = [None] * nlayers
-    hc = [None] * nlayers
-    hp = [None] * nlayers
+    h = [None] * nlayers
 
     for ii in xrange(nlayers):
         w[ii] = _weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]], wd=wd)
         b[ii] = _weight_variable([ch[ii + 1]], wd=wd)
+
         if ii == 0:
-            if use_bn:
-                hc[ii] = tf.nn.relu(_batch_norm(
-                    _conv2d(x, w[ii]) + b[ii], ch[ii + 1], phase_train))
-            else:
-                hc[ii] = tf.nn.relu(_conv2d(x, w[ii]) + b[ii])
+            prev_inp = x
         else:
-            if use_bn:
-                hc[ii] = tf.nn.relu(_batch_norm(
-                    _conv2d(hp[ii - 1], w[ii]) + b[ii], ch[ii + 1], phase_train))
-            else:
-                hc[ii] = tf.nn.relu(_conv2d(hp[ii - 1], w[ii]) + b[ii])
+            prev_inp = h[ii - 1]
+
+        h[ii] = _conv2d(prev_inp, w[ii]) + b[ii]
+
+        if use_bn[ii]:
+            h[ii] = _batch_norm(h[ii], ch[ii + 1], phase_train)
+
+        if activations[ii] is not None:
+            h[ii] = activations[ii](h[ii])
+
         if pool[ii] > 1:
-            hp[ii] = _max_pool(hc[ii], pool[ii])
-        else:
-            hp[ii] = hc[ii]
+            h[ii] = _max_pool(h[ii], pool[ii])
 
-    return hp[-1]
+    return h
 
 
-def _add_dcnn(model, x, f, ch, pool, wd=None):
+def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, skip=None, phase_train=None, wd=None):
     """Add D-CNN, with standard DeConv-Relu layers.
 
     Args:
@@ -319,6 +318,7 @@ def _add_dcnn(model, x, f, ch, pool, wd=None):
         f: filter size, list of size N (N = number of layers)
         ch: number of channels, list of size N + 1
         pool: pooling ratio, list of size N
+        skip: skip connection
         wd: weight decay
     """
     nlayers = len(f)
@@ -339,16 +339,50 @@ def _add_dcnn(model, x, f, ch, pool, wd=None):
         b[ii] = _weight_variable([ch[ii + 1]], wd=wd)
 
         if ii == 0:
-            h[ii] = tf.nn.conv2d_transpose(
-                x, w[ii], out_shape[ii],
-                strides=[1, pool[ii], pool[ii], 1]) + b[ii]
+            prev_inp = x
         else:
-            h[ii] = tf.nn.conv2d_transpose(
-                h[ii - 1], w[ii], out_shape[ii],
-                strides=[1, pool[ii], pool[ii], 1]) + b[ii]
+            prev_inp = h[ii - 1]
+
+        if skip is not None:
+            if skip[ii] is not None:
+                prev_inp = tf.concat(3, [prev_inp, skip[ii]])
+
+        h[ii] = tf.nn.conv2d_transpose(
+            prev_inp, w[ii], out_shape[ii],
+            strides=[1, pool[ii], pool[ii], 1]) + b[ii]
+
+        x_height *= pool[ii]
+        x_width *= pool[ii]
+        h[ii].set_shape([None, x_height, x_width, ch[ii + 1]])
+
+        if use_bn[ii]:
+            h[ii] = _batch_norm(h[ii], ch[ii + 1], phase_train)
+
+        if activations[ii] is not None:
+            h[ii] = activations[ii](h[ii])
+
+
         model['dcnn_h_{}'.format(ii)] = h[ii]
 
-    return h[-1]
+    return h
+
+
+def _add_mlp(model, x, dims, activations, wd=None):
+    nlayers = len(dims) - 1
+    w = [None] * nlayers
+    b = [None] * nlayers
+    h = [None] * nlayers
+    for ii in xrange(nlayers):
+        nin = dims[ii]
+        nout = dims[ii + 1]
+        w[ii] = _weight_variable([nin, nout], wd=wd)
+        b[ii] = _weight_variable([nout], wd=wd)
+        if ii == 0:
+            h[ii] = activations[ii](tf.matmul(x, w[ii]) + b[ii])
+        else:
+            h[ii] = activations[ii](tf.matmul(h[ii - 1], w[ii]) + b[ii])
+
+    return h
 
 
 def _get_attn_filter(mu, lg_var, size):
@@ -524,18 +558,6 @@ def _f_iou(a, b, timespan, pairwise=False):
         return tf.reduce_sum(a + b - (a * b) + eps,
                              reduction_indices=reduction_indices)
     if pairwise:
-        # b_shape = tf.shape(b)
-        # # [1, 1, M, 1, 1]
-        # a_shape2 = tf.concat(0, [tf.constant([1, 1]),
-        #                          b_shape[1: 2],
-        #                          tf.constant([1, 1])])
-        # # [B, N, H, W] => [B, N, 1, H, W] => [B, N, M, H, W]
-        # a = tf.expand_dims(a, 2)
-        # # [B, M, H, W] => [B, 1, M, H, W]
-        # b = tf.expand_dims(b, 1)
-        # a = tf.tile(a, a_shape2)
-        # return _inter(a, b) / _union(a, b)
-
         y_list = [None] * timespan
         a_list = [None] * timespan
         # [B, N, H, W] => [B, N, 1, H, W]
@@ -722,7 +744,6 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         x = tf.placeholder('float', [None, inp_height, inp_width, 3])
         # Whether in training stage, required for batch norm.
         phase_train = tf.placeholder('bool')
-        # phase_train = tf.cast(phase_train_f, 'bool')
         # Groundtruth segmentation maps, [B, T, H, W]
         y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
         # Groundtruth confidence score, [B, T]
@@ -743,11 +764,19 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         # [B, H, W, 3] => [B, H / 2, W / 2, 16]
         # [B, H / 2, W / 2, 16] => [B, H / 4, W / 4, 32]
         # [B, H / 4, W / 4, 32] => [B, H / 8, W / 8, 64]
-        cnn_filt = [3, 3, 3]
-        cnn_channels = [3, 16, 32, 64]
+        cnn_filters = opt['cnn_filter_size']
+        cnn_channels = [3] + opt['cnn_depth']
         cnn_pool = [2, 2, 2]
-        h_pool3 = _add_cnn(model, x, cnn_filt, cnn_channels, cnn_pool,
-                           use_bn=opt['use_bn'], phase_train=phase_train, wd=wd)
+        cnn_activations = [tf.nn.relu, tf.nn.relu, tf.nn.relu]
+        if opt['use_bn']:
+            cnn_use_bn = [True] * 3
+        else:
+            cnn_use_bn = [False] * 3
+
+        h_cnn = _add_cnn(model, x, cnn_filters, cnn_channels, cnn_pool,
+                         cnn_activations, cnn_use_bn,
+                         phase_train=phase_train, wd=wd)
+        h_pool3 = h_cnn[-1]
 
         if store_segm_map:
             lstm_inp_depth = cnn_channels[-1] + 1
@@ -768,15 +797,16 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         h_init = tf.zeros(tf.concat(
             0, [num_ex, tf.constant([lstm_height, lstm_width, lstm_depth])]))
 
-        # # Segmentation network
-        # # 4th convolution layer (on ConvLSTM output).
-        # w_conv4 = _weight_variable([3, 3, lstm_depth, 1], wd=wd)
-        # b_conv4 = _weight_variable([1], wd=wd)
+        # Segmentation network
+        # 4th convolution layer (on ConvLSTM output).
+        w_segm_conv = _weight_variable([3, 3, lstm_depth, 1], wd=wd)
+        b_segm_conv = _weight_variable([1], wd=wd)
+        b_log_softmax = _weight_variable([1])
 
         # Bias towards segmentation output.
-        w_segm = _weight_variable([lstm_height * lstm_width * lstm_depth,
-                                   lstm_height * lstm_width * lstm_depth / 2], wd=wd)
-        b_segm = _weight_variable(
+        w_segm_dense = _weight_variable([lstm_height * lstm_width * lstm_depth,
+                                         lstm_height * lstm_width * lstm_depth / 2], wd=wd)
+        b_segm_dense = _weight_variable(
             [lstm_height * lstm_width * lstm_depth / 2], wd=wd)
 
         # Confidence network
@@ -822,25 +852,49 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         model['h_lstm_all'] = h_lstm_all
 
         # [B * T, LH, LW, LD / 2]
-        segm_lo = tf.reshape(tf.nn.relu(tf.matmul(tf.reshape(
-            h_lstm_all, [-1, lstm_height * lstm_width * lstm_depth]), w_segm) + b_segm),
-            [-1, lstm_height, lstm_width, lstm_depth / 2])
+        if opt['segm_dense_conn']:
+            # One layer MLP
+            mlp_ndim = [lstm_height * lstm_width * lstm_depth,
+                        lstm_height * lstm_width * lstm_depth / 2]
+            mlp_activations = [tf.nn.relu]
+            mlp = _add_mlp(model, tf.reshape(
+                h_lstm_all, [-1, lstm_height * lstm_width * lstm_depth]),
+                mlp_ndim, mlp_activations, wd=wd)
+            segm_lo = tf.reshape(mlp[-1],
+                                 [-1, lstm_height, lstm_width, lstm_depth / 2])
+        else:
+            # Just convolution + softmax inhibition
+            segm_lo = tf.reshape(tf.log(tf.nn.softmax(tf.reshape(
+                _conv2d(h_lstm_all, w_segm_conv) + b_segm_conv,
+                [-1, lstm_height * lstm_width])) + b_log_softmax),
+                [-1, lstm_height, lstm_width, 1])
         model['segm_lo'] = segm_lo
 
         # [B * T, LH, LW, LD / 2] => [B * T, H, W, 1]
         # Use deconvolution to upsample.
+        # TODO: add skip connections here.
         if opt['use_deconv']:
-            dcnn_filters = [3, 3, 3]
-            dcnn_channels = [8, 4, 2, 1]
+            dcnn_filters = opt['dcnn_filter_size']
             dcnn_unpool = [2, 2, 2]
-            h_dc = _add_dcnn(model, segm_lo, dcnn_filters, dcnn_channels,
-                              dcnn_unpool,  wd=wd)
+            dcnn_activations = [tf.nn.relu, tf.nn.relu, tf.sigmoid]
 
-            # Add sigmoid outside RNN.
-            y_out = tf.reshape(tf.sigmoid(h_dc),
-                               [-1, timespan, inp_height, inp_width])
+            if opt['segm_dense_conn']:
+                dcnn_channels = [lstm_depth / 2] + opt['dcnn_depth'] + [1]
+            else:
+                dcnn_channels = [1, 1, 1, 1]
+
+            if opt['use_bn']:
+                dcnn_use_bn = [True] * 3
+            else:
+                dcnn_use_bn = [False] * 3
+
+            h_dcnn = _add_dcnn(model, segm_lo, dcnn_filters, dcnn_channels,
+                               dcnn_unpool,  dcnn_activations, dcnn_use_bn,
+                               lstm_height, lstm_width,
+                               phase_train=phase_train, wd=wd)
+            y_out = tf.reshape(
+                h_dcnn[-1], [-1, timespan, inp_height, inp_width])
         else:
-            raise Exception('Not supported')
             y_out = tf.reshape(
                 tf.image.resize_bilinear(segm_lo, [inp_height, inp_width]),
                 [-1, timespan, inp_height, inp_width])
