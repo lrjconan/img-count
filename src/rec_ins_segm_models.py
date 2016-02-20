@@ -335,17 +335,21 @@ def _add_dcnn(model, x, f, ch, pool, wd=None):
         out_shape[ii] = tf.concat(
             0, [batch, inp_size * cum_pool, tf.constant(ch[ii: ii + 1])])
         w[ii] = _weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]], wd=wd)
-        # b[ii] = _weight_variable([ch[ii + 1]], wd=wd)
+        b[ii] = _weight_variable([ch[ii + 1]], wd=wd)
         if ii == 0:
+            # h[ii] = tf.nn.conv2d_transpose(
+            #     x, w[ii], out_shape[ii],
+            #     strides=[1, pool[ii], pool[ii], 1])
             h[ii] = tf.nn.conv2d_transpose(
                 x, w[ii], out_shape[ii],
-                strides=[1, pool[ii], pool[ii], 1])
-            # + b[ii]
+                strides=[1, pool[ii], pool[ii], 1]) + b[ii]
         else:
+            # h[ii] = tf.nn.conv2d_transpose(
+            #     h[ii - 1], w[ii], out_shape[ii],
+            #     strides=[1, pool[ii], pool[ii], 1])
             h[ii] = tf.nn.conv2d_transpose(
                 h[ii - 1], w[ii], out_shape[ii],
-                strides=[1, pool[ii], pool[ii], 1])
-            # + b[ii]
+                strides=[1, pool[ii], pool[ii], 1]) + b[ii]
 
     return h[-1]
 
