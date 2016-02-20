@@ -876,7 +876,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             # Just convolution + softmax inhibition
             segm_lo = tf.reshape(tf.log(tf.nn.softmax(tf.reshape(
                 _conv2d(h_lstm_all, w_segm_conv) + b_segm_conv,
-                [-1, lstm_height * lstm_width])) + b_log_softmax),
+                [-1, lstm_height * lstm_width]))) + b_log_softmax,
                 [-1, lstm_height, lstm_width, 1])
         model['segm_lo'] = segm_lo
 
