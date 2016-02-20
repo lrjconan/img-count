@@ -729,7 +729,8 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         cnn_filt = [3, 3, 3]
         cnn_channels = [3, 16, 32, 64]
         cnn_pool = [2, 2, 1]
-        h_pool3 = _add_cnn(model, x, cnn_filt, cnn_channels, cnn_pool, wd=wd)
+        h_pool3 = _add_cnn(model, x, cnn_filt, cnn_channels,
+                           cnn_pool, use_bn=opt['use_bn'], wd=wd)
 
         if store_segm_map:
             lstm_inp_depth = cnn_channels[-1] + 1
@@ -831,13 +832,14 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             dcnn_filters = [3, 3]
             dcnn_channels = [1, 1, 1]
             dcnn_unpool = [2, 2]
-            # dcnn_unpool = cnn_pool[::-1]
+            h_dc_ = _add_dcnn(model, segm_lo_all, dcnn_filters, dcnn_channels,
+                              dcnn_unpool,  wd=wd)
+            if opt['use_bn']:
+                h_dc = _batch_norm(h_dc_)
+            else:
+                h_dc = h_dc_
 
-            y_out = tf.reshape(tf.sigmoid(_add_dcnn(model, segm_lo_all,
-                                                    dcnn_filters,
-                                                    dcnn_channels,
-                                                    dcnn_unpool,
-                                                    wd=wd)),
+            y_out = tf.reshape(tf.sigmoid(h_dc_),
                                [-1, timespan, inp_height, inp_width])
         else:
             y_out = tf.reshape(

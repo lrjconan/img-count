@@ -227,8 +227,12 @@ def _parse_args():
     # Segmentation loss function
     parser.add_argument('-segm_loss_fn', default='iou',
                         help='Segmentation loss function, "iou" or "bce"')
+    # Use deconvolutional network to upsample
     parser.add_argument('-use_deconv', action='store_true',
                         help='Whether to use deconvolution layer to upsample.')
+    # Use batch normalization
+    parser.add_argument('-use_bn', action='store_true',
+                        help='Whether to use batch normalization.')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -295,7 +299,8 @@ if __name__ == '__main__':
             'cum_min': not args.no_cum_min,
             'store_segm_map': args.store_segm_map,
             'segm_loss_fn': args.segm_loss_fn,
-            'use_deconv': args.use_deconv
+            'use_deconv': args.use_deconv,
+            'use_bn': args.use_bn
         }
         data_opt = {
             'height': args.height,
@@ -494,5 +499,5 @@ if __name__ == '__main__':
     valid_iou_hard_logger.close()
     valid_count_acc_logger.close()
     step_time_logger.close()
-    
+
     pass
