@@ -309,7 +309,7 @@ def _add_cnn(model, x, f, ch, pool, activations, use_bn, phase_train=None, wd=No
     return h
 
 
-def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, skip=None, phase_train=None, wd=None):
+def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, skip=None, skip_ch=None, phase_train=None, wd=None):
     """Add D-CNN, with standard DeConv-Relu layers.
 
     Args:
@@ -349,6 +349,9 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
                     prev_inp = tf.concat(3, [prev_inp, skip[ii]])
                 else:
                     prev_inp = tf.concat(3, [prev_inp, skip[ii]])
+                out_shape[ii] = tf.concat(
+                    0, [batch, inp_size * cum_pool, 
+                    tf.constant([ch[ii + 1] + skip_ch[ii]])])
 
         h[ii] = tf.nn.conv2d_transpose(
             prev_inp, w[ii], out_shape[ii],
@@ -885,8 +888,6 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         if opt['use_deconv']:
             dcnn_filters = opt['dcnn_filter_size']
             dcnn_unpool = [2, 2, 2]
-            # dcnn_activations = [tf.nn.relu, tf.nn.relu, tf.sigmoid]
-            # dcnn_activations = [None, None, tf.sigmoid]
             dcnn_activations = [tf.nn.relu, tf.nn.relu, tf.sigmoid]
 
             if opt['segm_dense_conn']:
@@ -896,9 +897,10 @@ def get_orig_model(opt, device='/cpu:0', train=True):
 
             if opt['use_bn']:
                 dcnn_use_bn = [True] * 3
-                # dcnn_use_bn = [False] * 3
             else:
                 dcnn_use_bn = [False] * 3
+
+            if opt['add_skip_conn']
 
             h_dcnn = _add_dcnn(model, segm_lo, dcnn_filters, dcnn_channels,
                                dcnn_unpool, dcnn_activations, dcnn_use_bn,
