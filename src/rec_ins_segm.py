@@ -408,7 +408,6 @@ if __name__ == '__main__':
                     m['y_gt']: y_bat,
                     m['s_gt']: s_bat
                 })
-            print _outshape
 
             loss += _loss * batch_size_valid / float(num_ex_valid)
             segm_loss += _segm_loss * batch_size_valid / float(num_ex_valid)
