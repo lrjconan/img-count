@@ -27,6 +27,7 @@ from data_api import mnist
 from utils import log_manager
 from utils import logger
 from utils.batch_iter import BatchIterator
+from utils.lazy_registerer import LazyRegisterer
 from utils.saver import Saver
 from utils.time_series_logger import TimeSeriesLogger
 
@@ -373,9 +374,9 @@ if __name__ == '__main__':
             name='Step time',
             buffer_size=10)
         log_manager.register(log.filename, 'plain', 'Raw logs')
-        valid_sample_img_fname = os.path.join(
-            exp_logs_folder, 'valid_sample_img.png')
-        registered_image = False
+        valid_sample_img = LazyRegisterer(os.path.join(
+            exp_logs_folder, 'valid_sample_img.png'),
+            'image', 'Validation samples')
         log.info(
             ('Visualization can be viewed at: '
              'http://{}/deep-dashboard?id={}').format(
@@ -433,16 +434,16 @@ if __name__ == '__main__':
                     m['y_gt']: _y_gt,
                     m['s_gt']: _s_gt
                 })
-            plot_samples(valid_sample_img_fname, _x,
+            plot_samples(valid_sample_img.get_fname(), _x,
                          _y_out, _s_out, _y_gt, _s_gt, _match)
             valid_loss_logger.add(step, loss)
             valid_iou_soft_logger.add(step, iou_soft)
             valid_iou_hard_logger.add(step, iou_hard)
             valid_count_acc_logger.add(step, count_acc)
-            if not registered_image:
-                log_manager.register(valid_sample_img_fname, 'image',
-                                     'Validation samples')
-                registered_image = True
+            if not valid_sample_img.is_registered():
+                valid_sample_img.register()
+
+        pass
 
     # Train loop
     for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
@@ -493,4 +494,5 @@ if __name__ == '__main__':
     valid_iou_hard_logger.close()
     valid_count_acc_logger.close()
     step_time_logger.close()
+    
     pass
