@@ -1,8 +1,9 @@
 import cslab_environ
 
+from tensorflow.python import control_flow_ops
 from tensorflow.python.framework import ops
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
 
 from utils import logger
 from utils.grad_clip_optim import GradientClipOptimizer
@@ -20,6 +21,41 @@ def get_model(name, opt, device='/cpu:0', train=True):
         raise Exception('Unknown model name "{}"'.format(name))
 
     pass
+
+
+def _batch_norm(x, n_out, phase_train, scope='bn', affine=True):
+    """
+    Batch normalization on convolutional maps.
+    Args:
+        x:           Tensor, 4D BHWD input maps
+        n_out:       integer, depth of input maps
+        phase_train: boolean tf.Variable, true indicates training phase
+        scope:       string, variable scope
+        affine:      whether to affine-transform outputs
+    Return:
+        normed:      batch-normalized maps
+    """
+    with tf.variable_scope(scope):
+        beta = tf.Variable(tf.constant(0.0, shape=[n_out]),
+                           name='beta', trainable=True)
+        gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
+                            name='gamma', trainable=affine)
+
+        batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2], name='moments')
+        ema = tf.train.ExponentialMovingAverage(decay=0.9)
+        ema_apply_op = ema.apply([batch_mean, batch_var])
+        ema_mean, ema_var = ema.average(batch_mean), ema.average(batch_var)
+
+        def mean_var_with_update():
+            with tf.control_dependencies([ema_apply_op]):
+                return tf.identity(batch_mean), tf.identity(batch_var)
+        mean, var = control_flow_ops.cond(phase_train,
+                                          mean_var_with_update,
+                                          lambda: (ema_mean, ema_var))
+
+        normed = tf.nn.batch_norm_with_global_normalization(x, mean, var,
+                                                            beta, gamma, 1e-3, affine)
+    return normed
 
 
 # Register gradient for Hungarian algorithm.
@@ -234,7 +270,7 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
     return unroll
 
 
-def _add_cnn(model, x, f, ch, pool, wd=None):
+def _add_cnn(model, x, f, ch, pool, use_bn=False, wd=None):
     """Add CNN, with standard Conv-Relu-MaxPool layers.
 
     Args:
@@ -255,9 +291,16 @@ def _add_cnn(model, x, f, ch, pool, wd=None):
         w[ii] = _weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]], wd=wd)
         b[ii] = _weight_variable([ch[ii + 1]], wd=wd)
         if ii == 0:
-            hc[ii] = tf.nn.relu(_conv2d(x, w[ii]) + b[ii])
+            if use_bn:
+                hc[ii] = tf.nn.relu(_batch_norm(_conv2d(x, w[ii]) + b[ii]))
+            else:
+                hc[ii] = tf.nn.relu(_conv2d(x, w[ii]) + b[ii])
         else:
-            hc[ii] = tf.nn.relu(_conv2d(hp[ii - 1], w[ii]) + b[ii])
+            if use_bn:
+                hc[ii] = tf.nn.relu(_batch_norm(
+                    _conv2d(hp[ii - 1], w[ii]) + b[ii]))
+            else:
+                hc[ii] = tf.nn.relu(_conv2d(hp[ii - 1], w[ii]) + b[ii])
         if pool[ii] > 1:
             hp[ii] = _max_pool(hc[ii], pool[ii])
         else:
@@ -785,9 +828,10 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         # [B * T, LH, LW, 1] => [B * T, H, W, 1] => [B, T, H, W]
         # Use deconvolution to upsample.
         if opt['use_deconv']:
-            dcnn_filters = [3, 3, 3]
-            dcnn_channels = [1, 1, 1, 1]
-            dcnn_unpool = cnn_pool[::-1]
+            dcnn_filters = [3, 3]
+            dcnn_channels = [1, 1, 1]
+            dcnn_unpool = [2, 2]
+            # dcnn_unpool = cnn_pool[::-1]
 
             y_out = tf.reshape(tf.sigmoid(_add_dcnn(model, segm_lo_all,
                                                     dcnn_filters,
