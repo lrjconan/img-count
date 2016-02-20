@@ -40,6 +40,8 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
     num_col = y_out.shape[1] + 1
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
     cmap = ['r', 'y', 'c', 'g', 'm', 'o']
+    im_height = x.shape[1]
+    im_with = x.shape[2]
 
     for ii in xrange(num_row):
         mnz = match[ii].nonzero()
@@ -52,8 +54,8 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
                     if nz[0].size > 0:
                         top_left_x = nz[1].min()
                         top_left_y = nz[0].min()
-                        bot_right_x = nz[1].max()
-                        bot_right_y = nz[0].max()
+                        bot_right_x = nz[1].max() + 1
+                        bot_right_y = nz[0].max() + 1
                         axarr[ii, jj].add_patch(patches.Rectangle(
                             (top_left_x, top_left_y),
                             bot_right_x - top_left_x,
@@ -76,7 +78,9 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
                     color=(0, 0, 0), size=8)
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
-    plt.savefig(fname, dpi=80)
+    plt.savefig(fname, dpi=300)
+
+    pass
 
 
 def get_dataset(opt, num_train, num_valid):
@@ -214,16 +218,14 @@ def _parse_args():
     # To see the effect of cumulative minimum.
     parser.add_argument('-no_cum_min', action='store_true',
                         help='Whether cumulative minimum. Default yes.')
-    # Only to use when only care about the count.
-    # Still segment images, the segmentation loss does not get back propagated.
-    parser.add_argument('-no_segm', action='store_true',
-                        help='Whether has segmentation network.')
     # Stores a map that has already been segmented.
     parser.add_argument('-store_segm_map', action='store_true',
                         help='Whether to store objects that has been segmented.')
     # Segmentation loss function
     parser.add_argument('-segm_loss_fn', default='iou',
                         help='Segmentation loss function, "iou" or "bce"')
+    parser.add_argument('-use_deconv', action='store_true',
+                        help='Whether to use deconvolution layer to upsample.')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -286,9 +288,9 @@ if __name__ == '__main__':
 
             # Test arguments
             'cum_min': not args.no_cum_min,
-            'has_segm': not args.no_segm,
             'store_segm_map': args.store_segm_map,
-            'segm_loss_fn': args.segm_loss_fn
+            'segm_loss_fn': args.segm_loss_fn,
+            'use_deconv': args.use_deconv
         }
         data_opt = {
             'height': args.height,
@@ -370,7 +372,7 @@ if __name__ == '__main__':
             exp_logs_folder, 'valid_sample_img.png')
         registered_image = False
         log.info(
-            'Visualization can be viewed at: http://{}/visualizer?id={}'.format(
+            'Visualization can be viewed at: http://{}/deep-dashboard?id={}'.format(
                 args.localhost, model_id))
 
     num_ex_train = dataset['train']['input'].shape[0]
@@ -398,14 +400,15 @@ if __name__ == '__main__':
                                                  batch_size=batch_size_valid,
                                                  get_fn=get_batch_valid,
                                                  progress_bar=False):
-            _loss, _segm_loss, _conf_loss, _iou_soft, _iou_hard, _count_acc = \
+            _loss, _segm_loss, _conf_loss, _iou_soft, _iou_hard, _count_acc, _outshape = \
                 sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-                          m['iou_soft'], m['iou_hard'], m['count_acc']],
+                          m['iou_soft'], m['iou_hard'], m['count_acc'], m['out_shape1']],
                          feed_dict={
                     m['x']: x_bat,
                     m['y_gt']: y_bat,
                     m['s_gt']: s_bat
                 })
+            print _outshape
 
             loss += _loss * batch_size_valid / float(num_ex_valid)
             segm_loss += _segm_loss * batch_size_valid / float(num_ex_valid)
