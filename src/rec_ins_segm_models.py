@@ -352,6 +352,7 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
 
         out_shape[ii] = tf.concat(
             0, [batch, inp_size * cum_pool, tf.constant([out_ch])])
+        print [f[ii], f[ii], out_ch, in_ch]
         w[ii] = _weight_variable([f[ii], f[ii], out_ch, in_ch], wd=wd)
         b[ii] = _weight_variable([out_ch], wd=wd)
 
