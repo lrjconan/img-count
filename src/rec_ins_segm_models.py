@@ -876,8 +876,8 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             # One layer MLP
             mlp_ndim = [lstm_height * lstm_width * lstm_depth,
                         lstm_height * lstm_width * lstm_depth / 2]
-            # mlp_activations = [tf.tanh]
-            mlp_activations = [None]
+            mlp_activations = [tf.relu]
+            # mlp_activations = [None]
             mlp = _add_mlp(model, tf.reshape(
                 h_lstm_all, [-1, lstm_height * lstm_width * lstm_depth]),
                 mlp_ndim, mlp_activations, wd=wd)
@@ -915,11 +915,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                 zeros1 = tf.zeros(tf.concat(
                     0, [h_cnn1_shape[0: 1], tf.constant([timespan]), h_cnn1_shape[1:]]))
                 zeros0 = tf.zeros(tf.concat(
-                    0, [h_cnn0_shape[0: 1], tf.constant([timespan]), h_cnn0_shape[1:]]))
-                # h_cnn1_reshape = tf.reshape(tf.tile(tf.expand_dims(h_cnn[1], 1),
-                #     [1, timespan, 1, 1, 1]), [-1, inp_height / 4, inp_width / 4, cnn_channels[2]])
-                # h_cnn0_reshape = tf.reshape(tf.tile(tf.expand_dims(h_cnn[0], 1),
-                #     [1, timespan, 1, 1, 1]), [-1, inp_height / 2, inp_width / 2, cnn_channels[1]])                
+                    0, [h_cnn0_shape[0: 1], tf.constant([timespan]), h_cnn0_shape[1:]]))      
                 h_cnn1_reshape = tf.reshape(tf.expand_dims(h_cnn[1], 1) + zeros1,
                     [-1, inp_height / 4, inp_width / 4, cnn_channels[2]])
                 h_cnn0_reshape = tf.reshape(tf.expand_dims(h_cnn[0], 1) + zeros0,
