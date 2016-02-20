@@ -502,7 +502,7 @@ if __name__ == '__main__':
             m['phase_train']: True,
             m['y_gt']: y_bat,
             m['s_gt']: s_bat
-        }
+        })
 
         # Print statistics
         if step % 5 == 0:
