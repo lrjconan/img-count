@@ -789,7 +789,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                                          dcnn_filters, dcnn_channels, cnn_pool,
                                          wd=wd),
                                [-1, timespan, inp_height, inp_width])
-            w_dconv1 = _weight_variable([3, 3, 1, 1])
+            # w_dconv1 = _weight_variable([3, 3, 1, 1])
             # out_shape1 = tf.concat(
             #     0,  [num_ex * timespan,
             #          tf.constant([inp_height / 2, inp_width / 2, 1])])
