@@ -299,13 +299,13 @@ def _add_cnn(model, x, f, ch, pool, activations, use_bn, phase_train=None, wd=No
 
         if use_bn[ii]:
             h[ii] = _batch_norm(h[ii], ch[ii + 1], phase_train)
-        
+
         if activations[ii] is not None:
             h[ii] = activations[ii](h[ii])
-        
+
         if pool[ii] > 1:
             h[ii] = _max_pool(h[ii], pool[ii])
-        
+
     return h
 
 
@@ -350,7 +350,6 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
                 else:
                     prev_inp = tf.concat(3, [prev_inp, skip[ii]])
 
-
         h[ii] = tf.nn.conv2d_transpose(
             prev_inp, w[ii], out_shape[ii],
             strides=[1, pool[ii], pool[ii], 1]) + b[ii]
@@ -361,10 +360,10 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
 
         if use_bn[ii]:
             h[ii] = _batch_norm(h[ii], ch[ii + 1], phase_train)
-        
+
         if activations[ii] is not None:
             h[ii] = activations[ii](h[ii])
-        
+
         model['dcnn_h_{}'.format(ii)] = h[ii]
 
     return h
@@ -387,7 +386,7 @@ def _add_mlp(model, x, dims, activations, wd=None):
             prev_inp = h[ii - 1]
 
         h[ii] = tf.matmul(prev_inp, w[ii]) + b[ii]
-        
+
         if activations[ii]:
             h[ii] = activations[ii](h[ii])
 
@@ -906,7 +905,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                                lstm_height, lstm_width,
                                phase_train=phase_train, wd=wd)
             y_out = tf.reshape(
-                tf.sigmoid(h_dcnn[-1]), [-1, timespan, inp_height, inp_width])
+                h_dcnn[-1], [-1, timespan, inp_height, inp_width])
         else:
             y_out = tf.reshape(
                 tf.image.resize_bilinear(segm_lo, [inp_height, inp_width]),
