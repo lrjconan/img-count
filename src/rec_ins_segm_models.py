@@ -839,8 +839,9 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             else:
                 h_dc = h_dc_
 
-            y_out = tf.reshape(tf.sigmoid(h_dc_),
-                               [-1, timespan, inp_height, inp_width])
+            # y_out = tf.reshape(tf.sigmoid(h_dc),
+            #                    [-1, timespan, inp_height, inp_width])
+            y_out = tf.reshape(h_dc, [-1, timespan, inp_height, inp_width])
         else:
             y_out = tf.reshape(
                 tf.image.resize_bilinear(segm_lo_all, [inp_height, inp_width]),
