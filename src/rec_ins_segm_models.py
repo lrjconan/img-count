@@ -807,9 +807,15 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                 h_conv4, [-1, lstm_height * lstm_width])
             # [B, LH * LW] => [B, LH, LW] => [B, 1, LH, LW]
             # [B, LH * LW] => [B, LH, LW] => [B, LH, LW, 1]
-            segm_lo[t] = tf.expand_dims(tf.reshape(tf.sigmoid(
-                tf.log(tf.nn.softmax(h_conv4_reshape)) + b_5),
+            # segm_lo[t] = tf.expand_dims(tf.reshape(tf.sigmoid(
+            #     tf.log(tf.nn.softmax(h_conv4_reshape)) + b_5),
+            #     [-1, 1, lstm_height, lstm_width]), dim=3)
+
+            # Without sigmoid in the RNN.
+            segm_lo[t] = tf.expand_dims(tf.reshape(
+                tf.log(tf.nn.softmax(h_conv4_reshape)) + b_5,
                 [-1, 1, lstm_height, lstm_width]), dim=3)
+
             # [B, LH, LW, 1]
             if t != timespan - 1:
                 segm_canvas[t + 1] = segm_canvas[t] + segm_lo[t]
@@ -839,9 +845,10 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             else:
                 h_dc = h_dc_
 
-            # y_out = tf.reshape(tf.sigmoid(h_dc),
-            #                    [-1, timespan, inp_height, inp_width])
-            y_out = tf.reshape(h_dc, [-1, timespan, inp_height, inp_width])
+            # Add sigmoid outside RNN.
+            y_out = tf.reshape(tf.sigmoid(h_dc),
+                               [-1, timespan, inp_height, inp_width])
+            # y_out = tf.reshape(h_dc, [-1, timespan, inp_height, inp_width])
         else:
             y_out = tf.reshape(
                 tf.image.resize_bilinear(segm_lo_all, [inp_height, inp_width]),
