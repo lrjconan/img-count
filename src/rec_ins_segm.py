@@ -137,31 +137,17 @@ def preprocess(inp, label_segmentation, label_score):
 def _parse_args():
     """Parse input arguments."""
     # Default dataset options
-    # Full image height.
     kHeight = 224
-    # Full image width.
     kWidth = 224
-    # Object radius lower bound.
     kRadiusLower = 15
-    # Object radius upper bound.
     kRadiusUpper = 45
-    # Object border thickness.
     kBorderThickness = 3
-    # Number of examples.
     kNumExamples = 1000
-    # Maximum number of objects.
     kMaxNumObjects = 6
-    # Number of object types, currently support up to three types (circles,
-    # triangles, and squares).
     kNumObjectTypes = 1
-    # Random window size variance.
     kSizeVar = 20
-    # Random window center variance.
     kCenterVar = 20
-    # Resample window size (segmentation output unisize).
     kOutputWindowSize = 128
-    # Ratio of negative and positive examples for segmentation data.
-    kNegPosRatio = 5
 
     # Default model options
     kWeightDecay = 5e-5
@@ -171,15 +157,12 @@ def _parse_args():
     kConvLstmHiddenDepth = 64
 
     # Default training options
-    # Number of steps
     kNumSteps = 500000
-    # Number of steps per checkpoint
     kStepsPerCkpt = 1000
-    # Number of steps per validation
     kStepsPerValid = 250
 
     parser = argparse.ArgumentParser(
-        description='Train DRAW')
+        description='Recurrent Instance Segmentation')
 
     # Dataset options
     parser.add_argument('-height', default=kHeight, type=int,
@@ -217,20 +200,15 @@ def _parse_args():
     parser.add_argument('-conv_lstm_hid_depth', default=kConvLstmHiddenDepth,
                         type=int, help='Conv LSTM hidden depth')
 
-    # Test model argument.
-    # To see the effect of cumulative minimum.
+    # Extra model options (beta)
     parser.add_argument('-no_cum_min', action='store_true',
                         help='Whether cumulative minimum. Default yes.')
-    # Stores a map that has already been segmented.
     parser.add_argument('-store_segm_map', action='store_true',
                         help='Whether to store objects that has been segmented.')
-    # Segmentation loss function
     parser.add_argument('-segm_loss_fn', default='iou',
                         help='Segmentation loss function, "iou" or "bce"')
-    # Use deconvolutional network to upsample
     parser.add_argument('-use_deconv', action='store_true',
                         help='Whether to use deconvolution layer to upsample.')
-    # Use batch normalization
     parser.add_argument('-use_bn', action='store_true',
                         help='Whether to use batch normalization.')
 
@@ -253,6 +231,7 @@ def _parse_args():
                         help='GPU ID, default CPU')
     parser.add_argument('-num_samples_plot', default=10, type=int,
                         help='Number of samples to plot')
+    
     args = parser.parse_args()
 
     return args
