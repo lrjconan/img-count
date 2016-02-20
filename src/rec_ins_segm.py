@@ -400,9 +400,9 @@ if __name__ == '__main__':
                                                  batch_size=batch_size_valid,
                                                  get_fn=get_batch_valid,
                                                  progress_bar=False):
-            _loss, _segm_loss, _conf_loss, _iou_soft, _iou_hard, _count_acc, _outshape = \
+            _loss, _segm_loss, _conf_loss, _iou_soft, _iou_hard, _count_acc = \
                 sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-                          m['iou_soft'], m['iou_hard'], m['count_acc'], m['out_shape1']],
+                          m['iou_soft'], m['iou_hard'], m['count_acc']],
                          feed_dict={
                     m['x']: x_bat,
                     m['y_gt']: y_bat,
