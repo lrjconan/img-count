@@ -293,7 +293,7 @@ def _add_cnn(model, x, f, ch, pool, use_bn=False, is_train=True, wd=None):
         if ii == 0:
             if use_bn:
                 hc[ii] = tf.nn.relu(_batch_norm(
-                    _conv2d(x, w[ii]) + b[ii]), ch[ii + 1], is_train)
+                    _conv2d(x, w[ii]) + b[ii], ch[ii + 1], is_train))
             else:
                 hc[ii] = tf.nn.relu(_conv2d(x, w[ii]) + b[ii])
         else:
