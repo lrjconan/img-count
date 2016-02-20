@@ -398,8 +398,6 @@ def _add_mlp(model, x, dims, activations, wd=None):
     w = [None] * nlayers
     b = [None] * nlayers
     h = [None] * nlayers
-    h_ = [None] * nlayers
-    prev_inp = [None] * nlayers
     for ii in xrange(nlayers):
         nin = dims[ii]
         nout = dims[ii + 1]
@@ -407,16 +405,14 @@ def _add_mlp(model, x, dims, activations, wd=None):
         b[ii] = _weight_variable([nout], wd=wd)
 
         if ii == 0:
-            prev_inp[ii] = x
+            prev_inp = x
         else:
-            prev_inp[ii] = h[ii - 1]
+            prev_inp = h[ii - 1]
 
-        h_[ii] = tf.matmul(prev_inp[ii], w[ii]) + b[ii]
+        h[ii] = tf.matmul(prev_inp, w[ii]) + b[ii]
         
         if activations[ii]:
-            h[ii] = activations[ii](h_[ii])
-        else:
-            h[ii] = h_[ii]
+            h[ii] = activations[ii](h[ii])
 
     return h
 
