@@ -887,7 +887,8 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             dcnn_filters = opt['dcnn_filter_size']
             dcnn_unpool = [2, 2, 2]
             # dcnn_activations = [tf.nn.relu, tf.nn.relu, tf.sigmoid]
-            dcnn_activations = [None, None, tf.sigmoid]
+            # dcnn_activations = [None, None, tf.sigmoid]
+            dcnn_activations = [None, None, None]
 
             if opt['segm_dense_conn']:
                 dcnn_channels = [lstm_depth / 2] + opt['dcnn_depth'] + [1]
@@ -905,7 +906,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                                lstm_height, lstm_width,
                                phase_train=phase_train, wd=wd)
             y_out = tf.reshape(
-                h_dcnn[-1], [-1, timespan, inp_height, inp_width])
+                tf.sigmoid(h_dcnn[-1]), [-1, timespan, inp_height, inp_width])
         else:
             y_out = tf.reshape(
                 tf.image.resize_bilinear(segm_lo, [inp_height, inp_width]),
