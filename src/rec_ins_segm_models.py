@@ -285,26 +285,36 @@ def _add_cnn(model, x, f, ch, pool, activations, use_bn, phase_train=None, wd=No
     w = [None] * nlayers
     b = [None] * nlayers
     h = [None] * nlayers
+    h1 = [None] * nlayers
+    h2 = [None] * nlayers
+    h3 = [None] * nlayers
+    prev_inp = [None] * nlayers
 
     for ii in xrange(nlayers):
         w[ii] = _weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]], wd=wd)
         b[ii] = _weight_variable([ch[ii + 1]], wd=wd)
 
         if ii == 0:
-            prev_inp = x
+            prev_inp[ii] = x
         else:
-            prev_inp = h[ii - 1]
+            prev_inp[ii] = h[ii - 1]
 
-        h[ii] = _conv2d(prev_inp, w[ii]) + b[ii]
+        h1[ii] = _conv2d(prev_inp[ii], w[ii]) + b[ii]
 
         if use_bn[ii]:
-            h[ii] = _batch_norm(h[ii], ch[ii + 1], phase_train)
+            h2[ii] = _batch_norm(h1[ii], ch[ii + 1], phase_train)
+        else:
+            h2[ii] = h1[ii]
 
         if activations[ii] is not None:
-            h[ii] = activations[ii](h[ii])
+            h3[ii] = activations[ii](h2[ii])
+        else:
+            h3[ii] = h2[ii]
 
         if pool[ii] > 1:
-            h[ii] = _max_pool(h[ii], pool[ii])
+            h[ii] = _max_pool(h3[ii], pool[ii])
+        else:
+            h[ii] = h3[ii]
 
     return h
 
@@ -325,6 +335,9 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
     w = [None] * nlayers
     b = [None] * nlayers
     h = [None] * nlayers
+    h1 = [None] * nlayers
+    h2 = [None] * nlayers
+    prev_inp = [None] * nlayers
     out_shape = [None] * nlayers
 
     batch = tf.shape(x)[0: 1]
@@ -338,28 +351,41 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
         w[ii] = _weight_variable([f[ii], f[ii], ch[ii + 1], ch[ii]], wd=wd)
         b[ii] = _weight_variable([ch[ii + 1]], wd=wd)
 
-        if ii == 0:
-            prev_inp = x
-        else:
-            prev_inp = h[ii - 1]
-
         if skip is not None:
             if skip[ii] is not None:
-                prev_inp = tf.concat(3, [prev_inp, skip[ii]])
+                if ii == 0:
+                    prev_inp[ii] = tf.concat(3, [x, skip[ii]])
+                else:
+                    prev_inp[ii] = tf.concat(3, [h[ii - 1], skip[ii]])
+            else:
+                if ii == 0:
+                    prev_inp[ii] = x
+                else:
+                    prev_inp[ii] = h[ii - 1]
+        else:
+            if ii == 0:
+                prev_inp[ii] = x
+            else:
+                prev_inp[ii] = h[ii - 1]
 
-        h[ii] = tf.nn.conv2d_transpose(
-            prev_inp, w[ii], out_shape[ii],
+
+        h1[ii] = tf.nn.conv2d_transpose(
+            prev_inp[ii], w[ii], out_shape[ii],
             strides=[1, pool[ii], pool[ii], 1]) + b[ii]
 
         x_height *= pool[ii]
         x_width *= pool[ii]
-        h[ii].set_shape([None, x_height, x_width, ch[ii + 1]])
+        h1[ii].set_shape([None, x_height, x_width, ch[ii + 1]])
 
         if use_bn[ii]:
-            h[ii] = _batch_norm(h[ii], ch[ii + 1], phase_train)
+            h2[ii] = _batch_norm(h1[ii], ch[ii + 1], phase_train)
+        else:
+            h2[ii] = h1[ii]
 
         if activations[ii] is not None:
-            h[ii] = activations[ii](h[ii])
+            h[ii] = activations[ii](h2[ii])
+        else:
+            h[ii] = h2[ii]
 
 
         model['dcnn_h_{}'.format(ii)] = h[ii]
@@ -372,6 +398,8 @@ def _add_mlp(model, x, dims, activations, wd=None):
     w = [None] * nlayers
     b = [None] * nlayers
     h = [None] * nlayers
+    h_ = [None] * nlayers
+    prev_inp = [None] * nlayers
     for ii in xrange(nlayers):
         nin = dims[ii]
         nout = dims[ii + 1]
@@ -379,15 +407,15 @@ def _add_mlp(model, x, dims, activations, wd=None):
         b[ii] = _weight_variable([nout], wd=wd)
 
         if ii == 0:
-            prev_inp = x
+            prev_inp[ii] = x
         else:
-            prev_inp = h[ii - 1]
+            prev_inp[ii] = h[ii - 1]
 
-        h[ii] = tf.matmul(prev_inp, w[ii]) + b[ii]
+        h_[ii] = tf.matmul(prev_inp[ii], w[ii]) + b[ii]
         
         if activations[ii]:
-            h[ii] = activations[ii](h[ii])
-            
+            h[ii] = activations[ii](h_[ii])
+
     return h
 
 
