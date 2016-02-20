@@ -787,24 +787,14 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         if opt['use_deconv']:
             dcnn_filters = [3, 3, 3]
             dcnn_channels = [1, 1, 1, 1]
+            dcnn_unpool = cnn_pool[::-1]
 
             y_out = tf.reshape(tf.sigmoid(_add_dcnn(model, segm_lo_all,
-                                                    dcnn_filters, 
-                                                    dcnn_channels, cnn_pool,
+                                                    dcnn_filters,
+                                                    dcnn_channels,
+                                                    dcnn_unpool,
                                                     wd=wd)),
                                [-1, timespan, inp_height, inp_width])
-            # w_dconv1 = _weight_variable([3, 3, 1, 1])
-            # out_shape1 = tf.concat(
-            #     0,  [num_ex * timespan,
-            #          tf.constant([inp_height / 2, inp_width / 2, 1])])
-            # y_out1 = tf.nn.conv2d_transpose(segm_lo_all, w_dconv1, out_shape1,
-            #                                 strides=[1, 2, 2, 1])
-            # w_dconv2 = _weight_variable([3, 3, 1, 1])
-            # out_shape2 = tf.concat(
-            #     0,  [num_ex * timespan, tf.constant([inp_height, inp_width, 1])])
-            # y_out2 = tf.nn.conv2d_transpose(y_out1, w_dconv2, out_shape2,
-            #                                 strides=[1, 2, 2, 1])
-            # y_out = tf.reshape(y_out2, [-1, timespan, inp_height, inp_width])
         else:
             y_out = tf.reshape(
                 tf.image.resize_bilinear(segm_lo_all, [inp_height, inp_width]),
