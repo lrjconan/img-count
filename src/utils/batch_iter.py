@@ -14,7 +14,7 @@ import progress_bar as pb
 
 class BatchIterator(object):
 
-    def __init__(self, num, batch_size=1, progress_bar=False, get_fn=None):
+    def __init__(self, num, batch_size=1, progress_bar=False, get_fn=None, cycle=False):
         """Construct a batch iterator.
 
         Args:
@@ -30,6 +30,7 @@ class BatchIterator(object):
         self._num_steps = int(np.ceil(self._num / float(batch_size)))
         self._pb = None
         self._get_fn = get_fn
+        self._cycle = cycle
         if progress_bar:
             self._pb = pb.get(self._num_steps)
 
@@ -47,15 +48,31 @@ class BatchIterator(object):
         """Iterate next element."""
         if self._pb:
             self._pb.increment()
-        if self._step < self._num_steps:
-            start = self._batch_size * self._step
-            end = min(self._num, self._batch_size * (self._step + 1))
-            self._step += 1
-            if self._get_fn:
-                return self._get_fn(start, end)
+        if not self._cycle:
+            if self._step < self._num_steps:
+                start = self._batch_size * self._step
+                end = min(self._num, self._batch_size * (self._step + 1))
+                self._step += 1
+                idx = np.arange(start, end)
+                if self._get_fn:
+                    return self._get_fn(idx)
+                else:
+                    return idx
             else:
-                return (start, end)
+                raise StopIteration()
         else:
-            raise StopIteration()
+            start = (self._batch_size * self._step) % self._num
+            end = (self._batch_size * (self._step + 1)) % self._num
+            self._step += 1
+
+            if end > start:
+                idx = np.arange(start, end)
+            else:
+                idx = np.array(range(start, self._num) + range(0, end))
+
+            if self._get_fn:
+                return self._get_fn(idx)
+            else:
+                return idx
 
         pass
