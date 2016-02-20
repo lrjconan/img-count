@@ -518,7 +518,7 @@ if __name__ == '__main__':
         # print results
 
         # Print statistics
-        if step % 10 == 0:
+        if step % 1 == 0:
             step_time = (time.time() - start_time) * 1000
             loss = r[0]
             log.info('{:d} train loss {:.4f} {:.4f} {:.4f} t {:.2f}ms'.format(
