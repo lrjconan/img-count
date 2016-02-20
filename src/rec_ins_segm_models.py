@@ -330,6 +330,9 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
     batch = tf.shape(x)[0: 1]
     inp_size = tf.shape(x)[1: 3]
     cum_pool = 1
+    print ch
+    print skip_ch
+
     in_ch = ch[0]
 
     for ii in xrange(nlayers):
@@ -801,7 +804,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         else:
             lstm_inp_depth = cnn_channels[-1]
 
-        lstm_depth = 16
+        lstm_depth = conv_lstm_hid_depth
         subsample = np.array(cnn_pool).prod()
         lstm_height = inp_height / subsample
         lstm_width = inp_width / subsample
@@ -909,7 +912,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
 
             if opt['add_skip_conn']:
                 skip = [None, h_cnn[1], h_cnn[0]]
-                skip_ch = [0, cnn_channels[1], cnn_channels[0]]
+                skip_ch = [0, cnn_channels[2], cnn_channels[1]]
             else:
                 skip = None
                 skip_ch = None
