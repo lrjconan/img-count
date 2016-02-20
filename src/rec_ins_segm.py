@@ -153,19 +153,26 @@ def _parse_args():
     kWeightDecay = 5e-5
     kLearningRate = 1e-3
     kLossMixRatio = 1.0
-    kConvLstmFilterSize = 3
-    kConvLstmHiddenDepth = 32
+    # kConvLstmFilterSize = 3
+    kConvLstmFilterSize = 5
+    # kConvLstmHiddenDepth = 32
+    kConvLstmHiddenDepth = 16
     kCnn1FilterSize = 3
     kCnn2FilterSize = 3
     kCnn3FilterSize = 3
-    kCnn1Depth = 8
-    kCnn2Depth = 16
-    kCnn3Depth = 32
+    # kCnn1Depth = 8
+    # kCnn2Depth = 16
+    # kCnn3Depth = 32
+    kCnn1Depth = 16
+    kCnn2Depth = 32
+    kCnn3Depth = 64
     kDcnn3FilterSize = 3
     kDcnn2FilterSize = 3
     kDcnn1FilterSize = 3
-    kDcnn3Depth = 16
-    kDcnn2Depth = 8
+    # kDcnn3Depth = 16
+    # kDcnn2Depth = 8
+    kDcnn3Depth = 8
+    kDcnn2Depth = 4
 
     # Default training options
     kNumSteps = 500000
@@ -230,7 +237,7 @@ def _parse_args():
                         type=int, help='CNN 3rd layer depth')
     parser.add_argument('-dcnn_3_depth', default=kDcnn3Depth,
                         type=int, help='DCNN 3rd layer depth')
-    parser.add_argument('-dcnn_2_depth', default=kDcnn2FilterSize,
+    parser.add_argument('-dcnn_2_depth', default=kDcnn2Depth,
                         type=int, help='DCNN 2nd layer depth')
 
     # Extra model options (beta)

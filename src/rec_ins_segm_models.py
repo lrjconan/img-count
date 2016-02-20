@@ -108,7 +108,7 @@ def _max_pool(x, ratio):
 
 def _weight_variable(shape, wd=None, name=None):
     """Initialize weights."""
-    initial = tf.truncated_normal(shape, stddev=0.01)
+    initial = tf.truncated_normal(shape, stddev=0.001)
     var = tf.Variable(initial, name=name)
     if wd:
         weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
@@ -876,7 +876,8 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         if opt['use_deconv']:
             dcnn_filters = opt['dcnn_filter_size']
             dcnn_unpool = [2, 2, 2]
-            dcnn_activations = [tf.nn.relu, tf.nn.relu, tf.sigmoid]
+            # dcnn_activations = [tf.nn.relu, tf.nn.relu, tf.sigmoid]
+            dcnn_activations = [None, None, None]
 
             if opt['segm_dense_conn']:
                 dcnn_channels = [lstm_depth / 2] + opt['dcnn_depth'] + [1]
@@ -884,7 +885,8 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                 dcnn_channels = [1, 1, 1, 1]
 
             if opt['use_bn']:
-                dcnn_use_bn = [True] * 3
+                # dcnn_use_bn = [True] * 3
+                dcnn_use_bn = [False] * 3
             else:
                 dcnn_use_bn = [False] * 3
 
