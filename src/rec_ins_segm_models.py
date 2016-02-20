@@ -916,10 +916,13 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                     0, [h_cnn1_shape[0: 1], tf.constant([timespan]), h_cnn1_shape[1:]])
                 zeros1 = tf.concat(
                     0, [h_cnn0_shape[0: 1], tf.constant([timespan]), h_cnn0_shape[1:]])
-                skip = [None, tf.reshape(tf.expand_dims(
-                    h_cnn[1], 1), [-1, inp_height / 4, inp_width / 4, cnn_channels[2]]) + zeros1,
-                    tf.reshape(tf.expand_dims(h_cnn[0], 1) + zeros0,
-                               [-1, inp_height / 2, inp_width / 2, cnn_channels[1]])]
+                h_cnn1_reshape = tf.reshape(tf.expand_dims(
+                    h_cnn[1], 1) + zeros1,
+                    [-1, inp_height / 4, inp_width / 4, cnn_channel[2]])
+                h_cnn0_reshape = tf.reshape(tf.expand_dims(
+                    h_cnn[0], 1) + zeros0,
+                    [-1, inp_height / 2, inp_width / 2, cnn_channel[1]])
+                skip = [None, h_cnn1_reshape, h_cnn0_reshape]
                 skip_ch = [0, cnn_channels[2], cnn_channels[1]]
             else:
                 skip = None
