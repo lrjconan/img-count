@@ -445,14 +445,6 @@ if __name__ == '__main__':
                                         batch_size=batch_size_valid,
                                         get_fn=get_batch_valid,
                                         progress_bar=False):
-            results = sess.run(m['s_out'],
-                               feed_dict={
-                m['x']: _x,
-                m['phase_train']: False,
-                m['y_gt']: _y,
-                m['s_gt']: _s
-            })
-            print results
             results = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
                                 m['iou_soft'], m['iou_hard'], m['count_acc']],
                                feed_dict={
@@ -510,27 +502,27 @@ if __name__ == '__main__':
 
         # Train step
         start_time = time.time()
-        r = sess.run([m['loss'], m['train_step']], feed_dict={
+        r = sess.run([m['loss'], m['segm_loss'], m['conf_loss'], m['train_step']], feed_dict={
             m['x']: x_bat,
             m['phase_train']: True,
             m['y_gt']: y_bat,
             m['s_gt']: s_bat
         })
-        results = sess.run(m['s_out'],
-                           feed_dict={
-            m['x']: x_bat,
-            m['phase_train']: False,
-            m['y_gt']: y_bat,
-            m['s_gt']: s_bat
-        })
-        print results
+        # results = sess.run(m['s_out'],
+        #                    feed_dict={
+        #     m['x']: x_bat,
+        #     m['phase_train']: False,
+        #     m['y_gt']: y_bat,
+        #     m['s_gt']: s_bat
+        # })
+        # print results
 
         # Print statistics
         if step % 10 == 0:
             step_time = (time.time() - start_time) * 1000
             loss = r[0]
-            log.info('{:d} train loss {:.4f} t {:.2f}ms'.format(
-                step, loss, step_time))
+            log.info('{:d} train loss {:.4f} {:.4f} {:.4f} t {:.2f}ms'.format(
+                step, loss, r[1], r[2], step_time))
 
             if args.logs:
                 train_loss_logger.add(step, loss)
