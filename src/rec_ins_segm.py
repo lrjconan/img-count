@@ -231,7 +231,7 @@ def _parse_args():
                         help='GPU ID, default CPU')
     parser.add_argument('-num_samples_plot', default=10, type=int,
                         help='Number of samples to plot')
-    
+
     args = parser.parse_args()
 
     return args
@@ -357,7 +357,13 @@ if __name__ == '__main__':
             os.path.join(exp_logs_folder, 'step_time.csv'), 'step time (ms)',
             name='Step time',
             buffer_size=10)
+        
         log_manager.register(log.filename, 'plain', 'Raw logs')
+
+        model_opt_fname = os.path.join(exp_logs_folder, 'model_opt.yaml')
+        saver.save_opt(model_opt_fname, model_opt)
+        log_manager.register(model_opt_fname, 'plain', 'Model hyperparameters')
+
         valid_sample_img = LazyRegisterer(os.path.join(
             exp_logs_folder, 'valid_sample_img.png'),
             'image', 'Validation samples')

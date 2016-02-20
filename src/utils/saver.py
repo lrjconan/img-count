@@ -23,12 +23,10 @@ class Saver():
         self.tf_saver = None
 
         if model_opt is not None:
-            with open(os.path.join(folder, kModelOptFilename), 'w') as f:
-                yaml.dump(model_opt, f, default_flow_style=False)
+            self.save_opt(os.path.join(folder, kModelOptFilename), model_opt)
 
         if data_opt is not None:
-            with open(os.path.join(folder, kDatasetOptFilename), 'w') as f:
-                yaml.dump(data_opt, f, default_flow_style=False)
+            self.save_opt(os.path.join(folder, kDatasetOptFilename), data_opt)
 
         pass
 
@@ -45,6 +43,10 @@ class Saver():
         self.tf_saver.save(sess, ckpt_path, global_step=global_step)
 
         pass
+
+    def save_opt(self, fname, opt):
+        with open(fname, 'w') as f:
+            yaml.dump(opt, f, default_flow_style=False)
 
     def get_latest_ckpt(self):
         """Get the latest checkpoint filename in a folder."""
