@@ -856,7 +856,8 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             # One layer MLP
             mlp_ndim = [lstm_height * lstm_width * lstm_depth,
                         lstm_height * lstm_width * lstm_depth / 2]
-            mlp_activations = [tf.tanh]
+            # mlp_activations = [tf.tanh]
+            mlp_activations = [None]
             mlp = _add_mlp(model, tf.reshape(
                 h_lstm_all, [-1, lstm_height * lstm_width * lstm_depth]),
                 mlp_ndim, mlp_activations, wd=wd)
