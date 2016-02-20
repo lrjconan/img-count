@@ -848,11 +848,12 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             dcnn_unpool = [2, 2]
             h_dc_ = _add_dcnn(model, segm_lo_all, dcnn_filters, dcnn_channels,
                               dcnn_unpool,  wd=wd)
-            if opt['use_bn']:
-                h_dc = _batch_norm(h_dc_, dcnn_channels[-1], phase_train)
-            else:
-                h_dc = h_dc_
-
+            # if opt['use_bn']:
+            #     h_dc = _batch_norm(h_dc_, dcnn_channels[-1], phase_train)
+            # else:
+            #     h_dc = h_dc_
+            h_dc = h_dc_
+            
             # Add sigmoid outside RNN.
             y_out = tf.reshape(tf.sigmoid(h_dc),
                                [-1, timespan, inp_height, inp_width])
