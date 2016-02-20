@@ -400,6 +400,7 @@ if __name__ == '__main__':
                                 m['iou_soft'], m['iou_hard'], m['count_acc']],
                                feed_dict={
                 m['x']: _x,
+                m['phase_train']: False,
                 m['y_gt']: _y,
                 m['s_gt']: _s
             })
@@ -425,7 +426,7 @@ if __name__ == '__main__':
             _y_out, _s_out, _match = sess.run(
                 [m['y_out'], m['s_out'], m['match']], feed_dict={
                     m['x']: _x,
-                    m['phase_train']: 0.0,
+                    m['phase_train']: False,
                     m['y_gt']: _y,
                     m['s_gt']: _s
                 })
@@ -454,7 +455,7 @@ if __name__ == '__main__':
         start_time = time.time()
         r = sess.run([m['loss'], m['train_step']], feed_dict={
             m['x']: x_bat,
-            m['phase_train']: 1.0,
+            m['phase_train']: True,
             m['y_gt']: y_bat,
             m['s_gt']: s_bat
         })
