@@ -330,13 +330,12 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
     batch = tf.shape(x)[0: 1]
     inp_size = tf.shape(x)[1: 3]
     cum_pool = 1
+    in_ch = ch[ii]
 
     for ii in xrange(nlayers):
         cum_pool *= pool[ii]
-        out_shape[ii] = tf.concat(
-            0, [batch, inp_size * cum_pool, tf.constant(ch[ii + 1: ii + 2])])
-        w[ii] = _weight_variable([f[ii], f[ii], ch[ii + 1], ch[ii]], wd=wd)
-        b[ii] = _weight_variable([ch[ii + 1]], wd=wd)
+
+        out_ch = ch[ii + 1]
 
         if ii == 0:
             prev_inp = x
@@ -349,9 +348,13 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
                     prev_inp = tf.concat(3, [prev_inp, skip[ii]])
                 else:
                     prev_inp = tf.concat(3, [prev_inp, skip[ii]])
-                out_shape[ii] = tf.concat(
-                    0, [batch, inp_size * cum_pool,
-                        tf.constant([ch[ii + 1] + skip_ch[ii]])])
+                in_ch += skip_ch[ii]
+
+        out_shape[ii] = tf.concat(
+            0, [batch, inp_size * cum_pool, tf.constant([out_ch])])
+        w[ii] = _weight_variable([f[ii], f[ii], out_ch, in_ch], wd=wd)
+        b[ii] = _weight_variable([out_ch], wd=wd)
+
 
         h[ii] = tf.nn.conv2d_transpose(
             prev_inp, w[ii], out_shape[ii],
@@ -360,20 +363,15 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
         x_height *= pool[ii]
         x_width *= pool[ii]
 
-        if skip is not None:
-            if skip[ii] is not None:
-                h[ii].set_shape(
-                    [None, x_height, x_width, ch[ii + 1] + skip_ch[ii]])
-            else:
-                h[ii].set_shape([None, x_height, x_width, ch[ii + 1]])
-        else:
-            h[ii].set_shape([None, x_height, x_width, ch[ii + 1]])
+        h[ii].set_shape([None, x_height, x_width, out_ch])
 
         if use_bn[ii]:
             h[ii] = _batch_norm(h[ii], ch[ii + 1], phase_train)
 
         if activations[ii] is not None:
             h[ii] = activations[ii](h[ii])
+
+        in_ch = out_ch
 
         model['dcnn_h_{}'.format(ii)] = h[ii]
 
