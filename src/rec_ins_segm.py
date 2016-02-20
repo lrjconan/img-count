@@ -80,7 +80,7 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=300)
-    f1.close()
+    plt.clf()
 
     pass
 
@@ -502,7 +502,7 @@ if __name__ == '__main__':
             m['phase_train']: True,
             m['y_gt']: y_bat,
             m['s_gt']: s_bat
-        })
+        }
 
         # Print statistics
         if step % 5 == 0:
