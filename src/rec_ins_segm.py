@@ -480,13 +480,6 @@ if __name__ == '__main__':
 
         if args.logs:
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
-            results = sess.run(m['s_out'],
-                               feed_dict={
-                m['x']: _x,
-                m['phase_train']: False,
-                m['y_gt']: _y,
-                m['s_gt']: _s
-            })
             _y_out, _s_out, _match = sess.run(
                 [m['y_out'], m['s_out'], m['match']], feed_dict={
                     m['x']: _x,
@@ -517,6 +510,14 @@ if __name__ == '__main__':
 
         # Train step
         start_time = time.time()
+        results = sess.run(m['s_out'],
+                           feed_dict={
+            m['x']: x_bat,
+            m['phase_train']: False,
+            m['y_gt']: y_bat,
+            m['s_gt']: s_bat
+        })
+        print results
         r = sess.run([m['loss'], m['train_step']], feed_dict={
             m['x']: x_bat,
             m['phase_train']: True,
