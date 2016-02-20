@@ -350,8 +350,8 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
                 else:
                     prev_inp = tf.concat(3, [prev_inp, skip[ii]])
                 out_shape[ii] = tf.concat(
-                    0, [batch, inp_size * cum_pool, 
-                    tf.constant([ch[ii + 1] + skip_ch[ii]])])
+                    0, [batch, inp_size * cum_pool,
+                        tf.constant([ch[ii + 1] + skip_ch[ii]])])
 
         h[ii] = tf.nn.conv2d_transpose(
             prev_inp, w[ii], out_shape[ii],
@@ -359,7 +359,15 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
 
         x_height *= pool[ii]
         x_width *= pool[ii]
-        h[ii].set_shape([None, x_height, x_width, ch[ii + 1]])
+
+        if skip is not None:
+            if skip[ii] is not None:
+                h[ii].set_shape(
+                    [None, x_height, x_width, ch[ii + 1] + skip_ch[ii]])
+            else:
+                h[ii].set_shape([None, x_height, x_width, ch[ii + 1]])
+        else:
+            h[ii].set_shape([None, x_height, x_width, ch[ii + 1]])
 
         if use_bn[ii]:
             h[ii] = _batch_norm(h[ii], ch[ii + 1], phase_train)
@@ -900,11 +908,17 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             else:
                 dcnn_use_bn = [False] * 3
 
-            # if opt['add_skip_conn']
+            if opt['add_skip_conn']:
+                skip = [None, h_cnn[1], h_cnn[0]]
+                skip_ch = [0, cnn_channels[1], cnn_channels[0]]
+            else:
+                skip = None
+                skip_ch = None
 
             h_dcnn = _add_dcnn(model, segm_lo, dcnn_filters, dcnn_channels,
                                dcnn_unpool, dcnn_activations, dcnn_use_bn,
                                lstm_height, lstm_width,
+                               skip=skip, skip_ch=skip_ch,
                                phase_train=phase_train, wd=wd)
             y_out = tf.reshape(
                 h_dcnn[-1], [-1, timespan, inp_height, inp_width])
