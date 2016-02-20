@@ -445,6 +445,14 @@ if __name__ == '__main__':
                                         batch_size=batch_size_valid,
                                         get_fn=get_batch_valid,
                                         progress_bar=False):
+            results = sess.run(m['s_out'],
+                               feed_dict={
+                m['x']: _x,
+                m['phase_train']: False,
+                m['y_gt']: _y,
+                m['s_gt']: _s
+            })
+            print results
             results = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
                                 m['iou_soft'], m['iou_hard'], m['count_acc']],
                                feed_dict={

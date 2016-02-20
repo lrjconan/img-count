@@ -108,7 +108,7 @@ def _max_pool(x, ratio):
 
 def _weight_variable(shape, wd=None, name=None):
     """Initialize weights."""
-    initial = tf.truncated_normal(shape, stddev=0.001)
+    initial = tf.truncated_normal(shape, stddev=0.01)
     var = tf.Variable(initial, name=name)
     if wd:
         weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
