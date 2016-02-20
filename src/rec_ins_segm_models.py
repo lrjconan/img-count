@@ -900,7 +900,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             else:
                 dcnn_use_bn = [False] * 3
 
-            if opt['add_skip_conn']
+            # if opt['add_skip_conn']
 
             h_dcnn = _add_dcnn(model, segm_lo, dcnn_filters, dcnn_channels,
                                dcnn_unpool, dcnn_activations, dcnn_use_bn,
