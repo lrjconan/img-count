@@ -415,6 +415,8 @@ def _add_mlp(model, x, dims, activations, wd=None):
         
         if activations[ii]:
             h[ii] = activations[ii](h_[ii])
+        else:
+            h[ii] = h_[ii]
 
     return h
 
