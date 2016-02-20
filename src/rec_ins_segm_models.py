@@ -888,7 +888,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             dcnn_unpool = [2, 2, 2]
             # dcnn_activations = [tf.nn.relu, tf.nn.relu, tf.sigmoid]
             # dcnn_activations = [None, None, tf.sigmoid]
-            dcnn_activations = [tf.nn.relu, tf.nn.relu, None]
+            dcnn_activations = [tf.nn.relu, tf.nn.relu, tf.sigmoid]
 
             if opt['segm_dense_conn']:
                 dcnn_channels = [lstm_depth / 2] + opt['dcnn_depth'] + [1]
@@ -896,8 +896,8 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                 dcnn_channels = [1, 1, 1, 1]
 
             if opt['use_bn']:
-                # dcnn_use_bn = [True] * 3
-                dcnn_use_bn = [False] * 3
+                dcnn_use_bn = [True] * 3
+                # dcnn_use_bn = [False] * 3
             else:
                 dcnn_use_bn = [False] * 3
 
