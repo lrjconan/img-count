@@ -451,46 +451,43 @@ if __name__ == '__main__':
         pass
 
     # Train loop
-    for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
-                                             batch_size=batch_size_train,
-                                             get_fn=get_batch_train,
-                                             progress_bar=False):
-        # Run validation
-        if step % train_opt['steps_per_valid'] == 0:
-            run_validation()
+    while step < train_opt['num_steps']:
+        for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
+                                                 batch_size=batch_size_train,
+                                                 get_fn=get_batch_train,
+                                                 progress_bar=False):
+            # Run validation
+            if step % train_opt['steps_per_valid'] == 0:
+                run_validation()
 
-        # Train step
-        start_time = time.time()
-        r = sess.run([m['loss'], m['train_step']], feed_dict={
-            m['x']: x_bat,
-            m['y_gt']: y_bat,
-            m['s_gt']: s_bat
-        })
+            # Train step
+            start_time = time.time()
+            r = sess.run([m['loss'], m['train_step']], feed_dict={
+                m['x']: x_bat,
+                m['y_gt']: y_bat,
+                m['s_gt']: s_bat
+            })
 
-        # Print statistics
-        if step % 10 == 0:
-            step_time = (time.time() - start_time) * 1000
-            loss = r[0]
-            log.info('{:d} train loss {:.4f} t {:.2f}ms'.format(
-                step, loss, step_time))
+            # Print statistics
+            if step % 10 == 0:
+                step_time = (time.time() - start_time) * 1000
+                loss = r[0]
+                log.info('{:d} train loss {:.4f} t {:.2f}ms'.format(
+                    step, loss, step_time))
 
-            if args.logs:
-                train_loss_logger.add(step, loss)
-                step_time_logger.add(step, step_time)
+                if args.logs:
+                    train_loss_logger.add(step, loss)
+                    step_time_logger.add(step, step_time)
 
-        # Model ID reminder
-        if step % 100 == 0:
-            log.info('model id {}'.format(model_id))
+            # Model ID reminder
+            if step % 100 == 0:
+                log.info('model id {}'.format(model_id))
 
-        # Save model
-        if step % train_opt['steps_per_ckpt'] == 0:
-            saver.save(sess, global_step=step)
+            # Save model
+            if step % train_opt['steps_per_ckpt'] == 0:
+                saver.save(sess, global_step=step)
 
-        step += 1
-
-        # Terminate
-        if step > train_opt['num_steps']:
-            break
+            step += 1
 
     sess.close()
     train_loss_logger.close()
