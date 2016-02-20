@@ -856,7 +856,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             # One layer MLP
             mlp_ndim = [lstm_height * lstm_width * lstm_depth,
                         lstm_height * lstm_width * lstm_depth / 2]
-            mlp_activations = [tf.nn.relu]
+            mlp_activations = [tf.tanh]
             mlp = _add_mlp(model, tf.reshape(
                 h_lstm_all, [-1, lstm_height * lstm_width * lstm_depth]),
                 mlp_ndim, mlp_activations, wd=wd)
@@ -891,7 +891,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                 dcnn_use_bn = [False] * 3
 
             h_dcnn = _add_dcnn(model, segm_lo, dcnn_filters, dcnn_channels,
-                               dcnn_unpool,  dcnn_activations, dcnn_use_bn,
+                               dcnn_unpool, dcnn_activations, dcnn_use_bn,
                                lstm_height, lstm_width,
                                phase_train=phase_train, wd=wd)
             y_out = tf.reshape(
@@ -909,7 +909,6 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         s_out = tf.reshape(tf.sigmoid(
             tf.matmul(h_pool4, w_score) + b_score), [-1, timespan])
 
-        # s_out = tf.concat(1, score)
         model['s_out'] = s_out
 
         # Loss function
