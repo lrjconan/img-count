@@ -80,6 +80,7 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=300)
+    f1.close()
 
     pass
 
@@ -502,17 +503,9 @@ if __name__ == '__main__':
             m['y_gt']: y_bat,
             m['s_gt']: s_bat
         })
-        # results = sess.run(m['s_out'],
-        #                    feed_dict={
-        #     m['x']: x_bat,
-        #     m['phase_train']: False,
-        #     m['y_gt']: y_bat,
-        #     m['s_gt']: s_bat
-        # })
-        # print results
 
         # Print statistics
-        if step % 1 == 0:
+        if step % 5 == 0:
             step_time = (time.time() - start_time) * 1000
             loss = r[0]
             log.info('{:d} train loss {:.4f} {:.4f} {:.4f} t {:.2f}ms'.format(
