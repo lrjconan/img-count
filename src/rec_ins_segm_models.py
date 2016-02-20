@@ -270,7 +270,7 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
     return unroll
 
 
-def _add_cnn(model, x, f, ch, pool, use_bn=False, is_train=True, wd=None):
+def _add_cnn(model, x, f, ch, pool, use_bn=False, phase_train=None, wd=None):
     """Add CNN, with standard Conv-Relu-MaxPool layers.
 
     Args:
@@ -293,13 +293,13 @@ def _add_cnn(model, x, f, ch, pool, use_bn=False, is_train=True, wd=None):
         if ii == 0:
             if use_bn:
                 hc[ii] = tf.nn.relu(_batch_norm(
-                    _conv2d(x, w[ii]) + b[ii], ch[ii + 1], is_train))
+                    _conv2d(x, w[ii]) + b[ii], ch[ii + 1], phase_train))
             else:
                 hc[ii] = tf.nn.relu(_conv2d(x, w[ii]) + b[ii])
         else:
             if use_bn:
                 hc[ii] = tf.nn.relu(_batch_norm(
-                    _conv2d(hp[ii - 1], w[ii]) + b[ii], ch[ii + 1], is_train))
+                    _conv2d(hp[ii - 1], w[ii]) + b[ii], ch[ii + 1], phase_train))
             else:
                 hc[ii] = tf.nn.relu(_conv2d(hp[ii - 1], w[ii]) + b[ii])
         if pool[ii] > 1:
@@ -712,12 +712,15 @@ def get_orig_model(opt, device='/cpu:0', train=True):
     with tf.device(_get_device_fn(device)):
         # Input image, [B, H, W, 3]
         x = tf.placeholder('float', [None, inp_height, inp_width, 3])
+        # Whether in training stage, required for batch norm.
+        phase_train = tf.placeholder('bool', [1])
         # Groundtruth segmentation maps, [B, T, H, W]
         y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
         # Groundtruth confidence score, [B, T]
         s_gt = tf.placeholder('float', [None, timespan])
         y_gt_list = tf.split(1, timespan, y_gt)
         model['x'] = x
+        model['phase_train'] = phase_train
         model['y_gt'] = y_gt
         model['s_gt'] = s_gt
 
@@ -735,7 +738,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         cnn_channels = [3, 16, 32, 64]
         cnn_pool = [2, 2, 1]
         h_pool3 = _add_cnn(model, x, cnn_filt, cnn_channels, cnn_pool,
-                           use_bn=opt['use_bn'], is_train=train, wd=wd)
+                           use_bn=opt['use_bn'], phase_train=phase_train, wd=wd)
 
         if store_segm_map:
             lstm_inp_depth = cnn_channels[-1] + 1
@@ -846,7 +849,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             h_dc_ = _add_dcnn(model, segm_lo_all, dcnn_filters, dcnn_channels,
                               dcnn_unpool,  wd=wd)
             if opt['use_bn']:
-                h_dc = _batch_norm(h_dc_, dcnn_channels[-1], train)
+                h_dc = _batch_norm(h_dc_, dcnn_channels[-1], phase_train)
             else:
                 h_dc = h_dc_
 
