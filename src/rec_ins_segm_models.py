@@ -234,17 +234,26 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
     return unroll
 
 
-def _add_cnn(model, x, filt, pool, wd=None):
-    """Add CNN, with standard Conv-Relu-MaxPool layers."""
-    nlayers = len(filt)
+def _add_cnn(model, x, f, ch, pool, wd=None):
+    """Add CNN, with standard Conv-Relu-MaxPool layers.
+
+    Args:
+        model:
+        x: input image
+        f: filter size, list of size N (N = number of layers)
+        ch: number of channels, list of size N + 1
+        pool: pooling ratio, list of size N
+        wd: weight decay
+    """
+    nlayers = len(f)
     w = [None] * nlayers
     b = [None] * nlayers
     hc = [None] * nlayers
     hp = [None] * nlayers
 
     for ii in xrange(nlayers):
-        w[ii] = _weight_variable(filt[ii], wd=wd)
-        b[ii] = _weight_variable([filt[ii][-1]], wd=wd)
+        w[ii] = _weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]], wd=wd)
+        b[ii] = _weight_variable([ch[ii + 1]], wd=wd)
         if ii == 0:
             hc[ii] = tf.nn.relu(_conv2d(x, w[ii]) + b[ii])
         else:
@@ -255,6 +264,44 @@ def _add_cnn(model, x, filt, pool, wd=None):
             hp[ii] = hc[ii]
 
     return hp[-1]
+
+
+def _add_dcnn(model, x, f, ch, pool, wd=None):
+    """Add D-CNN, with standard DeConv-Relu layers.
+
+    Args:
+        model:
+        x: input image
+        f: filter size, list of size N (N = number of layers)
+        ch: number of channels, list of size N + 1
+        pool: pooling ratio, list of size N
+        wd: weight decay
+    """
+    nlayers = len(f)
+    w = [None] * nlayers
+    b = [None] * nlayers
+    h = [None] * nlayers
+    out_shape = [None] * nlayers
+
+    batch = tf.shape(x)[0: 1]
+    inp_size = tf.shape(x)[1: 3]
+    cum_pool = 1
+
+    for ii in xrange(nlayers):
+        cum_pool *= pool[ii]
+        out_shape[ii] = tf.concat(0, [batch, inp_size * cum_pool, tf.constant(ch[ii: ii + 1])])
+        w[ii] = _weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]], wd=wd)
+        b[ii] = _weight_variable([ch[ii + 1]])
+        if ii == 0:
+            h[ii] = tf.nn.relu(tf.nn.conv2d_transpose(
+                x, w[ii], out_shape[ii],
+                strides=[1, pool[ii], pool[ii], 1]) + b[ii])
+        else:
+            h[ii] = tf.nn.relu(tf.nn.conv2d_transpose(
+                h[ii - 1], w[ii], out_shape[ii],
+                strides=[1, pool[ii], pool[ii], 1]) + b[ii])
+
+    return h[-1]
 
 
 def _add_attn_controller_rnn(model, timespan, inp_width, inp_height, ctl_inp_dim, filter_size, wd=None, name='', sess=None, train_model=None):
@@ -633,16 +680,15 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         # [B, H, W, 3] => [B, H / 2, W / 2, 16]
         # [B, H / 2, W / 2, 16] => [B, H / 4, W / 4, 32]
         # [B, H / 4, W / 4, 32] => [B, H / 8, W / 8, 64]
-        cnn_filt = [[3, 3, 3, 16],
-                    [3, 3, 16, 32],
-                    [3, 3, 32, 64]]
+        cnn_filt = [3, 3, 3]
+        cnn_channels = [3, 16, 32, 64]
         cnn_pool = [2, 2, 1]
-        h_pool3 = _add_cnn(model, x, filt=cnn_filt, pool=cnn_pool, wd=wd)
+        h_pool3 = _add_cnn(model, x, cnn_filt, cnn_channels, cnn_pool, wd=wd)
 
         if store_segm_map:
-            lstm_inp_depth = cnn_filt[-1][-1] + 1
+            lstm_inp_depth = cnn_channels[-1] + 1
         else:
-            lstm_inp_depth = cnn_filt[-1][-1]
+            lstm_inp_depth = cnn_channels[-1]
 
         lstm_depth = 16
         subsample = np.array(cnn_pool).prod()
@@ -736,17 +782,25 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         # [B * T, LH, LW, 1] => [B * T, H, W, 1] => [B, T, H, W]
         # Use deconvolution to upsample.
         if opt['use_deconv']:
+            dcnn_filters = [3, 3, 3]
+            dcnn_channels = [1, 1, 1, 1]
+
+            y_out = tf.reshape(_add_dcnn(model, segm_lo_all,
+                                         dcnn_filters, dcnn_channels, cnn_pool,
+                                         wd=wd),
+                               [-1, timespan, inp_height, inp_width])
             w_dconv1 = _weight_variable([3, 3, 1, 1])
-            out_shape1 = tf.concat(
-                0,  [num_ex * timespan, tf.constant([inp_height / 2, inp_width / 2, 1])])
-            y_out1 = tf.nn.conv2d_transpose(segm_lo_all, w_dconv1, out_shape1,
-                                            strides=[1, 2, 2, 1])
-            w_dconv2 = _weight_variable([3, 3, 1, 1])
-            out_shape2 = tf.concat(
-                0,  [num_ex * timespan, tf.constant([inp_height, inp_width, 1])])
-            y_out2 = tf.nn.conv2d_transpose(y_out1, w_dconv2, out_shape2,
-                                            strides=[1, 2, 2, 1])
-            y_out = tf.reshape(y_out2, [-1, timespan, inp_height, inp_width])
+            # out_shape1 = tf.concat(
+            #     0,  [num_ex * timespan,
+            #          tf.constant([inp_height / 2, inp_width / 2, 1])])
+            # y_out1 = tf.nn.conv2d_transpose(segm_lo_all, w_dconv1, out_shape1,
+            #                                 strides=[1, 2, 2, 1])
+            # w_dconv2 = _weight_variable([3, 3, 1, 1])
+            # out_shape2 = tf.concat(
+            #     0,  [num_ex * timespan, tf.constant([inp_height, inp_width, 1])])
+            # y_out2 = tf.nn.conv2d_transpose(y_out1, w_dconv2, out_shape2,
+            #                                 strides=[1, 2, 2, 1])
+            # y_out = tf.reshape(y_out2, [-1, timespan, inp_height, inp_width])
         else:
             y_out = tf.reshape(
                 tf.image.resize_bilinear(segm_lo_all, [inp_height, inp_width]),

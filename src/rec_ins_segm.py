@@ -174,6 +174,8 @@ def _parse_args():
     kNumSteps = 500000
     # Number of steps per checkpoint
     kStepsPerCkpt = 1000
+    # Number of steps per validation
+    kStepsPerValid = 250
 
     parser = argparse.ArgumentParser(
         description='Train DRAW')
@@ -232,6 +234,8 @@ def _parse_args():
                         type=int, help='Number of steps to train')
     parser.add_argument('-steps_per_ckpt', default=kStepsPerCkpt,
                         type=int, help='Number of steps per checkpoint')
+    parser.add_argument('-steps_per_valid', default=kStepsPerValid,
+                        type=int, help='Number of steps per validation')
     parser.add_argument('-results', default='../results',
                         help='Model results folder')
     parser.add_argument('-logs', default='../results',
@@ -327,7 +331,8 @@ if __name__ == '__main__':
     # Train loop options
     train_opt = {
         'num_steps': args.num_steps,
-        'steps_per_ckpt': args.steps_per_ckpt
+        'steps_per_ckpt': args.steps_per_ckpt,
+        'steps_per_valid': args.steps_per_valid
     }
 
     dataset = get_dataset(data_opt, args.num_ex, args.num_ex / 10)
@@ -372,7 +377,8 @@ if __name__ == '__main__':
             exp_logs_folder, 'valid_sample_img.png')
         registered_image = False
         log.info(
-            'Visualization can be viewed at: http://{}/deep-dashboard?id={}'.format(
+            ('Visualization can be viewed at: '
+             'http://{}/deep-dashboard?id={}').format(
                 args.localhost, model_id))
 
     num_ex_train = dataset['train']['input'].shape[0]
@@ -386,8 +392,7 @@ if __name__ == '__main__':
     log.info('Number of training examples: {}'.format(num_ex_train))
     log.info('Training batch size: {}'.format(batch_size_train))
 
-    # Train loop
-    while step < train_opt['num_steps']:
+    def run_validation():
         # Validation
         loss = 0.0
         iou_hard = 0.0
@@ -439,37 +444,47 @@ if __name__ == '__main__':
                                      'Validation samples')
                 registered_image = True
 
-        # Train
-        for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
-                                                 batch_size=batch_size_train,
-                                                 get_fn=get_batch_train,
-                                                 progress_bar=False):
-            start_time = time.time()
-            r = sess.run([m['loss'], m['train_step']], feed_dict={
-                m['x']: x_bat,
-                m['y_gt']: y_bat,
-                m['s_gt']: s_bat
-            })
+    # Train loop
+    for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
+                                             batch_size=batch_size_train,
+                                             get_fn=get_batch_train,
+                                             progress_bar=False):
+        # Run validation
+        if step % train_opt['steps_per_valid'] == 0:
+            run_validation()
 
-            # Print statistics
-            if step % 10 == 0:
-                step_time = (time.time() - start_time) * 1000
-                loss = r[0]
-                log.info('{:d} train loss {:.4f} t {:.2f}ms'.format(
-                    step, loss, step_time))
+        # Train step
+        start_time = time.time()
+        r = sess.run([m['loss'], m['train_step']], feed_dict={
+            m['x']: x_bat,
+            m['y_gt']: y_bat,
+            m['s_gt']: s_bat
+        })
 
-                if args.logs:
-                    train_loss_logger.add(step, loss)
-                    step_time_logger.add(step, step_time)
+        # Print statistics
+        if step % 10 == 0:
+            step_time = (time.time() - start_time) * 1000
+            loss = r[0]
+            log.info('{:d} train loss {:.4f} t {:.2f}ms'.format(
+                step, loss, step_time))
 
-            if step % 100 == 0:
-                log.info('model id {}'.format(model_id))
+            if args.logs:
+                train_loss_logger.add(step, loss)
+                step_time_logger.add(step, step_time)
 
-            # Save model
-            if step % train_opt['steps_per_ckpt'] == 0:
-                saver.save(sess, global_step=step)
+        # Model ID reminder
+        if step % 100 == 0:
+            log.info('model id {}'.format(model_id))
 
-            step += 1
+        # Save model
+        if step % train_opt['steps_per_ckpt'] == 0:
+            saver.save(sess, global_step=step)
+
+        step += 1
+
+        # Terminate
+        if step > train_opt['num_steps']:
+            break
 
     sess.close()
     train_loss_logger.close()
