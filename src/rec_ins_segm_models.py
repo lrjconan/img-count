@@ -582,21 +582,28 @@ def _f_iou(a, b, timespan, pairwise=False):
         return tf.reduce_sum(a + b - (a * b) + eps,
                              reduction_indices=reduction_indices)
     if pairwise:
-        y_list = [None] * timespan
-        a_list = [None] * timespan
+        # N * [B, 1, M]
+        # y_list = [None] * timespan
+        # N * [B, 1, 1, H, W]
+        # a_list = [None] * timespan
+        # [B, N, 1, H, W] => N * [B, 1, 1, H, W]
+        a_shape = tf.shape(a)
+        b_shape = tf.shape(b)
+        zeros_a = tf.zeros(tf.concat(0, [a_shape[0: 1], b_shape[1: 2], a_shape[1: ]]))
+        # a_list = tf.split(1, timespan, a)
         # [B, N, H, W] => [B, N, 1, H, W]
         a = tf.expand_dims(a, 2)
-        # [B, N, 1, H, W] => N * [B, 1, 1, H, W]
-        a_list = tf.split(1, timespan, a)
+        a = a + zeros_a
         # [B, M, H, W] => [B, 1, M, H, W]
         b = tf.expand_dims(b, 1)
+        return _inter(a, b) / _union(a, b)
 
-        for ii in xrange(timespan):
-            # [B, 1, M]
-            y_list[ii] = _inter(a_list[ii], b) / _union(a_list[ii], b)
+        # for ii in xrange(timespan):
+        #     # [B, 1, M]
+        #     y_list[ii] = _inter(a_list[ii], b) / _union(a_list[ii], b)
 
-        # N * [B, 1, M] => [B, N, M]
-        return tf.concat(1, y_list)
+        # # N * [B, 1, M] => [B, N, M]
+        # return tf.concat(1, y_list)
 
     else:
         return _inter(a, b) / _union(a, b)
@@ -790,12 +797,12 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         # [B, H / 4, W / 4, 32] => [B, H / 8, W / 8, 64]
         cnn_filters = opt['cnn_filter_size']
         cnn_channels = [3] + opt['cnn_depth']
-        cnn_pool = [2, 2, 2]
+        cnn_pool = [2] * len(cnn_filters)
         cnn_act = [tf.nn.relu, tf.nn.relu, tf.nn.relu]
         if opt['use_bn']:
-            cnn_use_bn = [True] * 3
+            cnn_use_bn = [True] * len(cnn_filters)
         else:
-            cnn_use_bn = [False] * 3
+            cnn_use_bn = [False] * len(cnn_filters)
 
         h_cnn = _add_cnn(model, x=x, f=cnn_filters, ch=cnn_channels,
                          pool=cnn_pool, act=cnn_act, use_bn=cnn_use_bn,
@@ -897,18 +904,18 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         # Use deconvolution to upsample.
         if opt['use_deconv']:
             dcnn_filters = opt['dcnn_filter_size']
-            dcnn_unpool = [2, 2, 2, 1]
+            dcnn_unpool = [2] * (len(dcnn_filters) - 1) + [1]
             dcnn_act = [tf.nn.relu, tf.nn.relu, tf.nn.relu, tf.sigmoid]
 
             if opt['segm_dense_conn']:
                 dcnn_channels = [lstm_d / 2] + opt['dcnn_depth'] + [1]
             else:
-                dcnn_channels = [1, 1, 1, 1, 1]
+                dcnn_channels = [1] * (len(dcnn_filters) + 1)
 
             if opt['use_bn']:
-                dcnn_use_bn = [True] * 4
+                dcnn_use_bn = [True] * len(dcnn_filters)
             else:
-                dcnn_use_bn = [False] * 4
+                dcnn_use_bn = [False] * len(dcnn_filters)
 
             if opt['add_skip_conn']:
                 h_cnn1_shape = tf.shape(h_cnn[1])

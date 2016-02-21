@@ -159,9 +159,11 @@ def _parse_args():
     kCnn1FilterSize = 3
     kCnn2FilterSize = 3
     kCnn3FilterSize = 3
+    kCnn4FilterSize = 3
     kCnn1Depth = 4
     kCnn2Depth = 8
-    kCnn3Depth = 16
+    kCnn3Depth = 12
+    kCnn4Depth = 16
     kDcnn3FilterSize = 3
     kDcnn2FilterSize = 3
     kDcnn1FilterSize = 3
@@ -220,6 +222,8 @@ def _parse_args():
                         type=int, help='CNN 2nd layer filter size')
     parser.add_argument('-cnn_3_filter_size', default=kCnn3FilterSize,
                         type=int, help='CNN 3rd layer filter size')
+    parser.add_argument('-cnn_4_filter_size', default=kCnn4FilterSize,
+                        type=int, help='CNN 4th layer filter size')
     parser.add_argument('-dcnn_3_filter_size', default=kDcnn3FilterSize,
                         type=int, help='DCNN 3rd layer filter size')
     parser.add_argument('-dcnn_2_filter_size', default=kDcnn2FilterSize,
@@ -234,6 +238,8 @@ def _parse_args():
                         type=int, help='CNN 2nd layer depth')
     parser.add_argument('-cnn_3_depth', default=kCnn3Depth,
                         type=int, help='CNN 3rd layer depth')
+    parser.add_argument('-cnn_4_depth', default=kCnn4Depth,
+                        type=int, help='CNN 4th layer depth')
     parser.add_argument('-dcnn_3_depth', default=kDcnn3Depth,
                         type=int, help='DCNN 3rd layer depth')
     parser.add_argument('-dcnn_2_depth', default=kDcnn2Depth,
