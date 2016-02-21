@@ -803,7 +803,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         cnn_filters = opt['cnn_filter_size']
         cnn_channels = [3] + opt['cnn_depth']
         cnn_pool = [2] * len(cnn_filters)
-        cnn_act = [tf.nn.relu, tf.nn.relu, tf.nn.relu]
+        cnn_act = [tf.nn.relu] * len(cnn_filters)
         if opt['use_bn']:
             cnn_use_bn = [True] * len(cnn_filters)
         else:
@@ -878,7 +878,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                 # One layer MLP
                 # [B, LH, LW, LD] => [B, 1, LH, LW, LD / 2]
                 mlp_dims = [lstm_dim, 
-                            lstm_h * lstm_w * mlp_d, 
+                            lstm_h * lstm_w * mlp_d,
                             lstm_h * lstm_w * mlp_d]
                 mlp_act = [tf.nn.relu, tf.nn.relu]
                 mlp = _add_mlp(model,
@@ -908,7 +908,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         if opt['use_deconv']:
             dcnn_filters = opt['dcnn_filter_size']
             dcnn_unpool = [2] * (len(dcnn_filters) - 1) + [1]
-            dcnn_act = [tf.nn.relu, tf.nn.relu, tf.nn.relu, tf.sigmoid]
+            dcnn_act = [tf.nn.relu] * (len(dcnn_filters) - 1) + [tf.sigmoid]
 
             if opt['segm_dense_conn']:
                 dcnn_channels = [lstm_d / 2] + opt['dcnn_depth'] + [1]
@@ -921,30 +921,20 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                 dcnn_use_bn = [False] * len(dcnn_filters)
 
             if opt['add_skip_conn']:
-                h_cnn1_shape = tf.shape(h_cnn[1])
-                h_cnn0_shape = tf.shape(h_cnn[0])
-                x_shape = tf.shape(x)
-                zeros_1 = tf.zeros(tf.concat(
-                    0, [h_cnn1_shape[0: 1], tf.constant([timespan]), h_cnn1_shape[1:]]))
-                zeros_0 = tf.zeros(tf.concat(
-                    0, [h_cnn0_shape[0: 1], tf.constant([timespan]), h_cnn0_shape[1:]]))
-                zeros_x = tf.zeros(tf.concat(
-                    0, [x_shape[0: 1], tf.constant([timespan]), x_shape[1:]]))
-                h_cnn1_shape = [-1, inp_height / 4,
-                                inp_width / 4, cnn_channels[2]]
-                h_cnn1_reshape = tf.reshape(tf.expand_dims(
-                    h_cnn[1], 1) + zeros_1, h_cnn1_shape)
-                h_cnn0_shape = [-1, inp_height / 2,
-                                inp_width / 2, cnn_channels[1]]
-                h_cnn0_reshape = tf.reshape(tf.expand_dims(
-                    h_cnn[0], 1) + zeros_0, h_cnn0_shape)
-                inp_shape = [-1, inp_height, inp_width, cnn_channels[0]]
-                inp_reshape = tf.reshape(
-                    tf.expand_dims(x, 1) + zeros_x, inp_shape)
-
-                skip = [None, h_cnn1_reshape, h_cnn0_reshape, inp_reshape]
-                skip_ch = [0, cnn_channels[2],
-                           cnn_channels[1], cnn_channels[0]]
+                skip = [None]
+                skip_ch = [0]
+                for jj, layer in enumerate(h_cnn[-2::-1] + [x]):
+                    layer_shape = tf.shape(layer)
+                    zeros = tf.zeros(tf.concat(
+                        0, [layer_shape[0: 1], tf.constant([timespan]),
+                            layer_shape[1:]]))
+                    new_shape = tf.concat(0, 
+                            [layer_shape[0: 1] * timespan, layer_shape[1:]])
+                    layer_reshape = tf.reshape(tf.expand_dims(layer, 1) +
+                        zeros, new_shape)
+                    skip.append(layer_reshape)
+                    ch_idx = len(cnn_channels) - jj - 2
+                    skip_ch.append(cnn_channels[ch_idx])
             else:
                 skip = None
                 skip_ch = None
