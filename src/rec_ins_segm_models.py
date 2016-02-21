@@ -270,7 +270,7 @@ def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_siz
     return unroll
 
 
-def _add_cnn(model, x, f, ch, pool, activations, use_bn, phase_train=None, wd=None):
+def _add_cnn(model, x, f, ch, pool, act, use_bn, phase_train=None, wd=None):
     """Add CNN, with standard Conv-Relu-MaxPool layers.
 
     Args:
@@ -285,10 +285,13 @@ def _add_cnn(model, x, f, ch, pool, activations, use_bn, phase_train=None, wd=No
     w = [None] * nlayers
     b = [None] * nlayers
     h = [None] * nlayers
+    log.info('CNN')
+    log.info('Channels: {}'.format(ch))
 
     for ii in xrange(nlayers):
         w[ii] = _weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]], wd=wd)
         b[ii] = _weight_variable([ch[ii + 1]], wd=wd)
+        log.info('Filter: {}'.format([f[ii], f[ii], ch[ii], ch[ii + 1]]))
 
         if ii == 0:
             prev_inp = x
@@ -300,8 +303,8 @@ def _add_cnn(model, x, f, ch, pool, activations, use_bn, phase_train=None, wd=No
         if use_bn[ii]:
             h[ii] = _batch_norm(h[ii], ch[ii + 1], phase_train)
 
-        if activations[ii] is not None:
-            h[ii] = activations[ii](h[ii])
+        if act[ii] is not None:
+            h[ii] = act[ii](h[ii])
 
         if pool[ii] > 1:
             h[ii] = _max_pool(h[ii], pool[ii])
@@ -309,7 +312,7 @@ def _add_cnn(model, x, f, ch, pool, activations, use_bn, phase_train=None, wd=No
     return h
 
 
-def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, skip=None, skip_ch=None, phase_train=None, wd=None):
+def _add_dcnn(model, x, f, ch, pool, act, use_bn, inp_h, inp_w, skip=None, skip_ch=None, phase_train=None, wd=None):
     """Add D-CNN, with standard DeConv-Relu layers.
 
     Args:
@@ -330,8 +333,9 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
     batch = tf.shape(x)[0: 1]
     inp_size = tf.shape(x)[1: 3]
     cum_pool = 1
-    print ch
-    print skip_ch
+    log.info('DCNN')
+    log.info('Channels: {}'.format(ch))
+    log.info('Skip channels: {}'.format(skip_ch))
 
     in_ch = ch[0]
 
@@ -355,7 +359,7 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
 
         out_shape[ii] = tf.concat(
             0, [batch, inp_size * cum_pool, tf.constant([out_ch])])
-        print[f[ii], f[ii], out_ch, in_ch]
+        log.info('Filter: {}'.format([f[ii], f[ii], out_ch, in_ch]))
         w[ii] = _weight_variable([f[ii], f[ii], out_ch, in_ch], wd=wd)
         b[ii] = _weight_variable([out_ch], wd=wd)
 
@@ -363,16 +367,16 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
             prev_inp, w[ii], out_shape[ii],
             strides=[1, pool[ii], pool[ii], 1]) + b[ii]
 
-        x_height *= pool[ii]
-        x_width *= pool[ii]
+        inp_h *= pool[ii]
+        inp_w *= pool[ii]
 
-        h[ii].set_shape([None, x_height, x_width, out_ch])
+        h[ii].set_shape([None, inp_h, inp_w, out_ch])
 
         if use_bn[ii]:
             h[ii] = _batch_norm(h[ii], ch[ii + 1], phase_train)
 
-        if activations[ii] is not None:
-            h[ii] = activations[ii](h[ii])
+        if act[ii] is not None:
+            h[ii] = act[ii](h[ii])
 
         in_ch = out_ch
 
@@ -381,7 +385,7 @@ def _add_dcnn(model, x, f, ch, pool, activations, use_bn, x_height, x_width, ski
     return h
 
 
-def _add_mlp(model, x, dims, activations, wd=None):
+def _add_mlp(model, x, dims, act, wd=None):
     nlayers = len(dims) - 1
     w = [None] * nlayers
     b = [None] * nlayers
@@ -399,8 +403,8 @@ def _add_mlp(model, x, dims, activations, wd=None):
 
         h[ii] = tf.matmul(prev_inp, w[ii]) + b[ii]
 
-        if activations[ii]:
-            h[ii] = activations[ii](h[ii])
+        if act[ii]:
+            h[ii] = act[ii](h[ii])
 
     return h
 
@@ -756,8 +760,8 @@ def get_orig_model(opt, device='/cpu:0', train=True):
     inp_width = opt['inp_width']
     conv_lstm_filter_size = opt['conv_lstm_filter_size']
     conv_lstm_hid_depth = opt['conv_lstm_hid_depth']
+    mlp_d = opt['mlp_depth']
     wd = opt['weight_decay']
-    store_segm_map = ('store_segm_map' not in opt) or opt['store_segm_map']
 
     with tf.device(_get_device_fn(device)):
         # Input image, [B, H, W, 3]
@@ -787,165 +791,181 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         cnn_filters = opt['cnn_filter_size']
         cnn_channels = [3] + opt['cnn_depth']
         cnn_pool = [2, 2, 2]
-        cnn_activations = [tf.nn.relu, tf.nn.relu, tf.nn.relu]
+        cnn_act = [tf.nn.relu, tf.nn.relu, tf.nn.relu]
         if opt['use_bn']:
             cnn_use_bn = [True] * 3
         else:
             cnn_use_bn = [False] * 3
 
-        h_cnn = _add_cnn(model, x, cnn_filters, cnn_channels, cnn_pool,
-                         cnn_activations, cnn_use_bn,
+        h_cnn = _add_cnn(model, x=x, f=cnn_filters, ch=cnn_channels,
+                         pool=cnn_pool, act=cnn_act, use_bn=cnn_use_bn,
                          phase_train=phase_train, wd=wd)
         h_pool3 = h_cnn[-1]
 
-        if store_segm_map:
-            lstm_inp_depth = cnn_channels[-1] + 1
+        subsample = np.array(cnn_pool).prod()
+        lstm_d = conv_lstm_hid_depth
+        lstm_h = inp_height / subsample
+        lstm_w = inp_width / subsample
+        lstm_dim = lstm_h * lstm_w * lstm_d
+
+        # Low-res segmentation depth
+        core_dim = mlp_d if opt['segm_dense_conn'] else 1
+
+        if opt['feed_output']:
+            lstm_inp_depth = cnn_channels[-1] + core_dim
         else:
             lstm_inp_depth = cnn_channels[-1]
 
-        lstm_depth = conv_lstm_hid_depth
-        subsample = np.array(cnn_pool).prod()
-        lstm_height = inp_height / subsample
-        lstm_width = inp_width / subsample
+        log.info(lstm_inp_depth)
 
         # ConvLSTM hidden state initialization
         # [B, LH, LW, LD]
         x_shape = tf.shape(x)
         num_ex = x_shape[0: 1]
         c_init = tf.zeros(tf.concat(
-            0, [num_ex, tf.constant([lstm_height, lstm_width, lstm_depth])]))
+            0, [num_ex, tf.constant([lstm_h, lstm_w, lstm_d])]))
         h_init = tf.zeros(tf.concat(
-            0, [num_ex, tf.constant([lstm_height, lstm_width, lstm_depth])]))
+            0, [num_ex, tf.constant([lstm_h, lstm_w, lstm_d])]))
 
-        # Segmentation network
-        # 4th convolution layer (on ConvLSTM output).
-        w_segm_conv = _weight_variable([3, 3, lstm_depth, 1], wd=wd)
-        b_segm_conv = _weight_variable([1], wd=wd)
-        b_log_softmax = _weight_variable([1])
-
-        # Bias towards segmentation output.
-        w_segm_dense = _weight_variable([lstm_height * lstm_width * lstm_depth,
-                                         lstm_height * lstm_width * lstm_depth / 2], wd=wd)
-        b_segm_dense = _weight_variable(
-            [lstm_height * lstm_width * lstm_depth / 2], wd=wd)
-
-        # Confidence network
-        # Linear layer for output confidence score.
-        w_score = _weight_variable(
-            [lstm_height * lstm_width / 4 * lstm_depth, 1], wd=wd)
-        b_score = _weight_variable([1], wd=wd)
+        if not opt['segm_dense_conn']:
+            # Segmentation network weights
+            w_segm_conv = _weight_variable([3, 3, lstm_d, 1], wd=wd)
+            b_segm_conv = _weight_variable([1], wd=wd)
+            b_log_softmax = _weight_variable([1])
 
         unroll_conv_lstm = _add_conv_lstm(
             model=model,
             timespan=timespan,
-            inp_height=lstm_height,
-            inp_width=lstm_width,
+            inp_height=lstm_h,
+            inp_width=lstm_w,
             inp_depth=lstm_inp_depth,
             filter_size=conv_lstm_filter_size,
-            hid_depth=lstm_depth,
+            hid_depth=lstm_d,
             c_init=c_init,
             h_init=h_init,
             wd=wd,
             name='lstm'
         )
-        h_lstm = model['h_lstm']
-        h_lstm_reshape = [None] * timespan
-        segm_canvas = [None] * timespan
-        segm_canvas[0] = tf.zeros(tf.concat(
-            0, [num_ex, tf.constant([lstm_height, lstm_width, 1])]))
-        lstm_inp = [None] * timespan
-        y_out = [None] * timespan
 
+        h_lstm = model['h_lstm']
+        h_core = [None] * timespan
         for t in xrange(timespan):
             # If we also send the cumulative output maps.
-            if store_segm_map:
-                lstm_inp[t] = tf.concat(3, [h_pool3, segm_canvas[t]])
+            if opt['feed_output']:
+                if t == 0:
+                    out = tf.zeros(tf.concat(
+                        0, [num_ex, tf.constant([lstm_h, lstm_w, core_dim])]))
+                else:
+                    out = tf.reshape(
+                        h_core[t - 1], [-1, lstm_h, lstm_w, core_dim])
+                lstm_inp = tf.concat(3, [h_pool3, out])
             else:
-                lstm_inp[t] = h_pool3
-            unroll_conv_lstm(lstm_inp[t], time=t)
-            h_lstm_reshape[t] = tf.reshape(h_lstm[t],
-                                           [-1, 1, lstm_height, lstm_width, lstm_depth])
+                lstm_inp = h_pool3
 
-        # [B * T, LH, LW, LD]
-        h_lstm_all = tf.reshape(
-            tf.concat(1, h_lstm_reshape), [-1, lstm_height, lstm_width, lstm_depth])
-        model['h_lstm_all'] = h_lstm_all
+            unroll_conv_lstm(lstm_inp, time=t)
 
-        # [B * T, LH, LW, LD / 2]
+            if opt['segm_dense_conn']:
+                # One layer MLP
+                # [B, LH, LW, LD] => [B, 1, LH, LW, LD / 2]
+                mlp_ndim = [lstm_dim, lstm_h * lstm_w * mlp_d]
+                mlp_act = [tf.nn.relu]
+                # mlp_act = [None]
+                mlp = _add_mlp(model,
+                               x=tf.reshape(h_lstm[t], [-1, lstm_dim]),
+                               dims=mlp_ndim,
+                               act=mlp_act,
+                               wd=wd)
+                h_core[t] = tf.reshape(mlp[-1], [-1, 1, lstm_h, lstm_w, mlp_d])
+            else:
+                # Just convolution + softmax inhibition
+                # [B, LH, LW, LD] => [B, 1, LH, LW, 1]
+                h_core[t] = tf.reshape(tf.log(tf.nn.softmax(tf.reshape(
+                    _conv2d(h_lstm[t], w_segm_conv) + b_segm_conv,
+                    [-1, lstm_h * lstm_w]))) + b_log_softmax,
+                    [-1, 1, lstm_h, lstm_w, 1])
+
+        # T * [B, 1, LH, LW, LD / 2] => [B, T, ]
         if opt['segm_dense_conn']:
-            # One layer MLP
-            mlp_ndim = [lstm_height * lstm_width * lstm_depth,
-                        lstm_height * lstm_width * lstm_depth / 2]
-            mlp_activations = [tf.nn.relu]
-            # mlp_activations = [None]
-            mlp = _add_mlp(model, tf.reshape(
-                h_lstm_all, [-1, lstm_height * lstm_width * lstm_depth]),
-                mlp_ndim, mlp_activations, wd=wd)
-            segm_lo = tf.reshape(mlp[-1],
-                                 [-1, lstm_height, lstm_width, lstm_depth / 2])
+            h_core = tf.reshape(tf.concat(1, h_core),
+                                [-1, lstm_h, lstm_w, lstm_d / 2])
         else:
-            # Just convolution + softmax inhibition
-            segm_lo = tf.reshape(tf.log(tf.nn.softmax(tf.reshape(
-                _conv2d(h_lstm_all, w_segm_conv) + b_segm_conv,
-                [-1, lstm_height * lstm_width]))) + b_log_softmax,
-                [-1, lstm_height, lstm_width, 1])
-        model['segm_lo'] = segm_lo
+            h_core = tf.reshape(tf.concat(1, h_core), [-1, lstm_h, lstm_w, 1])
+        model['h_core'] = h_core
 
         # [B * T, LH, LW, LD / 2] => [B * T, H, W, 1]
         # Use deconvolution to upsample.
-        # TODO: add skip connections here.
         if opt['use_deconv']:
             dcnn_filters = opt['dcnn_filter_size']
-            dcnn_unpool = [2, 2, 2]
-            dcnn_activations = [tf.nn.relu, tf.nn.relu, tf.sigmoid]
+            dcnn_unpool = [2, 2, 2, 1]
+            dcnn_act = [tf.nn.relu, tf.nn.relu, tf.nn.relu, tf.sigmoid]
 
             if opt['segm_dense_conn']:
-                dcnn_channels = [lstm_depth / 2] + opt['dcnn_depth'] + [1]
+                dcnn_channels = [lstm_d / 2] + opt['dcnn_depth'] + [1]
             else:
-                dcnn_channels = [1, 1, 1, 1]
+                dcnn_channels = [1, 1, 1, 1, 1]
 
             if opt['use_bn']:
-                dcnn_use_bn = [True] * 3
+                dcnn_use_bn = [True] * 4
             else:
-                dcnn_use_bn = [False] * 3
+                dcnn_use_bn = [False] * 4
 
             if opt['add_skip_conn']:
                 h_cnn1_shape = tf.shape(h_cnn[1])
                 h_cnn0_shape = tf.shape(h_cnn[0])
-                zeros1 = tf.zeros(tf.concat(
+                x_shape = tf.shape(x)
+                zeros_1 = tf.zeros(tf.concat(
                     0, [h_cnn1_shape[0: 1], tf.constant([timespan]), h_cnn1_shape[1:]]))
-                zeros0 = tf.zeros(tf.concat(
-                    0, [h_cnn0_shape[0: 1], tf.constant([timespan]), h_cnn0_shape[1:]]))      
-                h_cnn1_reshape = tf.reshape(tf.expand_dims(h_cnn[1], 1) + zeros1,
-                    [-1, inp_height / 4, inp_width / 4, cnn_channels[2]])
-                h_cnn0_reshape = tf.reshape(tf.expand_dims(h_cnn[0], 1) + zeros0,
-                    [-1, inp_height / 2, inp_width / 2, cnn_channels[1]])
-                skip = [None, h_cnn1_reshape, h_cnn0_reshape]
-                skip_ch = [0, cnn_channels[2], cnn_channels[1]]
+                zeros_0 = tf.zeros(tf.concat(
+                    0, [h_cnn0_shape[0: 1], tf.constant([timespan]), h_cnn0_shape[1:]]))
+                zeros_x = tf.zeros(tf.concat(
+                    0, [x_shape[0: 1], tf.constant([timespan]), x_shape[1:]]))
+                h_cnn1_shape = [-1, inp_height / 4,
+                                inp_width / 4, cnn_channels[2]]
+                h_cnn1_reshape = tf.reshape(tf.expand_dims(
+                    h_cnn[1], 1) + zeros_1, h_cnn1_shape)
+                h_cnn0_shape = [-1, inp_height / 2,
+                                inp_width / 2, cnn_channels[1]]
+                h_cnn0_reshape = tf.reshape(tf.expand_dims(
+                    h_cnn[0], 1) + zeros_0, h_cnn0_shape)
+                inp_shape = [-1, inp_height, inp_width, cnn_channels[0]]
+                inp_reshape = tf.reshape(
+                    tf.expand_dims(x, 1) + zeros_x, inp_shape)
+
+                skip = [None, h_cnn1_reshape, h_cnn0_reshape, inp_reshape]
+                skip_ch = [0, cnn_channels[2],
+                           cnn_channels[1], cnn_channels[0]]
             else:
                 skip = None
                 skip_ch = None
 
-            h_dcnn = _add_dcnn(model, segm_lo, dcnn_filters, dcnn_channels,
-                               dcnn_unpool, dcnn_activations, dcnn_use_bn,
-                               lstm_height, lstm_width,
+            h_dcnn = _add_dcnn(model, x=h_core, f=dcnn_filters,
+                               ch=dcnn_channels,
+                               pool=dcnn_unpool, act=dcnn_act,
+                               use_bn=dcnn_use_bn,
+                               inp_h=lstm_h, inp_w=lstm_w,
                                skip=skip, skip_ch=skip_ch,
                                phase_train=phase_train, wd=wd)
             y_out = tf.reshape(
                 h_dcnn[-1], [-1, timespan, inp_height, inp_width])
         else:
             y_out = tf.reshape(
-                tf.image.resize_bilinear(segm_lo, [inp_height, inp_width]),
+                tf.image.resize_bilinear(h_core, [inp_height, inp_width]),
                 [-1, timespan, inp_height, inp_width])
 
         model['y_out'] = y_out
 
         # Objectness network
-        h_pool4 = tf.reshape(_max_pool(h_lstm_all, 2),
-                             [-1, lstm_height * lstm_width / 4 * lstm_depth])
-        s_out = tf.reshape(tf.sigmoid(
-            tf.matmul(h_pool4, w_score) + b_score), [-1, timespan])
-
+        score_dim = lstm_h * lstm_w / 4 * lstm_d
+        h_lstm_all = tf.reshape(tf.concat(
+            1, [tf.expand_dims(h_lstm[tt], 1) for tt in xrange(timespan)]),
+            [-1, lstm_h, lstm_w, lstm_d])
+        h_pool4 = tf.reshape(_max_pool(h_lstm_all, 2), [-1, score_dim])
+        s_out_mlp = _add_mlp(model,
+                             x=h_pool4,
+                             dims=[score_dim, 1],
+                             act=[tf.sigmoid],
+                             wd=wd)
+        s_out = tf.reshape(s_out_mlp[-1], [-1, timespan])
         model['s_out'] = s_out
 
         # Loss function
@@ -980,7 +1000,7 @@ def get_attn_model(opt, device='/cpu:0', train=True):
     conv_lstm_filter_size = opt['conv_lstm_filter_size']
     conv_lstm_hid_depth = opt['conv_lstm_hid_depth']
     wd = opt['weight_decay']
-    store_segm_map = ('store_segm_map' not in opt) or opt['store_segm_map']
+    feed_output = opt['feed_output']
 
     with tf.device(_get_device_fn(device)):
         pass

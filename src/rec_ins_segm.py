@@ -165,8 +165,11 @@ def _parse_args():
     kDcnn3FilterSize = 3
     kDcnn2FilterSize = 3
     kDcnn1FilterSize = 3
+    kDcnn0FilterSize = 3
     kDcnn3Depth = 8
     kDcnn2Depth = 4
+    kDcnn1Depth = 2
+    kMlpDepth = 8
 
     # Default training options
     kNumSteps = 500000
@@ -223,6 +226,8 @@ def _parse_args():
                         type=int, help='DCNN 2nd layer filter size')
     parser.add_argument('-dcnn_1_filter_size', default=kDcnn1FilterSize,
                         type=int, help='DCNN 1st layer filter size')
+    parser.add_argument('-dcnn_0_filter_size', default=kDcnn0FilterSize,
+                        type=int, help='DCNN 0th layer filter size')
     parser.add_argument('-cnn_1_depth', default=kCnn1Depth,
                         type=int, help='CNN 1st layer depth')
     parser.add_argument('-cnn_2_depth', default=kCnn2Depth,
@@ -233,12 +238,16 @@ def _parse_args():
                         type=int, help='DCNN 3rd layer depth')
     parser.add_argument('-dcnn_2_depth', default=kDcnn2Depth,
                         type=int, help='DCNN 2nd layer depth')
+    parser.add_argument('-dcnn_1_depth', default=kDcnn1Depth,
+                        type=int, help='DCNN 1st layer depth')
+    parser.add_argument('-mlp_depth', default=kMlpDepth,
+                        type=int, help='MLP depth')
 
     # Extra model options (beta)
     parser.add_argument('-no_cum_min', action='store_true',
                         help='Whether cumulative minimum. Default yes.')
-    parser.add_argument('-store_segm_map', action='store_true',
-                        help='Whether to store objects that has been segmented.')
+    parser.add_argument('-feed_output', action='store_true',
+                        help='Whether to feed the output back to input.')
     parser.add_argument('-segm_loss_fn', default='iou',
                         help='Segmentation loss function, "iou" or "bce"')
     parser.add_argument('-use_deconv', action='store_true',
@@ -313,12 +322,13 @@ if __name__ == '__main__':
             'conv_lstm_hid_depth': args.conv_lstm_hid_depth,
             'cnn_filter_size': [args.cnn_1_filter_size, args.cnn_2_filter_size, args.cnn_3_filter_size],
             'cnn_depth': [args.cnn_1_depth, args.cnn_2_depth, args.cnn_3_depth],
-            'dcnn_filter_size': [args.dcnn_3_filter_size, args.dcnn_2_filter_size, args.dcnn_1_filter_size],
-            'dcnn_depth': [args.dcnn_3_depth, args.dcnn_2_depth],
+            'dcnn_filter_size': [args.dcnn_3_filter_size, args.dcnn_2_filter_size, args.dcnn_1_filter_size, args.dcnn_0_filter_size],
+            'dcnn_depth': [args.dcnn_3_depth, args.dcnn_2_depth, args.dcnn_1_depth],
+            'mlp_depth': args.mlp_depth,
 
             # Test arguments
             'cum_min': not args.no_cum_min,
-            'store_segm_map': args.store_segm_map,
+            'feed_output': args.feed_output,
             'segm_loss_fn': args.segm_loss_fn,
             'use_deconv': args.use_deconv,
             'use_bn': args.use_bn,
