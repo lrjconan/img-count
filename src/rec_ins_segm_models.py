@@ -867,12 +867,13 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             if opt['segm_dense_conn']:
                 # One layer MLP
                 # [B, LH, LW, LD] => [B, 1, LH, LW, LD / 2]
-                mlp_ndim = [lstm_dim, lstm_h * lstm_w * mlp_d]
-                mlp_act = [tf.nn.relu]
-                # mlp_act = [None]
+                mlp_dims = [lstm_dim, 
+                            lstm_h * lstm_w * mlp_d, 
+                            lstm_h * lstm_w * mlp_d]
+                mlp_act = [tf.nn.relu, tf.nn.relu]
                 mlp = _add_mlp(model,
                                x=tf.reshape(h_lstm[t], [-1, lstm_dim]),
-                               dims=mlp_ndim,
+                               dims=mlp_dims,
                                act=mlp_act,
                                wd=wd)
                 h_core[t] = tf.reshape(mlp[-1], [-1, 1, lstm_h, lstm_w, mlp_d])
