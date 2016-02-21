@@ -582,29 +582,34 @@ def _f_iou(a, b, timespan, pairwise=False):
         return tf.reduce_sum(a + b - (a * b) + eps,
                              reduction_indices=reduction_indices)
     if pairwise:
+
+
+        # a_shape = tf.shape(a)
+        # b_shape = tf.shape(b)
+        # zeros_a = tf.zeros(tf.concat(0, [a_shape[0: 1], b_shape[1: 2], a_shape[1: ]]))
+        # # [B, N, H, W] => [B, N, 1, H, W]
+        # a = tf.expand_dims(a, 2)
+        # a = a + zeros_a
+        # # [B, M, H, W] => [B, 1, M, H, W]
+        # b = tf.expand_dims(b, 1)
+        # return _inter(a, b) / _union(a, b)
+
+
         # N * [B, 1, M]
-        # y_list = [None] * timespan
-        # N * [B, 1, 1, H, W]
-        # a_list = [None] * timespan
-        # [B, N, 1, H, W] => N * [B, 1, 1, H, W]
-        a_shape = tf.shape(a)
-        b_shape = tf.shape(b)
-        zeros_a = tf.zeros(tf.concat(0, [a_shape[0: 1], b_shape[1: 2], a_shape[1: ]]))
-        # a_list = tf.split(1, timespan, a)
+        y_list = [None] * timespan
         # [B, N, H, W] => [B, N, 1, H, W]
         a = tf.expand_dims(a, 2)
-        a = a + zeros_a
+        # [B, N, 1, H, W] => N * [B, 1, 1, H, W]
+        a_list = tf.split(1, timespan, a)
         # [B, M, H, W] => [B, 1, M, H, W]
         b = tf.expand_dims(b, 1)
-        return _inter(a, b) / _union(a, b)
 
-        # for ii in xrange(timespan):
-        #     # [B, 1, M]
-        #     y_list[ii] = _inter(a_list[ii], b) / _union(a_list[ii], b)
+        for ii in xrange(timespan):
+            # [B, 1, M]
+            y_list[ii] = _inter(a_list[ii], b) / _union(a_list[ii], b)
 
-        # # N * [B, 1, M] => [B, N, M]
-        # return tf.concat(1, y_list)
-
+        # N * [B, 1, M] => [B, N, M]
+        return tf.concat(1, y_list)
     else:
         return _inter(a, b) / _union(a, b)
 
@@ -822,8 +827,6 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             lstm_inp_depth = cnn_channels[-1] + core_dim
         else:
             lstm_inp_depth = cnn_channels[-1]
-
-        log.info(lstm_inp_depth)
 
         # ConvLSTM hidden state initialization
         # [B, LH, LW, LD]
