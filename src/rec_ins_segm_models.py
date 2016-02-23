@@ -433,6 +433,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
     use_bn = opt['use_bn']
     use_deconv = opt['use_deconv']
     add_skip_conn = opt['add_skip_conn']
+    score_use_core = opt['score_use_core']
 
     with tf.device(_get_device_fn(device)):
         # Input image, [B, H, W, 3]
@@ -582,9 +583,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
 
         h_core = [None] * timespan
         h_rnn = model['h_rnn']
-        mlp_dims = [rnn_dim,
-                    rnn_h * rnn_w * mlp_depth,
-                    rnn_h * rnn_w * mlp_depth]
+        mlp_dims = [rnn_dim, core_dim, core_dim]
         mlp_act = [tf.nn.relu, tf.nn.relu]
         for t in xrange(timespan):
             rnn_inp = prep_inp(h_pool3, h_core[t - 1])
@@ -689,24 +688,27 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         model['y_out'] = y_out
 
         # Scoring network
-        if rnn_type == 'conv_lstm':
-            h_rnn_shape = [-1, rnn_h, rnn_w, rnn_depth]
+        if score_use_core:
+            # Use core network to predict score
+            score_inp = h_core
+            score_inp_shape = [-1, core_dim]
+            score_inp = tf.reshape(score_inp, score_inp_shape)
+            score_dim = core_dim
         else:
-            h_rnn_shape = [-1, rnn_dim]
-
-        h_rnn_reshape = tf.reshape(h_rnn_all, h_rnn_shape)
-
-        if rnn_type == 'conv_lstm':
-            score_maxpool = opt['score_maxpool']
-            score_dim = rnn_h * rnn_w / score_maxpool / score_maxpool * rnn_depth
-            if score_maxpool > 1:
-                score_inp = _max_pool(h_rnn_reshape, score_maxpool)
+            # Use RNN hidden state to predict score
+            score_inp = h_rnn_all
+            if rnn_type == 'conv_lstm':
+                score_inp_shape = [-1, rnn_h, rnn_w, rnn_depth]
+                score_inp = tf.reshape(score_inp, score_inp_shape)
+                score_maxpool = opt['score_maxpool']
+                score_dim = rnn_h * rnn_w / (score_maxpool ** 2) * rnn_depth
+                if score_maxpool > 1:
+                    score_inp = _max_pool(score_inp, score_maxpool)
+                score_inp = tf.reshape(score_inp, [-1, score_dim])
             else:
-                score_inp = h_rnn_reshape
-            score_inp = tf.reshape(score_inp, [-1, score_dim])
-        else:
-            score_dim = rnn_dim
-            score_inp = h_rnn_reshape
+                score_inp_shape = [-1, rnn_dim]
+                score_inp = tf.reshape(score_inp, score_inp_shape)
+                score_dim = rnn_dim
 
         s_out_mlp = nn.mlp(model,
                            x=score_inp,

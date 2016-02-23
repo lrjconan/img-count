@@ -372,7 +372,8 @@ if __name__ == '__main__':
             'use_deconv': args.use_deconv,
             'use_bn': args.use_bn,
             'segm_dense_conn': args.segm_dense_conn,
-            'add_skip_conn': args.add_skip_conn
+            'add_skip_conn': args.add_skip_conn,
+            'score_use_core': args.score_use_core
         }
         data_opt = {
             'height': args.height,
