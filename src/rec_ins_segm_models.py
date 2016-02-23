@@ -1,12 +1,12 @@
 import cslab_environ
 
-from tensorflow.python import control_flow_ops
 from tensorflow.python.framework import ops
 import numpy as np
 import tensorflow as tf
 
 from utils import logger
 from utils.grad_clip_optim import GradientClipOptimizer
+import nnlib as nn
 
 log = logger.get()
 
@@ -21,41 +21,6 @@ def get_model(name, opt, device='/cpu:0', train=True):
         raise Exception('Unknown model name "{}"'.format(name))
 
     pass
-
-
-def _batch_norm(x, n_out, phase_train, scope='bn', affine=True):
-    """
-    Batch normalization on convolutional maps.
-    Args:
-        x:           Tensor, 4D BHWD input maps
-        n_out:       integer, depth of input maps
-        phase_train: boolean tf.Variable, true indicates training phase
-        scope:       string, variable scope
-        affine:      whether to affine-transform outputs
-    Return:
-        normed:      batch-normalized maps
-    """
-    with tf.variable_scope(scope):
-        beta = tf.Variable(tf.constant(0.0, shape=[n_out]),
-                           name='beta', trainable=True)
-        gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
-                            name='gamma', trainable=affine)
-
-        batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2], name='moments')
-        ema = tf.train.ExponentialMovingAverage(decay=0.9)
-        ema_apply_op = ema.apply([batch_mean, batch_var])
-        ema_mean, ema_var = ema.average(batch_mean), ema.average(batch_var)
-
-        def mean_var_with_update():
-            with tf.control_dependencies([ema_apply_op]):
-                return tf.identity(batch_mean), tf.identity(batch_var)
-        mean, var = control_flow_ops.cond(phase_train,
-                                          mean_var_with_update,
-                                          lambda: (ema_mean, ema_var))
-
-        normed = tf.nn.batch_norm_with_global_normalization(x, mean, var,
-                                                            beta, gamma, 1e-3, affine)
-    return normed
 
 
 # Register gradient for Hungarian algorithm.
@@ -93,320 +58,6 @@ def _get_device_fn(device):
             return device
 
     return _device_fn
-
-
-def _conv2d(x, w):
-    """2-D convolution."""
-    return tf.nn.conv2d(x, w, strides=[1, 1, 1, 1], padding='SAME')
-
-
-def _max_pool(x, ratio):
-    """2 x 2 max pooling."""
-    return tf.nn.max_pool(x, ksize=[1, ratio, ratio, 1],
-                          strides=[1, ratio, ratio, 1], padding='SAME')
-
-
-def _weight_variable(shape, wd=None, name=None):
-    """Initialize weights."""
-    initial = tf.truncated_normal(shape, stddev=0.01)
-    var = tf.Variable(initial, name=name)
-    if wd:
-        weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
-        tf.add_to_collection('losses', weight_decay)
-    return var
-
-
-def _add_lstm(model, timespan, inp_dim, hid_dim, c_init, h_init, wd=None, name=None):
-    """Adds an LSTM component.
-
-    Args:
-        model: Model dictionary
-        timespan: Maximum length of the LSTM
-        inp_height: Input image height
-        inp_width: Input image width
-        inp_depth: Input image depth
-        filter_size: Conv gate filter size
-        hid_depth: Hidden state depth
-        c_init: Cell state initialization
-        h_init: Hidden state initialization
-        wd: Weight decay
-        name: Prefix
-    """
-    g_i = [None] * timespan
-    g_f = [None] * timespan
-    g_o = [None] * timespan
-    u = [None] * timespan
-    c = [None] * (timespan + 1)
-    h = [None] * (timespan + 1)
-    c[-1] = c_init
-    h[-1] = h_init
-
-    # Input gate
-    w_xi = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                            wd=wd, name='w_xi_{}'.format(name))
-    w_hi = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                            wd=wd, name='w_hi_{}'.format(name))
-    b_i = _weight_variable([hid_depth],
-                           wd=wd, name='b_i_{}'.format(name))
-
-    # Forget gate
-    w_xf = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                            wd=wd, name='w_xf_{}'.format(name))
-    w_hf = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                            wd=wd, name='w_hf_{}'.format(name))
-    b_f = _weight_variable([hid_depth],
-                           wd=wd, name='b_f_{}'.format(name))
-
-    # Input activation
-    w_xu = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                            wd=wd, name='w_xu_{}'.format(name))
-    w_hu = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                            wd=wd, name='w_hu_{}'.format(name))
-    b_u = _weight_variable([hid_depth],
-                           wd=wd, name='b_u_{}'.format(name))
-
-    # Output gate
-    w_xo = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                            wd=wd, name='w_xo_{}'.format(name))
-    w_ho = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                            wd=wd, name='w_ho_{}'.format(name))
-    b_o = _weight_variable([hid_depth], name='b_o_{}'.format(name))
-
-    def unroll(inp, time):
-        t = time
-        g_i[t] = tf.sigmoid(_conv2d(inp, w_xi) + _conv2d(h[t - 1], w_hi) + b_i)
-        g_f[t] = tf.sigmoid(_conv2d(inp, w_xf) + _conv2d(h[t - 1], w_hf) + b_f)
-        g_o[t] = tf.sigmoid(_conv2d(inp, w_xo) + _conv2d(h[t - 1], w_ho) + b_o)
-        u[t] = tf.tanh(_conv2d(inp, w_xu) + _conv2d(h[t - 1], w_hu) + b_u)
-        c[t] = g_f[t] * c[t - 1] + g_i[t] * u[t]
-        h[t] = g_o[t] * tf.tanh(c[t])
-
-        pass
-
-    model['g_i_{}'.format(name)] = g_i
-    model['g_f_{}'.format(name)] = g_f
-    model['g_o_{}'.format(name)] = g_o
-    model['u_{}'.format(name)] = u
-    model['c_{}'.format(name)] = c
-    model['h_{}'.format(name)] = h
-
-    return unroll
-
-
-def _add_conv_lstm(model, timespan, inp_height, inp_width, inp_depth, filter_size, hid_depth, c_init, h_init, wd=None, name=''):
-    """Adds a Conv-LSTM component.
-
-    Args:
-        model: Model dictionary
-        timespan: Maximum length of the LSTM
-        inp_height: Input image height
-        inp_width: Input image width
-        inp_depth: Input image depth
-        filter_size: Conv gate filter size
-        hid_depth: Hidden state depth
-        c_init: Cell state initialization
-        h_init: Hidden state initialization
-        wd: Weight decay
-        name: Prefix
-    """
-    g_i = [None] * timespan
-    g_f = [None] * timespan
-    g_o = [None] * timespan
-    u = [None] * timespan
-    c = [None] * (timespan + 1)
-    h = [None] * (timespan + 1)
-    c[-1] = c_init
-    h[-1] = h_init
-
-    # Input gate
-    w_xi = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                            wd=wd, name='w_xi_{}'.format(name))
-    w_hi = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                            wd=wd, name='w_hi_{}'.format(name))
-    b_i = _weight_variable([hid_depth],
-                           wd=wd, name='b_i_{}'.format(name))
-
-    # Forget gate
-    w_xf = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                            wd=wd, name='w_xf_{}'.format(name))
-    w_hf = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                            wd=wd, name='w_hf_{}'.format(name))
-    b_f = _weight_variable([hid_depth],
-                           wd=wd, name='b_f_{}'.format(name))
-
-    # Input activation
-    w_xu = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                            wd=wd, name='w_xu_{}'.format(name))
-    w_hu = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                            wd=wd, name='w_hu_{}'.format(name))
-    b_u = _weight_variable([hid_depth],
-                           wd=wd, name='b_u_{}'.format(name))
-
-    # Output gate
-    w_xo = _weight_variable([filter_size, filter_size, inp_depth, hid_depth],
-                            wd=wd, name='w_xo_{}'.format(name))
-    w_ho = _weight_variable([filter_size, filter_size, hid_depth, hid_depth],
-                            wd=wd, name='w_ho_{}'.format(name))
-    b_o = _weight_variable([hid_depth], name='b_o_{}'.format(name))
-
-    def unroll(inp, time):
-        t = time
-        g_i[t] = tf.sigmoid(_conv2d(inp, w_xi) + _conv2d(h[t - 1], w_hi) + b_i)
-        g_f[t] = tf.sigmoid(_conv2d(inp, w_xf) + _conv2d(h[t - 1], w_hf) + b_f)
-        g_o[t] = tf.sigmoid(_conv2d(inp, w_xo) + _conv2d(h[t - 1], w_ho) + b_o)
-        u[t] = tf.tanh(_conv2d(inp, w_xu) + _conv2d(h[t - 1], w_hu) + b_u)
-        c[t] = g_f[t] * c[t - 1] + g_i[t] * u[t]
-        h[t] = g_o[t] * tf.tanh(c[t])
-
-        pass
-
-    model['g_i_{}'.format(name)] = g_i
-    model['g_f_{}'.format(name)] = g_f
-    model['g_o_{}'.format(name)] = g_o
-    model['u_{}'.format(name)] = u
-    model['c_{}'.format(name)] = c
-    model['h_{}'.format(name)] = h
-
-    return unroll
-
-
-def _add_cnn(model, x, f, ch, pool, act, use_bn, phase_train=None, wd=None):
-    """Add CNN, with standard Conv-Relu-MaxPool layers.
-
-    Args:
-        model:
-        x: input image
-        f: filter size, list of size N (N = number of layers)
-        ch: number of channels, list of size N + 1
-        pool: pooling ratio, list of size N
-        wd: weight decay
-    """
-    nlayers = len(f)
-    w = [None] * nlayers
-    b = [None] * nlayers
-    h = [None] * nlayers
-    log.info('CNN')
-    log.info('Channels: {}'.format(ch))
-
-    for ii in xrange(nlayers):
-        w[ii] = _weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]], wd=wd)
-        b[ii] = _weight_variable([ch[ii + 1]], wd=wd)
-        log.info('Filter: {}'.format([f[ii], f[ii], ch[ii], ch[ii + 1]]))
-
-        if ii == 0:
-            prev_inp = x
-        else:
-            prev_inp = h[ii - 1]
-
-        h[ii] = _conv2d(prev_inp, w[ii]) + b[ii]
-
-        if use_bn[ii]:
-            h[ii] = _batch_norm(h[ii], ch[ii + 1], phase_train)
-
-        if act[ii] is not None:
-            h[ii] = act[ii](h[ii])
-
-        if pool[ii] > 1:
-            h[ii] = _max_pool(h[ii], pool[ii])
-
-    return h
-
-
-def _add_dcnn(model, x, f, ch, pool, act, use_bn, inp_h, inp_w, skip=None, skip_ch=None, phase_train=None, wd=None):
-    """Add D-CNN, with standard DeConv-Relu layers.
-
-    Args:
-        model:
-        x: input image
-        f: filter size, list of size N (N = number of layers)
-        ch: number of channels, list of size N + 1
-        pool: pooling ratio, list of size N
-        skip: skip connection
-        wd: weight decay
-    """
-    nlayers = len(f)
-    w = [None] * nlayers
-    b = [None] * nlayers
-    h = [None] * nlayers
-    out_shape = [None] * nlayers
-
-    batch = tf.shape(x)[0: 1]
-    inp_size = tf.shape(x)[1: 3]
-    cum_pool = 1
-    log.info('DCNN')
-    log.info('Channels: {}'.format(ch))
-    log.info('Skip channels: {}'.format(skip_ch))
-
-    in_ch = ch[0]
-
-    for ii in xrange(nlayers):
-        cum_pool *= pool[ii]
-
-        out_ch = ch[ii + 1]
-
-        if ii == 0:
-            prev_inp = x
-        else:
-            prev_inp = h[ii - 1]
-
-        if skip is not None:
-            if skip[ii] is not None:
-                if ii == 0:
-                    prev_inp = tf.concat(3, [prev_inp, skip[ii]])
-                else:
-                    prev_inp = tf.concat(3, [prev_inp, skip[ii]])
-                in_ch += skip_ch[ii]
-
-        out_shape[ii] = tf.concat(
-            0, [batch, inp_size * cum_pool, tf.constant([out_ch])])
-        log.info('Filter: {}'.format([f[ii], f[ii], out_ch, in_ch]))
-        w[ii] = _weight_variable([f[ii], f[ii], out_ch, in_ch], wd=wd)
-        b[ii] = _weight_variable([out_ch], wd=wd)
-
-        h[ii] = tf.nn.conv2d_transpose(
-            prev_inp, w[ii], out_shape[ii],
-            strides=[1, pool[ii], pool[ii], 1]) + b[ii]
-
-        inp_h *= pool[ii]
-        inp_w *= pool[ii]
-
-        h[ii].set_shape([None, inp_h, inp_w, out_ch])
-
-        if use_bn[ii]:
-            h[ii] = _batch_norm(h[ii], ch[ii + 1], phase_train)
-
-        if act[ii] is not None:
-            h[ii] = act[ii](h[ii])
-
-        in_ch = out_ch
-
-        model['dcnn_h_{}'.format(ii)] = h[ii]
-
-    return h
-
-
-def _add_mlp(model, x, dims, act, wd=None):
-    nlayers = len(dims) - 1
-    w = [None] * nlayers
-    b = [None] * nlayers
-    h = [None] * nlayers
-    for ii in xrange(nlayers):
-        nin = dims[ii]
-        nout = dims[ii + 1]
-        w[ii] = _weight_variable([nin, nout], wd=wd)
-        b[ii] = _weight_variable([nout], wd=wd)
-
-        if ii == 0:
-            prev_inp = x
-        else:
-            prev_inp = h[ii - 1]
-
-        h[ii] = tf.matmul(prev_inp, w[ii]) + b[ii]
-
-        if act[ii]:
-            h[ii] = act[ii](h[ii])
-
-    return h
 
 
 def _get_attn_filter(mu, lg_var, size):
@@ -453,12 +104,12 @@ def _add_attn_controller_rnn(model, timespan, inp_width, inp_height, ctl_inp_dim
     filter_y = [None] * timespan
 
     # From hidden decoder to controller variables. Shape: [Hd, 5].
-    w_ctl = weight_variable(
+    w_ctl = nn.weight_variable(
         [ctl_inp_dim, 5], wd=wd, name='w_ctl_{}'.format(name),
         sess=sess, train_model=train_model)
     # Controller variable bias. Shape: [5].
-    b_ctl = weight_variable([5], wd=wd, name='b_ctl_{}'.format(name),
-                            sess=sess, train_model=train_model)
+    b_ctl = nn.weight_variable([5], wd=wd, name='b_ctl_{}'.format(name),
+                               sess=sess, train_model=train_model)
 
     def unroll(ctl_inp, time):
         """Run controller."""
@@ -582,8 +233,6 @@ def _f_iou(a, b, timespan, pairwise=False):
         return tf.reduce_sum(a + b - (a * b) + eps,
                              reduction_indices=reduction_indices)
     if pairwise:
-
-
         # a_shape = tf.shape(a)
         # b_shape = tf.shape(b)
         # zeros_a = tf.zeros(tf.concat(0, [a_shape[0: 1], b_shape[1: 2], a_shape[1: ]]))
@@ -593,7 +242,6 @@ def _f_iou(a, b, timespan, pairwise=False):
         # # [B, M, H, W] => [B, 1, M, H, W]
         # b = tf.expand_dims(b, 1)
         # return _inter(a, b) / _union(a, b)
-
 
         # N * [B, 1, M]
         y_list = [None] * timespan
@@ -770,10 +418,21 @@ def get_orig_model(opt, device='/cpu:0', train=True):
     timespan = opt['timespan']
     inp_height = opt['inp_height']
     inp_width = opt['inp_width']
+    rnn_type = opt['rnn_type']
+    cnn_filter_size = opt['cnn_filter_size']
+    cnn_depth = opt['cnn_depth']
+    dcnn_filter_size = opt['dcnn_filter_size']
+    dcnn_depth = opt['dcnn_depth']
     conv_lstm_filter_size = opt['conv_lstm_filter_size']
     conv_lstm_hid_depth = opt['conv_lstm_hid_depth']
-    mlp_d = opt['mlp_depth']
+    rnn_hid_dim = opt['rnn_hid_dim']
+    mlp_depth = opt['mlp_depth']
     wd = opt['weight_decay']
+    feed_output = opt['feed_output']
+    segm_dense_conn = opt['segm_dense_conn']
+    use_bn = opt['use_bn']
+    use_deconv = opt['use_deconv']
+    add_skip_conn = opt['add_skip_conn']
 
     with tf.device(_get_device_fn(device)):
         # Input image, [B, H, W, 3]
@@ -800,127 +459,175 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         # [B, H, W, 3] => [B, H / 2, W / 2, 16]
         # [B, H / 2, W / 2, 16] => [B, H / 4, W / 4, 32]
         # [B, H / 4, W / 4, 32] => [B, H / 8, W / 8, 64]
-        cnn_filters = opt['cnn_filter_size']
-        cnn_channels = [3] + opt['cnn_depth']
+        cnn_filters = cnn_filter_size
+        cnn_channels = [3] + cnn_depth
         cnn_pool = [2] * len(cnn_filters)
         cnn_act = [tf.nn.relu] * len(cnn_filters)
-        if opt['use_bn']:
-            cnn_use_bn = [True] * len(cnn_filters)
-        else:
-            cnn_use_bn = [False] * len(cnn_filters)
+        cnn_use_bn = [use_bn] * len(cnn_filters)
 
-        h_cnn = _add_cnn(model, x=x, f=cnn_filters, ch=cnn_channels,
-                         pool=cnn_pool, act=cnn_act, use_bn=cnn_use_bn,
-                         phase_train=phase_train, wd=wd)
+        h_cnn = nn.cnn(model, x=x, f=cnn_filters, ch=cnn_channels,
+                       pool=cnn_pool, act=cnn_act, use_bn=cnn_use_bn,
+                       phase_train=phase_train, wd=wd)
         h_pool3 = h_cnn[-1]
 
+        # RNN input size
         subsample = np.array(cnn_pool).prod()
-        lstm_d = conv_lstm_hid_depth
-        lstm_h = inp_height / subsample
-        lstm_w = inp_width / subsample
-        lstm_dim = lstm_h * lstm_w * lstm_d
+        rnn_h = inp_height / subsample
+        rnn_w = inp_width / subsample
 
         # Low-res segmentation depth
-        core_dim = mlp_d if opt['segm_dense_conn'] else 1
+        core_depth = mlp_depth if segm_dense_conn else 1
+        core_dim = rnn_h * rnn_w * core_depth
 
-        if opt['feed_output']:
-            lstm_inp_depth = cnn_channels[-1] + core_dim
+        # RNN hidden state dimension
+        if rnn_type == 'conv_lstm':
+            rnn_depth = conv_lstm_hid_depth
+            rnn_dim = rnn_h * rnn_w * rnn_depth
+            conv_lstm_inp_depth = cnn_channels[-1]
+            if feed_output:
+                conv_lstm_inp_depth += core_depth
         else:
-            lstm_inp_depth = cnn_channels[-1]
+            rnn_dim = rnn_hid_dim
+            rnn_inp_dim = rnn_h * rnn_w * cnn_channels[-1]
+            if feed_output:
+                rnn_inp_dim += core_dim
 
-        # ConvLSTM hidden state initialization
         # [B, LH, LW, LD]
         x_shape = tf.shape(x)
         num_ex = x_shape[0: 1]
-        c_init = tf.zeros(tf.concat(
-            0, [num_ex, tf.constant([lstm_h, lstm_w, lstm_d])]))
-        h_init = tf.zeros(tf.concat(
-            0, [num_ex, tf.constant([lstm_h, lstm_w, lstm_d])]))
 
-        if not opt['segm_dense_conn']:
+        if not segm_dense_conn:
             # Segmentation network weights
-            w_segm_conv = _weight_variable([3, 3, lstm_d, 1], wd=wd)
-            b_segm_conv = _weight_variable([1], wd=wd)
-            b_log_softmax = _weight_variable([1])
+            w_segm_conv = _nn.weight_variable([3, 3, rnn_depth, 1], wd=wd)
+            b_segm_conv = _nn.weight_variable([1], wd=wd)
+            b_log_softmax = _nn.weight_variable([1])
 
-        unroll_conv_lstm = _add_conv_lstm(
-            model=model,
-            timespan=timespan,
-            inp_height=lstm_h,
-            inp_width=lstm_w,
-            inp_depth=lstm_inp_depth,
-            filter_size=conv_lstm_filter_size,
-            hid_depth=lstm_d,
-            c_init=c_init,
-            h_init=h_init,
-            wd=wd,
-            name='lstm'
-        )
+        def prep_conv_lstm_inp(inp, output):
+            if feed_output:
+                if output is None:
+                    out = tf.zeros(tf.concat(
+                        0, [num_ex, tf.constant([rnn_h, rnn_w, core_depth])]))
+                else:
+                    out = tf.reshape(output, [-1, rnn_h, rnn_w, core_depth])
+                rnn_inp = tf.concat(3, [inp, out])
+            else:
+                rnn_inp = inp
+            return rnn_inp
 
-        h_lstm = model['h_lstm']
+        def prep_rnn_inp(inp, output):
+            if feed_output:
+                if output is None:
+                    out = tf.zeros(tf.concat(
+                        0, [num_ex, tf.constant([core_dim])]))
+                else:
+                    out = tf.reshape(output, [-1, core_dim])
+                pdim = rnn_h * rnn_w * cnn_channels[-1]
+                rnn_inp = tf.concat(1, [tf.reshape(inp, [-1, pdim]), out])
+            else:
+                rnn_inp = inp
+            return rnn_inp
+
+        if rnn_type == 'conv_lstm':
+            # Hidden state initialization
+            c_init = tf.zeros(tf.concat(
+                0, [num_ex, tf.constant([rnn_h, rnn_w, rnn_depth])]))
+            h_init = tf.zeros(tf.concat(
+                0, [num_ex, tf.constant([rnn_h, rnn_w, rnn_depth])]))
+            unroll_rnn = nn.conv_lstm(
+                model=model,
+                timespan=timespan,
+                inp_height=rnn_h,
+                inp_width=rnn_w,
+                inp_depth=conv_lstm_inp_depth,
+                filter_size=conv_lstm_filter_size,
+                hid_depth=rnn_depth,
+                c_init=c_init,
+                h_init=h_init,
+                wd=wd,
+                name='rnn'
+            )
+            prep_inp = prep_conv_lstm_inp
+        elif rnn_type == 'lstm':
+            c_init = tf.zeros(tf.concat(
+                0, [num_ex, tf.constant([rnn_hid_dim])]))
+            h_init = tf.zeros(tf.concat(
+                0, [num_ex, tf.constant([rnn_hid_dim])]))
+            unroll_rnn = nn.lstm(
+                model=model,
+                timespan=timespan,
+                inp_dim=rnn_inp_dim,
+                hid_dim=rnn_hid_dim,
+                c_init=c_init,
+                h_init=h_init,
+                wd=wd,
+                name='rnn'
+            )
+            prep_inp = prep_rnn_inp
+        elif rnn_type == 'gru':
+            h_init = tf.zeros(tf.concat(
+                0, [num_ex, tf.constant([rnn_hid_dim])]))
+            unroll_rnn = nn.gru(
+                model=model,
+                timespan=timespan,
+                inp_dim=rnn_inp_dim,
+                hid_dim=rnn_hid_dim,
+                h_init=h_init,
+                wd=wd,
+                name='rnn'
+            )
+            prep_inp = prep_rnn_inp
+        else:
+            raise Exception('Unknown RNN type: {}'.format(rnn_type))
+
+        h_rnn = model['h_rnn']
         h_core = [None] * timespan
         for t in xrange(timespan):
-            # If we also send the cumulative output maps.
-            if opt['feed_output']:
-                if t == 0:
-                    out = tf.zeros(tf.concat(
-                        0, [num_ex, tf.constant([lstm_h, lstm_w, core_dim])]))
-                else:
-                    out = tf.reshape(
-                        h_core[t - 1], [-1, lstm_h, lstm_w, core_dim])
-                lstm_inp = tf.concat(3, [h_pool3, out])
-            else:
-                lstm_inp = h_pool3
+            rnn_inp = prep_inp(h_pool3, h_core[t - 1])
+            unroll_rnn(rnn_inp, time=t)
 
-            unroll_conv_lstm(lstm_inp, time=t)
-
-            if opt['segm_dense_conn']:
+            if segm_dense_conn:
                 # One layer MLP
                 # [B, LH, LW, LD] => [B, 1, LH, LW, LD / 2]
-                mlp_dims = [lstm_dim, 
-                            lstm_h * lstm_w * mlp_d,
-                            lstm_h * lstm_w * mlp_d]
+                mlp_dims = [rnn_dim,
+                            rnn_h * rnn_w * mlp_depth,
+                            rnn_h * rnn_w * mlp_depth]
                 mlp_act = [tf.nn.relu, tf.nn.relu]
-                mlp = _add_mlp(model,
-                               x=tf.reshape(h_lstm[t], [-1, lstm_dim]),
-                               dims=mlp_dims,
-                               act=mlp_act,
-                               wd=wd)
-                h_core[t] = tf.reshape(mlp[-1], [-1, 1, lstm_h, lstm_w, mlp_d])
+                mlp = nn.mlp(model,
+                             x=tf.reshape(h_rnn[t], [-1, rnn_dim]),
+                             dims=mlp_dims,
+                             act=mlp_act,
+                             wd=wd)
+                h_core[t] = tf.reshape(
+                    mlp[-1], [-1, 1, rnn_h, rnn_w, mlp_depth])
             else:
                 # Just convolution + softmax inhibition
                 # [B, LH, LW, LD] => [B, 1, LH, LW, 1]
                 h_core[t] = tf.reshape(tf.log(tf.nn.softmax(tf.reshape(
-                    _conv2d(h_lstm[t], w_segm_conv) + b_segm_conv,
-                    [-1, lstm_h * lstm_w]))) + b_log_softmax,
-                    [-1, 1, lstm_h, lstm_w, 1])
+                    nn.conv2d(h_rnn[t], w_segm_conv) + b_segm_conv,
+                    [-1, rnn_h * rnn_w]))) + b_log_softmax,
+                    [-1, 1, rnn_h, rnn_w, 1])
 
         # T * [B, 1, LH, LW, LD / 2] => [B, T, ]
-        if opt['segm_dense_conn']:
+        if segm_dense_conn:
             h_core = tf.reshape(tf.concat(1, h_core),
-                                [-1, lstm_h, lstm_w, lstm_d / 2])
+                                [-1, rnn_h, rnn_w, mlp_depth])
         else:
-            h_core = tf.reshape(tf.concat(1, h_core), [-1, lstm_h, lstm_w, 1])
+            h_core = tf.reshape(tf.concat(1, h_core), [-1, rnn_h, rnn_w, 1])
         model['h_core'] = h_core
 
         # [B * T, LH, LW, LD / 2] => [B * T, H, W, 1]
         # Use deconvolution to upsample.
-        if opt['use_deconv']:
-            dcnn_filters = opt['dcnn_filter_size']
+        if use_deconv:
+            dcnn_filters = dcnn_filter_size
             dcnn_unpool = [2] * (len(dcnn_filters) - 1) + [1]
             dcnn_act = [tf.nn.relu] * (len(dcnn_filters) - 1) + [tf.sigmoid]
-
-            if opt['segm_dense_conn']:
-                dcnn_channels = [lstm_d / 2] + opt['dcnn_depth'] + [1]
+            if segm_dense_conn:
+                dcnn_channels = [mlp_depth] + dcnn_depth
             else:
                 dcnn_channels = [1] * (len(dcnn_filters) + 1)
+            dcnn_use_bn = [use_bn] * len(dcnn_filters)
 
-            if opt['use_bn']:
-                dcnn_use_bn = [True] * len(dcnn_filters)
-            else:
-                dcnn_use_bn = [False] * len(dcnn_filters)
-
-            if opt['add_skip_conn']:
+            if add_skip_conn:
                 skip = [None]
                 skip_ch = [0]
                 for jj, layer in enumerate(h_cnn[-2::-1] + [x]):
@@ -928,10 +635,10 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                     zeros = tf.zeros(tf.concat(
                         0, [layer_shape[0: 1], tf.constant([timespan]),
                             layer_shape[1:]]))
-                    new_shape = tf.concat(0, 
-                            [layer_shape[0: 1] * timespan, layer_shape[1:]])
+                    new_shape = tf.concat(0,
+                                          [layer_shape[0: 1] * timespan, layer_shape[1:]])
                     layer_reshape = tf.reshape(tf.expand_dims(layer, 1) +
-                        zeros, new_shape)
+                                               zeros, new_shape)
                     skip.append(layer_reshape)
                     ch_idx = len(cnn_channels) - jj - 2
                     skip_ch.append(cnn_channels[ch_idx])
@@ -939,13 +646,13 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                 skip = None
                 skip_ch = None
 
-            h_dcnn = _add_dcnn(model, x=h_core, f=dcnn_filters,
-                               ch=dcnn_channels,
-                               pool=dcnn_unpool, act=dcnn_act,
-                               use_bn=dcnn_use_bn,
-                               inp_h=lstm_h, inp_w=lstm_w,
-                               skip=skip, skip_ch=skip_ch,
-                               phase_train=phase_train, wd=wd)
+            h_dcnn = nn.dcnn(model, x=h_core, f=dcnn_filters,
+                             ch=dcnn_channels,
+                             pool=dcnn_unpool, act=dcnn_act,
+                             use_bn=dcnn_use_bn,
+                             inp_h=rnn_h, inp_w=rnn_w,
+                             skip=skip, skip_ch=skip_ch,
+                             phase_train=phase_train, wd=wd)
             y_out = tf.reshape(
                 h_dcnn[-1], [-1, timespan, inp_height, inp_width])
         else:
@@ -955,17 +662,33 @@ def get_orig_model(opt, device='/cpu:0', train=True):
 
         model['y_out'] = y_out
 
-        # Objectness network
-        score_dim = lstm_h * lstm_w / 4 * lstm_d
-        h_lstm_all = tf.reshape(tf.concat(
-            1, [tf.expand_dims(h_lstm[tt], 1) for tt in xrange(timespan)]),
-            [-1, lstm_h, lstm_w, lstm_d])
-        h_pool4 = tf.reshape(_max_pool(h_lstm_all, 2), [-1, score_dim])
-        s_out_mlp = _add_mlp(model,
-                             x=h_pool4,
-                             dims=[score_dim, 1],
-                             act=[tf.sigmoid],
-                             wd=wd)
+        # Scoring network
+        if rnn_type == 'conv_lstm':
+            h_rnn_shape = [-1, rnn_h, rnn_w, rnn_depth]
+        else:
+            h_rnn_shape = [-1, rnn_dim]
+
+        h_rnn_all = tf.reshape(tf.concat(
+            1, [tf.expand_dims(h_rnn[tt], 1) for tt in xrange(timespan)]),
+            h_rnn_shape)
+        
+        if rnn_type == 'conv_lstm':
+            score_maxpool = opt['score_maxpool']
+            score_dim = rnn_h * rnn_w / score_maxpool / score_maxpool * rnn_depth
+            if score_maxpool > 1:
+                score_inp = _max_pool(h_rnn_all, score_maxpool)
+            else:
+                score_inp = h_rnn_all
+            score_inp = tf.reshape(score_inp, [-1, score_dim])
+        else:
+            score_dim = rnn_dim
+            score_inp = h_rnn_all
+
+        s_out_mlp = nn.mlp(model,
+                           x=score_inp,
+                           dims=[score_dim, 1],
+                           act=[tf.sigmoid],
+                           wd=wd)
         s_out = tf.reshape(s_out_mlp[-1], [-1, timespan])
         model['s_out'] = s_out
 

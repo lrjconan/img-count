@@ -140,6 +140,7 @@ def _parse_args():
     # Default dataset options
     kHeight = 224
     kWidth = 224
+    kInputChannels = 3
     kRadiusLower = 15
     kRadiusUpper = 45
     kBorderThickness = 3
@@ -151,30 +152,36 @@ def _parse_args():
     kOutputWindowSize = 128
 
     # Default model options
+    # [224, 224,  3]
+    # [112, 112,  4]
+    # [56,  56,   8]
+    # [28,  28,   8]
+    # [14,  14,  12]
+    # [7,   7,   16]
+    # [7,   7,   12]
+    # [7,   7,    6]
+    # [14,  14, 8+12]
+    # [28,  28,  6+8]
+    # [56,  56,  4+8]
+    # [112, 112, 4+4]
+    # [224, 224, 2+3]
+    # [224, 224,   1]
+
     kWeightDecay = 5e-5
     kLearningRate = 1e-3
     kLossMixRatio = 1.0
-    kCnn1FilterSize = 3
-    kCnn2FilterSize = 3
-    kCnn3FilterSize = 3
-    kCnn4FilterSize = 3
-    kCnn1Depth = 4               # [112, 112,  4]
-    kCnn2Depth = 8               # [56,  56,   8]
-    kCnn3Depth = 8               # [28,  28,   8]
-    kCnn4Depth = 12              # [14,  14,  12]
+    kNumConv = 5
+    kCnnFilterSize = [3, 3, 3, 3, 3]
+    kCnnDepth = [4, 8, 8, 12, 16]
+    kRnnType = 'conv_lstm'     # Choose from "conv_lstm", "lstm", and "gru"
     kConvLstmFilterSize = 3
-    kConvLstmHiddenDepth = 12    # [14,  14,  12]
-    kMlpDepth = 6                # [14,  14,   6]
-    kDcnn4FilterSize = 3
-    kDcnn3FilterSize = 3
-    kDcnn2FilterSize = 3
-    kDcnn1FilterSize = 3
-    kDcnn0FilterSize = 3
-    kDcnn4Depth = 6              # [28,  28,  6+8]
-    kDcnn3Depth = 4              # [56,  56,  4+8]
-    kDcnn2Depth = 4              # [112, 112, 4+4]
-    kDcnn1Depth = 2              # [224, 224, 2+3]
-                                 # [224, 224,   1]
+    kConvLstmHiddenDepth = 12
+    kRnnHiddenDim = 512
+
+    kMlpDepth = 6    
+    kDcnnFilterSize = [3, 3, 3, 3, 3, 3]
+    kDcnnDepth = [1, 2, 4, 4, 6, 8]
+    kScoreMaxpool = 1
 
     # Default training options
     kNumSteps = 500000
@@ -215,44 +222,34 @@ def _parse_args():
                         help='Model learning rate')
     parser.add_argument('-loss_mix_ratio', default=kLossMixRatio, type=float,
                         help='Mix ratio between segmentation and score loss')
+    parser.add_argument('-num_conv', default=kNumConv,
+                        type=int, help='Number of convolutional layers')
+
+    for ii in xrange(kNumConv):
+        parser.add_argument('-cnn_{}_filter_size'.format(ii + 1),
+                            default=kCnnFilterSize[ii], type=int,
+                            help='CNN layer {} filter size'.format(ii + 1))
+        parser.add_argument('-cnn_{}_depth'.format(ii + 1),
+                            default=kCnnDepth[ii], type=int,
+                            help='CNN layer {} depth'.format(ii + 1))
+
+    for ii in xrange(kNumConv + 1):
+        parser.add_argument('-dcnn_{}_filter_size'.format(ii),
+                            default=kDcnnFilterSize[ii], type=int,
+                            help='DCNN layer {} filter size'.format(ii))
+        parser.add_argument('-dcnn_{}_depth'.format(ii),
+                            default=kDcnnDepth[ii], type=int,
+                            help='DCNN layer {} depth'.format(ii))
+
+    parser.add_argument('-rnn_type', default=kRnnType, help='RNN type')
     parser.add_argument('-conv_lstm_filter_size', default=kConvLstmFilterSize,
                         type=int, help='Conv LSTM filter size')
     parser.add_argument('-conv_lstm_hid_depth', default=kConvLstmHiddenDepth,
                         type=int, help='Conv LSTM hidden depth')
-    parser.add_argument('-cnn_1_filter_size', default=kCnn1FilterSize,
-                        type=int, help='CNN 1st layer filter size')
-    parser.add_argument('-cnn_2_filter_size', default=kCnn2FilterSize,
-                        type=int, help='CNN 2nd layer filter size')
-    parser.add_argument('-cnn_3_filter_size', default=kCnn3FilterSize,
-                        type=int, help='CNN 3rd layer filter size')
-    parser.add_argument('-cnn_4_filter_size', default=kCnn4FilterSize,
-                        type=int, help='CNN 4th layer filter size')
-    parser.add_argument('-dcnn_4_filter_size', default=kDcnn4FilterSize,
-                        type=int, help='DCNN 4th layer filter size')
-    parser.add_argument('-dcnn_3_filter_size', default=kDcnn3FilterSize,
-                        type=int, help='DCNN 3rd layer filter size')
-    parser.add_argument('-dcnn_2_filter_size', default=kDcnn2FilterSize,
-                        type=int, help='DCNN 2nd layer filter size')
-    parser.add_argument('-dcnn_1_filter_size', default=kDcnn1FilterSize,
-                        type=int, help='DCNN 1st layer filter size')
-    parser.add_argument('-dcnn_0_filter_size', default=kDcnn0FilterSize,
-                        type=int, help='DCNN 0th layer filter size')
-    parser.add_argument('-cnn_1_depth', default=kCnn1Depth,
-                        type=int, help='CNN 1st layer depth')
-    parser.add_argument('-cnn_2_depth', default=kCnn2Depth,
-                        type=int, help='CNN 2nd layer depth')
-    parser.add_argument('-cnn_3_depth', default=kCnn3Depth,
-                        type=int, help='CNN 3rd layer depth')
-    parser.add_argument('-cnn_4_depth', default=kCnn4Depth,
-                        type=int, help='CNN 4th layer depth')
-    parser.add_argument('-dcnn_4_depth', default=kDcnn4Depth,
-                        type=int, help='DCNN 4th layer depth')
-    parser.add_argument('-dcnn_3_depth', default=kDcnn3Depth,
-                        type=int, help='DCNN 3rd layer depth')
-    parser.add_argument('-dcnn_2_depth', default=kDcnn2Depth,
-                        type=int, help='DCNN 2nd layer depth')
-    parser.add_argument('-dcnn_1_depth', default=kDcnn1Depth,
-                        type=int, help='DCNN 1st layer depth')
+    parser.add_argument('-rnn_hid_dim', default=kRnnHiddenDim,
+                        type=int, help='RNN hidden dimension')
+    parser.add_argument('-score_maxpool', default=kScoreMaxpool, type=int,
+                        help='Max pooling ratio in the scoring function.')
     parser.add_argument('-mlp_depth', default=kMlpDepth,
                         type=int, help='MLP depth')
 
@@ -324,6 +321,30 @@ if __name__ == '__main__':
         exp_folder = args.restore
     else:
         model_id = get_model_id('rec_ins_segm')
+
+
+        cnn_filter_size_all = [args.cnn_1_filter_size,
+                               args.cnn_2_filter_size,
+                               args.cnn_3_filter_size,
+                               args.cnn_4_filter_size,
+                               args.cnn_5_filter_size]
+        cnn_depth_all = [args.cnn_1_depth,
+                         args.cnn_2_depth,
+                         args.cnn_3_depth,
+                         args.cnn_4_depth,
+                         args.cnn_5_depth]
+        dcnn_filter_size_all = [args.dcnn_0_filter_size,
+                                args.dcnn_1_filter_size,
+                                args.dcnn_2_filter_size,
+                                args.dcnn_3_filter_size,
+                                args.dcnn_4_filter_size,
+                                args.dcnn_5_filter_size]
+        dcnn_depth_all = [args.dcnn_0_depth,
+                          args.dcnn_1_depth,
+                          args.dcnn_2_depth,
+                          args.dcnn_3_depth,
+                          args.dcnn_4_depth,
+                          args.dcnn_5_depth]
         model_opt = {
             'inp_height': args.height,
             'inp_width': args.width,
@@ -331,26 +352,16 @@ if __name__ == '__main__':
             'weight_decay': args.weight_decay,
             'learning_rate': args.learning_rate,
             'loss_mix_ratio': args.loss_mix_ratio,
+            'cnn_filter_size': cnn_filter_size_all[: args.num_conv],
+            'cnn_depth': cnn_depth_all[: args.num_conv],
+            'dcnn_filter_size': dcnn_filter_size_all[: args.num_conv + 1][::-1],
+            'dcnn_depth': dcnn_depth_all[: args.num_conv + 1][::-1],
+            'rnn_type': args.rnn_type,
             'conv_lstm_filter_size': args.conv_lstm_filter_size,
             'conv_lstm_hid_depth': args.conv_lstm_hid_depth,
-            'cnn_filter_size': [args.cnn_1_filter_size, 
-                                args.cnn_2_filter_size, 
-                                args.cnn_3_filter_size,
-                                args.cnn_4_filter_size],
-            'cnn_depth': [args.cnn_1_depth, 
-                          args.cnn_2_depth, 
-                          args.cnn_3_depth,
-                          args.cnn_4_depth],
-            'dcnn_filter_size': [args.dcnn_4_filter_size,
-                                 args.dcnn_3_filter_size, 
-                                 args.dcnn_2_filter_size, 
-                                 args.dcnn_1_filter_size, 
-                                 args.dcnn_0_filter_size],
-            'dcnn_depth': [args.dcnn_4_depth,
-                           args.dcnn_3_depth, 
-                           args.dcnn_2_depth, 
-                           args.dcnn_1_depth],
+            'rnn_hid_dim': args.rnn_hid_dim,
             'mlp_depth': args.mlp_depth,
+            'score_maxpool': args.score_maxpool,
 
             # Test arguments
             'cum_min': not args.no_cum_min,
