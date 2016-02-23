@@ -515,14 +515,15 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             return rnn_inp
 
         def prep_rnn_inp(inp, output):
+            pdim = rnn_h * rnn_w * cnn_channels[-1]
+            inp = tf.reshape(inp, [-1, pdim])
             if feed_output:
                 if output is None:
                     out = tf.zeros(tf.concat(
                         0, [num_ex, tf.constant([core_dim])]))
                 else:
                     out = tf.reshape(output, [-1, core_dim])
-                pdim = rnn_h * rnn_w * cnn_channels[-1]
-                rnn_inp = tf.concat(1, [tf.reshape(inp, [-1, pdim]), out])
+                rnn_inp = tf.concat(1, [inp, out])
             else:
                 rnn_inp = inp
             return rnn_inp
