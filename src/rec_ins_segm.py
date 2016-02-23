@@ -268,6 +268,8 @@ def _parse_args():
                         help='Whether to use dense connection to output segmentation.')
     parser.add_argument('-add_skip_conn', action='store_true',
                         help='Whether to add skip connection in the DCNN.')
+    parser.add_argument('-score_use_core', action='store_true',
+                        help='Use core MLP network to predict score.')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,

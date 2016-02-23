@@ -498,9 +498,9 @@ def get_orig_model(opt, device='/cpu:0', train=True):
 
         if not segm_dense_conn:
             # Segmentation network weights
-            w_segm_conv = _nn.weight_variable([3, 3, rnn_depth, 1], wd=wd)
-            b_segm_conv = _nn.weight_variable([1], wd=wd)
-            b_log_softmax = _nn.weight_variable([1])
+            w_segm_conv = nn.weight_variable([3, 3, rnn_depth, 1], wd=wd)
+            b_segm_conv = nn.weight_variable([1], wd=wd)
+            b_log_softmax = nn.weight_variable([1])
 
         def prep_conv_lstm_inp(inp, output):
             if feed_output:
@@ -580,40 +580,65 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         else:
             raise Exception('Unknown RNN type: {}'.format(rnn_type))
 
-        h_rnn = model['h_rnn']
         h_core = [None] * timespan
+        h_rnn = model['h_rnn']
+        mlp_dims = [rnn_dim,
+                    rnn_h * rnn_w * mlp_depth,
+                    rnn_h * rnn_w * mlp_depth]
+        mlp_act = [tf.nn.relu, tf.nn.relu]
         for t in xrange(timespan):
             rnn_inp = prep_inp(h_pool3, h_core[t - 1])
             unroll_rnn(rnn_inp, time=t)
 
+            if feed_output:
+                # If we need to feed output then core segmentation network
+                # needs to run every timestep.
+                if segm_dense_conn:
+                    # One layer MLP
+                    # [B, LH, LW, LD] => [B, 1, LH, LW, MD]
+                    mlp = nn.mlp(model,
+                                 x=tf.reshape(h_rnn[t], [-1, rnn_dim]),
+                                 dims=mlp_dims,
+                                 act=mlp_act,
+                                 wd=wd)
+                    h_core[t] = tf.reshape(
+                        mlp[-1], [-1, 1, rnn_h, rnn_w, mlp_depth])
+                else:
+                    # Just convolution + softmax inhibition
+                    # [B, LH, LW, LD] => [B, 1, LH, LW, 1]
+                    h_core[t] = tf.reshape(tf.log(tf.nn.softmax(tf.reshape(
+                        nn.conv2d(h_rnn[t], w_segm_conv) + b_segm_conv,
+                        [-1, rnn_h * rnn_w]))) + b_log_softmax,
+                        [-1, 1, rnn_h, rnn_w, 1])
+        h_rnn_all = tf.concat(
+            1, [tf.expand_dims(h_rnn[tt], 1) for tt in xrange(timespan)])
+        if not feed_output:
+            # Run core segmentation network here if not feed output.
             if segm_dense_conn:
-                # One layer MLP
-                # [B, LH, LW, LD] => [B, 1, LH, LW, LD / 2]
-                mlp_dims = [rnn_dim,
-                            rnn_h * rnn_w * mlp_depth,
-                            rnn_h * rnn_w * mlp_depth]
-                mlp_act = [tf.nn.relu, tf.nn.relu]
+                h_rnn_all = tf.reshape(h_rnn_all, [-1, rnn_dim])
                 mlp = nn.mlp(model,
-                             x=tf.reshape(h_rnn[t], [-1, rnn_dim]),
+                             x=h_rnn_all,
                              dims=mlp_dims,
                              act=mlp_act,
                              wd=wd)
-                h_core[t] = tf.reshape(
-                    mlp[-1], [-1, 1, rnn_h, rnn_w, mlp_depth])
+                h_core = tf.reshape(
+                    mlp[-1], [-1, rnn_h, rnn_w, mlp_depth])
             else:
-                # Just convolution + softmax inhibition
-                # [B, LH, LW, LD] => [B, 1, LH, LW, 1]
-                h_core[t] = tf.reshape(tf.log(tf.nn.softmax(tf.reshape(
-                    nn.conv2d(h_rnn[t], w_segm_conv) + b_segm_conv,
+                h_rnn_all = tf.reshape(
+                    h_rnn_all, [-1, rnn_h, rnn_w, rnn_depth])
+                h_core = tf.reshape(tf.log(tf.nn.softmax(tf.reshape(
+                    nn.conv2d(h_rnn_all, w_segm_conv) + b_segm_conv,
                     [-1, rnn_h * rnn_w]))) + b_log_softmax,
-                    [-1, 1, rnn_h, rnn_w, 1])
-
-        # T * [B, 1, LH, LW, LD / 2] => [B, T, ]
-        if segm_dense_conn:
-            h_core = tf.reshape(tf.concat(1, h_core),
-                                [-1, rnn_h, rnn_w, mlp_depth])
+                    [-1, rnn_h, rnn_w, 1])
         else:
-            h_core = tf.reshape(tf.concat(1, h_core), [-1, rnn_h, rnn_w, 1])
+            # Otherwise, concatenate per timestep output.
+            # T * [B, 1, LH, LW, LD / 2] => [B, T, ]
+            if segm_dense_conn:
+                h_core = tf.reshape(tf.concat(1, h_core),
+                                    [-1, rnn_h, rnn_w, mlp_depth])
+            else:
+                h_core = tf.reshape(tf.concat(1, h_core),
+                                    [-1, rnn_h, rnn_w, 1])
         model['h_core'] = h_core
 
         # [B * T, LH, LW, LD / 2] => [B * T, H, W, 1]
@@ -636,8 +661,8 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                     zeros = tf.zeros(tf.concat(
                         0, [layer_shape[0: 1], tf.constant([timespan]),
                             layer_shape[1:]]))
-                    new_shape = tf.concat(0,
-                                          [layer_shape[0: 1] * timespan, layer_shape[1:]])
+                    new_shape = tf.concat(
+                        0, [layer_shape[0: 1] * timespan, layer_shape[1:]])
                     layer_reshape = tf.reshape(tf.expand_dims(layer, 1) +
                                                zeros, new_shape)
                     skip.append(layer_reshape)
@@ -669,21 +694,19 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         else:
             h_rnn_shape = [-1, rnn_dim]
 
-        h_rnn_all = tf.reshape(tf.concat(
-            1, [tf.expand_dims(h_rnn[tt], 1) for tt in xrange(timespan)]),
-            h_rnn_shape)
-        
+        h_rnn_reshape = tf.reshape(h_rnn_all, h_rnn_shape)
+
         if rnn_type == 'conv_lstm':
             score_maxpool = opt['score_maxpool']
             score_dim = rnn_h * rnn_w / score_maxpool / score_maxpool * rnn_depth
             if score_maxpool > 1:
-                score_inp = _max_pool(h_rnn_all, score_maxpool)
+                score_inp = _max_pool(h_rnn_reshape, score_maxpool)
             else:
-                score_inp = h_rnn_all
+                score_inp = h_rnn_reshape
             score_inp = tf.reshape(score_inp, [-1, score_dim])
         else:
             score_dim = rnn_dim
-            score_inp = h_rnn_all
+            score_inp = h_rnn_reshape
 
         s_out_mlp = nn.mlp(model,
                            x=score_inp,
