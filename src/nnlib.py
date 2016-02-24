@@ -134,6 +134,10 @@ def mlp(model, x, dims, act, dropout=None, phase_train=None, wd=None):
     b = [None] * nlayers
     h = [None] * nlayers
 
+    log.info('MLP')
+    log.info('Dimensions: {}'.format(dims))
+    log.info('Dropout: {}'.format(dropout))
+
     for ii in xrange(nlayers):
         nin = dims[ii]
         nout = dims[ii + 1]

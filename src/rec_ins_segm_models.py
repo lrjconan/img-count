@@ -428,7 +428,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
     learn_rate_decay = opt['learn_rate_decay']
     steps_per_decay = opt['steps_per_decay']
     num_mlp_layers = opt['num_mlp_layers']
-    mlp_dropout = opt['mlp_dropout']
+    mlp_dropout_ratio = opt['mlp_dropout']
 
     with tf.device(_get_device_fn(device)):
         # Input image, [B, H, W, D]
@@ -582,7 +582,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         h_rnn = model['h_rnn']
         mlp_dims = [rnn_dim] + [core_dim] * num_mlp_layers
         mlp_act = [tf.nn.relu] * num_mlp_layers
-        mlp_dropout = [mlp_dropout] * num_mlp_layers
+        mlp_dropout = [1.0 - mlp_dropout_ratio] * num_mlp_layers
 
         for t in xrange(timespan):
             rnn_inp = prep_inp(h_pool3, h_core[t - 1])
