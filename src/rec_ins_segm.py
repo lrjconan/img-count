@@ -140,7 +140,6 @@ def _parse_args():
     # Default dataset options
     kHeight = 224
     kWidth = 224
-    kInputChannels = 3
     kRadiusLower = 15
     kRadiusUpper = 45
     kBorderThickness = 3
@@ -168,7 +167,9 @@ def _parse_args():
     # [224, 224,   1]
 
     kWeightDecay = 5e-5
-    kLearningRate = 1e-3
+    kBaseLearnRate = 1e-3
+    kLearnRateDecay = 0.96
+    kStepsPerDecay = 5000
     kLossMixRatio = 1.0
     kNumConv = 5
     kCnnFilterSize = [3, 3, 3, 3, 3]
@@ -178,7 +179,7 @@ def _parse_args():
     kConvLstmHiddenDepth = 12
     kRnnHiddenDim = 512
 
-    kMlpDepth = 6    
+    kMlpDepth = 6
     kDcnnFilterSize = [3, 3, 3, 3, 3, 3]
     kDcnnDepth = [1, 2, 4, 4, 6, 8]
     kScoreMaxpool = 1
@@ -218,8 +219,12 @@ def _parse_args():
                         help='Which model to train')
     parser.add_argument('-weight_decay', default=kWeightDecay, type=float,
                         help='Weight L2 regularization')
-    parser.add_argument('-learning_rate', default=kLearningRate, type=float,
-                        help='Model learning rate')
+    parser.add_argument('-base_learn_rate', default=kBaseLearnRate,
+                        type=float, help='Model learning rate')
+    parser.add_argument('-learn_rate_decay', default=kLearnRateDecay,
+                        type=float, help='Model learning rate decay')
+    parser.add_argument('-steps_per_decay', default=kStepsPerDecay,
+                        type=int, help='Steps every learning rate decay')
     parser.add_argument('-loss_mix_ratio', default=kLossMixRatio, type=float,
                         help='Mix ratio between segmentation and score loss')
     parser.add_argument('-num_conv', default=kNumConv,
@@ -324,7 +329,6 @@ if __name__ == '__main__':
     else:
         model_id = get_model_id('rec_ins_segm')
 
-
         cnn_filter_size_all = [args.cnn_1_filter_size,
                                args.cnn_2_filter_size,
                                args.cnn_3_filter_size,
@@ -350,9 +354,12 @@ if __name__ == '__main__':
         model_opt = {
             'inp_height': args.height,
             'inp_width': args.width,
+            'inp_depth': 3,
             'timespan': args.max_num_objects + 1,
             'weight_decay': args.weight_decay,
-            'learning_rate': args.learning_rate,
+            'base_learn_rate': args.base_learn_rate,
+            'learn_rate_decay': args.learn_rate_decay,
+            'steps_per_decay': args.steps_per_decay,
             'loss_mix_ratio': args.loss_mix_ratio,
             'cnn_filter_size': cnn_filter_size_all[: args.num_conv],
             'cnn_depth': cnn_depth_all[: args.num_conv],
@@ -393,8 +400,8 @@ if __name__ == '__main__':
     # Logger
     if args.logs:
         logs_folder = args.logs
-        exp_logs_folder = os.path.join(logs_folder, model_id)
-        log = logger.get(os.path.join(exp_logs_folder, 'raw'))
+        logs_folder = os.path.join(logs_folder, model_id)
+        log = logger.get(os.path.join(logs_folder, 'raw'))
     else:
         log = logger.get()
 
@@ -427,39 +434,44 @@ if __name__ == '__main__':
     # Create time series logger
     if args.logs:
         train_loss_logger = TimeSeriesLogger(
-            os.path.join(exp_logs_folder, 'train_loss.csv'), 'train loss',
+            os.path.join(logs_folder, 'train_loss.csv'), 'train loss',
             name='Training loss',
             buffer_size=10)
         valid_loss_logger = TimeSeriesLogger(
-            os.path.join(exp_logs_folder, 'valid_loss.csv'), 'valid loss',
+            os.path.join(logs_folder, 'valid_loss.csv'), 'valid loss',
             name='Validation loss',
             buffer_size=1)
         valid_iou_hard_logger = TimeSeriesLogger(
-            os.path.join(exp_logs_folder, 'valid_iou_hard.csv'), 'valid iou',
+            os.path.join(logs_folder, 'valid_iou_hard.csv'), 'valid iou',
             name='Validation IoU hard',
             buffer_size=1)
         valid_iou_soft_logger = TimeSeriesLogger(
-            os.path.join(exp_logs_folder, 'valid_iou_soft.csv'), 'valid iou',
+            os.path.join(logs_folder, 'valid_iou_soft.csv'), 'valid iou',
             name='Validation IoU soft',
             buffer_size=1)
         valid_count_acc_logger = TimeSeriesLogger(
-            os.path.join(exp_logs_folder, 'valid_count_acc.csv'),
+            os.path.join(logs_folder, 'valid_count_acc.csv'),
             'valid count acc',
             name='Validation count accuracy',
             buffer_size=1)
+        learn_rate_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'learn_rate.csv'),
+            'learning rate',
+            name='Learning rate',
+            buffer_size=10)
         step_time_logger = TimeSeriesLogger(
-            os.path.join(exp_logs_folder, 'step_time.csv'), 'step time (ms)',
+            os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
             name='Step time',
             buffer_size=10)
 
         log_manager.register(log.filename, 'plain', 'Raw logs')
 
-        model_opt_fname = os.path.join(exp_logs_folder, 'model_opt.yaml')
+        model_opt_fname = os.path.join(logs_folder, 'model_opt.yaml')
         saver.save_opt(model_opt_fname, model_opt)
         log_manager.register(model_opt_fname, 'plain', 'Model hyperparameters')
 
         valid_sample_img = LazyRegisterer(os.path.join(
-            exp_logs_folder, 'valid_sample_img.png'),
+            logs_folder, 'valid_sample_img.png'),
             'image', 'Validation samples')
         log.info(
             ('Visualization can be viewed at: '
@@ -563,6 +575,7 @@ if __name__ == '__main__':
 
             if args.logs:
                 train_loss_logger.add(step, loss)
+                learn_rate_logger.add(step, sess.run(m['learn_rate']))
                 step_time_logger.add(step, step_time)
 
         # Model ID reminder

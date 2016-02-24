@@ -418,6 +418,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
     timespan = opt['timespan']
     inp_height = opt['inp_height']
     inp_width = opt['inp_width']
+    inp_depth = opt['inp_depth']
     rnn_type = opt['rnn_type']
     cnn_filter_size = opt['cnn_filter_size']
     cnn_depth = opt['cnn_depth']
@@ -434,10 +435,14 @@ def get_orig_model(opt, device='/cpu:0', train=True):
     use_deconv = opt['use_deconv']
     add_skip_conn = opt['add_skip_conn']
     score_use_core = opt['score_use_core']
+    loss_mix_ratio = opt['loss_mix_ratio']
+    base_learn_rate = opt['base_learn_rate']
+    learn_rate_decay = opt['learn_rate_decay']
+    steps_per_decay = opt['steps_per_decay']
 
     with tf.device(_get_device_fn(device)):
-        # Input image, [B, H, W, 3]
-        x = tf.placeholder('float', [None, inp_height, inp_width, 3])
+        # Input image, [B, H, W, D]
+        x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
         # Whether in training stage, required for batch norm.
         phase_train = tf.placeholder('bool')
         # Groundtruth segmentation maps, [B, T, H, W]
@@ -461,7 +466,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         # [B, H / 2, W / 2, 16] => [B, H / 4, W / 4, 32]
         # [B, H / 4, W / 4, 32] => [B, H / 8, W / 8, 64]
         cnn_filters = cnn_filter_size
-        cnn_channels = [3] + cnn_depth
+        cnn_channels = [inp_depth] + cnn_depth
         cnn_pool = [2] * len(cnn_filters)
         cnn_act = [tf.nn.relu] * len(cnn_filters)
         cnn_use_bn = [use_bn] * len(cnn_filters)
@@ -720,13 +725,15 @@ def get_orig_model(opt, device='/cpu:0', train=True):
 
         # Loss function
         if train:
-            r = opt['loss_mix_ratio']
-            lr = opt['learning_rate']
-            use_cum_min = ('cum_min' not in opt) or opt['cum_min']
+            global_step = tf.Variable(0, trainable=False)
+            learn_rate = tf.train.exponential_decay(
+                base_learn_rate, global_step, steps_per_decay,
+                learn_rate_decay, staircase=True)
+            model['learn_rate'] = learn_rate
             eps = 1e-7
             loss = _add_ins_segm_loss(
-                model, y_out, y_gt, s_out, s_gt, r, timespan,
-                use_cum_min=use_cum_min,
+                model, y_out, y_gt, s_out, s_gt, loss_mix_ratio, timespan,
+                use_cum_min=True,
                 segm_loss_fn=opt['segm_loss_fn'])
             tf.add_to_collection('losses', loss)
             total_loss = tf.add_n(tf.get_collection(
@@ -734,8 +741,8 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             model['total_loss'] = total_loss
 
             train_step = GradientClipOptimizer(
-                tf.train.AdamOptimizer(lr, epsilon=eps),
-                clip=1.0).minimize(total_loss)
+                tf.train.AdamOptimizer(learn_rate, epsilon=eps),
+                clip=1.0).minimize(total_loss, global_step=global_step)
             model['train_step'] = train_step
 
     return model
