@@ -427,6 +427,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
     steps_per_decay = opt['steps_per_decay']
+    num_mlp_layers = opt['num_mlp_layers']
     mlp_dropout = opt['mlp_dropout']
 
     with tf.device(_get_device_fn(device)):

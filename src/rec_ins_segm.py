@@ -378,7 +378,7 @@ if __name__ == '__main__':
             'mlp_depth': args.mlp_depth,
             'score_maxpool': args.score_maxpool,
             'num_mlp_layers': args.num_mlp_layers,
-            'mlp_dropout': args.mlp_dropout
+            'mlp_dropout': args.mlp_dropout,
 
             # Test arguments
             'cum_min': not args.no_cum_min,
