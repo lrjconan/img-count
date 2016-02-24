@@ -577,7 +577,7 @@ if __name__ == '__main__':
         })
 
         # Print statistics
-        if step % 5 == 0:
+        if step % 10 == 0:
             step_time = (time.time() - start_time) * 1000
             loss = r[0]
             segm_loss = r[1]
