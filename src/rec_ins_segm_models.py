@@ -445,6 +445,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
         # Whether in training stage, required for batch norm.
         phase_train = tf.placeholder('bool')
+        global_step = tf.placeholder('int32')
         # Groundtruth segmentation maps, [B, T, H, W]
         y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
         # Groundtruth confidence score, [B, T]
@@ -452,6 +453,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         y_gt_list = tf.split(1, timespan, y_gt)
         model['x'] = x
         model['phase_train'] = phase_train
+        model['global_step'] = global_step
         model['y_gt'] = y_gt
         model['s_gt'] = s_gt
 
@@ -725,7 +727,6 @@ def get_orig_model(opt, device='/cpu:0', train=True):
 
         # Loss function
         if train:
-            global_step = tf.Variable(0, trainable=False)
             learn_rate = tf.train.exponential_decay(
                 base_learn_rate, global_step, steps_per_decay,
                 learn_rate_decay, staircase=True)
@@ -742,7 +743,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
 
             train_step = GradientClipOptimizer(
                 tf.train.AdamOptimizer(learn_rate, epsilon=eps),
-                clip=1.0).minimize(total_loss, global_step=global_step)
+                clip=1.0).minimize(total_loss)
             model['train_step'] = train_step
 
     return model

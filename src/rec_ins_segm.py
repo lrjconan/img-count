@@ -559,9 +559,11 @@ if __name__ == '__main__':
 
         # Train step
         start_time = time.time()
-        r = sess.run([m['loss'], m['segm_loss'], m['conf_loss'], m['train_step']], feed_dict={
+        r = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
+            m['learn_rate'], m['train_step']], feed_dict={
             m['x']: x_bat,
             m['phase_train']: True,
+            m['global_step']: step,
             m['y_gt']: y_bat,
             m['s_gt']: s_bat
         })
@@ -570,12 +572,15 @@ if __name__ == '__main__':
         if step % 5 == 0:
             step_time = (time.time() - start_time) * 1000
             loss = r[0]
+            segm_loss = r[1]
+            conf_loss = r[2]
+            learn_rate = r[3]
             log.info('{:d} train loss {:.4f} {:.4f} {:.4f} t {:.2f}ms'.format(
-                step, loss, r[1], r[2], step_time))
+                step, loss, segm_loss, conf_loss, step_time))
 
             if args.logs:
                 train_loss_logger.add(step, loss)
-                learn_rate_logger.add(step, sess.run(m['learn_rate']))
+                learn_rate_logger.add(step, learn_rate)
                 step_time_logger.add(step, step_time)
 
         # Model ID reminder
