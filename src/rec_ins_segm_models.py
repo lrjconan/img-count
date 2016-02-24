@@ -60,18 +60,6 @@ def _get_device_fn(device):
     return _device_fn
 
 
-def _get_attn_filter(mu, lg_var, size):
-    # [1, L, 1]
-    span = np.reshape(np.arange(size), [1, size, 1])
-    # [1, L, 1] - [B, 1, F] = [B, L, F]
-    filter = tf.mul(
-        1 / tf.sqrt(tf.exp(lg_var)) / tf.sqrt(2 * np.pi),
-        tf.exp(-0.5 * (span_x - mu_x[t]) * (span_x - mu_x[t]) /
-               tf.exp(lg_var[t])))
-
-    return filter
-
-
 def _add_attn_controller_rnn(model, timespan, inp_width, inp_height, ctl_inp_dim, filter_size, wd=None, name='', sess=None, train_model=None):
     """Add an attention controller."""
     # Constant for computing filter_x. Shape: [1, W, 1].
@@ -439,6 +427,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
     steps_per_decay = opt['steps_per_decay']
+    mlp_dropout = opt['mlp_dropout']
 
     with tf.device(_get_device_fn(device)):
         # Input image, [B, H, W, D]
@@ -590,8 +579,10 @@ def get_orig_model(opt, device='/cpu:0', train=True):
 
         h_core = [None] * timespan
         h_rnn = model['h_rnn']
-        mlp_dims = [rnn_dim, core_dim, core_dim]
-        mlp_act = [tf.nn.relu, tf.nn.relu]
+        mlp_dims = [rnn_dim] + [core_dim] * num_mlp_layers
+        mlp_act = [tf.nn.relu] * num_mlp_layers
+        mlp_dropout = [mlp_dropout] * num_mlp_layers
+
         for t in xrange(timespan):
             rnn_inp = prep_inp(h_pool3, h_core[t - 1])
             unroll_rnn(rnn_inp, time=t)
@@ -606,6 +597,8 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                                  x=tf.reshape(h_rnn[t], [-1, rnn_dim]),
                                  dims=mlp_dims,
                                  act=mlp_act,
+                                 dropout=mlp_dropout,
+                                 phase_train=phase_train,
                                  wd=wd)
                     h_core[t] = tf.reshape(
                         mlp[-1], [-1, 1, rnn_h, rnn_w, mlp_depth])
@@ -749,43 +742,61 @@ def get_orig_model(opt, device='/cpu:0', train=True):
     return model
 
 
-def get_attn_model(opt, device='/cpu:0', train=True):
-    """Attention-based model."""
-    model = {}
-    timespan = opt['timespan']
-    inp_height = opt['inp_height']
-    inp_width = opt['inp_width']
-    conv_lstm_filter_size = opt['conv_lstm_filter_size']
-    conv_lstm_hid_depth = opt['conv_lstm_hid_depth']
-    wd = opt['weight_decay']
-    feed_output = opt['feed_output']
+def _get_attn_filter(mu, lg_var, size):
+    # [B] => [B, 1, 1]
+    mu = tf.reshape(mu, [-1, 1, 1])
+    lg_var = tf.reshape(lg_var, [-1, 1, 1])
 
-    with tf.device(_get_device_fn(device)):
-        pass
+    # [1, L, 1]
+    span = np.reshape(np.arange(size), [1, size, 1])
+    
+    # [1, L, 1] - [B, 1, F] = [B, L, F]
+    filter = tf.mul(
+        1 / tf.sqrt(tf.exp(lg_var)) / tf.sqrt(2 * np.pi),
+        tf.exp(-0.5 * (span - mu) * (span - mu) /
+               tf.exp(lg_var)))
 
-    # Loss function
-    if train:
-        r = opt['loss_mix_ratio']
-        lr = opt['learning_rate']
-        use_cum_min = ('cum_min' not in opt) or opt['cum_min']
-        eps = 1e-7
-        loss = _add_ins_segm_loss(
-            model, y_out, y_gt, s_out, s_gt, r, timespan,
-            use_cum_min=use_cum_min,
-            segm_loss_fn=opt['segm_loss_fn'])
-        tf.add_to_collection('losses', loss)
-        total_loss = tf.add_n(tf.get_collection(
-            'losses'), name='total_loss')
-        model['total_loss'] = total_loss
-
-        train_step = GradientClipOptimizer(
-            tf.train.AdamOptimizer(lr, epsilon=eps),
-            clip=1.0).minimize(total_loss)
-        model['train_step'] = train_step
-
-    return model
+    return filter
 
 
 def get_attn_gt_model(opt, device='/cpu:0', train=True):
     """The original model"""
+    model = {}
+
+    timespan = opt['timespan']
+    inp_height = opt['inp_height']
+    inp_width = opt['inp_width']
+    inp_depth = opt['inp_depth']
+    rnn_type = opt['rnn_type']
+    cnn_filter_size = opt['cnn_filter_size']
+    cnn_depth = opt['cnn_depth']
+    dcnn_filter_size = opt['dcnn_filter_size']
+    dcnn_depth = opt['dcnn_depth']
+    conv_lstm_filter_size = opt['conv_lstm_filter_size']
+    conv_lstm_hid_depth = opt['conv_lstm_hid_depth']
+    rnn_hid_dim = opt['rnn_hid_dim']
+    mlp_depth = opt['mlp_depth']
+    wd = opt['weight_decay']
+    feed_output = opt['feed_output']
+    segm_dense_conn = opt['segm_dense_conn']
+    use_bn = opt['use_bn']
+    use_deconv = opt['use_deconv']
+    add_skip_conn = opt['add_skip_conn']
+    score_use_core = opt['score_use_core']
+    loss_mix_ratio = opt['loss_mix_ratio']
+    base_learn_rate = opt['base_learn_rate']
+    learn_rate_decay = opt['learn_rate_decay']
+    steps_per_decay = opt['steps_per_decay']
+
+    with tf.device(_get_device_fn(device)):
+        # Input image, [B, H, W, D]
+        x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
+        # Attention center, [B, 2]
+        attn_mu = tf.placeholder('float', [None, 2])
+        # Attention width, [B, 2]
+        attn_lg_var = tf.placeholder('float', [None, 2])
+
+        filters_x = _get_attn_filter(attn_mu[:, 0], attn_lg_var[:, 0], )
+
+
     pass

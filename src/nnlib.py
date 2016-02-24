@@ -123,11 +123,17 @@ def dcnn(model, x, f, ch, pool, act, use_bn, inp_h, inp_w, skip=None, skip_ch=No
     return h
 
 
-def mlp(model, x, dims, act, wd=None):
+def dropout(x, keep_prob, phase_train):
+    keep_prob = tf.to_float(train_phase) * keep_prob
+    return tf.nn.dropout(x, keep_prob)
+
+
+def mlp(model, x, dims, act, dropout=None, phase_train=None, wd=None):
     nlayers = len(dims) - 1
     w = [None] * nlayers
     b = [None] * nlayers
     h = [None] * nlayers
+
     for ii in xrange(nlayers):
         nin = dims[ii]
         nout = dims[ii + 1]
@@ -138,6 +144,10 @@ def mlp(model, x, dims, act, wd=None):
             prev_inp = x
         else:
             prev_inp = h[ii - 1]
+
+        if dropout is not None:
+            if dropout[ii] is not None:
+                prev_inp = dropout(prev_inp, dropout[ii], phase_train)
 
         h[ii] = tf.matmul(prev_inp, w[ii]) + b[ii]
 
@@ -335,9 +345,12 @@ def lstm(model, timespan, inp_dim, hid_dim, c_init, h_init, wd=None, name=None):
 
     def unroll(inp, time):
         t = time
-        g_i[t] = tf.sigmoid(tf.matmul(inp, w_xi) + tf.matmul(h[t - 1], w_hi) + b_i)
-        g_f[t] = tf.sigmoid(tf.matmul(inp, w_xf) + tf.matmul(h[t - 1], w_hf) + b_f)
-        g_o[t] = tf.sigmoid(tf.matmul(inp, w_xo) + tf.matmul(h[t - 1], w_ho) + b_o)
+        g_i[t] = tf.sigmoid(tf.matmul(inp, w_xi) +
+                            tf.matmul(h[t - 1], w_hi) + b_i)
+        g_f[t] = tf.sigmoid(tf.matmul(inp, w_xf) +
+                            tf.matmul(h[t - 1], w_hf) + b_f)
+        g_o[t] = tf.sigmoid(tf.matmul(inp, w_xo) +
+                            tf.matmul(h[t - 1], w_ho) + b_o)
         u[t] = tf.tanh(tf.matmul(inp, w_xu) + tf.matmul(h[t - 1], w_hu) + b_u)
         c[t] = g_f[t] * c[t - 1] + g_i[t] * u[t]
         h[t] = g_o[t] * tf.tanh(c[t])

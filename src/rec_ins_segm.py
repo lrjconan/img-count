@@ -179,7 +179,9 @@ def _parse_args():
     kConvLstmHiddenDepth = 12
     kRnnHiddenDim = 512
 
+    kNumMlpLayers = 2
     kMlpDepth = 6
+    kMlpDropout = 0.5
     kDcnnFilterSize = [3, 3, 3, 3, 3, 3]
     kDcnnDepth = [1, 2, 4, 4, 6, 8]
     kScoreMaxpool = 1
@@ -255,8 +257,12 @@ def _parse_args():
                         type=int, help='RNN hidden dimension')
     parser.add_argument('-score_maxpool', default=kScoreMaxpool, type=int,
                         help='Max pooling ratio in the scoring function.')
+    parser.add_argument('-num_mlp_layers', default=kNumMlpLayers,
+                        type=int, help='Number of MLP layers')
     parser.add_argument('-mlp_depth', default=kMlpDepth,
                         type=int, help='MLP depth')
+    parser.add_argument('-mlp_dropout', default=kMlpDropout,
+                        type=float, help='MLP dropout')
 
     # Extra model options (beta)
     parser.add_argument('-no_cum_min', action='store_true',
@@ -371,6 +377,8 @@ if __name__ == '__main__':
             'rnn_hid_dim': args.rnn_hid_dim,
             'mlp_depth': args.mlp_depth,
             'score_maxpool': args.score_maxpool,
+            'num_mlp_layers': args.num_mlp_layers,
+            'mlp_dropout': args.mlp_dropout
 
             # Test arguments
             'cum_min': not args.no_cum_min,
