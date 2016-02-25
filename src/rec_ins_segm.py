@@ -41,7 +41,8 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
     num_row = y_out.shape[0]
     num_col = y_out.shape[1] + 1
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
-    cmap = ['r', 'y', 'c', 'g', 'm', 'o']
+    cmap = ['r', 'y', 'c', 'g', 'm']
+    gradient = np.linspace(0, 1, 256)
     im_height = x.shape[1]
     im_with = x.shape[2]
 
@@ -63,12 +64,12 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
                             bot_right_x - top_left_x,
                             bot_right_y - top_left_y,
                             fill=False,
-                            color=cmap[kk]))
+                            color=cmap[kk % len(cmap)]))
                         axarr[ii, jj].add_patch(patches.Rectangle(
                             (top_left_x, top_left_y - 25),
                             25, 25,
                             fill=True,
-                            color=cmap[kk]))
+                            color=cmap[kk % len(cmap)]))
                         axarr[ii, jj].text(
                             top_left_x + 5, top_left_y - 5,
                             '{}'.format(kk), size=5)
@@ -185,6 +186,7 @@ def _parse_args():
     kBaseLearnRate = 1e-3
     kLearnRateDecay = 0.96
     kStepsPerDecay = 5000
+    kStepsPerLog = 10
     kLossMixRatio = 1.0
     kNumConv = 5
     kCnnFilterSize = [3, 3, 3, 3, 3]
@@ -306,6 +308,8 @@ def _parse_args():
                         type=int, help='Number of steps per checkpoint')
     parser.add_argument('-steps_per_valid', default=kStepsPerValid,
                         type=int, help='Number of steps per validation')
+    parser.add_argument('-steps_per_log', default=kStepsPerLog,
+                        type=int, help='Number of steps per log')
     parser.add_argument('-results', default='../results',
                         help='Model results folder')
     parser.add_argument('-logs', default='../results',
@@ -451,7 +455,8 @@ if __name__ == '__main__':
     train_opt = {
         'num_steps': args.num_steps,
         'steps_per_ckpt': args.steps_per_ckpt,
-        'steps_per_valid': args.steps_per_valid
+        'steps_per_valid': args.steps_per_valid,
+        'steps_per_log': args.steps_per_log
     }
 
     dataset = get_dataset(args.dataset, data_opt,
@@ -603,7 +608,7 @@ if __name__ == '__main__':
         })
 
         # Print statistics
-        if step % 10 == 0:
+        if step % train_opt['steps_per_log'] == 0:
             step_time = (time.time() - start_time) * 1000
             loss = r[0]
             segm_loss = r[1]
@@ -618,7 +623,7 @@ if __name__ == '__main__':
                 step_time_logger.add(step, step_time)
 
         # Model ID reminder
-        if step % 100 == 0:
+        if step % (10 * train_opt['steps_per_log']) == 0:
             log.info('model id {}'.format(model_id))
 
         # Save model
