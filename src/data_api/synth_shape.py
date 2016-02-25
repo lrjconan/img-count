@@ -556,6 +556,14 @@ def get_instance_segmentation_data(opt, image_data):
     }
 
 
+def get_dataset(opt, seed=2):
+    raw_data = get_raw_data(opt, seed=seed)
+    image_data = get_image_data(opt, raw_data)
+    segm_data = get_instance_segmentation_data(opt, image_data)
+
+    return segm_data
+
+
 def parse_args():
     """Parse input arguments."""
     # Default constants

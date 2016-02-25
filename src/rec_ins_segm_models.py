@@ -598,7 +598,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                                  x=tf.reshape(h_rnn[t], [-1, rnn_dim]),
                                  dims=mlp_dims,
                                  act=mlp_act,
-                                 dropout=mlp_dropout,
+                                 dropout_keep=mlp_dropout,
                                  phase_train=phase_train,
                                  wd=wd)
                     h_core[t] = tf.reshape(
@@ -620,6 +620,8 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                              x=h_rnn_all,
                              dims=mlp_dims,
                              act=mlp_act,
+                             dropout_keep=mlp_dropout,
+                             phase_train=phase_train,
                              wd=wd)
                 h_core = tf.reshape(
                     mlp[-1], [-1, rnn_h, rnn_w, mlp_depth])

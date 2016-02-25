@@ -124,11 +124,11 @@ def dcnn(model, x, f, ch, pool, act, use_bn, inp_h, inp_w, skip=None, skip_ch=No
 
 
 def dropout(x, keep_prob, phase_train):
-    keep_prob = tf.to_float(train_phase) * keep_prob
+    keep_prob = tf.to_float(phase_train) * keep_prob
     return tf.nn.dropout(x, keep_prob)
 
 
-def mlp(model, x, dims, act, dropout=None, phase_train=None, wd=None):
+def mlp(model, x, dims, act, dropout_keep=None, phase_train=None, wd=None):
     nlayers = len(dims) - 1
     w = [None] * nlayers
     b = [None] * nlayers
@@ -149,9 +149,9 @@ def mlp(model, x, dims, act, dropout=None, phase_train=None, wd=None):
         else:
             prev_inp = h[ii - 1]
 
-        if dropout is not None:
-            if dropout[ii] is not None:
-                prev_inp = dropout(prev_inp, dropout[ii], phase_train)
+        if dropout_keep is not None:
+            if dropout_keep[ii] is not None:
+                prev_inp = dropout(prev_inp, dropout_keep[ii], phase_train)
 
         h[ii] = tf.matmul(prev_inp, w[ii]) + b[ii]
 

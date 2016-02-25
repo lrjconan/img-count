@@ -23,7 +23,9 @@ import pickle as pkl
 import tensorflow as tf
 import time
 
-from data_api import mnist
+from data_api import synth_shape
+from data_api import cvppp
+
 from utils import log_manager
 from utils import logger
 from utils.batch_iter import BatchIterator
@@ -32,7 +34,6 @@ from utils.saver import Saver
 from utils.time_series_logger import TimeSeriesLogger
 
 import rec_ins_segm_models as models
-import syncount_gen_data as data
 
 
 def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
@@ -85,7 +86,7 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
     pass
 
 
-def get_dataset(opt, num_train, num_valid):
+def get_dataset(dataset_name, opt, num_train, num_valid):
     """Get train-valid split dataset for instance segmentation.
 
     Args:
@@ -97,18 +98,30 @@ def get_dataset(opt, num_train, num_valid):
             train
             valid
     """
-    dataset = {}
-    opt['num_examples'] = num_train
-    raw_data = data.get_raw_data(opt, seed=2)
-    image_data = data.get_image_data(opt, raw_data)
-    segm_data = data.get_instance_segmentation_data(opt, image_data)
-    dataset['train'] = segm_data
 
-    opt['num_examples'] = num_valid
-    raw_data = data.get_raw_data(opt, seed=3)
-    image_data = data.get_image_data(opt, raw_data)
-    segm_data = data.get_instance_segmentation_data(opt, image_data)
-    dataset['valid'] = segm_data
+    dataset = {}
+    if dataset_name == 'synth_shape':
+        opt['num_examples'] = num_train
+        dataset['train'] = synth_shape.get_dataset(opt, seed=2)
+        opt['num_examples'] = num_valid
+        dataset['valid'] = synth_shape.get_dataset(opt, seed=3)
+    elif dataset_name == 'cvppp':
+        if os.path.exists('/u/mren'):
+            dataset_folder = '/ais/gobi3/u/mren/data/lsc/A1'
+        else:
+            dataset_folder = '/home/mren/data/LSCData/A1'
+        _all_data = cvppp.get_dataset(dataset_folder, opt)
+        split = 103
+        dataset['train'] = {
+            'input': _all_data['input'][: split],
+            'label_segmentation': _all_data['label_segmentation'][: split],
+            'label_score': _all_data['label_score'][: split]
+        }
+        dataset['valid'] = {
+            'input': _all_data['input'][split:],
+            'label_segmentation': _all_data['label_segmentation'][split:],
+            'label_score': _all_data['label_score'][split:]
+        }
 
     return dataset
 
@@ -138,8 +151,10 @@ def preprocess(inp, label_segmentation, label_score):
 def _parse_args():
     """Parse input arguments."""
     # Default dataset options
+    kDataset = 'synth_shape'
     kHeight = 224
     kWidth = 224
+    # (Below are only valid options for synth_shape dataset)
     kRadiusLower = 15
     kRadiusUpper = 45
     kBorderThickness = 3
@@ -195,6 +210,8 @@ def _parse_args():
         description='Recurrent Instance Segmentation')
 
     # Dataset options
+    parser.add_argument('-dataset', default=kDataset,
+                        help='Name of the dataset')
     parser.add_argument('-height', default=kHeight, type=int,
                         help='Image height')
     parser.add_argument('-width', default=kWidth, type=int,
@@ -357,11 +374,19 @@ if __name__ == '__main__':
                           args.dcnn_3_depth,
                           args.dcnn_4_depth,
                           args.dcnn_5_depth]
+
+        if args.dataset == 'synth_shape':
+            timespan = args.max_num_objects + 1
+        elif args.dataset == 'cvppp':
+            timespan = 22
+        else:
+            raise Exception('Unknown dataset name')
+
         model_opt = {
             'inp_height': args.height,
             'inp_width': args.width,
             'inp_depth': 3,
-            'timespan': args.max_num_objects + 1,
+            'timespan': timespan,
             'weight_decay': args.weight_decay,
             'base_learn_rate': args.base_learn_rate,
             'learn_rate_decay': args.learn_rate_decay,
@@ -429,7 +454,8 @@ if __name__ == '__main__':
         'steps_per_valid': args.steps_per_valid
     }
 
-    dataset = get_dataset(data_opt, args.num_ex, args.num_ex / 10)
+    dataset = get_dataset(args.dataset, data_opt,
+                          args.num_ex, args.num_ex / 10)
     m = models.get_model(args.model, model_opt, device=device, train=True)
     sess = tf.Session()
     # sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
@@ -568,7 +594,7 @@ if __name__ == '__main__':
         # Train step
         start_time = time.time()
         r = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-            m['learn_rate'], m['train_step']], feed_dict={
+                      m['learn_rate'], m['train_step']], feed_dict={
             m['x']: x_bat,
             m['phase_train']: True,
             m['global_step']: step,
