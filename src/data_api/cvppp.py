@@ -93,9 +93,10 @@ def get_separate_labels(label_img):
     colors = np.unique(l64i)
     segmentations = []
     for c in colors:
-        segmentation = (l64i == c).astype('uint8')
-        # cv2.imshow('{}'.format(c), segmentation * 255)
-        segmentations.append(segmentation)
+        if c != 0:
+            segmentation = (l64i == c).astype('uint8')
+            # cv2.imshow('{}'.format(c), segmentation * 255)
+            segmentations.append(segmentation)
     # cv2.waitKey()
 
     return segmentations
