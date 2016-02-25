@@ -124,7 +124,8 @@ def dcnn(model, x, f, ch, pool, act, use_bn, inp_h, inp_w, skip=None, skip_ch=No
 
 
 def dropout(x, keep_prob, phase_train):
-    keep_prob = tf.to_float(phase_train) * keep_prob
+    phase_train_f = tf.to_float(phase_train)
+    keep_prob = (1.0 - phase_train_f) * 1.0 + phase_train_f * keep_prob
     return tf.nn.dropout(x, keep_prob)
 
 
