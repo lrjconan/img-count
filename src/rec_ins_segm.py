@@ -41,7 +41,7 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
     num_ex = y_out.shape[0]
     num_items = y_out.shape[1] + 1
     max_items_per_row = 8
-    num_rows_per_ex = int(np.ceil(num_items / max_items_per_row))
+    num_rows_per_ex = int(np.ceil(num_items / float(max_items_per_row)))
     if num_items > max_items_per_row:
         num_col = max_items_per_row
         num_row = num_rows_per_ex * num_ex
@@ -55,13 +55,15 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
     im_height = x.shape[1]
     im_with = x.shape[2]
 
-    row = 0
+    for row in xrange(num_row):
+        for col in xrange(num_col):
+            axarr[row, col].set_axis_off()
+
     for ii in xrange(num_ex):
         mnz = match[ii].nonzero()
         for jj in xrange(num_items):
             col = jj % max_items_per_row
             row = num_rows_per_ex * ii + jj / max_items_per_row
-            axarr[row, col].set_axis_off()
             if jj == 0:
                 axarr[row, col].imshow(x[ii])
                 for kk in xrange(y_gt.shape[1]):
@@ -394,7 +396,7 @@ if __name__ == '__main__':
         if args.dataset == 'synth_shape':
             timespan = args.max_num_objects + 1
         elif args.dataset == 'cvppp':
-            timespan = 22
+            timespan = 21
         else:
             raise Exception('Unknown dataset name')
 
