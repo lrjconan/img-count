@@ -40,7 +40,7 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
     """Plot some test samples."""
     num_ex = y_out.shape[0]
     num_items = y_out.shape[1] + 1
-    max_items_per_row = 10
+    max_items_per_row = 8
     num_rows_per_ex = int(np.ceil(num_items / max_items_per_row))
     if num_items > max_items_per_row:
         num_col = max_items_per_row
