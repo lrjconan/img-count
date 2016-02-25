@@ -38,19 +38,31 @@ import rec_ins_segm_models as models
 
 def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
     """Plot some test samples."""
-    num_row = y_out.shape[0]
-    num_col = y_out.shape[1] + 1
+    num_ex = y_out.shape[0]
+    num_items = y_out.shape[1] + 1
+    max_items_per_row = 10
+    num_rows_per_ex = int(np.ceil(num_items / max_items_per_row))
+    if num_items > max_items_per_row:
+        num_col = max_items_per_row
+        num_row = num_rows_per_ex * num_ex
+    else:
+        num_row = num_ex
+        num_col = num_items
+
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
     cmap = ['r', 'y', 'c', 'g', 'm', 'o']
     im_height = x.shape[1]
     im_with = x.shape[2]
 
-    for ii in xrange(num_row):
+    row = 0
+    for ii in xrange(num_ex):
         mnz = match[ii].nonzero()
-        for jj in xrange(num_col):
-            axarr[ii, jj].set_axis_off()
+        for jj in xrange(num_items):
+            col = jj % max_items_per_row
+            row = num_rows_per_ex * ii + jj / max_items_per_row
+            axarr[row, col].set_axis_off()
             if jj == 0:
-                axarr[ii, jj].imshow(x[ii])
+                axarr[row, col].imshow(x[ii])
                 for kk in xrange(y_gt.shape[1]):
                     nz = y_gt[ii, kk].nonzero()
                     if nz[0].size > 0:
@@ -58,18 +70,18 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
                         top_left_y = nz[0].min()
                         bot_right_x = nz[1].max() + 1
                         bot_right_y = nz[0].max() + 1
-                        axarr[ii, jj].add_patch(patches.Rectangle(
+                        axarr[row, col].add_patch(patches.Rectangle(
                             (top_left_x, top_left_y),
                             bot_right_x - top_left_x,
                             bot_right_y - top_left_y,
                             fill=False,
                             color=cmap[kk]))
-                        axarr[ii, jj].add_patch(patches.Rectangle(
+                        axarr[row, col].add_patch(patches.Rectangle(
                             (top_left_x, top_left_y - 25),
                             25, 25,
                             fill=True,
                             color=cmap[kk]))
-                        axarr[ii, jj].text(
+                        axarr[row, col].text(
                             top_left_x + 5, top_left_y - 5,
                             '{}'.format(kk), size=5)
             else:
