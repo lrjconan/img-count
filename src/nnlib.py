@@ -192,8 +192,9 @@ def batch_norm(x, n_out, phase_train, scope='bn', affine=True):
                                           mean_var_with_update,
                                           lambda: (ema_mean, ema_var))
 
-        normed = tf.nn.batch_norm_with_global_normalization(x, mean, var,
-                                                            beta, gamma, 1e-3, affine)
+        # normed = tf.nn.batch_norm_with_global_normalization(x, mean, var,
+        #                                                     beta, gamma, 1e-3, affine)
+        normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
     return normed
 
 
