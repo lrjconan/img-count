@@ -216,7 +216,7 @@ def _parse_args():
     kNumConv = 5
     kCnnFilterSize = [3, 3, 3, 3, 3]
     kCnnDepth = [4, 8, 8, 12, 16]
-    kRnnType = 'conv_lstm'     # Choose from "conv_lstm", "lstm", and "gru"
+    kRnnType = 'conv_lstm'                  # {"conv_lstm", "lstm", "gru"}
     kConvLstmFilterSize = 3
     kConvLstmHiddenDepth = 12
     kRnnHiddenDim = 512

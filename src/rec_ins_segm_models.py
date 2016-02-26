@@ -61,116 +61,6 @@ def _get_device_fn(device):
     return _device_fn
 
 
-def _add_attn_controller_rnn(model, timespan, inp_width, inp_height, ctl_inp_dim, filter_size, wd=None, name=''):
-    """Add an attention controller."""
-    # Constant for computing filter_x. Shape: [1, W, 1].
-    span_x = np.reshape(np.arange(inp_width), [1, inp_width, 1])
-    # Constant for computing filter_y. Shape: [1, H, 1].
-    span_y = np.reshape(np.arange(inp_height), [1, inp_height, 1])
-    # Constant for computing filter_x. Shape: [1, 1, Fr].
-    span_filter = np.reshape(np.arange(filter_size) + 1, [1, 1, -1])
-
-    # Control variale. [g_x, g_y, log_var, log_delta, log_gamma].
-    # Shape: T * [B, 5].
-    ctl = [None] * timespan
-    # Attention center x. Shape: T * [B].
-    ctr_x = [None] * timespan
-    # Attention center y. Shape: T * [B].
-    ctr_y = [None] * timespan
-    # Attention width. Shape: T * [B].
-    delta = [None] * timespan
-    # Log of the variance of Gaussian filter. Shape: T * [B].
-    lg_var = [None] * timespan
-    # Log of the multiplier of Gaussian filter. Shape: T * [B].
-    lg_gamma = [None] * timespan
-    # Gaussian filter mu_x. Shape: T * [B, W, Fr].
-    mu_x = [None] * timespan
-    # Gaussian filter mu_y. Shape: T * [B, H, Fr].
-    mu_y = [None] * timespan
-    # Gaussian filter on x direction. Shape: T * [B, W, Fr].
-    filter_x = [None] * timespan
-    # Gaussian filter on y direction. Shape: T * [B, H, Fr].
-    filter_y = [None] * timespan
-
-    # From hidden decoder to controller variables. Shape: [Hd, 5].
-    w_ctl = nn.weight_variable(
-        [ctl_inp_dim, 5], wd=wd, name='w_ctl_{}'.format(name))
-    # Controller variable bias. Shape: [5].
-    b_ctl = nn.weight_variable([5], wd=wd, name='b_ctl_{}'.format(name))
-
-    def unroll(ctl_inp, time):
-        """Run controller."""
-        t = time
-        #########################################################
-        # Attention controller
-        #########################################################
-        # [B, 5]
-        ctl[t] = tf.matmul(ctl_inp, w_ctl) + b_ctl
-        # [B, 1, 1]
-        ctr_x[t] = tf.reshape((inp_width + 1) / 2.0 *
-                              (ctl[t][:, 0] + 1),
-                              [-1, 1, 1],
-                              name='ctr_x_{}_{}'.format(name, t))
-        # [B, 1, 1]
-        ctr_y[t] = tf.reshape((inp_height + 1) / 2.0 *
-                              (ctl[t][:, 1] + 1),
-                              [-1, 1, 1],
-                              name='ctr_y_{}_{}'.format(name, t))
-        # [B, 1, 1]
-        delta[t] = tf.reshape((max(inp_width, inp_height) - 1) /
-                              ((filter_size - 1) *
-                               tf.exp(ctl[t][:, 3])),
-                              [-1, 1, 1],
-                              name='delta_{}_{}'.format(name, t))
-        # [B, 1, 1]
-        lg_var[t] = tf.reshape(ctl[t][:, 2], [-1, 1, 1],
-                               name='lg_var_{}_{}'.format(name, t))
-        # [B, 1, 1]
-        lg_gamma[t] = tf.reshape(ctl[t][:, 4], [-1, 1, 1],
-                                 name='lg_gamma_{}_{}'.format(name, t))
-
-        #########################################################
-        # Gaussian filter
-        #########################################################
-        # [B, 1, 1] + [B, 1, 1] * [1, Fr, 1] = [B, 1, Fr]
-        mu_x[t] = tf.add(ctr_x[t], delta[t] * (
-            span_filter - filter_size / 2.0 - 0.5),
-            name='mu_x_{}_{}'.format(name, t))
-        # [B, 1, 1] + [B, 1, 1] * [1, 1, Fr] = [B, 1, Fr]
-        mu_y[t] = tf.add(ctr_y[t], delta[t] * (
-            span_filter - filter_size / 2.0 - 0.5),
-            name='mu_y_{}_{}'.format(name, t))
-        # [B, 1, 1] * [1, W, 1] - [B, 1, Fr] = [B, W, Fr]
-        filter_x[t] = tf.mul(
-            1 / tf.sqrt(tf.exp(lg_var[t])) / tf.sqrt(2 * np.pi),
-            tf.exp(-0.5 * (span_x - mu_x[t]) * (span_x - mu_x[t]) /
-                   tf.exp(lg_var[t])),
-            name='filter_x_{}_{}'.format(name, t))
-        # [1, H, 1] - [B, 1, Fr] = [B, H, Fr]
-        filter_y[t] = tf.mul(
-            1 / tf.sqrt(tf.exp(lg_var[t])) / tf.sqrt(2 * np.pi),
-            tf.exp(-0.5 * (span_y - mu_y[t]) * (span_y - mu_y[t]) /
-                   tf.exp(lg_var[t])),
-            name='filter_y_{}_{}'.format(name, t))
-
-        pass
-
-    model['w_ctl_{}'.format(name)] = w_ctl
-    model['b_ctl_{}'.format(name)] = b_ctl
-    model['ctl_{}'.format(name)] = ctl
-    model['ctr_x_{}'.format(name)] = ctr_x
-    model['ctr_y_{}'.format(name)] = ctr_y
-    model['delta_{}'.format(name)] = delta
-    model['lg_var_{}'.format(name)] = lg_var
-    model['lg_gamma_{}'.format(name)] = lg_gamma
-    model['mu_x_{}'.format(name)] = mu_x
-    model['mu_y_{}'.format(name)] = mu_y
-    model['filter_x_{}'.format(name)] = filter_x
-    model['filter_y_{}'.format(name)] = filter_y
-
-    return unroll
-
-
 def _cum_min(s, d):
     """Calculates cumulative minimum.
 
@@ -431,10 +321,10 @@ def _add_rnd_img_transformation(model, x, y_gt, padding, phase_train):
     y_rand = tf.transpose(y_rand, tf.pack([0, 1, 2 + do_tr, 3 - do_tr]))
 
     # Random hue, saturation, brightness, contrast
-    x_rand = img.random_hue(x_rand, 0.5)
-    x_rand = img.random_saturation(x_rand, 0.5, 2.0)
-    x_rand = tf.image.random_brightness(x_rand, 0.5)
-    x_rand = tf.image.random_contrast(x_rand, 0.5, 2.0)
+    # x_rand = img.random_hue(x_rand, 0.5)
+    # x_rand = img.random_saturation(x_rand, 0.5, 2.0)
+    # x_rand = tf.image.random_brightness(x_rand, 0.5)
+    # x_rand = tf.image.random_contrast(x_rand, 0.5, 2.0)
 
     x = (1.0 - phase_train_f) * x_ctr + phase_train_f * x_rand
     y_gt = (1.0 - phase_train_f) * y_ctr + phase_train_f * y_rand
@@ -487,21 +377,21 @@ def get_orig_model(opt, device='/cpu:0'):
         # Whether in training stage, required for batch norm.
         phase_train = tf.placeholder('bool')
         global_step = tf.placeholder('int32')
-        
+
         # Groundtruth segmentation maps, [B, T, H, W]
         y_gt = tf.placeholder(
             'float', [None, timespan, full_height, full_width])
-        
+
         # Groundtruth confidence score, [B, T]
         s_gt = tf.placeholder('float', [None, timespan])
         y_gt_list = tf.split(1, timespan, y_gt)
-        
+
         model['x'] = x
         model['phase_train'] = phase_train
         model['global_step'] = global_step
         model['y_gt'] = y_gt
         model['s_gt'] = s_gt
-        
+
         x_shape = tf.shape(x)
         num_ex = x_shape[0]
 
@@ -575,7 +465,7 @@ def get_orig_model(opt, device='/cpu:0'):
         # Core segmentation network.
         if segm_dense_conn:
             # Dense segmentation network
-            h_rnn_all = tf.reshape(h_rnn_all, [-1, rnn_dim])     
+            h_rnn_all = tf.reshape(h_rnn_all, [-1, rnn_dim])
             mlp_dims = [rnn_dim] + [core_dim] * num_mlp_layers
             mlp_act = [tf.nn.relu] * num_mlp_layers
             mlp_dropout = [1.0 - mlp_dropout_ratio] * num_mlp_layers
@@ -629,7 +519,7 @@ def get_orig_model(opt, device='/cpu:0'):
                     skip.append(layer_reshape)
                     ch_idx = len(cnn_channels) - jj - 2
                     skip_ch.append(cnn_channels[ch_idx])
-                    
+
             h_dcnn = nn.dcnn(model, x=h_core, f=dcnn_filters,
                              ch=dcnn_channels,
                              pool=dcnn_unpool, act=dcnn_act,
