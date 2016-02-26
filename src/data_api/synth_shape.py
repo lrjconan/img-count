@@ -171,7 +171,7 @@ def _raw_to_image(opt, raw_data_entry):
     border_color = (0, 0, 255)
     segm_color = (1, 0, 0)
 
-    img = np.zeros([im_height, im_width, 3], dtype='uint8')
+    img = np.zeros([im_height, im_width, 3], dtype='uint8') + np.array([100, 100, 100], dtype='uint8')
     num_obj = len(raw_data_entry)
     # Segmentations of all objects (N, H, W) in one example, N is number
     # of objects.

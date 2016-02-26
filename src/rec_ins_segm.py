@@ -36,11 +36,12 @@ from utils.time_series_logger import TimeSeriesLogger
 import rec_ins_segm_models as models
 
 
-def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
+def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match):
     """Plot some test samples."""
     num_ex = y_out.shape[0]
-    num_items = y_out.shape[1] + 1
-    max_items_per_row = 8
+    offset = 2
+    num_items = y_out.shape[1] + offset
+    max_items_per_row = 9
     num_rows_per_ex = int(np.ceil(num_items / float(max_items_per_row)))
     if num_items > max_items_per_row:
         num_col = max_items_per_row
@@ -65,6 +66,8 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
             col = jj % max_items_per_row
             row = num_rows_per_ex * ii + jj / max_items_per_row
             if jj == 0:
+                axarr[row, col].imshow(x_orig[ii])
+            elif jj == 1:
                 axarr[row, col].imshow(x[ii])
                 for kk in xrange(y_gt.shape[1]):
                     nz = y_gt[ii, kk].nonzero()
@@ -88,10 +91,10 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
                             top_left_x + 5, top_left_y - 5,
                             '{}'.format(kk), size=5)
             else:
-                axarr[row, col].imshow(y_out[ii, jj - 1])
-                matched = match[ii, jj - 1].nonzero()[0]
+                axarr[row, col].imshow(y_out[ii, jj - offset])
+                matched = match[ii, jj - offset].nonzero()[0]
                 axarr[row, col].text(0, 0, '{:.2f} {}'.format(
-                    s_out[ii, jj - 1], matched),
+                    s_out[ii, jj - offset], matched),
                     color=(0, 0, 0), size=8)
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
@@ -566,7 +569,7 @@ if __name__ == '__main__':
                                         get_fn=get_batch_valid,
                                         progress_bar=False):
             results = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-                                m['iou_soft'], m['iou_hard'], m['count_acc'], m['offset']],
+                                m['iou_soft'], m['iou_hard'], m['count_acc']],
                                feed_dict={
                 m['x']: _x,
                 m['phase_train']: False,
@@ -579,7 +582,6 @@ if __name__ == '__main__':
             _iou_soft = results[3]
             _iou_hard = results[4]
             _count_acc = results[5]
-            print results[6]
             loss += _loss * batch_size / float(num_ex_valid)
             segm_loss += _segm_loss * batch_size / float(num_ex_valid)
             conf_loss += _conf_loss * batch_size / float(num_ex_valid)
@@ -592,8 +594,9 @@ if __name__ == '__main__':
             step, loss, segm_loss, conf_loss, iou_soft, iou_hard, count_acc))
 
         if args.logs:
+            # Plot some samples.
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
-            _x, _y, _y_out, _s_out, _match = sess.run(
+            _x2, _y2, _y_out, _s_out, _match = sess.run(
                 [m['x_trans'], m['y_gt_trans'], m['y_out'], m['s_out'],
                  m['match']], feed_dict={
                     m['x']: _x,
@@ -601,8 +604,14 @@ if __name__ == '__main__':
                     m['y_gt']: _y,
                     m['s_gt']: _s
                 })
-            plot_samples(valid_sample_img.get_fname(), _x, _y_out, _s_out, _y,
-                         _s, _match)
+            plot_samples(valid_sample_img.get_fname(),
+                         x_orig=_x, 
+                         x=_x2,
+                         y_out=_y_out,
+                         s_out=_s_out,
+                         y_gt=_y2,
+                         s_gt=_s, 
+                         match=_match)
             valid_loss_logger.add(step, loss)
             valid_iou_soft_logger.add(step, iou_soft)
             valid_iou_hard_logger.add(step, iou_hard)
@@ -611,16 +620,22 @@ if __name__ == '__main__':
                 valid_sample_img.register()
 
             _x, _y, _s = get_batch_train(np.arange(args.num_samples_plot))
-            _x, _y, _y_out, _s_out, _match = sess.run(
+            _x2, _y2, _y_out, _s_out, _match = sess.run(
                 [m['x_trans'], m['y_gt_trans'], m['y_out'], m['s_out'],
                  m['match']], feed_dict={
                     m['x']: _x,
-                    m['phase_train']: False,
+                    m['phase_train']: True,
                     m['y_gt']: _y,
                     m['s_gt']: _s
                 })
-            plot_samples(train_sample_img.get_fname(), _x, _y_out, _s_out, _y,
-                         _s, _match)
+            plot_samples(train_sample_img.get_fname(),
+                         x_orig=_x, 
+                         x=_x2,
+                         y_out=_y_out,
+                         s_out=_s_out,
+                         y_gt=_y2,
+                         s_gt=_s, 
+                         match=_match)
             if not train_sample_img.is_registered():
                 train_sample_img.register()
 

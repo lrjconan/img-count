@@ -458,32 +458,32 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         num_ex = x_shape[0]
 
         # Random crop
-        if padding > 0:
-            # Random slices (for training)
-            offset = tf.random_uniform([2], dtype='int32', maxval=padding * 2)
-            model['offset'] = offset
-            x_rand_crop = tf.slice(x, tf.pack([0, offset[0], offset[1], 0]),
-                    [-1, inp_height, inp_width, inp_depth])
-            y_rand_crop = tf.slice(y_gt, tf.pack([0, 0, offset[0], offset[1]]),
-                [-1, -1, inp_height, inp_width])
+        offset = tf.random_uniform([2], dtype='int32', maxval=padding * 2)
+        model['offset'] = offset
+        x_rand = tf.slice(x, tf.pack([0, offset[0], offset[1], 0]),
+                          [-1, inp_height, inp_width, inp_depth])
+        y_rand = tf.slice(y_gt, tf.pack([0, 0, offset[0], offset[1]]),
+                          [-1, -1, inp_height, inp_width])
 
-            # Center slices (for inference)
-            x_ctr_crop = tf.slice(x, [0, padding, padding, 0],
-                                  [-1, inp_height, inp_width, -1])
-            y_ctr_crop = tf.slice(y_gt, [0, 0, padding, padding],
-                                  [-1, -1, inp_height, inp_width])
-            y_gt = (1 - phase_train_f) * y_ctr_crop + phase_train_f * y_rand_crop
-        else:
-            x_rand_crop = x
-            x_ctr_crop = x
+        # Center slices (for inference)
+        x_ctr = tf.slice(x, [0, padding, padding, 0],
+                         [-1, inp_height, inp_width, -1])
+        y_ctr = tf.slice(y_gt, [0, 0, padding, padding],
+                         [-1, -1, inp_height, inp_width])
 
-        # Random flip
-        x_rand = img.random_flip_up_down(x_rand_crop)
-        x_rand = img.random_flip_left_right(x_rand)
-        x = (1 - phase_train_f) * x_ctr_crop + phase_train_f * x_rand
+        # Random horizontal & vertical flip
+        rand = tf.random_uniform([2], 0, 1.0)
+        mirror_x = tf.pack([1.0, rand[0], rand[1], 1.0]) < 0.5
+        mirror_y = tf.pack([1.0, 1.0, rand[0], rand[1]]) < 0.5
+        x_rand = tf.reverse(x_rand, mirror_x)
+        y_rand = tf.reverse(y_rand, mirror_y)
 
+        x = (1.0 - phase_train_f) * x_ctr + phase_train_f * x_rand
+        y_gt = (1.0 - phase_train_f) * y_ctr + phase_train_f * y_rand
+        model['phase_train_f'] = phase_train_f
         model['x_trans'] = x
         model['y_gt_trans'] = y_gt
+        model['y_rand'] = y_rand
 
         # CNN
         # [B, H, W, 3] => [B, H / 2, W / 2, 16]
