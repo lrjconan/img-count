@@ -492,7 +492,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         cnn_channels = [inp_depth] + cnn_depth
         cnn_pool = [2] * len(cnn_filters)
         cnn_act = [tf.nn.relu] * len(cnn_filters)
-        cnn_use_bn = [use_bn] * len(cnn_filters)
+        cnn_use_bn = [use_bn] * (len(cnn_filters) - 1) + [False]
 
         h_cnn = nn.cnn(model, x=x, f=cnn_filters, ch=cnn_channels,
                        pool=cnn_pool, act=cnn_act, use_bn=cnn_use_bn,
