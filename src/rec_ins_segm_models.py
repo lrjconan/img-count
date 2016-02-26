@@ -407,6 +407,10 @@ def get_orig_model(opt, device='/cpu:0', train=True):
     inp_height = opt['inp_height']
     inp_width = opt['inp_width']
     inp_depth = opt['inp_depth']
+    padding = opt['padding']
+    full_height = inp_height + 2 * padding
+    full_width = inp_width + 2 * padding
+
     rnn_type = opt['rnn_type']
     cnn_filter_size = opt['cnn_filter_size']
     cnn_depth = opt['cnn_depth']
@@ -432,12 +436,13 @@ def get_orig_model(opt, device='/cpu:0', train=True):
 
     with tf.device(_get_device_fn(device)):
         # Input image, [B, H, W, D]
-        x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
+        x = tf.placeholder('float', [None, full_height, full_width, inp_depth])
         # Whether in training stage, required for batch norm.
         phase_train = tf.placeholder('bool')
         global_step = tf.placeholder('int32')
         # Groundtruth segmentation maps, [B, T, H, W]
-        y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
+        y_gt = tf.placeholder(
+            'float', [None, timespan, full_height, full_width])
         # Groundtruth confidence score, [B, T]
         s_gt = tf.placeholder('float', [None, timespan])
         y_gt_list = tf.split(1, timespan, y_gt)
@@ -447,11 +452,35 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         model['y_gt'] = y_gt
         model['s_gt'] = s_gt
 
-        # Possibly add random image transformation layers here in training time.
-        # Need to combine x and y together to crop.
-        # Other operations on x only.
-        # x = tf.image.random_crop()
-        # x = tf.image.random_flip()
+        # Random image transformation layers.
+        phase_train_f = tf.to_float(phase_train)
+
+        # Random crop
+        if padding > 0:
+            x_y = tf.concat(3, [x, tf.reshape(y_gt,
+                                              [-1, full_height, full_width, 1])])
+            # Center slices (for inference)
+            x_ctr_crop = tf.slice(x, [0, padding, padding, 0],
+                                  [-1, inp_height, inp_width, -1])
+            y_ctr_crop = tf.slice(y_gt, [0, 0, padding, padding],
+                                  [-1, -1, inp_height, inp_width])
+            # Random slices (for training)
+            x_y_rand = tf.image.random_crop(x_y, [inp_height, inp_width])
+            x_rand = tf.slice(x_y_rand, [0, 0, 0, 0], [-1, -1, -1, inp_depth])
+            y_rand = tf.slice(x_y_rand, [0, 0, 0, inp_depth], [-1, -1, -1, 1])
+            y_rand = tf.reshape(y_rand, [-1, timespan, inp_height, inp_width])
+            y_gt = (1 - phase_train_f) * y_ctr_crop + phase_train_f * y_rand
+        else:
+            x_ctr_crop = x
+            x_rand = x
+
+        # Random flip
+        x_rand = tf.image.random_flip_up_down(x_rand)
+        x_rand = tf.image.random_flip_left_right(x_rand)
+        x = (1 - phase_train_f) * x_ctr_crop + phase_train_f * x_rand
+
+        model['x_trans'] = x
+        model['y_gt_trans'] = y_gt
 
         # CNN
         # [B, H, W, 3] => [B, H / 2, W / 2, 16]
@@ -752,7 +781,7 @@ def _get_attn_filter(mu, lg_var, size):
 
     # [1, L, 1]
     span = np.reshape(np.arange(size), [1, size, 1])
-    
+
     # [1, L, 1] - [B, 1, F] = [B, L, F]
     filter = tf.mul(
         1 / tf.sqrt(tf.exp(lg_var)) / tf.sqrt(2 * np.pi),
@@ -800,6 +829,5 @@ def get_attn_gt_model(opt, device='/cpu:0', train=True):
         attn_lg_var = tf.placeholder('float', [None, 2])
 
         filters_x = _get_attn_filter(attn_mu[:, 0], attn_lg_var[:, 0], )
-
 
     pass

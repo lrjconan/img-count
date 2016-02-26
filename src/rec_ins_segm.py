@@ -169,6 +169,7 @@ def _parse_args():
     kDataset = 'synth_shape'
     kHeight = 224
     kWidth = 224
+    kPadding = 16
     # (Below are only valid options for synth_shape dataset)
     kRadiusLower = 15
     kRadiusUpper = 45
@@ -221,6 +222,7 @@ def _parse_args():
     kNumSteps = 500000
     kStepsPerCkpt = 1000
     kStepsPerValid = 250
+    kBatchSize = 32
 
     parser = argparse.ArgumentParser(
         description='Recurrent Instance Segmentation')
@@ -232,6 +234,9 @@ def _parse_args():
                         help='Image height')
     parser.add_argument('-width', default=kWidth, type=int,
                         help='Image width')
+    parser.add_argument('-padding', default=kPadding, type=int,
+                        help='Apply additional padding for random cropping')
+
     parser.add_argument('-radius_upper', default=kRadiusUpper, type=int,
                         help='Radius upper bound')
     parser.add_argument('-radius_lower', default=kRadiusLower, type=int,
@@ -324,6 +329,8 @@ def _parse_args():
                         type=int, help='Number of steps per validation')
     parser.add_argument('-steps_per_log', default=kStepsPerLog,
                         type=int, help='Number of steps per log')
+    parser.add_argument('-batch_size', default=kBatchSize,
+                        type=int, help='Size of a mini-batch')
     parser.add_argument('-results', default='../results',
                         help='Model results folder')
     parser.add_argument('-logs', default='../results',
@@ -436,6 +443,7 @@ if __name__ == '__main__':
         data_opt = {
             'height': args.height,
             'width': args.width,
+            'padding': args.padding,
             'radius_upper': args.radius_upper,
             'radius_lower': args.radius_lower,
             'border_thickness': args.border_thickness,
@@ -526,6 +534,9 @@ if __name__ == '__main__':
         valid_sample_img = LazyRegisterer(os.path.join(
             logs_folder, 'valid_sample_img.png'),
             'image', 'Validation samples')
+        train_sample_img = LazyRegisterer(os.path.join(
+            logs_folder, 'train_sample_img.png'),
+            'image', 'Training samples')
         log.info(
             ('Visualization can be viewed at: '
              'http://{}/deep-dashboard?id={}').format(
@@ -535,12 +546,10 @@ if __name__ == '__main__':
     num_ex_valid = dataset['valid']['input'].shape[0]
     get_batch_train = _get_batch_fn(dataset['train'])
     get_batch_valid = _get_batch_fn(dataset['valid'])
-    batch_size_train = 32
-    batch_size_valid = 32
+    batch_size = args.batch_size
     log.info('Number of validation examples: {}'.format(num_ex_valid))
-    log.info('Validation batch size: {}'.format(batch_size_valid))
     log.info('Number of training examples: {}'.format(num_ex_train))
-    log.info('Training batch size: {}'.format(batch_size_train))
+    log.info('Batch size: {}'.format(batch_size))
 
     def run_validation():
         # Validation
@@ -552,7 +561,7 @@ if __name__ == '__main__':
         conf_loss = 0.0
         log.info('Running validation')
         for _x, _y, _s in BatchIterator(num_ex_valid,
-                                        batch_size=batch_size_valid,
+                                        batch_size=batch_size,
                                         get_fn=get_batch_valid,
                                         progress_bar=False):
             results = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
@@ -569,12 +578,12 @@ if __name__ == '__main__':
             _iou_soft = results[3]
             _iou_hard = results[4]
             _count_acc = results[5]
-            loss += _loss * batch_size_valid / float(num_ex_valid)
-            segm_loss += _segm_loss * batch_size_valid / float(num_ex_valid)
-            conf_loss += _conf_loss * batch_size_valid / float(num_ex_valid)
-            iou_soft += _iou_soft * batch_size_valid / float(num_ex_valid)
-            iou_hard += _iou_hard * batch_size_valid / float(num_ex_valid)
-            count_acc += _count_acc * batch_size_valid / float(num_ex_valid)
+            loss += _loss * batch_size / float(num_ex_valid)
+            segm_loss += _segm_loss * batch_size / float(num_ex_valid)
+            conf_loss += _conf_loss * batch_size / float(num_ex_valid)
+            iou_soft += _iou_soft * batch_size / float(num_ex_valid)
+            iou_hard += _iou_hard * batch_size / float(num_ex_valid)
+            count_acc += _count_acc * batch_size / float(num_ex_valid)
 
         log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} conf_loss {:.4f} '
                   'iou soft {:.4f} iou hard {:.4f} count acc {:.4f}').format(
@@ -582,8 +591,8 @@ if __name__ == '__main__':
 
         if args.logs:
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
-            _y_out, _s_out, _match = sess.run(
-                [m['y_out'], m['s_out'], m['match']], feed_dict={
+            _x, _y_out, _s_out, _match = sess.run(
+                [m['x_trans'], m['y_out'], m['s_out'], m['match']], feed_dict={
                     m['x']: _x,
                     m['phase_train']: False,
                     m['y_gt']: _y,
@@ -598,11 +607,22 @@ if __name__ == '__main__':
             if not valid_sample_img.is_registered():
                 valid_sample_img.register()
 
+            _x, _y, _s = get_batch_train(np.arange(args.num_samples_plot))
+            _x, _y_out, _s_out, _match = sess.run(
+                [m['x_trans'], m['y_out'], m['s_out'], m['match']], feed_dict={
+                    m['x']: _x,
+                    m['phase_train']: False,
+                    m['y_gt']: _y,
+                    m['s_gt']: _s
+                })
+            plot_samples(train_sample_img.get_fname(), _x, _y_out, _s_out, _y,
+                         _s, _match)
+
         pass
 
     # Train loop
     for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
-                                             batch_size=batch_size_train,
+                                             batch_size=batch_size,
                                              get_fn=get_batch_train,
                                              cycle=True,
                                              progress_bar=False):

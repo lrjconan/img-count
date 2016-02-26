@@ -134,6 +134,16 @@ def _draw_triangle(img, center, radius, fill, border=None, thickness=None):
     pass
 
 
+def _add_padding(img, padding):
+    height = img.shape[0]
+    width = img.shape[1]
+    img_full = np.zeros([height + 2 * padding, width + 2 * padding],
+                        dtype=img.dtype)
+    img_full[padding: height + padding, padding: width + padding] = img
+
+    return img_full
+
+
 def _raw_to_image(opt, raw_data_entry):
     """Convert a raw data entry (object info) to an image data entry
     (rasterized image).
@@ -149,6 +159,7 @@ def _raw_to_image(opt, raw_data_entry):
     im_height = opt['height']
     im_width = opt['width']
     thickness = opt['border_thickness']
+    padding = opt['padding']
     # Draw a green objects with red border.
     # Note: OpenCV uses (B, G, R) order.
     fill_color = (0, 255, 0)
@@ -199,6 +210,12 @@ def _raw_to_image(opt, raw_data_entry):
             log.info('Top mask sum: {}'.format(mask.sum()), verbose=2)
             segms[jj] = np.logical_and(segms[jj], mask).astype('uint8')
             log.info('After sum: {}'.format(segms[jj].sum()), verbose=2)
+
+    # Apply padding.
+    if padding > 0:
+        img = _add_padding(img, padding)
+        for jj, segm in enumerate(segms):
+            segms[jj] = _add_padding(segm, padding)
 
     # Aggregate results.
     return {
@@ -513,9 +530,12 @@ def _image_to_instance_segmentation(opt, image_data_entry):
     """
     height = opt['height']
     width = opt['width']
+    padding = opt['padding']
+    full_height = height + 2 * padding
+    full_width = width + 2 * padding
     timespan = opt['max_num_objects'] + 1
     image = image_data_entry['image']
-    ins_segm = np.zeros([timespan, height, width], dtype='uint8')
+    ins_segm = np.zeros([timespan, full_height, full_width], dtype='uint8')
     num_segmentations = len(image_data_entry['segmentations'])
     for tt, segm in enumerate(image_data_entry['segmentations']):
         ins_segm[tt] = image_data_entry['segmentations'][tt]
@@ -538,10 +558,13 @@ def get_instance_segmentation_data(opt, image_data):
     num_ex = len(image_data)
     height = opt['height']
     width = opt['width']
+    padding = opt['padding']
+    full_height = height + 2 * padding
+    full_width = width + 2 * padding
     timespan = opt['max_num_objects'] + 1
-    inp = np.zeros([num_ex, height, width, 3], dtype='uint8')
+    inp = np.zeros([num_ex, full_height, full_width, 3], dtype='uint8')
     label_segmentation = np.zeros(
-        [num_ex, timespan, height, width], dtype='uint8')
+        [num_ex, timespan, full_height, full_width], dtype='uint8')
     label_score = np.zeros([num_ex, timespan], dtype='uint8')
     for ii, image_data_entry in enumerate(image_data):
         ins_segm = _image_to_instance_segmentation(opt, image_data_entry)
