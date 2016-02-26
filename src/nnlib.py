@@ -111,6 +111,7 @@ def dcnn(model, x, f, ch, pool, act, use_bn, inp_h, inp_w, skip=None, skip_ch=No
         h[ii].set_shape([None, inp_h, inp_w, out_ch])
 
         if use_bn[ii]:
+            print out_ch
             h[ii] = batch_norm(h[ii], out_ch, phase_train)
 
         if act[ii] is not None:
@@ -181,6 +182,9 @@ def batch_norm(x, n_out, phase_train, scope='bn', affine=True):
                             name='gamma', trainable=affine)
 
         batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2], name='moments')
+        batch_mean.set_shape([n_out])
+        batch_var.set_shape([n_out])
+
         ema = tf.train.ExponentialMovingAverage(decay=0.9)
         ema_apply_op = ema.apply([batch_mean, batch_var])
         ema_mean, ema_var = ema.average(batch_mean), ema.average(batch_var)
