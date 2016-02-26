@@ -137,8 +137,11 @@ def _draw_triangle(img, center, radius, fill, border=None, thickness=None):
 def _add_padding(img, padding):
     height = img.shape[0]
     width = img.shape[1]
-    img_full = np.zeros([height + 2 * padding, width + 2 * padding],
-                        dtype=img.dtype)
+    if len(img.shape) == 2:
+        shape = [height + 2 * padding, width + 2 * padding]
+    elif len(img.shape) == 3:
+        shape = [height + 2 * padding, width + 2 * padding, img.shape[2]]
+    img_full = np.zeros(shape, dtype=img.dtype)
     img_full[padding: height + padding, padding: width + padding] = img
 
     return img_full
