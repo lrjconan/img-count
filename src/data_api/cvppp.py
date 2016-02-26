@@ -24,7 +24,11 @@ def get_dataset(folder, opt):
     """
     inp_height = opt['height']
     inp_width = opt['width']
+    padding = opt['padding']
     inp_shape = (inp_height, inp_width)
+    full_height = inp_height + 2 * padding
+    full_width = inp_width + 2 * padding
+    full_shape = (full_height, full_width)
     log.info('Reading images from {}'.format(folder))
     file_list = os.listdir(folder)
     image_dict = {}
@@ -62,12 +66,12 @@ def get_dataset(folder, opt):
     inp = np.zeros([num_ex, image_height, image_width, 3], dtype='uint8')
     label_segm = np.zeros(
         [num_ex, max_num_obj, image_height, image_width], dtype='uint8')
-    label_conf = np.zeros([num_ex, max_num_obj], dtype='uint8')
+    label_score = np.zeros([num_ex, max_num_obj], dtype='uint8')
     log.info('Number of examples: {}'.format(num_ex))
     log.info('Input height: {} width: {}'.format(
         image_height, image_width))
     log.info('Input shape: {} label shape: {} {}'.format(
-        inp.shape, label_segm.shape, label_conf.shape))
+        inp.shape, label_segm.shape, label_score.shape))
     log.info('Assemble inputs')
     for ii, imgid in enumerate(image_dict.iterkeys()):
         if imgid not in label_dict:
@@ -76,12 +80,19 @@ def get_dataset(folder, opt):
         num_obj = len(label_dict[imgid])
         for jj in xrange(num_obj):
             label_segm[ii, jj] = label_dict[imgid][jj]
-        label_conf[ii, :num_obj] = 1
+        label_score[ii, :num_obj] = 1
+
+    # Apply padding
+    if padding > 0:
+        inp_full = np.zeros([num_ex, full_height, full_width, 3], dtype='uint8')
+        inp_full[:, padding: im_height + padding, padding: im_width + padding, :] = img
+        label_segm_full = np.zeros([num_ex, max_num_obj, full_height, full_width], dtype='uint8')
+        label_segm_full[:, padding: im_height + padding, padding: im_width + padding] = segms
 
     return {
-        'input': inp,
-        'label_segmentation': label_segm,
-        'label_score': label_conf
+        'input': inp_full,
+        'label_segmentation': label_segm_full,
+        'label_score': label_score
     }
 
 
