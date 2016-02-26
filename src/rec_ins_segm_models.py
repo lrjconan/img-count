@@ -461,6 +461,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         if padding > 0:
             # Random slices (for training)
             offset = tf.random_uniform([2], dtype='int32', maxval=padding * 2)
+            model['offset'] = offset
             x_rand_crop = tf.slice(x, tf.pack([0, offset[0], offset[1], 0]),
                     [-1, inp_height, inp_width, inp_depth])
             y_rand_crop = tf.slice(y_gt, tf.pack([0, 0, offset[0], offset[1]]),

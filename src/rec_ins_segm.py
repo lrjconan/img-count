@@ -566,7 +566,7 @@ if __name__ == '__main__':
                                         get_fn=get_batch_valid,
                                         progress_bar=False):
             results = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-                                m['iou_soft'], m['iou_hard'], m['count_acc']],
+                                m['iou_soft'], m['iou_hard'], m['count_acc'], m['offset']],
                                feed_dict={
                 m['x']: _x,
                 m['phase_train']: False,
@@ -579,6 +579,7 @@ if __name__ == '__main__':
             _iou_soft = results[3]
             _iou_hard = results[4]
             _count_acc = results[5]
+            print results[6]
             loss += _loss * batch_size / float(num_ex_valid)
             segm_loss += _segm_loss * batch_size / float(num_ex_valid)
             conf_loss += _conf_loss * batch_size / float(num_ex_valid)
