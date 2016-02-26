@@ -674,7 +674,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                 dcnn_channels = [mlp_depth] + dcnn_depth
             else:
                 dcnn_channels = [1] * (len(dcnn_filters) + 1)
-            dcnn_use_bn = [use_bn] * len(dcnn_filters)
+            dcnn_use_bn = [use_bn] * (len(dcnn_filters) - 1) + [False]
 
             if add_skip_conn:
                 skip = [None]
