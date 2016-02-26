@@ -96,7 +96,7 @@ def plot_samples(fname, x, y_out, s_out, y_gt, s_gt, match):
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=300)
-    plt.clf()
+    plt.close('all')
 
     pass
 
