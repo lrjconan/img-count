@@ -222,6 +222,9 @@ def _raw_to_image(opt, raw_data_entry):
         img_full[padding: im_height + padding, padding: im_width + padding] = img
         segms_full = np.zeros([num_obj, full_height, full_width], dtype='uint8')
         segms_full[:, padding: im_height + padding, padding: im_width + padding] = segms
+    else:
+        img_full = img
+        segms_full = segms
 
     # Aggregate results.
     return {
