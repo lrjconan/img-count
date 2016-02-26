@@ -582,12 +582,13 @@ if __name__ == '__main__':
             _iou_soft = results[3]
             _iou_hard = results[4]
             _count_acc = results[5]
-            loss += _loss * batch_size / float(num_ex_valid)
-            segm_loss += _segm_loss * batch_size / float(num_ex_valid)
-            conf_loss += _conf_loss * batch_size / float(num_ex_valid)
-            iou_soft += _iou_soft * batch_size / float(num_ex_valid)
-            iou_hard += _iou_hard * batch_size / float(num_ex_valid)
-            count_acc += _count_acc * batch_size / float(num_ex_valid)
+            num_ex_batch = _x.shape[0]
+            loss += _loss * num_ex_batch / float(num_ex_valid)
+            segm_loss += _segm_loss * num_ex_batch / float(num_ex_valid)
+            conf_loss += _conf_loss * num_ex_batch / float(num_ex_valid)
+            iou_soft += _iou_soft * num_ex_batch / float(num_ex_valid)
+            iou_hard += _iou_hard * num_ex_batch / float(num_ex_valid)
+            count_acc += _count_acc * num_ex_batch / float(num_ex_valid)
 
         log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} conf_loss {:.4f} '
                   'iou soft {:.4f} iou hard {:.4f} count acc {:.4f}').format(
