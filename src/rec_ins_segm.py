@@ -315,8 +315,8 @@ def _parse_args():
     # Extra model options (beta)
     parser.add_argument('-no_cum_min', action='store_true',
                         help='Whether cumulative minimum. Default yes.')
-    parser.add_argument('-feed_output', action='store_true',
-                        help='Whether to feed the output back to input.')
+    # parser.add_argument('-feed_output', action='store_true',
+    #                     help='Whether to feed the output back to input.')
     parser.add_argument('-segm_loss_fn', default='iou',
                         help='Segmentation loss function, "iou" or "bce"')
     parser.add_argument('-use_deconv', action='store_true',
@@ -443,7 +443,7 @@ if __name__ == '__main__':
 
             # Test arguments
             'cum_min': not args.no_cum_min,
-            'feed_output': args.feed_output,
+            # 'feed_output': args.feed_output,
             'segm_loss_fn': args.segm_loss_fn,
             'use_deconv': args.use_deconv,
             'use_bn': args.use_bn,
@@ -494,7 +494,7 @@ if __name__ == '__main__':
 
     dataset = get_dataset(args.dataset, data_opt,
                           args.num_ex, args.num_ex / 10)
-    m = models.get_model(args.model, model_opt, device=device, train=True)
+    m = models.get_model(args.model, model_opt, device=device)
     sess = tf.Session()
     # sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
