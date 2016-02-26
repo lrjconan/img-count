@@ -47,7 +47,7 @@ def _cum_min_grad(op, grad):
 
 def _get_device_fn(device):
     """Choose device for different ops."""
-    OPS_ON_CPU = set(['ResizeBilinear', 'ResizeBilinearGrad', 'CumMin',
+    OPS_ON_CPU = set(['ResizeBilinear', 'ResizeBilinearGrad', 'Mod', 'CumMin',
                       'CumMinGrad', 'Hungarian', 'Reverse', 'SparseToDense'])
 
     def _device_fn(op):
