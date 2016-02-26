@@ -612,6 +612,8 @@ def get_orig_model(opt, device='/cpu:0'):
                 dcnn_channels = [1] * (len(dcnn_filters) + 1)
             dcnn_use_bn = [use_bn] * len(dcnn_filters)
 
+            skip = None
+            skip_ch = None
             if add_skip_conn:
                 skip = [None]
                 skip_ch = [0]
@@ -627,10 +629,7 @@ def get_orig_model(opt, device='/cpu:0'):
                     skip.append(layer_reshape)
                     ch_idx = len(cnn_channels) - jj - 2
                     skip_ch.append(cnn_channels[ch_idx])
-            else:
-                skip = None
-                skip_ch = None
-
+                    
             h_dcnn = nn.dcnn(model, x=h_core, f=dcnn_filters,
                              ch=dcnn_channels,
                              pool=dcnn_unpool, act=dcnn_act,
