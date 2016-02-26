@@ -411,6 +411,7 @@ if __name__ == '__main__':
             'inp_height': args.height,
             'inp_width': args.width,
             'inp_depth': 3,
+            'padding': args.padding,
             'timespan': timespan,
             'weight_decay': args.weight_decay,
             'base_learn_rate': args.base_learn_rate,
@@ -591,8 +592,9 @@ if __name__ == '__main__':
 
         if args.logs:
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
-            _x, _y_out, _s_out, _match = sess.run(
-                [m['x_trans'], m['y_out'], m['s_out'], m['match']], feed_dict={
+            _x, _y, _y_out, _s_out, _match = sess.run(
+                [m['x_trans'], m['y_gt_trans'], m['y_out'], m['s_out'],
+                 m['match']], feed_dict={
                     m['x']: _x,
                     m['phase_train']: False,
                     m['y_gt']: _y,
@@ -608,8 +610,9 @@ if __name__ == '__main__':
                 valid_sample_img.register()
 
             _x, _y, _s = get_batch_train(np.arange(args.num_samples_plot))
-            _x, _y_out, _s_out, _match = sess.run(
-                [m['x_trans'], m['y_out'], m['s_out'], m['match']], feed_dict={
+            _x, _y, _y_out, _s_out, _match = sess.run(
+                [m['x_trans'], m['y_gt_trans'], m['y_out'], m['s_out'],
+                 m['match']], feed_dict={
                     m['x']: _x,
                     m['phase_train']: False,
                     m['y_gt']: _y,

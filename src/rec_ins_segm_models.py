@@ -7,6 +7,7 @@ import tensorflow as tf
 from utils import logger
 from utils.grad_clip_optim import GradientClipOptimizer
 import nnlib as nn
+import image_ops as img
 
 log = logger.get()
 
@@ -332,9 +333,8 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
 
     # [1, N, 1, 1]
     y_out_shape = tf.shape(y_out)
-    num_segm_out = y_out_shape[1: 2]
-    num_segm_out_mul = tf.concat(
-        0, [tf.constant([1]), num_segm_out, tf.constant([1])])
+    num_segm_out = y_out_shape[1]
+    num_segm_out_mul = tf.pack([1, num_segm_out, 1])
     # Mask the graph algorithm output.
     match = match_eps * mask_x * mask_y
     model['match'] = match
@@ -454,29 +454,31 @@ def get_orig_model(opt, device='/cpu:0', train=True):
 
         # Random image transformation layers.
         phase_train_f = tf.to_float(phase_train)
+        x_shape = tf.shape(x)
+        num_ex = x_shape[0]
 
         # Random crop
         if padding > 0:
-            x_y = tf.concat(3, [x, tf.reshape(y_gt,
-                                              [-1, full_height, full_width, 1])])
+            # Random slices (for training)
+            offset = tf.random_uniform([2], dtype='int32', maxval=padding * 2)
+            x_rand_crop = tf.slice(x, tf.pack([0, offset[0], offset[1], 0]),
+                    [-1, inp_height, inp_width, inp_depth])
+            y_rand_crop = tf.slice(y_gt, tf.pack([0, 0, offset[0], offset[1]]),
+                [-1, -1, inp_height, inp_width])
+
             # Center slices (for inference)
             x_ctr_crop = tf.slice(x, [0, padding, padding, 0],
                                   [-1, inp_height, inp_width, -1])
             y_ctr_crop = tf.slice(y_gt, [0, 0, padding, padding],
                                   [-1, -1, inp_height, inp_width])
-            # Random slices (for training)
-            x_y_rand = tf.image.random_crop(x_y, [inp_height, inp_width])
-            x_rand = tf.slice(x_y_rand, [0, 0, 0, 0], [-1, -1, -1, inp_depth])
-            y_rand = tf.slice(x_y_rand, [0, 0, 0, inp_depth], [-1, -1, -1, 1])
-            y_rand = tf.reshape(y_rand, [-1, timespan, inp_height, inp_width])
-            y_gt = (1 - phase_train_f) * y_ctr_crop + phase_train_f * y_rand
+            y_gt = (1 - phase_train_f) * y_ctr_crop + phase_train_f * y_rand_crop
         else:
+            x_rand_crop = x
             x_ctr_crop = x
-            x_rand = x
 
         # Random flip
-        x_rand = tf.image.random_flip_up_down(x_rand)
-        x_rand = tf.image.random_flip_left_right(x_rand)
+        x_rand = img.random_flip_up_down(x_rand_crop)
+        x_rand = img.random_flip_left_right(x_rand)
         x = (1 - phase_train_f) * x_ctr_crop + phase_train_f * x_rand
 
         model['x_trans'] = x
@@ -520,9 +522,6 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                 rnn_inp_dim += core_dim
 
         # [B, LH, LW, LD]
-        x_shape = tf.shape(x)
-        num_ex = x_shape[0: 1]
-
         if not segm_dense_conn:
             # Segmentation network weights
             w_segm_conv = nn.weight_variable([3, 3, rnn_depth, 1], wd=wd)
@@ -532,8 +531,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         def prep_conv_lstm_inp(inp, output):
             if feed_output:
                 if output is None:
-                    out = tf.zeros(tf.concat(
-                        0, [num_ex, tf.constant([rnn_h, rnn_w, core_depth])]))
+                    out = tf.zeros(tf.pack([num_ex, rnn_h, rnn_w, core_depth]))
                 else:
                     out = tf.reshape(output, [-1, rnn_h, rnn_w, core_depth])
                 rnn_inp = tf.concat(3, [inp, out])
@@ -546,8 +544,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             inp = tf.reshape(inp, [-1, pdim])
             if feed_output:
                 if output is None:
-                    out = tf.zeros(tf.concat(
-                        0, [num_ex, tf.constant([core_dim])]))
+                    out = tf.zeros(tf.pack([num_ex, core_dim]))
                 else:
                     out = tf.reshape(output, [-1, core_dim])
                 rnn_inp = tf.concat(1, [inp, out])
@@ -557,10 +554,8 @@ def get_orig_model(opt, device='/cpu:0', train=True):
 
         if rnn_type == 'conv_lstm':
             # Hidden state initialization
-            c_init = tf.zeros(tf.concat(
-                0, [num_ex, tf.constant([rnn_h, rnn_w, rnn_depth])]))
-            h_init = tf.zeros(tf.concat(
-                0, [num_ex, tf.constant([rnn_h, rnn_w, rnn_depth])]))
+            c_init = tf.zeros(tf.pack([num_ex, rnn_h, rnn_w, rnn_depth]))
+            h_init = tf.zeros(tf.pack([num_ex, rnn_h, rnn_w, rnn_depth]))
             unroll_rnn = nn.conv_lstm(
                 model=model,
                 timespan=timespan,
@@ -576,10 +571,8 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             )
             prep_inp = prep_conv_lstm_inp
         elif rnn_type == 'lstm':
-            c_init = tf.zeros(tf.concat(
-                0, [num_ex, tf.constant([rnn_hid_dim])]))
-            h_init = tf.zeros(tf.concat(
-                0, [num_ex, tf.constant([rnn_hid_dim])]))
+            c_init = tf.zeros(tf.pack([num_ex, rnn_hid_dim]))
+            h_init = tf.zeros(tf.pack([num_ex, rnn_hid_dim]))
             unroll_rnn = nn.lstm(
                 model=model,
                 timespan=timespan,
@@ -592,8 +585,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
             )
             prep_inp = prep_rnn_inp
         elif rnn_type == 'gru':
-            h_init = tf.zeros(tf.concat(
-                0, [num_ex, tf.constant([rnn_hid_dim])]))
+            h_init = tf.zeros(tf.pack([num_ex, rnn_hid_dim]))
             unroll_rnn = nn.gru(
                 model=model,
                 timespan=timespan,

@@ -163,6 +163,8 @@ def _raw_to_image(opt, raw_data_entry):
     im_width = opt['width']
     thickness = opt['border_thickness']
     padding = opt['padding']
+    full_height = im_height + 2 * padding
+    full_width = im_width + 2 * padding
     # Draw a green objects with red border.
     # Note: OpenCV uses (B, G, R) order.
     fill_color = (0, 255, 0)
@@ -216,14 +218,15 @@ def _raw_to_image(opt, raw_data_entry):
 
     # Apply padding.
     if padding > 0:
-        img = _add_padding(img, padding)
-        for jj, segm in enumerate(segms):
-            segms[jj] = _add_padding(segm, padding)
+        img_full = np.zeros([full_height, full_width, 3], dtype='uint8')
+        img_full[padding: im_height + padding, padding: im_width + padding] = img
+        segms_full = np.zeros([num_obj, full_height, full_width], dtype='uint8')
+        segms_full[:, padding: im_height + padding, padding: im_width + padding] = segms
 
     # Aggregate results.
     return {
-        'image': img,
-        'segmentations': segms,
+        'image': img_full,
+        'segmentations': segms_full,
         'object_info': obj_info
     }
 
