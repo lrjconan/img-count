@@ -85,9 +85,9 @@ def get_dataset(folder, opt):
     # Apply padding
     if padding > 0:
         inp_full = np.zeros([num_ex, full_height, full_width, 3], dtype='uint8')
-        inp_full[:, padding: im_height + padding, padding: im_width + padding, :] = inp
+        inp_full[:, padding: inp_height + padding, padding: inp_width + padding, :] = inp
         label_segm_full = np.zeros([num_ex, max_num_obj, full_height, full_width], dtype='uint8')
-        label_segm_full[:, padding: im_height + padding, padding: im_width + padding] = label_segm
+        label_segm_full[:, padding: inp_height + padding, padding: inp_width + padding] = label_segm
     else:
         inp_full = inp
         label_segm_full = label_segm
