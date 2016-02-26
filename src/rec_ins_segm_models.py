@@ -48,7 +48,7 @@ def _cum_min_grad(op, grad):
 def _get_device_fn(device):
     """Choose device for different ops."""
     OPS_ON_CPU = set(['ResizeBilinear', 'ResizeBilinearGrad', 'CumMin',
-                      'CumMinGrad', 'Hungarian', 'Reverse'])
+                      'CumMinGrad', 'Hungarian', 'Reverse', 'SparseToDense'])
 
     def _device_fn(op):
         if op.type in OPS_ON_CPU:
@@ -492,7 +492,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         cnn_channels = [inp_depth] + cnn_depth
         cnn_pool = [2] * len(cnn_filters)
         cnn_act = [tf.nn.relu] * len(cnn_filters)
-        cnn_use_bn = [use_bn] * (len(cnn_filters) - 1) + [False]
+        cnn_use_bn = [use_bn] * len(cnn_filters)
 
         h_cnn = nn.cnn(model, x=x, f=cnn_filters, ch=cnn_channels,
                        pool=cnn_pool, act=cnn_act, use_bn=cnn_use_bn,
@@ -674,7 +674,7 @@ def get_orig_model(opt, device='/cpu:0', train=True):
                 dcnn_channels = [mlp_depth] + dcnn_depth
             else:
                 dcnn_channels = [1] * (len(dcnn_filters) + 1)
-            dcnn_use_bn = [use_bn] * (len(dcnn_filters) - 1) + [False]
+            dcnn_use_bn = [use_bn] * len(dcnn_filters)
 
             if add_skip_conn:
                 skip = [None]
