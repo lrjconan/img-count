@@ -478,6 +478,10 @@ def get_orig_model(opt, device='/cpu:0', train=True):
         x_rand = tf.reverse(x_rand, mirror_x)
         y_rand = tf.reverse(y_rand, mirror_y)
 
+        # Random hue & saturation
+        x_rand = img.random_hue(x_rand, 0.5)
+        x_rand = img.random_saturation(x_rand, 0.5, 2.0)
+
         x = (1.0 - phase_train_f) * x_ctr + phase_train_f * x_rand
         y_gt = (1.0 - phase_train_f) * y_ctr + phase_train_f * y_rand
         model['phase_train_f'] = phase_train_f
