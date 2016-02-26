@@ -620,6 +620,8 @@ if __name__ == '__main__':
                 })
             plot_samples(train_sample_img.get_fname(), _x, _y_out, _s_out, _y,
                          _s, _match)
+            if not train_sample_img.is_registered():
+                train_sample_img.register()
 
         pass
 

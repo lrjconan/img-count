@@ -111,7 +111,6 @@ def dcnn(model, x, f, ch, pool, act, use_bn, inp_h, inp_w, skip=None, skip_ch=No
         h[ii].set_shape([None, inp_h, inp_w, out_ch])
 
         if use_bn[ii]:
-            print out_ch
             h[ii] = batch_norm(h[ii], out_ch, phase_train)
 
         if act[ii] is not None:
