@@ -387,35 +387,31 @@ if __name__ == '__main__':
     # Logger
     if args.logs:
         logs_folder = args.logs
-        exp_logs_folder = os.path.join(logs_folder, model_id)
+        logs_folder = os.path.join(logs_folder, model_id)
 
-        log = logger.get(os.path.join(exp_logs_folder, 'raw'))
+        log = logger.get(os.path.join(logs_folder, 'raw'))
 
         # Create time series logger
-        train_logp_logger = TimeSeriesLogger(
-            os.path.join(exp_logs_folder, 'train_logp.csv'), 'train logp',
-            name='Train log prob',
-            buffer_size=10)
-        valid_logp_logger = TimeSeriesLogger(
-            os.path.join(exp_logs_folder, 'valid_logp.csv'), 'valid logp',
-            name='Validation log prob',
+        logp_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'logp.csv'), ['train logp', 'valid logp'],
+            name='Log prob',
             buffer_size=1)
         henc_sparsity_logger = TimeSeriesLogger(
-            os.path.join(exp_logs_folder,
+            os.path.join(logs_folder,
                          'henc_sparsity.csv'), 'henc sparsity',
             name='Encoder hidden activation sparsity',
             buffer_size=1)
         hdec_sparsity_logger = TimeSeriesLogger(
-            os.path.join(exp_logs_folder,
+            os.path.join(logs_folder,
                          'hdec_sparsity.csv'), 'hdec sparsity',
             name='Decoder hidden activation sparsity',
             buffer_size=1)
         step_time_logger = TimeSeriesLogger(
-            os.path.join(exp_logs_folder, 'step_time.csv'), 'step time (ms)',
+            os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
             buffer_size=10)
-        w1_image_fname = os.path.join(exp_logs_folder, 'w1.png')
-        decoder_image_fname = os.path.join(exp_logs_folder, 'decoder.png')
-        gen_image_fname = os.path.join(exp_logs_folder, 'gen.png')
+        w1_image_fname = os.path.join(logs_folder, 'w1.png')
+        decoder_image_fname = os.path.join(logs_folder, 'decoder.png')
+        gen_image_fname = os.path.join(logs_folder, 'gen.png')
         registered_image = False
         log_manager.register(log.filename, 'plain', 'Raw logs')
 
@@ -511,7 +507,7 @@ if __name__ == '__main__':
                 log_manager.register(
                     gen_image_fname, 'image', 'Generated digits')
                 registered_image = True
-            valid_logp_logger.add(step, valid_log_px_lb)
+            logp_logger.add(step, ['', valid_log_px_lb])
             henc_sparsity_logger.add(step, henc_sparsity)
             hdec_sparsity_logger.add(step, hdec_sparsity)
 
@@ -531,14 +527,14 @@ if __name__ == '__main__':
                 step_time = (time.time() - st) * 1000
                 log.info('{:d} logp {:.4f} t {:.2f}ms'.format(
                     step, log_px_lb, step_time))
-                train_logp_logger.add(step, log_px_lb)
+                logp_logger.add(step, [log_px_lb, ''])
                 step_time_logger.add(step, step_time)
 
             step += 1
 
-            # Save model
-            if step % args.steps_per_ckpt == 0:
-                saver.save_ckpt(exp_folder, sess, model_opt=opt,
-                                global_step=step)
+            # # Save model
+            # if step % args.steps_per_ckpt == 0:
+            #     saver.save_ckpt(exp_folder, sess, model_opt=opt,
+            #                     global_step=step)
 
     sess.close()

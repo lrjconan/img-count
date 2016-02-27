@@ -9,25 +9,39 @@ log = logger.get()
 class TimeSeriesLogger():
     """Log time series data to CSV file."""
 
-    def __init__(self, filename, label, name=None, buffer_size=100):
+    def __init__(self, filename, labels, name=None, buffer_size=100):
+        """
+        Args:
+            label: list of string
+            name: string
+        """
         self.filename = filename
         self.written_catalog = False
+        if type(labels) != list:
+            labels = [labels]
         if name is None:
-            self.name = label
+            self.name = labels[0]
         else:
             self.name = name
-        self.label = label
+        self.labels = labels
         self.buffer = []
-        self.buffer.append('step,time,{}\n'.format(self.label))
+        self.buffer.append('step,time,{}\n'.format(','.join(self.labels)))
         self.buffer_size = buffer_size
-        log.info('Time series data "{}" log to "{}"'.format(label, filename))
+        log.info('Time series data "{}" log to "{}"'.format(labels, filename))
         pass
 
-    def add(self, step, value):
-        """Add an entry."""
+    def add(self, step, values):
+        """Add an entry.
+
+        Args:
+            step: int
+            value: list of numbers
+        """
         t = datetime.datetime.utcnow()
+        if type(values) != list:
+            values = [values]
         self.buffer.append('{:d},{},{}\n'.format(
-            step, t.isoformat(), value))
+            step, t.isoformat(), ','.join([str(v) for v in values])))
         if len(self.buffer) >= self.buffer_size:
             self.flush()
 

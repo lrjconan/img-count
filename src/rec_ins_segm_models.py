@@ -333,12 +333,7 @@ def _add_rnd_img_transformation(model, x, y_gt, padding, phase_train):
 
 
 def get_orig_model(opt, device='/cpu:0'):
-    """The original model.
-    # Original model:
-    #           ---
-    #           | |
-    # CNN -> -> RNN -> Instances
-    """
+    """CNN -> -> RNN -> DCNN -> Instances"""
     model = {}
     timespan = opt['timespan']
     inp_height = opt['inp_height']
@@ -590,13 +585,33 @@ def get_orig_model(opt, device='/cpu:0'):
     return model
 
 
-def _get_attn_filter(mu, lg_var, size):
-    # [B] => [B, 1, 1]
-    mu = tf.reshape(mu, [-1, 1, 1])
+def _get_attn_filter(center, lg_d, lg_var, image_size, filter_size):
+    """
+    Get Gaussian-based attention filter along one dimension
+    (assume decomposability).
+
+    Args:
+        center:
+        lg_d:
+        lg_var:
+        image_size: L
+        filter_size: F
+    """
+    # [1, 1, F].
+    span_filter = tf.reshape(tf.range(filter_size) + 1, [1, 1, -1])
+
+    # [B, 1, 1]
+    delta = tf.reshape((image_size - 1) /
+                       ((filter_size - 1) * tf.exp(lg_d)), [-1, 1, 1])
+
+    # [B, 1, 1] + [B, 1, 1] * [1, F, 1] = [B, 1, F]
+    mu = center + delta * (span_filter - filter_size / 2.0 - 0.5)
+
+    # [B, 1, 1]
     lg_var = tf.reshape(lg_var, [-1, 1, 1])
 
     # [1, L, 1]
-    span = np.reshape(np.arange(size), [1, size, 1])
+    span = tf.reshape(tf.range(size), [1, size, 1])
 
     # [1, L, 1] - [B, 1, F] = [B, L, F]
     filter = tf.mul(
@@ -612,9 +627,11 @@ def get_attn_gt_model(opt, device='/cpu:0'):
     model = {}
 
     # timespan = opt['timespan']
-    inp_height = opt['inp_height']
-    inp_width = opt['inp_width']
+    # inp_height = opt['inp_height']
+    # inp_width = opt['inp_width']
     inp_depth = opt['inp_depth']
+    attn_size = opt['attn_size']
+
     # rnn_type = opt['rnn_type']
     # cnn_filter_size = opt['cnn_filter_size']
     # cnn_depth = opt['cnn_depth']
@@ -637,11 +654,33 @@ def get_attn_gt_model(opt, device='/cpu:0'):
 
     with tf.device(_get_device_fn(device)):
         # Input image, [B, H, W, D]
-        x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
+        x = tf.placeholder('float', [None, None, None, None])
+
+        x_shape = tf.shape(x)
+        inp_height = x_shape[1]
+        inp_width = x_shape[2]
+
         # Attention center, [B, 2]
-        attn_mu = tf.placeholder('float', [None, 2])
+        attn_ctr = tf.placeholder('float', [None, 2])
         # Attention width, [B, 2]
-        attn_lg_var = tf.placeholder('float', [None, 2])
-        filters_x = _get_attn_filter(attn_mu[:, 0], attn_lg_var[:, 0], )
+        attn_delta = tf.placeholder('float', [None, 2])
+
+        # [B, H, F]
+        filters_y = _get_attn_filter(
+            mu=attn_mu[:, 0], lg_var=attn_lg_var[:, 0], size=inp_height)
+        # [B, W, F]
+        filters_x = _get_attn_filter(
+            mu=attn_mu[:, 1], lg_var=attn_lg_var[:, 1], size=inp_width)
+
+        # x_patch = [None] * inp_depth
+
+        # for d in xrange(inp_depth):
+        #     x_ch = tf.reshape(
+        #         tf.slice(x, [0, 0, 0, d], [-1, -1, -1, 1]),
+        #         tf.pack([-1, inp_height, inp_width]))
+        #     x_patch[d] = tf.reshape(tf.batch_matmul(
+        #         tf.batch_matmul(filters_y, x_ch, adj_x=True),
+        #         filters_x), [-1, ])
+        # x_patch=tf.concat(x_patch)
 
     pass

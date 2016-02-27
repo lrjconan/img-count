@@ -505,26 +505,19 @@ if __name__ == '__main__':
 
     # Create time series logger
     if args.logs:
-        train_loss_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'train_loss.csv'), 'train loss',
-            name='Training loss',
-            buffer_size=10)
-        valid_loss_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'valid_loss.csv'), 'valid loss',
-            name='Validation loss',
+        loss_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'loss.csv'), ['train', 'valid'],
+            name='Loss',
             buffer_size=1)
-        valid_iou_hard_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'valid_iou_hard.csv'), 'valid iou',
-            name='Validation IoU hard',
+        iou_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'iou.csv'),
+            ['train soft', 'valid soft', 'train hard', 'valid hard'],
+            name='IoU',
             buffer_size=1)
-        valid_iou_soft_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'valid_iou_soft.csv'), 'valid iou',
-            name='Validation IoU soft',
-            buffer_size=1)
-        valid_count_acc_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'valid_count_acc.csv'),
-            'valid count acc',
-            name='Validation count accuracy',
+        count_acc_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'count_acc.csv'),
+            ['train', 'valid'],
+            name='Count accuracy',
             buffer_size=1)
         learn_rate_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'learn_rate.csv'),
@@ -561,6 +554,18 @@ if __name__ == '__main__':
     log.info('Number of validation examples: {}'.format(num_ex_valid))
     log.info('Number of training examples: {}'.format(num_ex_train))
     log.info('Batch size: {}'.format(batch_size))
+
+    def run_samples(x, y, s, phase_train, fname):
+        x2, y2, y_out, s_out, match = sess.run(
+            [m['x_trans'], m['y_gt_trans'], m['y_out'], m['s_out'],
+             m['match']], feed_dict={
+                m['x']: x,
+                m['phase_train']: phase_train,
+                m['y_gt']: y,
+                m['s_gt']: s
+            })
+        plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s_out, y_gt=y2,
+                     s_gt=s, match=match)
 
     def run_validation():
         # Validation
@@ -602,48 +607,18 @@ if __name__ == '__main__':
             step, loss, segm_loss, conf_loss, iou_soft, iou_hard, count_acc))
 
         if args.logs:
+            loss_logger.add(step, ['', loss])
+            iou_logger.add(step, ['', iou_soft, '', iou_hard])
+            count_acc_logger.add(step, ['', count_acc])
+
             # Plot some samples.
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
-            _x2, _y2, _y_out, _s_out, _match = sess.run(
-                [m['x_trans'], m['y_gt_trans'], m['y_out'], m['s_out'],
-                 m['match']], feed_dict={
-                    m['x']: _x,
-                    m['phase_train']: False,
-                    m['y_gt']: _y,
-                    m['s_gt']: _s
-                })
-            plot_samples(valid_sample_img.get_fname(),
-                         x_orig=_x, 
-                         x=_x2,
-                         y_out=_y_out,
-                         s_out=_s_out,
-                         y_gt=_y2,
-                         s_gt=_s, 
-                         match=_match)
-            valid_loss_logger.add(step, loss)
-            valid_iou_soft_logger.add(step, iou_soft)
-            valid_iou_hard_logger.add(step, iou_hard)
-            valid_count_acc_logger.add(step, count_acc)
+            run_samples(_x, _y, _s, False, valid_sample_img.get_fname())
             if not valid_sample_img.is_registered():
                 valid_sample_img.register()
 
             _x, _y, _s = get_batch_train(np.arange(args.num_samples_plot))
-            _x2, _y2, _y_out, _s_out, _match = sess.run(
-                [m['x_trans'], m['y_gt_trans'], m['y_out'], m['s_out'],
-                 m['match']], feed_dict={
-                    m['x']: _x,
-                    m['phase_train']: True,
-                    m['y_gt']: _y,
-                    m['s_gt']: _s
-                })
-            plot_samples(train_sample_img.get_fname(),
-                         x_orig=_x, 
-                         x=_x2,
-                         y_out=_y_out,
-                         s_out=_s_out,
-                         y_gt=_y2,
-                         s_gt=_s, 
-                         match=_match)
+            run_samples(_x, _y, _s, True, train_sample_img.get_fname())
             if not train_sample_img.is_registered():
                 train_sample_img.register()
 
@@ -662,6 +637,7 @@ if __name__ == '__main__':
         # Train step
         start_time = time.time()
         r = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
+                      m['iou_soft'], m['iou_hard'], m['count_acc'],
                       m['learn_rate'], m['train_step']], feed_dict={
             m['x']: x_bat,
             m['phase_train']: True,
@@ -672,16 +648,21 @@ if __name__ == '__main__':
 
         # Print statistics
         if step % train_opt['steps_per_log'] == 0:
-            step_time = (time.time() - start_time) * 1000
             loss = r[0]
             segm_loss = r[1]
             conf_loss = r[2]
-            learn_rate = r[3]
+            iou_soft = r[3]
+            iou_hard = r[4]
+            count_acc = r[5]
+            learn_rate = r[6]
+            step_time = (time.time() - start_time) * 1000
             log.info('{:d} train loss {:.4f} {:.4f} {:.4f} t {:.2f}ms'.format(
                 step, loss, segm_loss, conf_loss, step_time))
 
             if args.logs:
-                train_loss_logger.add(step, loss)
+                loss_logger.add(step, [loss, ''])
+                iou_logger.add(step, [iou_soft, '', iou_hard, ''])
+                count_acc_logger.add(step, [count_acc, ''])
                 learn_rate_logger.add(step, learn_rate)
                 step_time_logger.add(step, step_time)
 
@@ -700,11 +681,10 @@ if __name__ == '__main__':
             break
 
     sess.close()
-    train_loss_logger.close()
-    valid_loss_logger.close()
-    valid_iou_soft_logger.close()
-    valid_iou_hard_logger.close()
-    valid_count_acc_logger.close()
+    loss_logger.close()
+    iou_logger.close()
+    count_acc_logger.close()
+    learn_rate_logger.close()
     step_time_logger.close()
 
     pass
