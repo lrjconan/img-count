@@ -241,6 +241,8 @@ def _match_bce(model, y_out, y_gt, match, timespan):
             reduction_indices=[1]), 1)
 
     # N * [B, 1] => [B, N] => [B]
+    bce_mat = tf.concat(1, bce_list)
+    model['bce_mat'] = bce_mat
     bce_total = tf.reduce_sum(tf.concat(1, bce_list), reduction_indices=[1])
     model['bce_total'] = bce_total
 

@@ -535,7 +535,7 @@ if __name__ == '__main__':
                                         get_fn=get_batch_valid,
                                         progress_bar=False):
             results = sess.run([m['loss'], m['segm_loss'], m['segm_loss'],
-                                m['iou_soft'], m['iou_hard'], m['bce_total']],
+                                m['iou_soft'], m['iou_hard'], m['bce_total'], m['bce_mat']],
                                feed_dict={
                 m['x']: _x,
                 m['phase_train']: False,
@@ -548,7 +548,8 @@ if __name__ == '__main__':
             _iou_soft = results[3]
             _iou_hard = results[4]
             _bce_total = results[5]
-            print _bce_total
+            _bce_mat = results[6]
+            print _bce_mat
 
             num_ex_batch = _x.shape[0]
             loss += _loss * num_ex_batch / num_ex_valid
