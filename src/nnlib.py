@@ -391,23 +391,17 @@ def gru(inp_dim, hid_dim, wd=None, scope='gru'):
         scope: Prefix
     """
     with tf.variable_scope(scope):
-        w_xi = weight_variable([inp_dim, hid_dim], wd=wd,
-                               name='w_xi_{}'.format(name))
-        w_hi = weight_variable([hid_dim, hid_dim], wd=wd,
-                               name='w_hi_{}'.format(name))
-        b_i = weight_variable([hid_dim], wd=wd, name='b_i_{}'.format(name))
+        w_xi = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xi')
+        w_hi = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hi')
+        b_i = weight_variable([hid_dim], wd=wd, name='b_i')
 
-        w_xu = weight_variable([inp_dim, hid_dim], wd=wd,
-                               name='w_xu_{}'.format(name))
-        w_hu = weight_variable([hid_dim, hid_dim], wd=wd,
-                               name='w_hu_{}'.format(name))
-        b_u = weight_variable([hid_dim], wd=wd, name='b_u_{}'.format(name))
+        w_xu = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xu')
+        w_hu = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hu')
+        b_u = weight_variable([hid_dim], wd=wd, name='b_u')
 
-        w_xr = weight_variable([inp_dim, hid_dim], wd=wd,
-                               name='w_xr_{}'.format(name))
-        w_hr = weight_variable([hid_dim, hid_dim], wd=wd,
-                               name='w_hr_{}'.format(name))
-        b_r = weight_variable([hid_dim], wd=wd, name='b_r_{}'.format(name))
+        w_xr = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xr')
+        w_hr = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hr')
+        b_r = weight_variable([hid_dim], wd=wd, name='b_r')
 
     def unroll(inp, state):
         g_i = tf.sigmoid(tf.matmul(inp, w_xi) + tf.matmul(state, w_hi) + b_i)
