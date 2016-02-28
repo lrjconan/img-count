@@ -622,7 +622,7 @@ if __name__ == '__main__':
 
     # prob()
 
-    def train_loop():
+    def train_loop(step=0):
         # Train loop
         for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
                                                  batch_size=batch_size,
@@ -675,7 +675,7 @@ if __name__ == '__main__':
             if step > train_opt['num_steps']:
                 break
 
-    train_loop()
+    train_loop(step=step)
 
     sess.close()
     loss_logger.close()
