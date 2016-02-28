@@ -368,8 +368,7 @@ def get_orig_model(opt, device='/cpu:0'):
 
         # Whether in training stage, required for batch norm.
         phase_train = tf.placeholder('bool')
-        # global_step = tf.placeholder('int32')
-        global_step = tf.Variable(0)
+        global_step = tf.Variable(0.0)
 
         # Groundtruth segmentation maps, [B, T, H, W]
         y_gt = tf.placeholder(
@@ -380,7 +379,6 @@ def get_orig_model(opt, device='/cpu:0'):
 
         model['x'] = x
         model['phase_train'] = phase_train
-        model['global_step'] = global_step
         model['y_gt'] = y_gt
         model['s_gt'] = s_gt
 
@@ -577,7 +575,7 @@ def get_orig_model(opt, device='/cpu:0'):
 
         train_step = GradientClipOptimizer(
             tf.train.AdamOptimizer(learn_rate, epsilon=eps),
-            clip=1.0).minimize(total_loss)
+            clip=1.0).minimize(total_loss, global_step=global_step)
         model['train_step'] = train_step
 
         # Statistics

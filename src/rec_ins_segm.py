@@ -643,7 +643,6 @@ if __name__ == '__main__':
                       m['learn_rate'], m['train_step']], feed_dict={
             m['x']: x_bat,
             m['phase_train']: True,
-            m['global_step']: step,
             m['y_gt']: y_bat,
             m['s_gt']: s_bat
         })
