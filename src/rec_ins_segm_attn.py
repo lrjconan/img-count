@@ -1,5 +1,7 @@
 """
 Recurrent instance segmentation with attention.
+
+Usage: python rec_ins_segm_attn.py --help
 """
 from __future__ import division
 
@@ -98,28 +100,6 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match):
     plt.close('all')
 
     pass
-
-
-# def _get_attn(y, attn_size):
-#     ctr = np.zeros([y.shape[0], y.shape[1], 2])
-#     delta = np.zeros([y.shape[0], y.shape[1], 2])
-#     lg_var = np.zeros([y.shape[0], y.shape[1], 2])
-#     for ii in xrange(y.shape[0]):
-#         for jj in xrange(y.shape[1]):
-#             nz = y[ii, jj].nonzero()
-#             if nz[0].size > 0:
-#                 top_left_x = nz[1].min()
-#                 top_left_y = nz[0].min()
-#                 bot_right_x = nz[1].max() + 1
-#                 bot_right_y = nz[0].max() + 1
-#                 ctr[ii, jj, 0] = (bot_right_y + top_left_y) / 2
-#                 ctr[ii, jj, 1] = (bot_right_x + top_left_x) / 2
-#                 delta[ii, jj, 0] = (bot_right_y - top_left_y) / attn_size
-#                 delta[ii, jj, 1] = (bot_right_x - top_left_x) / attn_size
-#                 lg_var[ii, jj, 0] = 1.0
-#                 lg_var[ii, jj, 1] = 1.0
-
-#     return ctr, delta, lg_var
 
 
 def get_dataset(dataset_name, opt, num_train, num_valid):
@@ -549,7 +529,7 @@ if __name__ == '__main__':
                                         get_fn=get_batch_valid,
                                         progress_bar=False):
             results = sess.run([m['loss'], m['segm_loss'], m['segm_loss'],
-                                m['iou_soft'], m['iou_hard']],
+                                m['iou_soft'], m['iou_hard'], m['bce_total']],
                                feed_dict={
                 m['x']: _x,
                 m['phase_train']: False,
@@ -561,6 +541,9 @@ if __name__ == '__main__':
             _conf_loss = 0
             _iou_soft = results[3]
             _iou_hard = results[4]
+            _bce_total = results[5]
+            print _bce_total
+
             num_ex_batch = _x.shape[0]
             loss += _loss * num_ex_batch / num_ex_valid
             segm_loss += _segm_loss * num_ex_batch / num_ex_valid

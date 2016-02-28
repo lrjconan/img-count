@@ -205,7 +205,7 @@ def _bce(y_out, y_gt):
         (1 - y_gt) * tf.log(1 - y_out + eps)
 
 
-def _match_bce(y_out, y_gt, match, timespan):
+def _match_bce(model, y_out, y_gt, match, timespan):
     """Binary cross entropy with matching.
 
     Args:
@@ -241,8 +241,8 @@ def _match_bce(y_out, y_gt, match, timespan):
             reduction_indices=[1]), 1)
 
     # N * [B, 1] => [B, N] => [B]
-    bce_total = tf.reduce_sum(
-        tf.concat(1, bce_list), reduction_indices=[1])
+    bce_total = tf.reduce_sum(tf.concat(1, bce_list), reduction_indices=[1])
+    model['bce_total'] = bce_total
 
     return tf.reduce_sum(bce_total / match_count) / num_ex / height / width
 
@@ -560,7 +560,7 @@ def get_orig_model(opt, device='/cpu:0'):
         if segm_loss_fn == 'iou':
             segm_loss = -iou_soft
         elif segm_loss_fn == 'bce':
-            segm_loss = _match_bce(y_out, y_gt, match, timespan)
+            segm_loss = _match_bce(model, y_out, y_gt, match, timespan)
         model['segm_loss'] = segm_loss
         conf_loss = _conf_loss(s_out, match, timespan, use_cum_min=True)
         model['conf_loss'] = conf_loss
@@ -853,7 +853,7 @@ def get_attn_gt_model(opt, device='/cpu:0'):
         if segm_loss_fn == 'iou':
             segm_loss = -iou_soft
         elif segm_loss_fn == 'bce':
-            segm_loss = _match_bce(y_out, y_gt, match, timespan)
+            segm_loss = _match_bce(model, y_out, y_gt, match, timespan)
         model['segm_loss'] = segm_loss
 
         loss = segm_loss
