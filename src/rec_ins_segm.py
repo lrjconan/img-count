@@ -189,7 +189,6 @@ def _parse_args():
     kNumObjectTypes = 1
     kSizeVar = 20
     kCenterVar = 20
-    kOutputWindowSize = 128
 
     # Default model options
     # [224, 224,  3]
@@ -492,11 +491,14 @@ if __name__ == '__main__':
         'steps_per_log': args.steps_per_log
     }
 
+    log.info('Building model')
+    m = models.get_model(args.model, model_opt, device=device)
+
+    log.info('Loading dataset')
     dataset = get_dataset(args.dataset, data_opt,
                           args.num_ex, args.num_ex / 10)
-    m = models.get_model(args.model, model_opt, device=device)
+
     sess = tf.Session()
-    # sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
     if args.restore:
         saver.restore(sess, ckpt_fname)

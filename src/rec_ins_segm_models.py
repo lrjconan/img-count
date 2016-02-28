@@ -139,78 +139,47 @@ def _f_iou(a, b, timespan, pairwise=False):
         return _inter(a, b) / _union(a, b)
 
 
-def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min=True, segm_loss_fn='iou'):
-    """
-    Instance segmentation loss.
+def _conf_loss(s_out, match, timespan, use_cum_min=True):
+    """Loss function for confidence score sequence.
 
     Args:
-        y_out: [B, N, H, W], output segmentations.
-        y_gt: [B, M, H, W], groundtruth segmentations.
-        s_out: [B, N], output confidence score.
-        s_gt: [B. M], groundtruth confidence score.
-        r: float, mixing coefficient for combining segmentation loss and
-        confidence score loss.
+        s_out:
+        match:
+        use_cum_min:
     """
+    s_out_shape = tf.shape(s_out)
+    num_ex = tf.to_float(s_out_shape[0])
+    max_num_obj = tf.to_float(s_out_shape[1])
+    match_sum = tf.reduce_sum(match, reduction_indices=[2])
 
-    def _bce(y_out, y_gt):
-        """Binary cross entropy."""
-        eps = 1e-7
-        return -y_gt * tf.log(y_out + eps) - \
-            (1 - y_gt) * tf.log(1 - y_out + eps)
+    # Loss for confidence scores.
+    if use_cum_min:
+        # [B, N]
+        s_out_min = _cum_min(s_out, timespan)
+        # [B, N]
+        s_bce = _bce(s_out_min, match_sum)
+    else:
+        s_bce = _bce(s_out, match_sum)
+    loss = tf.reduce_sum(s_bce) / num_ex / max_num_obj
 
-    def _match_bce(y_out, y_gt, match, timespan):
-        """Binary cross entropy with matching.
+    return loss
 
-        Args:
-            y_out: [B, N, H, W]
-            y_gt: [B, N, H, W]
-            match: [B, N, N]
-            match_count: [B]
-            num_ex: [1]
-            timespan: N
-        """
-        # N * [B, 1, H, W]
-        y_out_list = tf.split(1, timespan, y_out)
-        # N * [B, 1, N]
-        match_list = tf.split(1, timespan, match)
-        bce_list = [None] * timespan
-        shape = tf.shape(y_out)
-        num_ex = tf.to_float(shape[0])
-        height = tf.to_float(shape[2])
-        width = tf.to_float(shape[3])
 
-        # [B, N, M] => [B, N]
-        match_sum = tf.reduce_sum(match, reduction_indices=[2])
-        # [B, N] => [B]
-        match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
+def _segm_match(iou, s_gt):
+    """Matching between segmentation output and groundtruth.
 
-        for ii in xrange(timespan):
-            # [B, 1, H, W] * [B, N, H, W] => [B, N, H, W] => [B, N]
-            # [B, N] * [B, N] => [B]
-            # [B] => [B, 1]
-            bce_list[ii] = tf.expand_dims(tf.reduce_sum(tf.reduce_sum(
-                _bce(y_out_list[ii], y_gt), reduction_indices=[2, 3]) *
-                tf.reshape(match_list[ii], [-1, timespan]),
-                reduction_indices=[1]), 1)
-
-        # N * [B, 1] => [B, N] => [B]
-        bce_total = tf.reduce_sum(
-            tf.concat(1, bce_list), reduction_indices=[1])
-
-        return tf.reduce_sum(bce_total / match_count) / num_ex / height / width
-
+    Args:
+        y_out: [B, T, H, W], output segmentations
+        y_gt: [B, T, H, W], groundtruth segmentations
+        s_gt: [B, T], groudtruth score sequence
+    """
     # IOU score, [B, N, M]
-    iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
-
-    # Matching score, [B, N, M]
-    # Add small epsilon because the matching algorithm only accepts complete
-    # bipartite graph with positive weights.
-    # Mask out the items beyond the total groudntruth count.
+    # iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
     # Mask X, [B, M] => [B, 1, M]
     mask_x = tf.expand_dims(s_gt, dim=1)
     # Mask Y, [B, M] => [B, N, 1]
     mask_y = tf.expand_dims(s_gt, dim=2)
-    iou_mask = iou_soft * mask_x * mask_y
+    iou_mask = iou * mask_x * mask_y
 
     # Keep certain precision so that we can get optimal matching within
     # reasonable time.
@@ -220,67 +189,78 @@ def _add_ins_segm_loss(model, y_out, y_gt, s_out, s_gt, r, timespan, use_cum_min
     match_eps = tf.user_ops.hungarian(iou_mask + eps)[0]
 
     # [1, N, 1, 1]
-    y_out_shape = tf.shape(y_out)
-    num_segm_out = y_out_shape[1]
+    s_gt_shape = tf.shape(s_gt)
+    num_segm_out = s_gt_shape[1]
     num_segm_out_mul = tf.pack([1, num_segm_out, 1])
     # Mask the graph algorithm output.
     match = match_eps * mask_x * mask_y
-    model['match'] = match
+
+    return match
+
+
+def _bce(y_out, y_gt):
+    """Binary cross entropy."""
+    eps = 1e-7
+    return -y_gt * tf.log(y_out + eps) - \
+        (1 - y_gt) * tf.log(1 - y_out + eps)
+
+
+def _match_bce(y_out, y_gt, match, timespan):
+    """Binary cross entropy with matching.
+
+    Args:
+        y_out: [B, N, H, W]
+        y_gt: [B, N, H, W]
+        match: [B, N, N]
+        match_count: [B]
+        num_ex: [1]
+        timespan: N
+    """
+    # N * [B, 1, H, W]
+    y_out_list = tf.split(1, timespan, y_out)
+    # N * [B, 1, N]
+    match_list = tf.split(1, timespan, match)
+    bce_list = [None] * timespan
+    shape = tf.shape(y_out)
+    num_ex = tf.to_float(shape[0])
+    height = tf.to_float(shape[2])
+    width = tf.to_float(shape[3])
+
     # [B, N, M] => [B, N]
     match_sum = tf.reduce_sum(match, reduction_indices=[2])
     # [B, N] => [B]
     match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
 
-    # Loss for confidence scores.
-    if use_cum_min:
-        # [B, N]
-        s_out_min = _cum_min(s_out, timespan)
-        # [B, N]
-        s_bce = _bce(s_out_min, match_sum)
-        model['s_out_min'] = s_out_min
-    else:
-        # Try simply do binary xent for matching sequence.
-        s_bce = _bce(s_out, match_sum)
-    model['s_bce'] = s_bce
+    for ii in xrange(timespan):
+        # [B, 1, H, W] * [B, N, H, W] => [B, N, H, W] => [B, N]
+        # [B, N] * [B, N] => [B]
+        # [B] => [B, 1]
+        bce_list[ii] = tf.expand_dims(tf.reduce_sum(tf.reduce_sum(
+            _bce(y_out_list[ii], y_gt), reduction_indices=[2, 3]) *
+            tf.reshape(match_list[ii], [-1, timespan]),
+            reduction_indices=[1]), 1)
 
-    # Loss normalized by number of examples.
-    y_gt_shape = tf.shape(y_gt)
-    num_ex = tf.to_float(y_gt_shape[0])
-    max_num_obj = tf.to_float(y_gt_shape[1])
+    # N * [B, 1] => [B, N] => [B]
+    bce_total = tf.reduce_sum(
+        tf.concat(1, bce_list), reduction_indices=[1])
 
-    # IOU
-    iou_hard = _f_iou(tf.to_float(y_out > 0.5), y_gt, timespan, pairwise=True)
-    # [B, M, N] * [B, M, N] => [B] * [B] => [1]
-    iou_hard = tf.reduce_sum(tf.reduce_sum(
-        iou_hard * match, reduction_indices=[1, 2]) / match_count) / num_ex
-    iou_soft = tf.reduce_sum(tf.reduce_sum(
-        iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
-    model['iou_hard'] = iou_hard
-    model['iou_soft'] = iou_soft
+    return tf.reduce_sum(bce_total / match_count) / num_ex / height / width
 
-    # [B, N, M] => scalar
-    conf_loss = r * tf.reduce_sum(s_bce) / num_ex / max_num_obj
-    if segm_loss_fn == 'iou':
-        segm_loss = -iou_soft
-    elif segm_loss_fn == 'bce':
-        segm_loss = _match_bce(y_out, y_gt, match, timespan)
 
-    model['segm_loss'] = segm_loss
-    loss = segm_loss + conf_loss
+def _count_acc(s_out, s_gt):
+    """Counting accuracy.
 
-    model['conf_loss'] = conf_loss
-    model['loss'] = loss
-
-    # Counting accuracy
+    Args:
+        s_out:
+        s_gt:
+    """
+    num_ex = tf.to_float(tf.shape(s_out)[0])
     count_out = tf.reduce_sum(tf.to_float(s_out > 0.5), reduction_indices=[1])
     count_gt = tf.reduce_sum(s_gt, reduction_indices=[1])
     count_acc = tf.reduce_sum(tf.to_float(
         tf.equal(count_out, count_gt))) / num_ex
-    model['count_out'] = count_out
-    model['count_gt'] = count_gt
-    model['count_acc'] = count_acc
 
-    return loss
+    return count_acc
 
 
 def _add_rnd_img_transformation(model, x, y_gt, padding, phase_train):
@@ -332,6 +312,22 @@ def _add_rnd_img_transformation(model, x, y_gt, padding, phase_train):
     return x, y_gt
 
 
+def _build_skip_conn(cnn_channels, h_cnn, x, timespan):
+    """Build skip connection."""
+    skip = [None]
+    skip_ch = [0]
+    for jj, layer in enumerate(h_cnn[-2::-1] + [x]):
+        ss = tf.shape(layer)
+        zeros = tf.zeros(tf.pack([ss[0], timespan, ss[1], ss[2], ss[3]]))
+        new_shape = tf.pack([ss[0] * timespan, ss[1], ss[2], ss[3]])
+        layer_reshape = tf.reshape(tf.expand_dims(layer, 1) + zeros, new_shape)
+        skip.append(layer_reshape)
+        ch_idx = len(cnn_channels) - jj - 2
+        skip_ch.append(cnn_channels[ch_idx])
+
+    return skip, skip_ch
+
+
 def get_orig_model(opt, device='/cpu:0'):
     """CNN -> -> RNN -> DCNN -> Instances"""
     model = {}
@@ -364,6 +360,7 @@ def get_orig_model(opt, device='/cpu:0'):
     steps_per_decay = opt['steps_per_decay']
     num_mlp_layers = opt['num_mlp_layers']
     mlp_dropout_ratio = opt['mlp_dropout']
+    segm_loss_fn = opt['segm_loss_fn']
 
     with tf.device(_get_device_fn(device)):
         # Input image, [B, H, W, D]
@@ -371,7 +368,8 @@ def get_orig_model(opt, device='/cpu:0'):
 
         # Whether in training stage, required for batch norm.
         phase_train = tf.placeholder('bool')
-        global_step = tf.placeholder('int32')
+        # global_step = tf.placeholder('int32')
+        global_step = tf.Variable(0)
 
         # Groundtruth segmentation maps, [B, T, H, W]
         y_gt = tf.placeholder(
@@ -379,7 +377,6 @@ def get_orig_model(opt, device='/cpu:0'):
 
         # Groundtruth confidence score, [B, T]
         s_gt = tf.placeholder('float', [None, timespan])
-        y_gt_list = tf.split(1, timespan, y_gt)
 
         model['x'] = x
         model['phase_train'] = phase_train
@@ -398,13 +395,14 @@ def get_orig_model(opt, device='/cpu:0'):
 
         # CNN
         cnn_filters = cnn_filter_size
+        cnn_nlayers = len(cnn_filters)
         cnn_channels = [inp_depth] + cnn_depth
-        cnn_pool = [2] * len(cnn_filters)
-        cnn_act = [tf.nn.relu] * len(cnn_filters)
-        cnn_use_bn = [use_bn] * len(cnn_filters)
-        h_cnn = nn.cnn(model, x=x, f=cnn_filters, ch=cnn_channels,
-                       pool=cnn_pool, act=cnn_act, use_bn=cnn_use_bn,
-                       phase_train=phase_train, wd=wd)
+        cnn_pool = [2] * cnn_nlayers
+        cnn_act = [tf.nn.relu] * cnn_nlayers
+        cnn_use_bn = [use_bn] * cnn_nlayers
+        cnn = nn.cnn(cnn_filters, cnn_channels, cnn_pool, cnn_act, cnn_use_bn,
+                     phase_train=phase_train, wd=wd)
+        h_cnn = cnn(x)
         h_pool3 = h_cnn[-1]
 
         # RNN input size
@@ -415,6 +413,7 @@ def get_orig_model(opt, device='/cpu:0'):
         # Low-res segmentation depth
         core_depth = mlp_depth if segm_dense_conn else 1
         core_dim = rnn_h * rnn_w * core_depth
+        rnn_state = [None] * (timespan + 1)
 
         # RNN
         if rnn_type == 'conv_lstm':
@@ -422,38 +421,37 @@ def get_orig_model(opt, device='/cpu:0'):
             rnn_dim = rnn_h * rnn_w * rnn_depth
             conv_lstm_inp_depth = cnn_channels[-1]
             rnn_inp = h_pool3
-            unroll_rnn = nn.conv_lstm(
-                model=model, timespan=timespan,
-                inp_height=rnn_h, inp_width=rnn_w,
-                inp_depth=conv_lstm_inp_depth,
-                filter_size=conv_lstm_filter_size, hid_depth=rnn_depth,
-                c_init=tf.zeros(tf.pack([num_ex, rnn_h, rnn_w, rnn_depth])),
-                h_init=tf.zeros(tf.pack([num_ex, rnn_h, rnn_w, rnn_depth])),
-                wd=wd, name='rnn')
+            rnn_state[-1] = tf.zeros(tf.pack([num_ex,
+                                              rnn_h, rnn_w, rnn_depth * 2]))
+            rnn_cell = nn.conv_lstm(conv_lstm_inp_depth, rnn_depth,
+                                    conv_lstm_filter_size, wd=wd)
         elif rnn_type == 'lstm' or rnn_type == 'gru':
             rnn_dim = rnn_hid_dim
             rnn_inp_dim = rnn_h * rnn_w * cnn_channels[-1]
             rnn_inp = tf.reshape(
                 h_pool3, [-1, rnn_h * rnn_w * cnn_channels[-1]])
             if rnn_type == 'lstm':
-                unroll_rnn = nn.lstm(
-                    model=model, timespan=timespan,
-                    inp_dim=rnn_inp_dim, hid_dim=rnn_hid_dim,
-                    c_init=tf.zeros(tf.pack([num_ex, rnn_hid_dim])),
-                    h_init=tf.zeros(tf.pack([num_ex, rnn_hid_dim])),
-                    wd=wd, name='rnn')
+                rnn_state[-1] = tf.zeros(tf.pack([num_ex, rnn_hid_dim * 2]))
+                rnn_cell = nn.lstm(rnn_inp_dim, rnn_hid_dim, wd=wd)
             else:
-                unroll_rnn = nn.gru(
-                    model=model, timespan=timespan, inp_dim=rnn_inp_dim,
-                    hid_dim=rnn_hid_dim,
-                    h_init=tf.zeros(tf.pack([num_ex, rnn_hid_dim])),
-                    wd=wd, name='rnn')
+                rnn_state[-1] = tf.zeros(tf.pack([num_ex, rnn_hid_dim]))
+                rnn_cell = nn.gru(rnn_inp_dim, rnn_hid_dim, wd=wd)
         else:
             raise Exception('Unknown RNN type: {}'.format(rnn_type))
 
-        for t in xrange(timespan):
-            unroll_rnn(rnn_inp, time=t)
-        h_rnn = model['h_rnn']
+        for tt in xrange(timespan):
+            rnn_state[tt] = rnn_cell(rnn_inp, rnn_state[tt - 1])
+
+        if rnn_type == 'conv_lstm':
+            h_rnn = [tf.slice(rnn_state[tt], [0, 0, 0, rnn_depth],
+                              [-1, -1, -1, rnn_depth])
+                     for tt in xrange(timespan)]
+        elif rnn_type == 'lstm':
+            h_rnn = [tf.slice(rnn_state[tt], [0, rnn_dim], [-1, rnn_dim])
+                     for tt in xrange(timespan)]
+        elif rnn_type == 'gru':
+            h_rnn = state
+
         h_rnn_all = tf.concat(
             1, [tf.expand_dims(h_rnn[tt], 1) for tt in xrange(timespan)])
 
@@ -464,15 +462,10 @@ def get_orig_model(opt, device='/cpu:0'):
             mlp_dims = [rnn_dim] + [core_dim] * num_mlp_layers
             mlp_act = [tf.nn.relu] * num_mlp_layers
             mlp_dropout = [1.0 - mlp_dropout_ratio] * num_mlp_layers
-            mlp = nn.mlp(model,
-                         x=h_rnn_all,
-                         dims=mlp_dims,
-                         act=mlp_act,
-                         dropout_keep=mlp_dropout,
-                         phase_train=phase_train,
-                         wd=wd)
-            h_core = tf.reshape(
-                mlp[-1], [-1, rnn_h, rnn_w, mlp_depth])
+            segm_mlp = nn.mlp(mlp_dims, mlp_act, mlp_dropout,
+                              phase_train=phase_train, wd=wd)
+            h_core = segm_mlp(h_rnn_all)[-1]
+            h_core = tf.reshape(h_core, [-1, rnn_h, rnn_w, mlp_depth])
         else:
             # Convolutional segmentation netowrk
             w_segm_conv = nn.weight_variable([3, 3, rnn_depth, 1], wd=wd)
@@ -484,49 +477,34 @@ def get_orig_model(opt, device='/cpu:0'):
                 nn.conv2d(h_rnn_all, w_segm_conv) + b_segm_conv,
                 [-1, rnn_h * rnn_w]))) + b_log_softmax,
                 [-1, rnn_h, rnn_w, 1])
-        model['h_core'] = h_core
 
         # Deconv net to upsample
         if use_deconv:
             dcnn_filters = dcnn_filter_size
-            dcnn_unpool = [2] * (len(dcnn_filters) - 1) + [1]
-            dcnn_act = [tf.nn.relu] * (len(dcnn_filters) - 1) + [tf.sigmoid]
+            dcnn_nlayers = len(dcnn_filters)
+            dcnn_unpool = [2] * (dcnn_nlayers - 1) + [1]
+            dcnn_act = [tf.nn.relu] * (dcnn_nlayers - 1) + [tf.sigmoid]
             if segm_dense_conn:
                 dcnn_channels = [mlp_depth] + dcnn_depth
             else:
-                dcnn_channels = [1] * (len(dcnn_filters) + 1)
-            dcnn_use_bn = [use_bn] * len(dcnn_filters)
+                dcnn_channels = [1] * (dcnn_nlayers + 1)
+            dcnn_use_bn = [use_bn] * dcnn_nlayers
 
             skip = None
             skip_ch = None
             if add_skip_conn:
-                skip = [None]
-                skip_ch = [0]
-                for jj, layer in enumerate(h_cnn[-2::-1] + [x]):
-                    layer_shape = tf.shape(layer)
-                    zeros = tf.zeros(tf.concat(
-                        0, [layer_shape[0: 1], tf.constant([timespan]),
-                            layer_shape[1:]]))
-                    new_shape = tf.concat(
-                        0, [layer_shape[0: 1] * timespan, layer_shape[1:]])
-                    layer_reshape = tf.reshape(tf.expand_dims(layer, 1) +
-                                               zeros, new_shape)
-                    skip.append(layer_reshape)
-                    ch_idx = len(cnn_channels) - jj - 2
-                    skip_ch.append(cnn_channels[ch_idx])
+                skip, skip_ch = _build_skip_conn(
+                    cnn_channels, h_cnn, x, timespan)
 
-            h_dcnn = nn.dcnn(model, x=h_core, f=dcnn_filters,
-                             ch=dcnn_channels,
-                             pool=dcnn_unpool, act=dcnn_act,
-                             use_bn=dcnn_use_bn,
-                             inp_h=rnn_h, inp_w=rnn_w,
-                             skip=skip, skip_ch=skip_ch,
-                             phase_train=phase_train, wd=wd)
+            dcnn = nn.dcnn(dcnn_filters, dcnn_channels, dcnn_unpool, dcnn_act,
+                           dcnn_use_bn, skip_ch=skip_ch,
+                           phase_train=phase_train, wd=wd)
+            h_dcnn = dcnn(h_core, skip=skip)
             y_out = tf.reshape(
                 h_dcnn[-1], [-1, timespan, inp_height, inp_width])
         else:
             y_out = tf.reshape(
-                tf.image.resize_bilinear(h_core, [inp_height, inp_width]),
+                tf.image.resize_bilinear(h_core, [inp_height, inp_wiidth]),
                 [-1, timespan, inp_height, inp_width])
 
         model['y_out'] = y_out
@@ -554,12 +532,9 @@ def get_orig_model(opt, device='/cpu:0'):
                 score_inp = tf.reshape(score_inp, score_inp_shape)
                 score_dim = rnn_dim
 
-        s_out_mlp = nn.mlp(model,
-                           x=score_inp,
-                           dims=[score_dim, 1],
-                           act=[tf.sigmoid],
-                           wd=wd)
-        s_out = tf.reshape(s_out_mlp[-1], [-1, timespan])
+        score_mlp = nn.mlp(dims=[score_dim, 1], act=[tf.sigmoid], wd=wd)
+        s_out = score_mlp(score_inp)[-1]
+        s_out = tf.reshape(s_out, [-1, timespan])
         model['s_out'] = s_out
 
         # Loss function
@@ -568,10 +543,33 @@ def get_orig_model(opt, device='/cpu:0'):
             learn_rate_decay, staircase=True)
         model['learn_rate'] = learn_rate
         eps = 1e-7
-        loss = _add_ins_segm_loss(
-            model, y_out, y_gt, s_out, s_gt, loss_mix_ratio, timespan,
-            use_cum_min=True,
-            segm_loss_fn=opt['segm_loss_fn'])
+
+        y_gt_shape = tf.shape(y_gt)
+        num_ex = tf.to_float(y_gt_shape[0])
+        max_num_obj = tf.to_float(y_gt_shape[1])
+
+        # Pairwise IOU
+        iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
+
+        # Matching
+        match = _segm_match(iou_soft, s_gt)
+        model['match'] = match
+        match_sum = tf.reduce_sum(match, reduction_indices=[2])
+        match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
+        iou_soft = tf.reduce_sum(tf.reduce_sum(
+            iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
+        model['iou_soft'] = iou_soft
+
+        if segm_loss_fn == 'iou':
+            segm_loss = -iou_soft
+        elif segm_loss_fn == 'bce':
+            segm_loss = _match_bce(y_out, y_gt, match, timespan)
+        model['segm_loss'] = segm_loss
+        conf_loss = _conf_loss(s_out, match, timespan, use_cum_min=True)
+        model['conf_loss'] = conf_loss
+        loss = loss_mix_ratio * conf_loss + segm_loss
+        model['loss'] = loss
+
         tf.add_to_collection('losses', loss)
         total_loss = tf.add_n(tf.get_collection(
             'losses'), name='total_loss')
@@ -582,10 +580,19 @@ def get_orig_model(opt, device='/cpu:0'):
             clip=1.0).minimize(total_loss)
         model['train_step'] = train_step
 
+        # Statistics
+        # [B, M, N] * [B, M, N] => [B] * [B] => [1]
+        iou_hard = _f_iou(tf.to_float(y_out > 0.5),
+                          y_gt, timespan, pairwise=True)
+        iou_hard = tf.reduce_sum(tf.reduce_sum(
+            iou_hard * match, reduction_indices=[1, 2]) / match_count) / num_ex
+        model['iou_hard'] = iou_hard
+        model['count_acc'] = _count_acc(s_out, s_gt)
+
     return model
 
 
-def _get_attn_filter(center, lg_d, lg_var, image_size, filter_size):
+def _get_attn_filter(center, delta, lg_var, image_size, filter_size):
     """
     Get Gaussian-based attention filter along one dimension
     (assume decomposability).
@@ -598,11 +605,12 @@ def _get_attn_filter(center, lg_d, lg_var, image_size, filter_size):
         filter_size: F
     """
     # [1, 1, F].
-    span_filter = tf.reshape(tf.range(filter_size) + 1, [1, 1, -1])
+    span_filter = tf.to_float(tf.reshape(
+        tf.range(filter_size) + 1, [1, 1, -1]))
 
     # [B, 1, 1]
-    delta = tf.reshape((image_size - 1) /
-                       ((filter_size - 1) * tf.exp(lg_d)), [-1, 1, 1])
+    center = tf.reshape(center, [-1, 1, 1])
+    delta = tf.reshape(delta, [-1, 1, 1])
 
     # [B, 1, 1] + [B, 1, 1] * [1, F, 1] = [B, 1, F]
     mu = center + delta * (span_filter - filter_size / 2.0 - 0.5)
@@ -611,7 +619,8 @@ def _get_attn_filter(center, lg_d, lg_var, image_size, filter_size):
     lg_var = tf.reshape(lg_var, [-1, 1, 1])
 
     # [1, L, 1]
-    span = tf.reshape(tf.range(size), [1, size, 1])
+    span = tf.to_float(tf.reshape(tf.range(image_size),
+                                  tf.pack([1, image_size, 1])))
 
     # [1, L, 1] - [B, 1, F] = [B, L, F]
     filter = tf.mul(
@@ -622,65 +631,224 @@ def _get_attn_filter(center, lg_d, lg_var, image_size, filter_size):
     return filter
 
 
+def _extract_patch(img, f_y, f_x, nchannels):
+    """
+    Args:
+        img: [B, H, W, D]
+        f_y: [B, H, F]
+        f_x: [B, W, F]
+        nchannels: D
+
+    Returns:
+        patch: [B, F, F]
+    """
+    patch = [None] * nchannels
+    fsize = tf.shape(f_x)[2]
+    hh = tf.shape(img)[1]
+    ww = tf.shape(img)[2]
+
+    for dd in xrange(nchannels):
+        img_ch = tf.reshape(
+            tf.slice(x, [0, 0, 0, dd], [-1, -1, -1, 1]),
+            tf.pack([-1, hh, ww]))
+        patch[dd] = tf.reshape(tf.batch_matmul(
+            tf.batch_matmul(f_y, img_ch, adj_x=True),
+            f_x), tf.pack([-1, fsize, fsize, 1]))
+
+    return tf.concat(3, patch)
+
+
 def get_attn_gt_model(opt, device='/cpu:0'):
     """The original model"""
     model = {}
 
-    # timespan = opt['timespan']
-    # inp_height = opt['inp_height']
-    # inp_width = opt['inp_width']
+    timespan = opt['timespan']
+    inp_height = opt['inp_height']
+    inp_width = opt['inp_width']
     inp_depth = opt['inp_depth']
     attn_size = opt['attn_size']
-
-    # rnn_type = opt['rnn_type']
-    # cnn_filter_size = opt['cnn_filter_size']
-    # cnn_depth = opt['cnn_depth']
-    # dcnn_filter_size = opt['dcnn_filter_size']
-    # dcnn_depth = opt['dcnn_depth']
-    # conv_lstm_filter_size = opt['conv_lstm_filter_size']
-    # conv_lstm_hid_depth = opt['conv_lstm_hid_depth']
-    # rnn_hid_dim = opt['rnn_hid_dim']
-    # mlp_depth = opt['mlp_depth']
-    # wd = opt['weight_decay']
-    # segm_dense_conn = opt['segm_dense_conn']
-    # use_bn = opt['use_bn']
-    # use_deconv = opt['use_deconv']
-    # add_skip_conn = opt['add_skip_conn']
-    # score_use_core = opt['score_use_core']
-    # loss_mix_ratio = opt['loss_mix_ratio']
-    # base_learn_rate = opt['base_learn_rate']
-    # learn_rate_decay = opt['learn_rate_decay']
-    # steps_per_decay = opt['steps_per_decay']
+    cnn_filter_size = opt['cnn_filter_size']
+    cnn_depth = opt['cnn_depth']
+    dcnn_filter_size = opt['dcnn_filter_size']
+    dcnn_depth = opt['dcnn_depth']
+    rnn_hid_dim = opt['rnn_hid_dim']
+    num_mlp_layers = opt['num_mlp_layers']
+    mlp_dropout_ratio = opt['mlp_dropout']
+    mlp_depth = opt['mlp_depth']
+    wd = opt['weight_decay']
+    use_bn = opt['use_bn']
+    loss_mix_ratio = opt['loss_mix_ratio']
+    base_learn_rate = opt['base_learn_rate']
+    learn_rate_decay = opt['learn_rate_decay']
+    steps_per_decay = opt['steps_per_decay']
 
     with tf.device(_get_device_fn(device)):
+        # Input layer
         # Input image, [B, H, W, D]
         x = tf.placeholder('float', [None, None, None, None])
-
+        y_gt = tf.placeholder('float', [None, None, None, None])
         x_shape = tf.shape(x)
-        inp_height = x_shape[1]
-        inp_width = x_shape[2]
+        # Attention parameters, [B, T, 2]
+        attn_ctr = tf.placeholder('float', [None, None, 2])
+        attn_delta = tf.placeholder('float', [None, None, 2])
+        attn_lg_var = tf.placeholder('float', [None, None, 2])
 
-        # Attention center, [B, 2]
-        attn_ctr = tf.placeholder('float', [None, 2])
-        # Attention width, [B, 2]
-        attn_delta = tf.placeholder('float', [None, 2])
+        # Whether in training stage.
+        phase_train = tf.placeholder('bool')
+        # Number of steps ran.
+        global_step = tf.placeholder('int32')
 
-        # [B, H, F]
-        filters_y = _get_attn_filter(
-            mu=attn_mu[:, 0], lg_var=attn_lg_var[:, 0], size=inp_height)
-        # [B, W, F]
-        filters_x = _get_attn_filter(
-            mu=attn_mu[:, 1], lg_var=attn_lg_var[:, 1], size=inp_width)
+        model['x'] = x
+        model['y_gt'] = y_gt
+        model['attn_ctr'] = attn_ctr
+        model['attn_delta'] = attn_delta
+        model['attn_lg_var'] = attn_lg_var
 
-        # x_patch = [None] * inp_depth
+        # Random image transformation
+        x, y_gt = _add_rnd_img_transformation(
+            model, x, y_gt, padding, phase_train)
+        model['x_trans'] = x
+        model['y_gt_trans'] = y_gt
 
-        # for d in xrange(inp_depth):
-        #     x_ch = tf.reshape(
-        #         tf.slice(x, [0, 0, 0, d], [-1, -1, -1, 1]),
-        #         tf.pack([-1, inp_height, inp_width]))
-        #     x_patch[d] = tf.reshape(tf.batch_matmul(
-        #         tf.batch_matmul(filters_y, x_ch, adj_x=True),
-        #         filters_x), [-1, ])
-        # x_patch=tf.concat(x_patch)
+        # CNN definition
+        cnn_filters = cnn_filter_size
+        cnn_nlayers = len(cnn_filters)
+        cnn_channels = [inp_depth] + cnn_depth
+        cnn_pool = [2] * cnn_nlayers
+        cnn_act = [tf.nn.relu] * cnn_nlayers
+        cnn_use_bn = [use_bn] * cnn_nlayers
+        cnn = nn.cnn(cnn_filters, cnn_channels, cnn_pool, cnn_act, cnn_use_bn,
+                     phase_train=phase_train, wd=wd)
 
-    pass
+        # RNN definition
+        subsample = np.array(cnn_pool).prod()
+        rnn_h = inp_height / subsample
+        rnn_w = inp_width / subsample
+        rnn_dim = rnn_hid_dim
+        rnn_inp_dim = rnn_h * rnn_w * cnn_channels[-1]
+        state = [None] * (timespan + 1)
+        state[-1] = tf.zeros(tf.pack([num_ex, rnn_hid_dim * 2]))
+        rnn_cell = nn.lstm(rnn_inp_dim, rnn_hid_dim, wd=wd)
+        filters_y = [None] * timespan
+        filters_x = [None] * timespan
+
+        for tt in xrange(timespan):
+            # Include controller input CNN here.
+            # Include attention controller RNN here.
+            # [B, H, A]
+            filters_y[tt] = _get_attn_filter(
+                attn_ctr[:, 0], attn_delta[:, tt, 0], attn_lg_var[:, tt, 0],
+                inp_height, attn_size)
+            # [B, W, A]
+            filters_x[tt] = _get_attn_filter(
+                attn_ctr[:, 1], attn_delta[:, tt, 1], attn_lg_var[:, tt, 1],
+                inp_width, attn_size)
+
+            # Attended patch [B, A, A, D]
+            x_patch = _extract_patch(x, filters_y, filters_x, inp_depth)
+
+            # CNN [B, A, A, D] => [B, RH, RW, RD]
+            h_cnn = cnn(x_patch)
+            h_cnn_last = h_cnn[-1]
+            core_depth = mlp_depth if segm_dense_conn else 1
+            core_dim = rnn_h * rnn_w * core_depth
+
+            # RNN [B, T, R]
+            rnn_inp = tf.reshape(
+                h_cnn_last, [-1, rnn_h * rnn_w * cnn_channels[-1]])
+            state[tt] = rnn_cell(rnn_inp, state[tt - 1])
+
+        # Dense segmentation network [B, T, R] => [B, T, M]
+        h_rnn = [tf.slice(state[tt], [0, rnn_dim], [-1, rnn_dim])
+                 for tt in xrange(timespan)]
+        h_rnn_all = tf.concat(1, [tf.expand_dims(h_rnn, 1)
+                                  for tt in xrange(timespan)])
+        h_rnn_all = tf.reshape(h_rnn_all, [-1, rnn_dim])
+        mlp_dims = [rnn_dim] + [core_dim] * num_mlp_layers
+        mlp_act = [tf.nn.relu] * num_mlp_layers
+        mlp_dropout = [1.0 - mlp_dropout_ratio] * num_mlp_layers
+        segm_mlp = nn.mlp(dims=mlp_dims, act=mlp_act, dropout_keep=mlp_dropout,
+                          phase_train=phase_train, wd=wd)
+        h_core = segm_mlp(h_rnn_all)[-1]
+        h_core = tf.reshape(h_core, [-1, rnn_h, rnn_w, mlp_depth])
+
+        # DCNN [B * T, RH, RW, MD] => [B * T, A, A, 1]
+        dcnn_filters = dcnn_filter_size
+        dcnn_unpool = [2] * (len(dcnn_filters) - 1) + [1]
+        dcnn_act = [tf.nn.relu] * (len(dcnn_filters) - 1) + [tf.sigmoid]
+        dcnn_channels = [mlp_depth] + dcnn_depth
+        dcnn_use_bn = [use_bn] * len(dcnn_filters)
+
+        skip, skip_ch = _build_skip_conn(
+            cnn_channels, h_cnn, x_patch, timespan)
+
+        dcnn = nn.dcnn(f=dcnn_filters, ch=dcnn_channels, pool=dcnn_unpool,
+                       act=dcnn_act, use_bn=dcnn_use_bn, skip_ch=skip_ch,
+                       phase_train=phase_train, wd=wd)
+        h_dcnn = dcnn(h_core, skip=skip)
+
+        # Inverse attention [B, T, A, A, 1] => [B, T, H, W, 1]
+        # Filters T * [B, L, A] => [B * T, L, A]
+        filters_y_all = tf.reshape(
+            tf.concat(1, [tf.expand_dims(f, 1) for f in filters_y]),
+            [-1, inp_height, attn_size])
+        filters_x_all = tf.reshape(
+            tf.concat(1, [tf.expand_dims(f, 1) for f in filters_x]),
+            [-1, inp_width, attn_size])
+        y_out = _extract_patch(h_dcnn[-1],
+                               tf.transpose(filters_y_all, [0, 2, 1]),
+                               tf.transpose(filters_x_all, [0, 2, 1]), 1)
+        y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
+        model['y_out'] = y_out
+
+        # Loss function
+        learn_rate = tf.train.exponential_decay(
+            base_learn_rate, global_step, steps_per_decay,
+            learn_rate_decay, staircase=True)
+        model['learn_rate'] = learn_rate
+        eps = 1e-7
+
+        y_gt_shape = tf.shape(y_gt)
+        num_ex = tf.to_float(y_gt_shape[0])
+        max_num_obj = tf.to_float(y_gt_shape[1])
+
+        # Pairwise IOU
+        iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
+
+        # Matching
+        match = _segm_match(iou_soft, s_gt)
+        model['match'] = match
+        match_sum = tf.reduce_sum(match, reduction_indices=[2])
+        match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
+        iou_soft = tf.reduce_sum(tf.reduce_sum(
+            iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
+        model['iou_soft'] = iou_soft
+
+        if segm_loss_fn == 'iou':
+            segm_loss = -iou_soft
+        elif segm_loss_fn == 'bce':
+            segm_loss = _match_bce(y_out, y_gt, match, timespan)
+        model['segm_loss'] = segm_loss
+
+        loss = segm_loss
+        model['loss'] = loss
+
+        tf.add_to_collection('losses', loss)
+        total_loss = tf.add_n(tf.get_collection(
+            'losses'), name='total_loss')
+        model['total_loss'] = total_loss
+
+        train_step = GradientClipOptimizer(
+            tf.train.AdamOptimizer(learn_rate, epsilon=eps),
+            clip=1.0).minimize(total_loss)
+        model['train_step'] = train_step
+
+        # Statistics
+        # [B, M, N] * [B, M, N] => [B] * [B] => [1]
+        iou_hard = _f_iou(tf.to_float(y_out > 0.5),
+                          y_gt, timespan, pairwise=True)
+        iou_hard = tf.reduce_sum(tf.reduce_sum(
+            iou_hard * match, reduction_indices=[1, 2]) / match_count) / num_ex
+        model['iou_hard'] = iou_hard
+
+    return model
