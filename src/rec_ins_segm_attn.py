@@ -522,6 +522,29 @@ if __name__ == '__main__':
         plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s, y_gt=y2,
                      s_gt=s, match=match)
 
+    def prob():
+        log.info('Running validation')
+        _x, _y, _s = get_batch_valid(np.arange(22, 25))
+        results = sess.run([m['loss'], m['segm_loss'], m['segm_loss'],
+                            m['iou_soft'], m['iou_hard'], 
+                            m['bce_total'], m['bce_mat']],
+                           feed_dict={
+            m['x']: _x,
+            m['phase_train']: False,
+            m['y_gt']: _y,
+            m['s_gt']: _s
+        })
+        _loss = results[0]
+        _segm_loss = results[1]
+        _conf_loss = 0
+        _iou_soft = results[3]
+        _iou_hard = results[4]
+        _bce_total = results[5]
+        _bce_mat = results[6]
+        print _bce_mat
+
+        pass
+
     def run_validation():
         # Validation
         loss = 0.0
@@ -535,7 +558,7 @@ if __name__ == '__main__':
                                         get_fn=get_batch_valid,
                                         progress_bar=False):
             results = sess.run([m['loss'], m['segm_loss'], m['segm_loss'],
-                                m['iou_soft'], m['iou_hard'], m['bce_total'], m['bce_mat']],
+                                m['iou_soft'], m['iou_hard']],
                                feed_dict={
                 m['x']: _x,
                 m['phase_train']: False,
@@ -547,9 +570,6 @@ if __name__ == '__main__':
             _conf_loss = 0
             _iou_soft = results[3]
             _iou_hard = results[4]
-            _bce_total = results[5]
-            _bce_mat = results[6]
-            print _bce_mat
 
             num_ex_batch = _x.shape[0]
             loss += _loss * num_ex_batch / num_ex_valid
@@ -568,9 +588,8 @@ if __name__ == '__main__':
 
             # Plot some samples.
             log.info('Plot validation samples')
-
-            _x, _y, _s = get_batch_valid(np.arange(23, 25))
-            # _x, _y, _s = get_batch_valid(np.arange(23, args.num_samples_plot))
+            _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
+            _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
             run_samples(_x, _y, _s, False, valid_sample_img.get_fname())
             if not valid_sample_img.is_registered():
                 valid_sample_img.register()
@@ -583,58 +602,62 @@ if __name__ == '__main__':
 
         pass
 
-    run_validation()
-    # # Train loop
-    # for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
-    #                                          batch_size=batch_size,
-    #                                          get_fn=get_batch_train,
-    #                                          cycle=True,
-    #                                          progress_bar=False):
-    #     # Run validation
-    #     if step % train_opt['steps_per_valid'] == 0:
-    #         run_validation()
+    prob()
 
-    #     # Train step
-    #     start_time = time.time()
-    #     r = sess.run([m['loss'], m['segm_loss'],
-    #                   m['iou_soft'], m['iou_hard'],
-    #                   m['learn_rate'], m['train_step']], feed_dict={
-    #         m['x']: x_bat,
-    #         m['phase_train']: True,
-    #         m['y_gt']: y_bat,
-    #         m['s_gt']: s_bat
-    #     })
+    def train_loop():
+        # Train loop
+        for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
+                                                 batch_size=batch_size,
+                                                 get_fn=get_batch_train,
+                                                 cycle=True,
+                                                 progress_bar=False):
+            # Run validation
+            if step % train_opt['steps_per_valid'] == 0:
+                run_validation()
 
-    #     # Print statistics
-    #     if step % train_opt['steps_per_log'] == 0:
-    #         loss = r[0]
-    #         segm_loss = r[1]
-    #         iou_soft = r[2]
-    #         iou_hard = r[3]
-    #         learn_rate = r[4]
-    #         step_time = (time.time() - start_time) * 1000
-    #         log.info('{:d} train loss {:.4f} t {:.2f}ms'.format(
-    #             step, loss, step_time))
+            # Train step
+            start_time = time.time()
+            r = sess.run([m['loss'], m['segm_loss'],
+                          m['iou_soft'], m['iou_hard'],
+                          m['learn_rate'], m['train_step']], feed_dict={
+                m['x']: x_bat,
+                m['phase_train']: True,
+                m['y_gt']: y_bat,
+                m['s_gt']: s_bat
+            })
 
-    #         if args.logs:
-    #             loss_logger.add(step, [loss, ''])
-    #             iou_logger.add(step, [iou_soft, '', iou_hard, ''])
-    #             learn_rate_logger.add(step, learn_rate)
-    #             step_time_logger.add(step, step_time)
+            # Print statistics
+            if step % train_opt['steps_per_log'] == 0:
+                loss = r[0]
+                segm_loss = r[1]
+                iou_soft = r[2]
+                iou_hard = r[3]
+                learn_rate = r[4]
+                step_time = (time.time() - start_time) * 1000
+                log.info('{:d} train loss {:.4f} t {:.2f}ms'.format(
+                    step, loss, step_time))
 
-    #     # Model ID reminder
-    #     if step % (10 * train_opt['steps_per_log']) == 0:
-    #         log.info('model id {}'.format(model_id))
+                if args.logs:
+                    loss_logger.add(step, [loss, ''])
+                    iou_logger.add(step, [iou_soft, '', iou_hard, ''])
+                    learn_rate_logger.add(step, learn_rate)
+                    step_time_logger.add(step, step_time)
 
-    #     # Save model
-    #     if args.save_ckpt and step % train_opt['steps_per_ckpt'] == 0:
-    #         saver.save(sess, global_step=step)
+            # Model ID reminder
+            if step % (10 * train_opt['steps_per_log']) == 0:
+                log.info('model id {}'.format(model_id))
 
-    #     step += 1
+            # Save model
+            if args.save_ckpt and step % train_opt['steps_per_ckpt'] == 0:
+                saver.save(sess, global_step=step)
 
-    #     # Termination
-    #     if step > train_opt['num_steps']:
-    #         break
+            step += 1
+
+            # Termination
+            if step > train_opt['num_steps']:
+                break
+
+    # train_loop()
 
     sess.close()
     loss_logger.close()
