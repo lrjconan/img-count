@@ -567,11 +567,13 @@ if __name__ == '__main__':
             iou_logger.add(step, ['', iou_soft, '', iou_hard])
 
             # Plot some samples.
+            log.info('Plot validation samples')
             _x, _y, _s = get_batch_valid(np.arange(23, args.num_samples_plot))
             run_samples(_x, _y, _s, False, valid_sample_img.get_fname())
             if not valid_sample_img.is_registered():
                 valid_sample_img.register()
 
+            log.info('Plot training samples')
             _x, _y, _s = get_batch_train(np.arange(args.num_samples_plot))
             run_samples(_x, _y, _s, True, train_sample_img.get_fname())
             if not train_sample_img.is_registered():
