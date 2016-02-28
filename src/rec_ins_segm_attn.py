@@ -417,10 +417,8 @@ if __name__ == '__main__':
             'size_var': args.size_var
         }
         step = 0
-
-        if args.save_ckpt:
-            exp_folder = os.path.join(args.results, model_id)
-            saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
+        exp_folder = os.path.join(args.results, model_id)
+        saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
 
     if not args.save_ckpt:
         log.warning(
