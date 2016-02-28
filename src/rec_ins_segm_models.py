@@ -200,7 +200,7 @@ def _segm_match(iou, s_gt):
 
 def _bce(y_out, y_gt):
     """Binary cross entropy."""
-    eps = 1e-7
+    eps = 1e-5
     return -y_gt * tf.log(y_out + eps) - \
         (1 - y_gt) * tf.log(1 - y_out + eps)
 
