@@ -569,7 +569,7 @@ if __name__ == '__main__':
             # Plot some samples.
             log.info('Plot validation samples')
 
-            _x, _y, _s = get_batch_valid(np.arange(23, 24))
+            _x, _y, _s = get_batch_valid(np.arange(23, 25))
             # _x, _y, _s = get_batch_valid(np.arange(23, args.num_samples_plot))
             run_samples(_x, _y, _s, False, valid_sample_img.get_fname())
             if not valid_sample_img.is_registered():
