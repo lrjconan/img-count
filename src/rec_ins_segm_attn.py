@@ -3,6 +3,8 @@ Recurrent instance segmentation with attention.
 """
 from __future__ import division
 
+import cslab_environ
+
 import argparse
 import datetime
 import matplotlib
