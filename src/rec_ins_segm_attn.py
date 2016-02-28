@@ -527,7 +527,7 @@ if __name__ == '__main__':
         _x, _y, _s = get_batch_valid(np.arange(22, 25))
         results = sess.run([m['loss'], m['segm_loss'], m['segm_loss'],
                             m['iou_soft'], m['iou_hard'], 
-                            m['bce_total'], m['bce_mat']],
+                            m['bce_total'], m['bce_mat'], m['y_out']],
                            feed_dict={
             m['x']: _x,
             m['phase_train']: False,
@@ -541,7 +541,11 @@ if __name__ == '__main__':
         _iou_hard = results[4]
         _bce_total = results[5]
         _bce_mat = results[6]
+        _y_out = results[7]
         print _bce_mat
+        print _y[0, 1]
+        print _y_out[0, 1]
+        
 
         pass
 
