@@ -1,8 +1,10 @@
+"""
+Recurrent instance segmentation with attention.
+"""
 from __future__ import division
 
-import cslab_environ
-
-import cv2
+import argparse
+import datetime
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.patches as patches
@@ -16,33 +18,106 @@ import time
 from data_api import synth_shape
 from data_api import cvppp
 
+from utils import log_manager
 from utils import logger
+from utils.batch_iter import BatchIterator
+from utils.lazy_registerer import LazyRegisterer
+from utils.saver import Saver
+from utils.time_series_logger import TimeSeriesLogger
 
 import rec_ins_segm_models as models
 
 log = logger.get()
 
 
-def _get_attn(y, attn_size):
-    ctr = np.zeros([y.shape[0], y.shape[1], 2])
-    delta = np.zeros([y.shape[0], y.shape[1], 2])
-    lg_var = np.zeros([y.shape[0], y.shape[1], 2])
-    for ii in xrange(y.shape[0]):
-        for jj in xrange(y.shape[1]):
-            nz = y_gt_val[ii, jj].nonzero()
-            if nz[0].size > 0:
-                top_left_x = nz[1].min()
-                top_left_y = nz[0].min()
-                bot_right_x = nz[1].max() + 1
-                bot_right_y = nz[0].max() + 1
-                ctr[ii, jj, 0] = (bot_right_y + top_left_y) / 2
-                ctr[ii, jj, 1] = (bot_right_x + top_left_x) / 2
-                delta[ii, jj, 0] = (bot_right_y - top_left_y) / attn_size
-                delta[ii, jj, 1] = (bot_right_x - top_left_x) / attn_size
-                lg_var[ii, jj, 0] = 1.0
-                lg_var[ii, jj, 1] = 1.0
+def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match):
+    """Plot some test samples."""
+    num_ex = y_out.shape[0]
+    offset = 2
+    num_items = y_out.shape[1] + offset
+    max_items_per_row = 9
+    num_rows_per_ex = int(np.ceil(num_items / max_items_per_row))
+    if num_items > max_items_per_row:
+        num_col = max_items_per_row
+        num_row = num_rows_per_ex * num_ex
+    else:
+        num_row = num_ex
+        num_col = num_items
 
-    return ctr, delta, lg_var
+    f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
+    cmap = ['r', 'y', 'c', 'g', 'm']
+    gradient = np.linspace(0, 1, 256)
+    im_height = x.shape[1]
+    im_with = x.shape[2]
+
+    for row in xrange(num_row):
+        for col in xrange(num_col):
+            axarr[row, col].set_axis_off()
+
+    for ii in xrange(num_ex):
+        mnz = match[ii].nonzero()
+        for jj in xrange(num_items):
+            col = jj % max_items_per_row
+            row = num_rows_per_ex * ii + int(jj / max_items_per_row)
+            if jj == 0:
+                axarr[row, col].imshow(x_orig[ii])
+            elif jj == 1:
+                axarr[row, col].imshow(x[ii])
+                for kk in xrange(y_gt.shape[1]):
+                    nz = y_gt[ii, kk].nonzero()
+                    if nz[0].size > 0:
+                        top_left_x = nz[1].min()
+                        top_left_y = nz[0].min()
+                        bot_right_x = nz[1].max() + 1
+                        bot_right_y = nz[0].max() + 1
+                        axarr[row, col].add_patch(patches.Rectangle(
+                            (top_left_x, top_left_y),
+                            bot_right_x - top_left_x,
+                            bot_right_y - top_left_y,
+                            fill=False,
+                            color=cmap[kk % len(cmap)]))
+                        axarr[row, col].add_patch(patches.Rectangle(
+                            (top_left_x, top_left_y - 25),
+                            25, 25,
+                            fill=True,
+                            color=cmap[kk % len(cmap)]))
+                        axarr[row, col].text(
+                            top_left_x + 5, top_left_y - 5,
+                            '{}'.format(kk), size=5)
+            else:
+                axarr[row, col].imshow(y_out[ii, jj - offset])
+                matched = match[ii, jj - offset].nonzero()[0]
+                axarr[row, col].text(0, 0, '{:.2f} {}'.format(
+                    s_out[ii, jj - offset], matched),
+                    color=(0, 0, 0), size=8)
+
+    plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
+    plt.savefig(fname, dpi=300)
+    plt.close('all')
+
+    pass
+
+
+# def _get_attn(y, attn_size):
+#     ctr = np.zeros([y.shape[0], y.shape[1], 2])
+#     delta = np.zeros([y.shape[0], y.shape[1], 2])
+#     lg_var = np.zeros([y.shape[0], y.shape[1], 2])
+#     for ii in xrange(y.shape[0]):
+#         for jj in xrange(y.shape[1]):
+#             nz = y[ii, jj].nonzero()
+#             if nz[0].size > 0:
+#                 top_left_x = nz[1].min()
+#                 top_left_y = nz[0].min()
+#                 bot_right_x = nz[1].max() + 1
+#                 bot_right_y = nz[0].max() + 1
+#                 ctr[ii, jj, 0] = (bot_right_y + top_left_y) / 2
+#                 ctr[ii, jj, 1] = (bot_right_x + top_left_x) / 2
+#                 delta[ii, jj, 0] = (bot_right_y - top_left_y) / attn_size
+#                 delta[ii, jj, 1] = (bot_right_x - top_left_x) / attn_size
+#                 lg_var[ii, jj, 0] = 1.0
+#                 lg_var[ii, jj, 1] = 1.0
+
+#     return ctr, delta, lg_var
 
 
 def get_dataset(dataset_name, opt, num_train, num_valid):
@@ -132,41 +207,23 @@ def _parse_args():
     kCenterVar = 20
 
     # Default model options
-    # [224, 224,  3]
-    # [112, 112,  4]
-    # [56,  56,   8]
-    # [28,  28,   8]
-    # [14,  14,  12]
-    # [7,   7,   16]
-    # [7,   7,   12]
-    # [7,   7,    6]
-    # [14,  14, 8+12]
-    # [28,  28,  6+8]
-    # [56,  56,  4+8]
-    # [112, 112, 4+4]
-    # [224, 224, 2+3]
-    # [224, 224,   1]
-
     kWeightDecay = 5e-5
     kBaseLearnRate = 1e-3
     kLearnRateDecay = 0.96
     kStepsPerDecay = 5000
     kStepsPerLog = 10
     kLossMixRatio = 1.0
-    kNumConv = 5
+    kNumConv = 3
     kCnnFilterSize = [3, 3, 3, 3, 3]
     kCnnDepth = [4, 8, 8, 12, 16]
-    kRnnType = 'conv_lstm'                  # {"conv_lstm", "lstm", "gru"}
-    kConvLstmFilterSize = 3
-    kConvLstmHiddenDepth = 12
-    kRnnHiddenDim = 512
+    kRnnHiddenDim = 256
+    kAttnSize = 48
 
     kNumMlpLayers = 2
     kMlpDepth = 6
     kMlpDropout = 0.5
     kDcnnFilterSize = [3, 3, 3, 3, 3, 3]
     kDcnnDepth = [1, 2, 4, 4, 6, 8]
-    kScoreMaxpool = 1
 
     # Default training options
     kNumSteps = 500000
@@ -215,10 +272,12 @@ def _parse_args():
                         type=int, help='Steps every learning rate decay')
     parser.add_argument('-loss_mix_ratio', default=kLossMixRatio, type=float,
                         help='Mix ratio between segmentation and score loss')
-    parser.add_argument('-num_conv', default=kNumConv,
-                        type=int, help='Number of convolutional layers')
+    parser.add_argument('-num_conv', default=kNumConv, type=int,
+                        help='Number of convolutional layers')
+    parser.add_argument('-attn_size', default=kAttnSize, type=int,
+                        help='Attention size')
 
-    for ii in xrange(kNumConv):
+    for ii in xrange(len(kCnnFilterSize)):
         parser.add_argument('-cnn_{}_filter_size'.format(ii + 1),
                             default=kCnnFilterSize[ii], type=int,
                             help='CNN layer {} filter size'.format(ii + 1))
@@ -226,7 +285,7 @@ def _parse_args():
                             default=kCnnDepth[ii], type=int,
                             help='CNN layer {} depth'.format(ii + 1))
 
-    for ii in xrange(kNumConv + 1):
+    for ii in xrange(len(kDcnnFilterSize)):
         parser.add_argument('-dcnn_{}_filter_size'.format(ii),
                             default=kDcnnFilterSize[ii], type=int,
                             help='DCNN layer {} filter size'.format(ii))
@@ -340,12 +399,8 @@ if __name__ == '__main__':
             'inp_width': args.width,
             'inp_depth': 3,
             'padding': args.padding,
+            'attn_size': args.attn_size,
             'timespan': timespan,
-            'weight_decay': args.weight_decay,
-            'base_learn_rate': args.base_learn_rate,
-            'learn_rate_decay': args.learn_rate_decay,
-            'steps_per_decay': args.steps_per_decay,
-            'loss_mix_ratio': args.loss_mix_ratio,
             'cnn_filter_size': cnn_filter_size_all[: args.num_conv],
             'cnn_depth': cnn_depth_all[: args.num_conv],
             'dcnn_filter_size': dcnn_filter_size_all[: args.num_conv + 1][::-1],
@@ -354,6 +409,12 @@ if __name__ == '__main__':
             'mlp_depth': args.mlp_depth,
             'num_mlp_layers': args.num_mlp_layers,
             'mlp_dropout': args.mlp_dropout,
+
+            'weight_decay': args.weight_decay,
+            'base_learn_rate': args.base_learn_rate,
+            'learn_rate_decay': args.learn_rate_decay,
+            'steps_per_decay': args.steps_per_decay,
+            'loss_mix_ratio': args.loss_mix_ratio,
 
             # Test arguments
             'segm_loss_fn': args.segm_loss_fn,
@@ -401,13 +462,11 @@ if __name__ == '__main__':
     }
 
     log.info('Building model')
-    m = models.get_model(args.model, model_opt, device=device)
+    m = models.get_model('attention', model_opt, device=device)
 
     log.info('Loading dataset')
     dataset = get_dataset(args.dataset, data_opt,
-                          args.num_ex, args.num_ex / 10)
-
-    ctr, delta, lg_var = _get_attn()
+                          args.num_ex, int(args.num_ex / 10))
 
     sess = tf.Session()
 
@@ -427,20 +486,15 @@ if __name__ == '__main__':
             ['train soft', 'valid soft', 'train hard', 'valid hard'],
             name='IoU',
             buffer_size=1)
-        count_acc_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'count_acc.csv'),
-            ['train', 'valid'],
-            name='Count accuracy',
-            buffer_size=1)
         learn_rate_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'learn_rate.csv'),
             'learning rate',
             name='Learning rate',
-            buffer_size=10)
+            buffer_size=1)
         step_time_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
             name='Step time',
-            buffer_size=10)
+            buffer_size=1)
 
         log_manager.register(log.filename, 'plain', 'Raw logs')
 
@@ -469,15 +523,15 @@ if __name__ == '__main__':
     log.info('Batch size: {}'.format(batch_size))
 
     def run_samples(x, y, s, phase_train, fname):
-        x2, y2, y_out, s_out, match = sess.run(
-            [m['x_trans'], m['y_gt_trans'], m['y_out'], m['s_out'],
-             m['match']], feed_dict={
+        x2, y2, y_out, match = sess.run(
+            [m['x_trans'], m['y_gt_trans'], m['y_out'],  m['match']],
+            feed_dict={
                 m['x']: x,
                 m['phase_train']: phase_train,
                 m['y_gt']: y,
                 m['s_gt']: s
             })
-        plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s_out, y_gt=y2,
+        plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s, y_gt=y2,
                      s_gt=s, match=match)
 
     def run_validation():
@@ -485,7 +539,6 @@ if __name__ == '__main__':
         loss = 0.0
         iou_hard = 0.0
         iou_soft = 0.0
-        count_acc = 0.0
         segm_loss = 0.0
         conf_loss = 0.0
         log.info('Running validation')
@@ -493,35 +546,33 @@ if __name__ == '__main__':
                                         batch_size=batch_size,
                                         get_fn=get_batch_valid,
                                         progress_bar=False):
-            results = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-                                m['iou_soft'], m['iou_hard'], m['count_acc']],
+            results = sess.run([m['loss'], m['segm_loss'], m['segm_loss'],
+                                m['iou_soft'], m['iou_hard']],
                                feed_dict={
                 m['x']: _x,
                 m['phase_train']: False,
-                m['y_gt']: _y
+                m['y_gt']: _y,
+                m['s_gt']: _s
             })
             _loss = results[0]
             _segm_loss = results[1]
-            _conf_loss = results[2]
+            _conf_loss = 0
             _iou_soft = results[3]
             _iou_hard = results[4]
-            _count_acc = results[5]
             num_ex_batch = _x.shape[0]
-            loss += _loss * num_ex_batch / float(num_ex_valid)
-            segm_loss += _segm_loss * num_ex_batch / float(num_ex_valid)
-            conf_loss += _conf_loss * num_ex_batch / float(num_ex_valid)
-            iou_soft += _iou_soft * num_ex_batch / float(num_ex_valid)
-            iou_hard += _iou_hard * num_ex_batch / float(num_ex_valid)
-            count_acc += _count_acc * num_ex_batch / float(num_ex_valid)
+            loss += _loss * num_ex_batch / num_ex_valid
+            segm_loss += _segm_loss * num_ex_batch / num_ex_valid
+            conf_loss += _conf_loss * num_ex_batch / num_ex_valid
+            iou_soft += _iou_soft * num_ex_batch / num_ex_valid
+            iou_hard += _iou_hard * num_ex_batch / num_ex_valid
 
         log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} conf_loss {:.4f} '
-                  'iou soft {:.4f} iou hard {:.4f} count acc {:.4f}').format(
-            step, loss, segm_loss, conf_loss, iou_soft, iou_hard, count_acc))
+                  'iou soft {:.4f} iou hard {:.4f}').format(
+            step, loss, segm_loss, conf_loss, iou_soft, iou_hard))
 
         if args.logs:
             loss_logger.add(step, ['', loss])
             iou_logger.add(step, ['', iou_soft, '', iou_hard])
-            count_acc_logger.add(step, ['', count_acc])
 
             # Plot some samples.
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
@@ -548,12 +599,11 @@ if __name__ == '__main__':
 
         # Train step
         start_time = time.time()
-        r = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-                      m['iou_soft'], m['iou_hard'], m['count_acc'],
+        r = sess.run([m['loss'], m['segm_loss'],
+                      m['iou_soft'], m['iou_hard'],
                       m['learn_rate'], m['train_step']], feed_dict={
             m['x']: x_bat,
             m['phase_train']: True,
-            m['global_step']: step,
             m['y_gt']: y_bat,
             m['s_gt']: s_bat
         })
@@ -562,19 +612,16 @@ if __name__ == '__main__':
         if step % train_opt['steps_per_log'] == 0:
             loss = r[0]
             segm_loss = r[1]
-            conf_loss = r[2]
-            iou_soft = r[3]
-            iou_hard = r[4]
-            count_acc = r[5]
-            learn_rate = r[6]
+            iou_soft = r[2]
+            iou_hard = r[3]
+            learn_rate = r[4]
             step_time = (time.time() - start_time) * 1000
-            log.info('{:d} train loss {:.4f} {:.4f} {:.4f} t {:.2f}ms'.format(
-                step, loss, segm_loss, conf_loss, step_time))
+            log.info('{:d} train loss {:.4f} t {:.2f}ms'.format(
+                step, loss, step_time))
 
             if args.logs:
                 loss_logger.add(step, [loss, ''])
                 iou_logger.add(step, [iou_soft, '', iou_hard, ''])
-                count_acc_logger.add(step, [count_acc, ''])
                 learn_rate_logger.add(step, learn_rate)
                 step_time_logger.add(step, step_time)
 
@@ -595,7 +642,6 @@ if __name__ == '__main__':
     sess.close()
     loss_logger.close()
     iou_logger.close()
-    count_acc_logger.close()
     learn_rate_logger.close()
     step_time_logger.close()
 

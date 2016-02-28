@@ -17,7 +17,7 @@ def get_model(name, opt, device='/cpu:0'):
     if name == 'original':
         return get_orig_model(opt, device=device)
     elif name == 'attention':
-        return get_attn_model(opt, device=device)
+        return get_attn_gt_model(opt, device=device)
     else:
         raise Exception('Unknown model name "{}"'.format(name))
 
@@ -263,7 +263,7 @@ def _count_acc(s_out, s_gt):
     return count_acc
 
 
-def _add_rnd_img_transformation(model, x, y_gt, padding, phase_train):
+def _rnd_img_transformation(x, y_gt, padding, phase_train):
     """
     Perform random crop, flip, transpose, hue, saturation, brightness, contrast.
     """
@@ -368,7 +368,6 @@ def get_orig_model(opt, device='/cpu:0'):
 
         # Whether in training stage, required for batch norm.
         phase_train = tf.placeholder('bool')
-        global_step = tf.Variable(0.0)
 
         # Groundtruth segmentation maps, [B, T, H, W]
         y_gt = tf.placeholder(
@@ -386,8 +385,7 @@ def get_orig_model(opt, device='/cpu:0'):
         num_ex = x_shape[0]
 
         # Random image transformation
-        x, y_gt = _add_rnd_img_transformation(
-            model, x, y_gt, padding, phase_train)
+        x, y_gt = _rnd_img_transformation(x, y_gt, padding, phase_train)
         model['x_trans'] = x
         model['y_gt_trans'] = y_gt
 
@@ -536,6 +534,7 @@ def get_orig_model(opt, device='/cpu:0'):
         model['s_out'] = s_out
 
         # Loss function
+        global_step = tf.Variable(0.0)
         learn_rate = tf.train.exponential_decay(
             base_learn_rate, global_step, steps_per_decay,
             learn_rate_decay, staircase=True)
@@ -629,10 +628,10 @@ def _get_attn_filter(center, delta, lg_var, image_size, filter_size):
     return filter
 
 
-def _extract_patch(img, f_y, f_x, nchannels):
+def _extract_patch(x, f_y, f_x, nchannels):
     """
     Args:
-        img: [B, H, W, D]
+        x: [B, H, W, D]
         f_y: [B, H, F]
         f_x: [B, W, F]
         nchannels: D
@@ -642,18 +641,39 @@ def _extract_patch(img, f_y, f_x, nchannels):
     """
     patch = [None] * nchannels
     fsize = tf.shape(f_x)[2]
-    hh = tf.shape(img)[1]
-    ww = tf.shape(img)[2]
+    hh = tf.shape(x)[1]
+    ww = tf.shape(x)[2]
 
     for dd in xrange(nchannels):
-        img_ch = tf.reshape(
+        x_ch = tf.reshape(
             tf.slice(x, [0, 0, 0, dd], [-1, -1, -1, 1]),
             tf.pack([-1, hh, ww]))
         patch[dd] = tf.reshape(tf.batch_matmul(
-            tf.batch_matmul(f_y, img_ch, adj_x=True),
+            tf.batch_matmul(f_y, x_ch, adj_x=True),
             f_x), tf.pack([-1, fsize, fsize, 1]))
 
     return tf.concat(3, patch)
+
+
+def _get_gt_attn(y_gt, attn_size):
+    s = tf.shape(y_gt)
+    # [B, T, H, W, 1]
+    idx_y = tf.zeros(tf.pack([s[0], s[1], s[2], s[3], 1]), dtype='float')
+    idx_x = tf.zeros(tf.pack([s[0], s[1], s[2], s[3], 1]), dtype='float')
+    idx_y += tf.reshape(tf.to_float(tf.range(s[2])), [1, 1, -1, 1, 1])
+    idx_x += tf.reshape(tf.to_float(tf.range(s[3])), [1, 1, 1, -1, 1])
+    # [B, T, H, W, 2]
+    idx = tf.concat(4, [idx_y, idx_x])
+    idx_min = idx + tf.expand_dims((1.0- y_gt) * tf.to_float(s[2] * s[3]), 4)
+    idx_max = idx * tf.expand_dims(y_gt, 4)
+    # [B, T, 2]
+    top_left = tf.reduce_min(idx_min, reduction_indices=[2, 3])
+    bot_right = tf.reduce_max(idx_max, reduction_indices=[2, 3])
+    ctr = (bot_right + top_left) / 2
+    delta = (bot_right - top_left) / attn_size
+    lg_var = tf.zeros(tf.shape(ctr)) + 1.0
+
+    return ctr, delta, lg_var
 
 
 def get_attn_gt_model(opt, device='/cpu:0'):
@@ -664,7 +684,11 @@ def get_attn_gt_model(opt, device='/cpu:0'):
     inp_height = opt['inp_height']
     inp_width = opt['inp_width']
     inp_depth = opt['inp_depth']
+    padding = opt['padding']
+    full_height = inp_height + 2 * padding
+    full_width = inp_width + 2 * padding
     attn_size = opt['attn_size']
+
     cnn_filter_size = opt['cnn_filter_size']
     cnn_depth = opt['cnn_depth']
     dcnn_filter_size = opt['dcnn_filter_size']
@@ -675,6 +699,7 @@ def get_attn_gt_model(opt, device='/cpu:0'):
     mlp_depth = opt['mlp_depth']
     wd = opt['weight_decay']
     use_bn = opt['use_bn']
+    segm_loss_fn = opt['segm_loss_fn']
     loss_mix_ratio = opt['loss_mix_ratio']
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
@@ -683,30 +708,30 @@ def get_attn_gt_model(opt, device='/cpu:0'):
     with tf.device(_get_device_fn(device)):
         # Input layer
         # Input image, [B, H, W, D]
-        x = tf.placeholder('float', [None, None, None, None])
-        y_gt = tf.placeholder('float', [None, None, None, None])
-        x_shape = tf.shape(x)
-        # Attention parameters, [B, T, 2]
-        attn_ctr = tf.placeholder('float', [None, None, 2])
-        attn_delta = tf.placeholder('float', [None, None, 2])
-        attn_lg_var = tf.placeholder('float', [None, None, 2])
+        x = tf.placeholder('float', [None, full_height, full_width, inp_depth])
+        y_gt = tf.placeholder(
+            'float', [None, timespan, full_height, full_width])
+        # Groundtruth confidence score, [B, T]
+        s_gt = tf.placeholder('float', [None, timespan])
 
         # Whether in training stage.
         phase_train = tf.placeholder('bool')
-        # Number of steps ran.
-        global_step = tf.placeholder('int32')
 
         model['x'] = x
         model['y_gt'] = y_gt
-        model['attn_ctr'] = attn_ctr
-        model['attn_delta'] = attn_delta
-        model['attn_lg_var'] = attn_lg_var
+        model['s_gt'] = s_gt
+        model['phase_train'] = phase_train
+
+        x_shape = tf.shape(x)
+        num_ex = x_shape[0]
 
         # Random image transformation
-        x, y_gt = _add_rnd_img_transformation(
-            model, x, y_gt, padding, phase_train)
+        x, y_gt = _rnd_img_transformation(x, y_gt, padding, phase_train)
         model['x_trans'] = x
         model['y_gt_trans'] = y_gt
+
+        # Groundtruth bounding box, [B, T, 2]
+        attn_ctr, attn_delta, attn_lg_var = _get_gt_attn(y_gt, attn_size)
 
         # CNN definition
         cnn_filters = cnn_filter_size
@@ -720,8 +745,8 @@ def get_attn_gt_model(opt, device='/cpu:0'):
 
         # RNN definition
         subsample = np.array(cnn_pool).prod()
-        rnn_h = inp_height / subsample
-        rnn_w = inp_width / subsample
+        rnn_h = attn_size / subsample
+        rnn_w = attn_size / subsample
         rnn_dim = rnn_hid_dim
         rnn_inp_dim = rnn_h * rnn_w * cnn_channels[-1]
         state = [None] * (timespan + 1)
@@ -735,20 +760,23 @@ def get_attn_gt_model(opt, device='/cpu:0'):
             # Include attention controller RNN here.
             # [B, H, A]
             filters_y[tt] = _get_attn_filter(
-                attn_ctr[:, 0], attn_delta[:, tt, 0], attn_lg_var[:, tt, 0],
+                attn_ctr[:, tt, 0], attn_delta[
+                    :, tt, 0], attn_lg_var[:, tt, 0],
                 inp_height, attn_size)
             # [B, W, A]
             filters_x[tt] = _get_attn_filter(
-                attn_ctr[:, 1], attn_delta[:, tt, 1], attn_lg_var[:, tt, 1],
+                attn_ctr[:, tt, 1], attn_delta[
+                    :, tt, 1], attn_lg_var[:, tt, 1],
                 inp_width, attn_size)
 
             # Attended patch [B, A, A, D]
-            x_patch = _extract_patch(x, filters_y, filters_x, inp_depth)
+            x_patch = _extract_patch(
+                x, filters_y[tt], filters_x[tt], inp_depth)
 
             # CNN [B, A, A, D] => [B, RH, RW, RD]
             h_cnn = cnn(x_patch)
             h_cnn_last = h_cnn[-1]
-            core_depth = mlp_depth if segm_dense_conn else 1
+            core_depth = mlp_depth
             core_dim = rnn_h * rnn_w * core_depth
 
             # RNN [B, T, R]
@@ -759,8 +787,7 @@ def get_attn_gt_model(opt, device='/cpu:0'):
         # Dense segmentation network [B, T, R] => [B, T, M]
         h_rnn = [tf.slice(state[tt], [0, rnn_dim], [-1, rnn_dim])
                  for tt in xrange(timespan)]
-        h_rnn_all = tf.concat(1, [tf.expand_dims(h_rnn, 1)
-                                  for tt in xrange(timespan)])
+        h_rnn_all = tf.concat(1, [tf.expand_dims(h, 1) for h in h_rnn])
         h_rnn_all = tf.reshape(h_rnn_all, [-1, rnn_dim])
         mlp_dims = [rnn_dim] + [core_dim] * num_mlp_layers
         mlp_act = [tf.nn.relu] * num_mlp_layers
@@ -800,6 +827,7 @@ def get_attn_gt_model(opt, device='/cpu:0'):
         model['y_out'] = y_out
 
         # Loss function
+        global_step = tf.Variable(0.0)
         learn_rate = tf.train.exponential_decay(
             base_learn_rate, global_step, steps_per_decay,
             learn_rate_decay, staircase=True)
@@ -838,7 +866,7 @@ def get_attn_gt_model(opt, device='/cpu:0'):
 
         train_step = GradientClipOptimizer(
             tf.train.AdamOptimizer(learn_rate, epsilon=eps),
-            clip=1.0).minimize(total_loss)
+            clip=1.0).minimize(total_loss, global_step=global_step)
         model['train_step'] = train_step
 
         # Statistics

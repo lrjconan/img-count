@@ -9,6 +9,7 @@ Reference:
 [1] B. Romera-Paredes, P. Torr. Recurrent Instance Segmentation. arXiv preprint
 arXiv:1511.08250, 2015.
 """
+from __future__ import division
 import cslab_environ
 
 import argparse
@@ -42,7 +43,7 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match):
     offset = 2
     num_items = y_out.shape[1] + offset
     max_items_per_row = 9
-    num_rows_per_ex = int(np.ceil(num_items / float(max_items_per_row)))
+    num_rows_per_ex = int(np.ceil(num_items / max_items_per_row))
     if num_items > max_items_per_row:
         num_col = max_items_per_row
         num_row = num_rows_per_ex * num_ex
@@ -64,7 +65,7 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match):
         mnz = match[ii].nonzero()
         for jj in xrange(num_items):
             col = jj % max_items_per_row
-            row = num_rows_per_ex * ii + jj / max_items_per_row
+            row = num_rows_per_ex * ii + int(jj / max_items_per_row)
             if jj == 0:
                 axarr[row, col].imshow(x_orig[ii])
             elif jj == 1:
@@ -496,7 +497,7 @@ if __name__ == '__main__':
 
     log.info('Loading dataset')
     dataset = get_dataset(args.dataset, data_opt,
-                          args.num_ex, args.num_ex / 10)
+                          args.num_ex, int(args.num_ex / 10))
 
     sess = tf.Session()
 
@@ -597,12 +598,12 @@ if __name__ == '__main__':
             _iou_hard = results[4]
             _count_acc = results[5]
             num_ex_batch = _x.shape[0]
-            loss += _loss * num_ex_batch / float(num_ex_valid)
-            segm_loss += _segm_loss * num_ex_batch / float(num_ex_valid)
-            conf_loss += _conf_loss * num_ex_batch / float(num_ex_valid)
-            iou_soft += _iou_soft * num_ex_batch / float(num_ex_valid)
-            iou_hard += _iou_hard * num_ex_batch / float(num_ex_valid)
-            count_acc += _count_acc * num_ex_batch / float(num_ex_valid)
+            loss += _loss * num_ex_batch / num_ex_valid
+            segm_loss += _segm_loss * num_ex_batch / num_ex_valid
+            conf_loss += _conf_loss * num_ex_batch / num_ex_valid
+            iou_soft += _iou_soft * num_ex_batch / num_ex_valid
+            iou_hard += _iou_hard * num_ex_batch / num_ex_valid
+            count_acc += _count_acc * num_ex_batch / num_ex_valid
 
         log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} conf_loss {:.4f} '
                   'iou soft {:.4f} iou hard {:.4f} count acc {:.4f}').format(

@@ -133,6 +133,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn'):
 
             if pool[ii] > 1:
                 h[ii] = max_pool(h[ii], pool[ii])
+
         return h
 
     return run_cnn
