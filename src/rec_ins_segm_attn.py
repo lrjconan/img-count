@@ -527,7 +527,8 @@ if __name__ == '__main__':
         _x, _y, _s = get_batch_valid(np.arange(22, 25))
         results = sess.run([m['loss'], m['segm_loss'], m['segm_loss'],
                             m['iou_soft'], m['iou_hard'], 
-                            m['bce_total'], m['bce_mat'], m['y_out']],
+                            m['bce_total'], m['bce_mat'], m['y_out'],
+                            m['y_gt_trans']],
                            feed_dict={
             m['x']: _x,
             m['phase_train']: False,
@@ -542,10 +543,23 @@ if __name__ == '__main__':
         _bce_total = results[5]
         _bce_mat = results[6]
         _y_out = results[7]
+        _y_gt = results[8]
         print _bce_mat
         print _y[0, 1]
         print _y_out[0, 1]
-        
+        print (_y_gt[0, 1] != _y_out[0, 1]).astype('float').nonzero()
+        print _y_gt[0, 1, 21, 32], _y_out[0, 1, 21, 32]
+        _bce = -_y_gt[0, 1] * np.log(_y_out[0, 1] + 1e-5) - (1 - _y_gt[0, 1]) * np.log(1 - _y_out[0, 1] + 1e-5)
+        print (_bce == np.nan).astype('float').nonzero()
+        _bce = _bce.reshape([-1])
+        print _bce.argmax()
+        print _bce.argmin()
+        print _bce[10120: 10125]
+        _y_gt = _y_gt[0, 1].reshape([-1])
+        _y_out = _y_out[0, 1]   .reshape([-1])
+        print _y_out[10120: 10125]
+        print _y_gt[10120: 10125]
+
 
         pass
 
@@ -606,7 +620,7 @@ if __name__ == '__main__':
 
         pass
 
-    prob()
+    # prob()
 
     def train_loop():
         # Train loop
@@ -661,7 +675,7 @@ if __name__ == '__main__':
             if step > train_opt['num_steps']:
                 break
 
-    # train_loop()
+    train_loop()
 
     sess.close()
     loss_logger.close()

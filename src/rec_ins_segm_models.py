@@ -801,10 +801,12 @@ def get_attn_gt_model(opt, device='/cpu:0'):
 
         # DCNN [B * T, RH, RW, MD] => [B * T, A, A, 1]
         dcnn_filters = dcnn_filter_size
-        dcnn_unpool = [2] * (len(dcnn_filters) - 1) + [1]
-        dcnn_act = [tf.nn.relu] * (len(dcnn_filters) - 1) + [tf.sigmoid]
+        dcnn_nlayers = len(dcnn_filters)
+        dcnn_unpool = [2] * (dcnn_nlayers - 1) + [1]
+        # dcnn_act = [tf.nn.relu] * (len(dcnn_filters) - 1) + [tf.sigmoid]
+        dcnn_act = [tf.nn.relu] * dcnn_nlayers
         dcnn_channels = [mlp_depth] + dcnn_depth
-        dcnn_use_bn = [use_bn] * len(dcnn_filters)
+        dcnn_use_bn = [use_bn] * dcnn_nlayers
 
         skip, skip_ch = _build_skip_conn(
             cnn_channels, h_cnn, x_patch, timespan)
@@ -825,6 +827,7 @@ def get_attn_gt_model(opt, device='/cpu:0'):
         y_out = _extract_patch(h_dcnn[-1],
                                tf.transpose(filters_y_all, [0, 2, 1]),
                                tf.transpose(filters_x_all, [0, 2, 1]), 1)
+        y_out = tf.sigmoid(y_out)
         y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
         model['y_out'] = y_out
 
