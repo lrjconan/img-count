@@ -767,8 +767,8 @@ def get_attn_gt_model(opt, device='/cpu:0'):
                 inp_height, attn_size)
             # [B, W, A]
             filters_x[tt] = _get_attn_filter(
-                attn_ctr[:, tt, 1], attn_delta[
-                    :, tt, 1], attn_lg_var[:, tt, 1],
+                attn_ctr[:, tt, 1], attn_delta[:, tt, 1], 
+                attn_lg_var[:, tt, 1],
                 inp_width, attn_size)
 
             # Attended patch [B, A, A, D]
