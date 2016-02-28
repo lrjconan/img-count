@@ -313,6 +313,8 @@ def _parse_args():
                         help='GPU ID, default CPU')
     parser.add_argument('-num_samples_plot', default=10, type=int,
                         help='Number of samples to plot')
+    parser.add_argument('-save_ckpt', action='store_true',
+                        help='Whether to store checkpoints')
 
     args = parser.parse_args()
 
@@ -415,8 +417,14 @@ if __name__ == '__main__':
             'size_var': args.size_var
         }
         step = 0
-        exp_folder = os.path.join(args.results, model_id)
-        saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
+
+        if args.save_ckpt:
+            exp_folder = os.path.join(args.results, model_id)
+            saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
+
+    if not args.save_ckpt:
+        log.warning(
+            'Checkpoints saving is turned off. Use -save_ckpt flag to save.')
 
     # Logger
     if args.logs:
@@ -615,7 +623,7 @@ if __name__ == '__main__':
             log.info('model id {}'.format(model_id))
 
         # Save model
-        if step % train_opt['steps_per_ckpt'] == 0:
+        if args.save_ckpt and step % train_opt['steps_per_ckpt'] == 0:
             saver.save(sess, global_step=step)
 
         step += 1
