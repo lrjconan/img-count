@@ -597,12 +597,17 @@ if __name__ == '__main__':
 
         max_id = _bce.argmax()
         min_id = _bce.argmin()
-        print 'bce samples', _bce[: 10]
-        print 'bce max samples', _bce[max(max_id - 10, 0): min(max_id + 10, _bce.size)]
-        print 'bce min samples', _bce[max(min_id - 10, 0): min(min_id + 10, _bce.size)]
         _y_gt = _y_gt[0, 1].reshape([-1])
         _y_out = _y_out[0, 1]   .reshape([-1])
 
+        print 'bce samples', _bce[: 10]
+        print 'bce max samples', _bce[max(max_id - 10, 0): min(max_id + 10, _bce.size)]
+        print 'ygt max samples', _y_gt[max(max_id - 10, 0): min(max_id + 10, _bce.size)]
+        print 'yout max samples', _y_out[max(max_id - 10, 0): min(max_id + 10, _bce.size)]
+
+        print 'bce min samples', _bce[max(min_id - 10, 0): min(min_id + 10, _bce.size)]
+        print 'ygt min samples', _y_gt[max(min_id - 10, 0): min(min_id + 10, _bce.size)]
+        print 'yout min samples', _y_out[max(min_id - 10, 0): min(min_id + 10, _bce.size)]
         pass
 
     def run_validation():
