@@ -823,7 +823,8 @@ def get_attn_model(opt, device='/cpu:0'):
         y_out = _extract_patch(h_dcnn[-1],
                                tf.transpose(filters_y_all, [0, 2, 1]),
                                tf.transpose(filters_x_all, [0, 2, 1]), 1)
-        y_out = tf.sigmoid(y_out)
+        y_out_b = nnlib.weight_variable([1])
+        y_out = tf.sigmoid(y_out + y_out_b)
         y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
         model['y_out'] = y_out
 
