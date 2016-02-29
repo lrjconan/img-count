@@ -17,7 +17,7 @@ def get_model(name, opt, device='/cpu:0'):
     if name == 'original':
         return get_orig_model(opt, device=device)
     elif name == 'attention':
-        return get_attn_gt_model(opt, device=device)
+        return get_attn_model(opt, device=device)
     else:
         raise Exception('Unknown model name "{}"'.format(name))
 
@@ -26,23 +26,6 @@ def get_model(name, opt, device='/cpu:0'):
 
 # Register gradient for Hungarian algorithm.
 ops.NoGradient("Hungarian")
-
-
-# Register gradient for cumulative minimum operation.
-@ops.RegisterGradient("CumMin")
-def _cum_min_grad(op, grad):
-    """The gradients for `cum_min`.
-
-    Args:
-        op: The `cum_min` `Operation` that we are differentiating, which we can
-        use to find the inputs and outputs of the original op.
-        grad: Gradient with respect to the output of the `cum_min` op.
-
-    Returns:
-        Gradients with respect to the input of `cum_min`.
-    """
-    x = op.inputs[0]
-    return [tf.user_ops.cum_min_grad(grad, x)]
 
 
 def _get_device_fn(device):
@@ -202,8 +185,7 @@ def _segm_match(iou, s_gt):
 def _bce(y_out, y_gt):
     """Binary cross entropy."""
     eps = 1e-5
-    return -y_gt * tf.log(y_out + eps) - \
-        (1 - y_gt) * tf.log(1 - y_out + eps)
+    return -y_gt * tf.log(y_out + eps) - (1 - y_gt) * tf.log(1 - y_out + eps)
 
 
 def _match_bce(model, y_out, y_gt, match, timespan):
@@ -667,7 +649,7 @@ def _get_gt_attn(y_gt, attn_size):
     idx_x += tf.reshape(tf.to_float(tf.range(s[3])), [1, 1, 1, -1, 1])
     # [B, T, H, W, 2]
     idx = tf.concat(4, [idx_y, idx_x])
-    idx_min = idx + tf.expand_dims((1.0- y_gt) * tf.to_float(s[2] * s[3]), 4)
+    idx_min = idx + tf.expand_dims((1.0 - y_gt) * tf.to_float(s[2] * s[3]), 4)
     idx_max = idx * tf.expand_dims(y_gt, 4)
     # [B, T, 2]
     top_left = tf.reduce_min(idx_min, reduction_indices=[2, 3])
@@ -679,7 +661,7 @@ def _get_gt_attn(y_gt, attn_size):
     return ctr, delta, lg_var
 
 
-def get_attn_gt_model(opt, device='/cpu:0'):
+def get_attn_model(opt, device='/cpu:0'):
     """The original model"""
     model = {}
 
@@ -702,6 +684,7 @@ def get_attn_gt_model(opt, device='/cpu:0'):
     mlp_depth = opt['mlp_depth']
     wd = opt['weight_decay']
     use_bn = opt['use_bn']
+    use_gt_attn = opt['use_gt_attn']
     segm_loss_fn = opt['segm_loss_fn']
     loss_mix_ratio = opt['loss_mix_ratio']
     base_learn_rate = opt['base_learn_rate']
@@ -733,10 +716,22 @@ def get_attn_gt_model(opt, device='/cpu:0'):
         model['x_trans'] = x
         model['y_gt_trans'] = y_gt
 
-        # Groundtruth bounding box, [B, T, 2]
-        attn_ctr, attn_delta, attn_lg_var = _get_gt_attn(y_gt, attn_size)
+        # Controller CNN definition
 
-        # CNN definition
+        # Controller RNN definition
+
+        # Groundtruth bounding box, [B, T, 2]
+        if use_gt_attn:
+            attn_ctr, attn_delta, attn_lg_var = _get_gt_attn(y_gt, attn_size)
+            attn_ctr = tf.split(1, timespan, attn_ctr)
+            attn_delta = tf.split(1, timespan, attn_delta)
+            attn_lg_var = tf.split(1, timespan, attn_lg_var)
+        else:
+            attn_ctr = [None] * timespan
+            attn_delta = [None] * timespan
+            attn_lg_var = [None] * timespan
+
+        # Attention CNN definition
         cnn_filters = cnn_filter_size
         cnn_nlayers = len(cnn_filters)
         cnn_channels = [inp_depth] + cnn_depth
@@ -746,7 +741,7 @@ def get_attn_gt_model(opt, device='/cpu:0'):
         cnn = nn.cnn(cnn_filters, cnn_channels, cnn_pool, cnn_act, cnn_use_bn,
                      phase_train=phase_train, wd=wd)
 
-        # RNN definition
+        # Attention RNN definition
         subsample = np.array(cnn_pool).prod()
         rnn_h = attn_size / subsample
         rnn_w = attn_size / subsample
@@ -758,19 +753,19 @@ def get_attn_gt_model(opt, device='/cpu:0'):
         filters_y = [None] * timespan
         filters_x = [None] * timespan
 
+        # Include controller input CNN here.
+
         for tt in xrange(timespan):
-            # Include controller input CNN here.
             # Include attention controller RNN here.
+
             # [B, H, A]
             filters_y[tt] = _get_attn_filter(
-                attn_ctr[:, tt, 0], attn_delta[
-                    :, tt, 0], attn_lg_var[:, tt, 0],
-                inp_height, attn_size)
+                attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
+                attn_lg_var[tt][:, 0], inp_height, attn_size)
             # [B, W, A]
             filters_x[tt] = _get_attn_filter(
-                attn_ctr[:, tt, 1], attn_delta[:, tt, 1], 
-                attn_lg_var[:, tt, 1],
-                inp_width, attn_size)
+                attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
+                attn_lg_var[tt][:, 1], inp_width, attn_size)
 
             # Attended patch [B, A, A, D]
             x_patch = _extract_patch(
@@ -877,8 +872,8 @@ def get_attn_gt_model(opt, device='/cpu:0'):
 
         # Statistics
         # [B, M, N] * [B, M, N] => [B] * [B] => [1]
-        iou_hard = _f_iou(tf.to_float(y_out > 0.5),
-                          y_gt, timespan, pairwise=True)
+        y_out_hard = tf.to_float(y_out > 0.5)
+        iou_hard = _f_iou(y_out_hard, y_gt, timespan, pairwise=True)
         iou_hard = tf.reduce_sum(tf.reduce_sum(
             iou_hard * match, reduction_indices=[1, 2]) / match_count) / num_ex
         model['iou_hard'] = iou_hard
