@@ -48,7 +48,8 @@ def _cum_min_grad(op, grad):
 def _get_device_fn(device):
     """Choose device for different ops."""
     OPS_ON_CPU = set(['ResizeBilinear', 'ResizeBilinearGrad', 'Mod', 'CumMin',
-                      'CumMinGrad', 'Hungarian', 'Reverse', 'SparseToDense'])
+                      'CumMinGrad', 'Hungarian', 'Reverse', 'SparseToDense',
+                      'BatchMatMul'])
 
     def _device_fn(op):
         if op.type in OPS_ON_CPU:
