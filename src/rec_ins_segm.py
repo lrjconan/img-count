@@ -470,10 +470,6 @@ if __name__ == '__main__':
         exp_folder = os.path.join(args.results, model_id)
         saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
 
-    if not args.save_ckpt:
-        log.warning(
-            'Checkpoints saving is turned off. Use -save_ckpt flag to save.')
-
     # Logger
     if args.logs:
         logs_folder = args.logs
@@ -481,6 +477,10 @@ if __name__ == '__main__':
         log = logger.get(os.path.join(logs_folder, 'raw'))
     else:
         log = logger.get()
+    
+    if not args.save_ckpt:
+        log.warning(
+            'Checkpoints saving is turned off. Use -save_ckpt flag to save.')
 
     # Log arguments
     log.log_args()
