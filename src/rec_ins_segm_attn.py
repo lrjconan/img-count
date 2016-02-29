@@ -195,8 +195,9 @@ def _parse_args():
     kStepsPerDecay = 5000
     kStepsPerLog = 10
     kLossMixRatio = 1.0
-    kNumConv = 3
-    
+    kNumCtrlConv = 3
+    kNumAttnConv = 3
+
     kAttnSize = 48
 
     kCtrlCnnFilterSize = [3, 3, 3, 3, 3]
@@ -260,8 +261,10 @@ def _parse_args():
                         type=int, help='Steps every learning rate decay')
     parser.add_argument('-loss_mix_ratio', default=kLossMixRatio, type=float,
                         help='Mix ratio between segmentation and score loss')
-    parser.add_argument('-num_conv', default=kNumConv, type=int,
-                        help='Number of convolutional layers')
+    parser.add_argument('-num_ctrl_conv', default=kNumCtrlConv, type=int,
+                        help='Number of controller convolutional layers')
+    parser.add_argument('-num_attn_conv', default=kNumAttnConv, type=int,
+                        help='Number of attention convolutional layers')
     parser.add_argument('-attn_size', default=kAttnSize, type=int,
                         help='Attention size')
 
@@ -428,8 +431,8 @@ if __name__ == '__main__':
 
             'attn_rnn_hid_dim': args.attn_rnn_hid_dim,
 
-            'dcnn_filter_size': dcnn_filter_size_all[: args.num_conv + 1][::-1],
-            'dcnn_depth': dcnn_depth_all[: args.num_conv + 1][::-1],
+            'dcnn_filter_size': dcnn_filter_size_all[: args.num_attn_conv + 1][::-1],
+            'dcnn_depth': dcnn_depth_all[: args.num_attn_conv + 1][::-1],
 
             'mlp_depth': args.mlp_depth,
             'num_mlp_layers': args.num_mlp_layers,
@@ -589,8 +592,14 @@ if __name__ == '__main__':
         _bce = -_y_gt[0, 1] * np.log(_y_out[0, 1] + 1e-5) - \
             (1 - _y_gt[0, 1]) * np.log(1 - _y_out[0, 1] + 1e-5)
         _bce = _bce.reshape([-1])
-        print 'bce max', _bce.argmax()
-        print 'bce min', _bce.argmin()
+        print 'bce max', _bce.max()
+        print 'bce min', _bce.min()
+
+        max_id = _bce.argmax()
+        min_id = _bce.argmin()
+        print 'bce samples', _bce[: 10]
+        print 'bce max samples', _bce[max(max_id - 10, 0): min(max_id + 10, _bce.size)]
+        print 'bce min samples', _bce[max(min_id - 10, 0): min(min_id + 10, _bce.size)]
         _y_gt = _y_gt[0, 1].reshape([-1])
         _y_out = _y_out[0, 1]   .reshape([-1])
 
