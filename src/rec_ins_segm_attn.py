@@ -196,10 +196,16 @@ def _parse_args():
     kStepsPerLog = 10
     kLossMixRatio = 1.0
     kNumConv = 3
-    kCnnFilterSize = [3, 3, 3, 3, 3]
-    kCnnDepth = [4, 8, 8, 12, 16]
-    kRnnHiddenDim = 256
+    
     kAttnSize = 48
+
+    kCtrlCnnFilterSize = [3, 3, 3, 3, 3]
+    kCtrlCnnDepth = [4, 8, 8, 12, 16]
+    kAttnCnnFilterSize = [3, 3, 3, 3, 3]
+    kAttnCnnDepth = [4, 8, 8, 12, 16]
+
+    kCtrlRnnHiddenDim = 256
+    kAttnRnnHiddenDim = 256
 
     kNumMlpLayers = 2
     kMlpDepth = 6
@@ -259,13 +265,21 @@ def _parse_args():
     parser.add_argument('-attn_size', default=kAttnSize, type=int,
                         help='Attention size')
 
-    for ii in xrange(len(kCnnFilterSize)):
-        parser.add_argument('-cnn_{}_filter_size'.format(ii + 1),
-                            default=kCnnFilterSize[ii], type=int,
-                            help='CNN layer {} filter size'.format(ii + 1))
-        parser.add_argument('-cnn_{}_depth'.format(ii + 1),
-                            default=kCnnDepth[ii], type=int,
-                            help='CNN layer {} depth'.format(ii + 1))
+    for ii in xrange(len(kCtrlCnnFilterSize)):
+        parser.add_argument('-ctrl_cnn_{}_filter_size'.format(ii + 1),
+                            default=kAttnCnnFilterSize[ii], type=int,
+                            help='Controller CNN layer {} filter size'.format(ii + 1))
+        parser.add_argument('-ctrl_cnn_{}_depth'.format(ii + 1),
+                            default=kAttnCnnDepth[ii], type=int,
+                            help='Controller CNN layer {} depth'.format(ii + 1))
+
+    for ii in xrange(len(kAttnCnnFilterSize)):
+        parser.add_argument('-attn_cnn_{}_filter_size'.format(ii + 1),
+                            default=kAttnCnnFilterSize[ii], type=int,
+                            help='Attention CNN layer {} filter size'.format(ii + 1))
+        parser.add_argument('-attn_cnn_{}_depth'.format(ii + 1),
+                            default=kAttnCnnDepth[ii], type=int,
+                            help='Attention CNN layer {} depth'.format(ii + 1))
 
     for ii in xrange(len(kDcnnFilterSize)):
         parser.add_argument('-dcnn_{}_filter_size'.format(ii),
@@ -275,8 +289,12 @@ def _parse_args():
                             default=kDcnnDepth[ii], type=int,
                             help='DCNN layer {} depth'.format(ii))
 
-    parser.add_argument('-rnn_hid_dim', default=kRnnHiddenDim,
+    parser.add_argument('-ctrl_rnn_hid_dim', default=kCtrlRnnHiddenDim,
                         type=int, help='RNN hidden dimension')
+
+    parser.add_argument('-attn_rnn_hid_dim', default=kCtrlRnnHiddenDim,
+                        type=int, help='RNN hidden dimension')
+
     parser.add_argument('-num_mlp_layers', default=kNumMlpLayers,
                         type=int, help='Number of MLP layers')
     parser.add_argument('-mlp_depth', default=kMlpDepth,
@@ -289,6 +307,8 @@ def _parse_args():
                         help='Segmentation loss function, "iou" or "bce"')
     parser.add_argument('-use_bn', action='store_true',
                         help='Whether to use batch normalization.')
+    parser.add_argument('-use_gt_attn', action='store_true',
+                        help='Whether to use ground truth attention.')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -348,22 +368,35 @@ if __name__ == '__main__':
     else:
         model_id = get_model_id('rec_ins_segm')
 
-        cnn_filter_size_all = [args.cnn_1_filter_size,
-                               args.cnn_2_filter_size,
-                               args.cnn_3_filter_size,
-                               args.cnn_4_filter_size,
-                               args.cnn_5_filter_size]
-        cnn_depth_all = [args.cnn_1_depth,
-                         args.cnn_2_depth,
-                         args.cnn_3_depth,
-                         args.cnn_4_depth,
-                         args.cnn_5_depth]
+        ctrl_cnn_filter_size_all = [args.ctrl_cnn_1_filter_size,
+                                    args.ctrl_cnn_2_filter_size,
+                                    args.ctrl_cnn_3_filter_size,
+                                    args.ctrl_cnn_4_filter_size,
+                                    args.ctrl_cnn_5_filter_size]
+        ctrl_cnn_depth_all = [args.ctrl_cnn_1_depth,
+                              args.ctrl_cnn_2_depth,
+                              args.ctrl_cnn_3_depth,
+                              args.ctrl_cnn_4_depth,
+                              args.ctrl_cnn_5_depth]
+
+        attn_cnn_filter_size_all = [args.attn_cnn_1_filter_size,
+                                    args.attn_cnn_2_filter_size,
+                                    args.attn_cnn_3_filter_size,
+                                    args.attn_cnn_4_filter_size,
+                                    args.attn_cnn_5_filter_size]
+        attn_cnn_depth_all = [args.attn_cnn_1_depth,
+                              args.attn_cnn_2_depth,
+                              args.attn_cnn_3_depth,
+                              args.attn_cnn_4_depth,
+                              args.attn_cnn_5_depth]
+
         dcnn_filter_size_all = [args.dcnn_0_filter_size,
                                 args.dcnn_1_filter_size,
                                 args.dcnn_2_filter_size,
                                 args.dcnn_3_filter_size,
                                 args.dcnn_4_filter_size,
                                 args.dcnn_5_filter_size]
+
         dcnn_depth_all = [args.dcnn_0_depth,
                           args.dcnn_1_depth,
                           args.dcnn_2_depth,
@@ -385,11 +418,19 @@ if __name__ == '__main__':
             'padding': args.padding,
             'attn_size': args.attn_size,
             'timespan': timespan,
-            'cnn_filter_size': cnn_filter_size_all[: args.num_conv],
-            'cnn_depth': cnn_depth_all[: args.num_conv],
+
+            'ctrl_cnn_filter_size': ctrl_cnn_filter_size_all[: args.num_ctrl_conv],
+            'ctrl_cnn_depth': ctrl_cnn_depth_all[: args.num_ctrl_conv],
+            'ctrl_rnn_hid_dim': args.ctrl_rnn_hid_dim,
+
+            'attn_cnn_filter_size': attn_cnn_filter_size_all[: args.num_attn_conv],
+            'attn_cnn_depth': attn_cnn_depth_all[: args.num_attn_conv],
+
+            'attn_rnn_hid_dim': args.attn_rnn_hid_dim,
+
             'dcnn_filter_size': dcnn_filter_size_all[: args.num_conv + 1][::-1],
             'dcnn_depth': dcnn_depth_all[: args.num_conv + 1][::-1],
-            'rnn_hid_dim': args.rnn_hid_dim,
+
             'mlp_depth': args.mlp_depth,
             'num_mlp_layers': args.num_mlp_layers,
             'mlp_dropout': args.mlp_dropout,
@@ -402,7 +443,8 @@ if __name__ == '__main__':
 
             # Test arguments
             'segm_loss_fn': args.segm_loss_fn,
-            'use_bn': args.use_bn
+            'use_bn': args.use_bn,
+            'use_gt_attn': args.use_gt_attn
         }
         data_opt = {
             'height': args.height,
@@ -524,9 +566,9 @@ if __name__ == '__main__':
 
     def prob():
         log.info('Running validation')
-        _x, _y, _s = get_batch_valid(np.arange(22, 25))
+        _x, _y, _s = get_batch_valid(np.arange(10))
         results = sess.run([m['loss'], m['segm_loss'], m['segm_loss'],
-                            m['iou_soft'], m['iou_hard'], 
+                            m['iou_soft'], m['iou_hard'],
                             m['bce_total'], m['bce_mat'], m['y_out'],
                             m['y_gt_trans']],
                            feed_dict={
@@ -544,22 +586,13 @@ if __name__ == '__main__':
         _bce_mat = results[6]
         _y_out = results[7]
         _y_gt = results[8]
-        print _bce_mat
-        print _y[0, 1]
-        print _y_out[0, 1]
-        print (_y_gt[0, 1] != _y_out[0, 1]).astype('float').nonzero()
-        print _y_gt[0, 1, 21, 32], _y_out[0, 1, 21, 32]
-        _bce = -_y_gt[0, 1] * np.log(_y_out[0, 1] + 1e-5) - (1 - _y_gt[0, 1]) * np.log(1 - _y_out[0, 1] + 1e-5)
-        print (_bce == np.nan).astype('float').nonzero()
+        _bce = -_y_gt[0, 1] * np.log(_y_out[0, 1] + 1e-5) - \
+            (1 - _y_gt[0, 1]) * np.log(1 - _y_out[0, 1] + 1e-5)
         _bce = _bce.reshape([-1])
-        print _bce.argmax()
-        print _bce.argmin()
-        print _bce[10120: 10125]
+        print 'bce max', _bce.argmax()
+        print 'bce min', _bce.argmin()
         _y_gt = _y_gt[0, 1].reshape([-1])
         _y_out = _y_out[0, 1]   .reshape([-1])
-        print _y_out[10120: 10125]
-        print _y_gt[10120: 10125]
-
 
         pass
 
@@ -632,6 +665,7 @@ if __name__ == '__main__':
             # Run validation
             if step % train_opt['steps_per_valid'] == 0:
                 run_validation()
+                prob()
 
             # Train step
             start_time = time.time()
