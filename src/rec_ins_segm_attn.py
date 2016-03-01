@@ -123,7 +123,7 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
                         attn_bot_right_y[ii, kk] - attn_top_left_y[ii, kk],
                         fill=False,
                         color='g'))
-                    print attn_top_left_x[ii, kk], attn_top_left_y[ii, kk], attn_bot_right_x[ii, kk], attn_bot_right_y[ii, kk]
+                    # print attn_top_left_x[ii, kk], attn_top_left_y[ii, kk], attn_bot_right_x[ii, kk], attn_bot_right_y[ii, kk]
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=300)
