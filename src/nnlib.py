@@ -236,7 +236,7 @@ def dropout(x, keep_prob, phase_train):
     return tf.nn.dropout(x, keep_prob)
 
 
-def mlp(dims, act, dropout_keep=None, phase_train=None, wd=None, scope='mlp'):
+def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, scope='mlp'):
     """Add MLP. N = number of layers.
 
     Args:
@@ -260,7 +260,8 @@ def mlp(dims, act, dropout_keep=None, phase_train=None, wd=None, scope='mlp'):
             nin = dims[ii]
             nout = dims[ii + 1]
             w[ii] = weight_variable([nin, nout], wd=wd)
-            b[ii] = weight_variable([nout], wd=wd)
+            if add_bias:
+                b[ii] = weight_variable([nout], wd=wd)
 
     def run_mlp(x):
         h = [None] * nlayers
@@ -274,7 +275,10 @@ def mlp(dims, act, dropout_keep=None, phase_train=None, wd=None, scope='mlp'):
                 if dropout_keep[ii] is not None:
                     prev_inp = dropout(prev_inp, dropout_keep[ii], phase_train)
 
-            h[ii] = tf.matmul(prev_inp, w[ii]) + b[ii]
+            h[ii] = tf.matmul(prev_inp, w[ii])
+            
+            if add_bias:
+                h[ii] += b[ii]
 
             if act[ii]:
                 h[ii] = act[ii](h[ii])

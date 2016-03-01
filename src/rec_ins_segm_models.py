@@ -777,7 +777,8 @@ def get_attn_model(opt, device='/cpu:0'):
         cmlp_act = [tf.nn.relu] * (num_ctrl_mlp_layers - 1) + [None]
         cmlp_dropout = None
         # cmlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
-        cmlp = nn.mlp(cmlp_dims, cmlp_act, dropout_keep=cmlp_dropout,
+        cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=False,
+                      dropout_keep=cmlp_dropout,
                       phase_train=phase_train, wd=wd, scope='ctrl_mlp')
 
         # Attention filters
@@ -847,11 +848,14 @@ def get_attn_model(opt, device='/cpu:0'):
         for tt in xrange(timespan):
             # Controller RNN [B, R1]
             if not use_gt_attn:
-                crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[tt] = crnn_cell(crnn_inp, crnn_state[tt - 1])
+                crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[
+                    tt] = crnn_cell(crnn_inp, crnn_state[tt - 1])
+                print 'State', tt, crnn_state[tt]
                 # Controller MLP [B, R1] => [B, 6]
                 h_crnn = tf.slice(
                     crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
                 ctrl_out = cmlp(h_crnn)[-1]
+                print 'Control output', tt, ctrl_out
                 _ctr = tf.slice(ctrl_out, [0, 0], [-1, 2])
                 _lg_delta = tf.slice(ctrl_out, [0, 2], [-1, 2])
                 attn_ctr[tt], attn_delta[tt] = _unnormalize_attn(
@@ -884,7 +888,8 @@ def get_attn_model(opt, device='/cpu:0'):
 
             # RNN [B, T, R2]
             arnn_inp = tf.reshape(h_acnn_last, [-1, arnn_inp_dim])
-            arnn_state[tt], arnn_g_i[tt], arnn_g_f[tt], arnn_g_o[tt] = arnn_cell(arnn_inp, arnn_state[tt - 1])
+            arnn_state[tt], arnn_g_i[tt], arnn_g_f[tt], arnn_g_o[
+                tt] = arnn_cell(arnn_inp, arnn_state[tt - 1])
 
         # Attention coordinate for debugging [B, T, 2]
         attn_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
@@ -907,9 +912,12 @@ def get_attn_model(opt, device='/cpu:0'):
         crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
         crnn_g_f = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_f])
         crnn_g_o = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_o])
-        crnn_g_i_avg = tf.reduce_sum(crnn_g_i) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
-        crnn_g_f_avg = tf.reduce_sum(crnn_g_f) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
-        crnn_g_o_avg = tf.reduce_sum(crnn_g_o) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
+        crnn_g_i_avg = tf.reduce_sum(
+            crnn_g_i) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
+        crnn_g_f_avg = tf.reduce_sum(
+            crnn_g_f) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
+        crnn_g_o_avg = tf.reduce_sum(
+            crnn_g_o) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
         model['crnn_g_i_avg'] = crnn_g_i_avg
         model['crnn_g_f_avg'] = crnn_g_f_avg
         model['crnn_g_o_avg'] = crnn_g_o_avg
