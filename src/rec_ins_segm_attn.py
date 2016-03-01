@@ -127,14 +127,14 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
                         attn_bot_right_y[ii, kk] - attn_top_left_y[ii, kk],
                         fill=False,
                         color='g'))
-                    print ('top left', attn_top_left_x[ii, kk], 
-                        attn_top_left_y[ii, kk], 
-                        'bottom right', attn_bot_right_x[ii, kk], 
-                        attn_bot_right_y[ii, kk],
-                        'center', attn_ctr_x[ii, kk],
-                        attn_ctr_y[ii, kk],
-                        'delta', attn_delta_x[ii, kk],
-                        attn_delta_y[ii, kk])
+                    print('top left', attn_top_left_x[ii, kk],
+                          attn_top_left_y[ii, kk],
+                          'bottom right', attn_bot_right_x[ii, kk],
+                          attn_bot_right_y[ii, kk],
+                          'center', attn_ctr_x[ii, kk],
+                          attn_ctr_y[ii, kk],
+                          'delta', attn_delta_x[ii, kk],
+                          attn_delta_y[ii, kk])
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=300)
@@ -584,6 +584,11 @@ if __name__ == '__main__':
             os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
             name='Step time',
             buffer_size=1)
+        crnn_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'crnn.csv'),
+            ['input gate', 'forget gate', 'output gate'],
+            name='Controller RNN',
+            buffer_size=1)
 
         log_manager.register(log.filename, 'plain', 'Raw logs')
 
@@ -622,8 +627,8 @@ if __name__ == '__main__':
         def _run_samples(x, y, s, phase_train, fname, fname_coarse=None):
             x2, y2, y_out, match, atl, abr, ac, ad, y_coarse, match_coarse = sess.run(
                 [m['x_trans'], m['y_gt_trans'], m['y_out'],  m['match'],
-                 m['attn_top_left'], m['attn_bot_right'], 
-                 m['attn_ctr'], m['attn_delta'], 
+                 m['attn_top_left'], m['attn_bot_right'],
+                 m['attn_ctr'], m['attn_delta'],
                  m['y_coarse'], m['match_coarse']],
                 feed_dict={
                     m['x']: x,
@@ -643,16 +648,16 @@ if __name__ == '__main__':
             log.info('Plot validation samples')
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
-            _run_samples(_x, _y, _s, False, valid_sample_img.get_fname(), 
-                fname_coarse=valid_sample_coarse_img.get_fname())
+            _run_samples(_x, _y, _s, False, valid_sample_img.get_fname(),
+                         fname_coarse=valid_sample_coarse_img.get_fname())
             if not valid_sample_img.is_registered():
                 valid_sample_img.register()
                 valid_sample_coarse_img.register()
 
             log.info('Plot training samples')
             _x, _y, _s = get_batch_train(np.arange(args.num_samples_plot))
-            _run_samples(_x, _y, _s, True, train_sample_img.get_fname(), 
-                fname_coarse=train_sample_coarse_img.get_fname())
+            _run_samples(_x, _y, _s, True, train_sample_img.get_fname(),
+                         fname_coarse=train_sample_coarse_img.get_fname())
             if not train_sample_img.is_registered():
                 train_sample_img.register()
                 train_sample_coarse_img.register()
@@ -708,7 +713,11 @@ if __name__ == '__main__':
         start_time = time.time()
         r = sess.run([m['loss'], m['segm_loss'], m['coarse_loss'],
                       m['iou_soft'], m['iou_hard'],
-                      m['learn_rate'], m['train_step']], feed_dict={
+                      m['learn_rate'],
+                      m['crnn_g_i_avg'],
+                      m['crnn_g_f_avg'],
+                      m['crnn_g_o_avg'],
+                      m['train_step']], feed_dict={
             m['x']: x,
             m['phase_train']: True,
             m['y_gt']: y,
@@ -723,6 +732,9 @@ if __name__ == '__main__':
             iou_soft = r[3]
             iou_hard = r[4]
             learn_rate = r[5]
+            crnn_g_i_avg = r[6]
+            crnn_g_f_avg = r[7]
+            crnn_g_o_avg = r[8]
             step_time = (time.time() - start_time) * 1000
             log.info('{:d} train loss {:.4f} {:.4f} t {:.2f}ms'.format(
                 step, segm_loss, coarse_loss, step_time))
@@ -732,6 +744,7 @@ if __name__ == '__main__':
                 iou_logger.add(step, [iou_soft, '', iou_hard, ''])
                 learn_rate_logger.add(step, learn_rate)
                 step_time_logger.add(step, step_time)
+                crnn_logger.add(step, [crnn_g_i_avg, crnn_g_f_avg, crnn_g_o_avg])
 
     def train_loop(step=0):
         """Train loop"""

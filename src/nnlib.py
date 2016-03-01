@@ -29,15 +29,17 @@ def max_pool(x, ratio):
                           strides=[1, ratio, ratio, 1], padding='SAME')
 
 
-def weight_variable(shape, wd=None, name=None):
+def weight_variable(shape, init=None, wd=None, name=None):
     """Initialize weights.
 
     Args:
         shape: shape of the weights, list of int
         wd: weight decay
     """
-    initial = tf.truncated_normal(shape, stddev=0.01)
-    var = tf.Variable(initial, name=name)
+    if init is None:
+        # init = tf.truncated_normal(shape, stddev=0.01)
+        init = tf.truncated_normal_initializer(stddev=0.01)
+    var = tf.Variable(init(shape), name=name)
     if wd:
         weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
         tf.add_to_collection('losses', weight_decay)
@@ -358,22 +360,26 @@ def lstm(inp_dim, hid_dim, wd=None, scope='lstm'):
         # Input gate
         w_xi = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xi')
         w_hi = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hi')
-        b_i = weight_variable([hid_dim], wd=wd, name='b_i')
+        b_i = weight_variable([hid_dim], init=tf.constant_initializer(0.0),
+                              wd=wd, name='b_i')
 
         # Forget gate
         w_xf = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xf')
         w_hf = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hf')
-        b_f = weight_variable([hid_dim], wd=wd, name='b_f')
+        b_f = weight_variable([hid_dim], init=tf.constant_initializer(1.0),
+                              wd=wd, name='b_f')
 
         # Input activation
         w_xu = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xu')
         w_hu = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hu')
-        b_u = weight_variable([hid_dim], wd=wd, name='b_u')
+        b_u = weight_variable([hid_dim], init=tf.constant_initializer(0.0),
+                              wd=wd, name='b_u')
 
         # Output gate
         w_xo = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xo')
         w_ho = weight_variable([hid_dim, hid_dim], wd=wd, name='w_ho')
-        b_o = weight_variable([hid_dim], name='b_o')
+        b_o = weight_variable([hid_dim], init=tf.constant_initializer(0.0),
+                              wd=wd, name='b_o')
 
     def unroll(inp, state):
         c = tf.slice(state, [0, 0], [-1, hid_dim])
@@ -386,7 +392,7 @@ def lstm(inp_dim, hid_dim, wd=None, scope='lstm'):
         h = g_o * tf.tanh(c)
         state = tf.concat(1, [c, h])
 
-        return state
+        return state, g_i, g_f, g_o
 
     return unroll
 

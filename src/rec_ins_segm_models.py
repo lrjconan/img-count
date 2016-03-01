@@ -765,6 +765,9 @@ def get_attn_model(opt, device='/cpu:0'):
         crnn_dim = ctrl_rnn_hid_dim
         crnn_inp_dim = crnn_h * crnn_w * ccnn_channels[-1]
         crnn_state = [None] * (timespan + 1)
+        crnn_g_i = [None] * timespan
+        crnn_g_f = [None] * timespan
+        crnn_g_o = [None] * timespan
         crnn_state[-1] = tf.zeros(tf.pack([num_ex, crnn_dim * 2]))
         crnn_cell = nn.lstm(crnn_inp_dim, crnn_dim, wd=wd, scope='ctrl_lstm')
 
@@ -821,6 +824,9 @@ def get_attn_model(opt, device='/cpu:0'):
         arnn_dim = attn_rnn_hid_dim
         arnn_inp_dim = arnn_h * arnn_w * acnn_channels[-1]
         arnn_state = [None] * (timespan + 1)
+        arnn_g_i = [None] * timespan
+        arnn_g_f = [None] * timespan
+        arnn_g_o = [None] * timespan
         arnn_state[-1] = tf.zeros(tf.pack([num_ex, arnn_dim * 2]))
         arnn_cell = nn.lstm(arnn_inp_dim, arnn_dim, wd=wd, scope='attn_lstm')
 
@@ -841,7 +847,7 @@ def get_attn_model(opt, device='/cpu:0'):
         for tt in xrange(timespan):
             # Controller RNN [B, R1]
             if not use_gt_attn:
-                crnn_state[tt] = crnn_cell(crnn_inp, crnn_state[tt - 1])
+                crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[tt] = crnn_cell(crnn_inp, crnn_state[tt - 1])
                 # Controller MLP [B, R1] => [B, 6]
                 h_crnn = tf.slice(
                     crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
@@ -878,7 +884,7 @@ def get_attn_model(opt, device='/cpu:0'):
 
             # RNN [B, T, R2]
             arnn_inp = tf.reshape(h_acnn_last, [-1, arnn_inp_dim])
-            arnn_state[tt] = arnn_cell(arnn_inp, arnn_state[tt - 1])
+            arnn_state[tt], arnn_g_i[tt], arnn_g_f[tt], arnn_g_o[tt] = arnn_cell(arnn_inp, arnn_state[tt - 1])
 
         # Attention coordinate for debugging [B, T, 2]
         attn_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
@@ -896,6 +902,17 @@ def get_attn_model(opt, device='/cpu:0'):
         model['attn_delta'] = attn_delta
         model['attn_top_left'] = attn_top_left
         model['attn_bot_right'] = attn_bot_right
+
+        # Prob
+        crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
+        crnn_g_f = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_f])
+        crnn_g_o = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_o])
+        crnn_g_i_avg = tf.reduce_mean(crnn_g_i)
+        crnn_g_f_avg = tf.reduce_mean(crnn_g_f)
+        crnn_g_o_avg = tf.reduce_mean(crnn_g_o)
+        model['crnn_g_i_avg'] = crnn_g_i_avg
+        model['crnn_g_f_avg'] = crnn_g_f_avg
+        model['crnn_g_o_avg'] = crnn_g_o_avg
 
         # Dense segmentation network [B, T, R] => [B, T, M]
         h_arnn = [tf.slice(arnn_state[tt], [0, arnn_dim], [-1, arnn_dim])
