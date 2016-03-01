@@ -770,7 +770,7 @@ def get_attn_model(opt, device='/cpu:0'):
 
         # Controller MLP definition
         cmlp_dims = [crnn_dim] + [ctrl_mlp_dim] * \
-            (num_ctrl_mlp_layers - 1) + [6]
+            (num_ctrl_mlp_layers - 1) + [7]
         cmlp_act = [tf.nn.relu] * (num_ctrl_mlp_layers - 1) + [None]
         cmlp_dropout = None
         # cmlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
@@ -848,6 +848,9 @@ def get_attn_model(opt, device='/cpu:0'):
                 attn_ctr[tt], attn_delta[tt] = _unnormalize_attn(
                     _ctr, _lg_delta, inp_height, inp_width, attn_size)
                 attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
+                attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
+                attn_lg_gamma[tt] = tf.reshape(
+                    tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
 
             attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
                 attn_ctr[tt], attn_delta[tt], attn_size)
@@ -864,6 +867,7 @@ def get_attn_model(opt, device='/cpu:0'):
             # Attended patch [B, A, A, D]
             x_patch = _extract_patch(
                 x, filters_y[tt], filters_x[tt], inp_depth)
+            x_patch = attn_lg_gamma[tt] * x_patch
 
             # CNN [B, A, A, D] => [B, RH2, RW2, RD2]
             h_acnn = acnn(x_patch)
@@ -882,6 +886,9 @@ def get_attn_model(opt, device='/cpu:0'):
                                  for tmp in attn_ctr])
         attn_delta = tf.concat(1, [tf.expand_dims(tmp, 1)
                                    for tmp in attn_delta])
+        attn_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                      for tmp in attn_lg_gamma])
+        attn_lg_gamma = tf.reshape(attn_lg_gamma, [-1, 1, 1, 1])
         model['attn_ctr'] = attn_ctr
         model['attn_delta'] = attn_delta
         model['attn_top_left'] = attn_top_left
@@ -924,6 +931,7 @@ def get_attn_model(opt, device='/cpu:0'):
         filters_x_all_inv = tf.transpose(filters_x_all, [0, 2, 1])
         y_out = _extract_patch(
             h_dcnn[-1], filters_y_all_inv, filters_x_all_inv, 1)
+        y_out = 1.0 / attn_lg_gamma * y_out
         y_out_b = nn.weight_variable([1])
         y_out = tf.sigmoid(y_out + y_out_b)
         y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
@@ -974,8 +982,10 @@ def get_attn_model(opt, device='/cpu:0'):
         # Loss for coarse attention
         iou_soft_coarse = _f_iou(y_coarse, y_gt, timespan, pairwise=True)
         match_coarse = _segm_match(iou_soft_coarse, s_gt)
+        model['match_coarse'] = match_coarse
         match_sum_coarse = tf.reduce_sum(match_coarse, reduction_indices=[2])
-        match_count_coarse = tf.reduce_sum(match_sum_coarse, reduction_indices=[1])
+        match_count_coarse = tf.reduce_sum(
+            match_sum_coarse, reduction_indices=[1])
         if segm_loss_fn == 'iou':
             iou_soft_coarse = tf.reduce_sum(tf.reduce_sum(
                 iou_soft_coarse * match_coarse, reduction_indices=[1, 2]) / match_count_coarse) / num_ex

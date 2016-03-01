@@ -594,9 +594,15 @@ if __name__ == '__main__':
         valid_sample_img = LazyRegisterer(os.path.join(
             logs_folder, 'valid_sample_img.png'),
             'image', 'Validation samples')
+        valid_sample_coarse_img = LazyRegisterer(os.path.join(
+            logs_folder, 'valid_sample_coarse_img.png'),
+            'image', 'Validation samples (box)')
         train_sample_img = LazyRegisterer(os.path.join(
             logs_folder, 'train_sample_img.png'),
             'image', 'Training samples')
+        train_sample_coarse_img = LazyRegisterer(os.path.join(
+            logs_folder, 'train_sample_coarse_img.png'),
+            'image', 'Training samples (box)')
         log.info(
             ('Visualization can be viewed at: '
              'http://{}/deep-dashboard?id={}').format(
@@ -613,35 +619,43 @@ if __name__ == '__main__':
 
     def run_samples():
         """Samples"""
-        def _run_samples(x, y, s, phase_train, fname):
-            x2, y2, y_out, match, atl, abr, ac, ad, y_coarse = sess.run(
+        def _run_samples(x, y, s, phase_train, fname, fname_coarse=None):
+            x2, y2, y_out, match, atl, abr, ac, ad, y_coarse, match_coarse = sess.run(
                 [m['x_trans'], m['y_gt_trans'], m['y_out'],  m['match'],
                  m['attn_top_left'], m['attn_bot_right'], 
-                 m['attn_ctr'], m['attn_delta'], m['y_coarse']],
+                 m['attn_ctr'], m['attn_delta'], 
+                 m['y_coarse'], m['match_coarse']],
                 feed_dict={
                     m['x']: x,
                     m['phase_train']: phase_train,
                     m['y_gt']: y,
                     m['s_gt']: s
                 })
-            # plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s, y_gt=y2,
-            #              s_gt=s, match=match, attn=(atl, abr, ac, ad))
-            plot_samples(fname, x_orig=x, x=x2, y_out=y_coarse, s_out=s, y_gt=y2,
+
+            plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s, y_gt=y2,
                          s_gt=s, match=match, attn=(atl, abr, ac, ad))
+            if fname_coarse:
+                plot_samples(fname, x_orig=x, x=x2, y_out=y_coarse, s_out=s, y_gt=y2,
+                             s_gt=s, match=match_coarse, attn=(atl, abr, ac, ad))
+
         if args.logs:
             # Plot some samples.
             log.info('Plot validation samples')
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
-            _run_samples(_x, _y, _s, False, valid_sample_img.get_fname())
+            _run_samples(_x, _y, _s, False, valid_sample_img.get_fname(), 
+                fname_coarse=valid_sample_coarse_img.get_fname())
             if not valid_sample_img.is_registered():
                 valid_sample_img.register()
+                valid_sample_coarse_img.register()
 
             log.info('Plot training samples')
             _x, _y, _s = get_batch_train(np.arange(args.num_samples_plot))
-            _run_samples(_x, _y, _s, True, train_sample_img.get_fname())
+            _run_samples(_x, _y, _s, True, train_sample_img.get_fname(), 
+                fname_coarse=train_sample_coarse_img.get_fname())
             if not train_sample_img.is_registered():
                 train_sample_img.register()
+                train_sample_coarse_img.register()
 
         pass
 
