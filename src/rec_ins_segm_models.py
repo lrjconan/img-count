@@ -188,7 +188,7 @@ def _bce(y_out, y_gt):
     return -y_gt * tf.log(y_out + eps) - (1 - y_gt) * tf.log(1 - y_out + eps)
 
 
-def _match_bce(model, y_out, y_gt, match, timespan):
+def _match_bce(y_out, y_gt, match, timespan):
     """Binary cross entropy with matching.
 
     Args:
@@ -224,10 +224,7 @@ def _match_bce(model, y_out, y_gt, match, timespan):
             reduction_indices=[1]), 1)
 
     # N * [B, 1] => [B, N] => [B]
-    bce_mat = tf.concat(1, bce_list)
-    model['bce_mat'] = bce_mat
     bce_total = tf.reduce_sum(tf.concat(1, bce_list), reduction_indices=[1])
-    model['bce_total'] = bce_total
 
     return tf.reduce_sum(bce_total / match_count) / num_ex / height / width
 
@@ -545,7 +542,7 @@ def get_orig_model(opt, device='/cpu:0'):
         if segm_loss_fn == 'iou':
             segm_loss = -iou_soft
         elif segm_loss_fn == 'bce':
-            segm_loss = _match_bce(model, y_out, y_gt, match, timespan)
+            segm_loss = _match_bce(y_out, y_gt, match, timespan)
         model['segm_loss'] = segm_loss
         conf_loss = _conf_loss(s_out, match, timespan, use_cum_min=True)
         model['conf_loss'] = conf_loss
@@ -641,6 +638,7 @@ def _extract_patch(x, f_y, f_x, nchannels):
 
 
 def _get_gt_attn(y_gt, attn_size):
+    """Get groundtruth attention box given segmentation."""
     s = tf.shape(y_gt)
     # [B, T, H, W, 1]
     idx_y = tf.zeros(tf.pack([s[0], s[1], s[2], s[3], 1]), dtype='float')
@@ -654,11 +652,21 @@ def _get_gt_attn(y_gt, attn_size):
     # [B, T, 2]
     top_left = tf.reduce_min(idx_min, reduction_indices=[2, 3])
     bot_right = tf.reduce_max(idx_max, reduction_indices=[2, 3])
-    ctr = (bot_right + top_left) / 2
-    delta = (bot_right - top_left) / attn_size
+    ctr = (bot_right + top_left) / 2.0
+    delta = (bot_right - top_left + 1.0) / attn_size
     lg_var = tf.zeros(tf.shape(ctr)) + 1.0
 
     return ctr, delta, lg_var
+
+
+def _get_attn_coord(ctr, delta, attn_size):
+    """Get attention coordinates given parameters."""
+    a = ctr * 2.0
+    b = delta * attn_size - 1.0
+    top_left = (a - b) / 2.0
+    bot_right = (a + b) / 2.0 + 1.0
+
+    return top_left, bot_right
 
 
 def get_attn_model(opt, device='/cpu:0'):
@@ -674,15 +682,24 @@ def get_attn_model(opt, device='/cpu:0'):
     full_width = inp_width + 2 * padding
     attn_size = opt['attn_size']
 
+    ctrl_cnn_filter_size = opt['ctrl_cnn_filter_size']
+    ctrl_cnn_depth = opt['ctrl_cnn_depth']
+    ctrl_rnn_hid_dim = opt['ctrl_rnn_hid_dim']
+
+    num_ctrl_mlp_layers = opt['num_ctrl_mlp_layers']
+    ctrl_mlp_dim = opt['ctrl_mlp_dim']
+
     attn_cnn_filter_size = opt['attn_cnn_filter_size']
     attn_cnn_depth = opt['attn_cnn_depth']
     dcnn_filter_size = opt['dcnn_filter_size']
     dcnn_depth = opt['dcnn_depth']
     attn_rnn_hid_dim = opt['attn_rnn_hid_dim']
 
-    num_mlp_layers = opt['num_mlp_layers']
     mlp_dropout_ratio = opt['mlp_dropout']
-    mlp_depth = opt['mlp_depth']
+
+    num_attn_mlp_layers = opt['num_attn_mlp_layers']
+    attn_mlp_depth = opt['attn_mlp_depth']
+
     wd = opt['weight_decay']
     use_bn = opt['use_bn']
     use_gt_attn = opt['use_gt_attn']
@@ -693,24 +710,21 @@ def get_attn_model(opt, device='/cpu:0'):
     steps_per_decay = opt['steps_per_decay']
 
     with tf.device(_get_device_fn(device)):
-        # Input layer
+        # Input definition
         # Input image, [B, H, W, D]
         x = tf.placeholder('float', [None, full_height, full_width, inp_depth])
+        x_shape = tf.shape(x)
+        num_ex = x_shape[0]
         y_gt = tf.placeholder(
             'float', [None, timespan, full_height, full_width])
         # Groundtruth confidence score, [B, T]
         s_gt = tf.placeholder('float', [None, timespan])
-
         # Whether in training stage.
         phase_train = tf.placeholder('bool')
-
         model['x'] = x
         model['y_gt'] = y_gt
         model['s_gt'] = s_gt
         model['phase_train'] = phase_train
-
-        x_shape = tf.shape(x)
-        num_ex = x_shape[0]
 
         # Random image transformation
         x, y_gt = _rnd_img_transformation(x, y_gt, padding, phase_train)
@@ -718,19 +732,56 @@ def get_attn_model(opt, device='/cpu:0'):
         model['y_gt_trans'] = y_gt
 
         # Controller CNN definition
+        ccnn_filters = ctrl_cnn_filter_size
+        ccnn_nlayers = len(ccnn_filters)
+        ccnn_channels = [inp_depth] + ctrl_cnn_depth
+        ccnn_pool = [2] * ccnn_nlayers
+        ccnn_act = [tf.nn.relu] * ccnn_nlayers
+        ccnn_use_bn = [use_bn] * ccnn_nlayers
+        ccnn = nn.cnn(ccnn_filters, ccnn_channels, ccnn_pool, ccnn_act,
+                      ccnn_use_bn, phase_train=phase_train, wd=wd,
+                      scope='ctrl_cnn')
 
         # Controller RNN definition
+        ccnn_subsample = np.array(ccnn_pool).prod()
+        crnn_h = inp_height / ccnn_subsample
+        crnn_w = inp_width / ccnn_subsample
+        crnn_dim = ctrl_rnn_hid_dim
+        crnn_inp_dim = crnn_h * crnn_w * ccnn_channels[-1]
+        crnn_state = [None] * (timespan + 1)
+        crnn_state[-1] = tf.zeros(tf.pack([num_ex, crnn_dim * 2]))
+        crnn_cell = nn.lstm(crnn_inp_dim, crnn_dim, wd=wd, scope='ctrl_lstm')
+
+        # Controller MLP definition
+        cmlp_dims = [crnn_dim] + [ctrl_mlp_dim] * \
+            (num_ctrl_mlp_layers - 1) + [6]
+        cmlp_act = [tf.nn.relu] * num_ctrl_mlp_layers
+        cmlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
+        cmlp = nn.mlp(cmlp_dims, cmlp_act, dropout_keep=cmlp_dropout,
+                      phase_train=phase_train, wd=wd, scope='ctrl_mlp')
+
+        # Attention filters
+        filters_y = [None] * timespan
+        filters_x = [None] * timespan
 
         # Groundtruth bounding box, [B, T, 2]
         if use_gt_attn:
             attn_ctr, attn_delta, attn_lg_var = _get_gt_attn(y_gt, attn_size)
-            attn_ctr = tf.split(1, timespan, attn_ctr)
-            attn_delta = tf.split(1, timespan, attn_delta)
-            attn_lg_var = tf.split(1, timespan, attn_lg_var)
+            attn_ctr = [tf.reshape(tmp, [-1, 2])
+                        for tmp in tf.split(1, timespan, attn_ctr)]
+            attn_delta = [tf.reshape(tmp, [-1, 2])
+                          for tmp in tf.split(1, timespan, attn_delta)]
+            attn_lg_var = [tf.reshape(tmp, [-1, 2])
+                           for tmp in tf.split(1, timespan, attn_lg_var)]
         else:
             attn_ctr = [None] * timespan
             attn_delta = [None] * timespan
             attn_lg_var = [None] * timespan
+
+        gtbox_top_left = [None] * timespan
+        gtbox_bot_right = [None] * timespan
+        attn_top_left = [None] * timespan
+        attn_bot_right = [None] * timespan
 
         # Attention CNN definition
         acnn_filters = attn_cnn_filter_size
@@ -740,61 +791,84 @@ def get_attn_model(opt, device='/cpu:0'):
         acnn_act = [tf.nn.relu] * acnn_nlayers
         acnn_use_bn = [use_bn] * acnn_nlayers
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
-                      acnn_use_bn, phase_train=phase_train, wd=wd)
+                      acnn_use_bn, phase_train=phase_train, wd=wd,
+                      scope='attn_cnn')
 
         # Attention RNN definition
-        subsample = np.array(acnn_pool).prod()
-        arnn_h = attn_size / subsample
-        arnn_w = attn_size / subsample
+        acnn_subsample = np.array(acnn_pool).prod()
+        arnn_h = attn_size / acnn_subsample
+        arnn_w = attn_size / acnn_subsample
         arnn_dim = attn_rnn_hid_dim
         arnn_inp_dim = arnn_h * arnn_w * acnn_channels[-1]
-        state = [None] * (timespan + 1)
-        state[-1] = tf.zeros(tf.pack([num_ex, arnn_dim * 2]))
-        arnn_cell = nn.lstm(arnn_inp_dim, arnn_dim, wd=wd)
-        filters_y = [None] * timespan
-        filters_x = [None] * timespan
-        core_depth = mlp_depth
-        core_dim = arnn_h * arnn_w * core_depth
+        arnn_state = [None] * (timespan + 1)
+        arnn_state[-1] = tf.zeros(tf.pack([num_ex, arnn_dim * 2]))
+        arnn_cell = nn.lstm(arnn_inp_dim, arnn_dim, wd=wd, scope='attn_lstm')
 
-        # Include controller input CNN here.
+        # Attention MLP definition
+        core_depth = attn_mlp_depth
+        core_dim = arnn_h * arnn_w * core_depth
+        amlp_dims = [arnn_dim] + [core_dim] * num_attn_mlp_layers
+        amlp_act = [tf.nn.relu] * num_attn_mlp_layers
+        amlp_dropout = [1.0 - mlp_dropout_ratio] * num_attn_mlp_layers
+        amlp = nn.mlp(amlp_dims, amlp_act, dropout_keep=amlp_dropout,
+                      phase_train=phase_train, wd=wd, scope='attn_mlp')
+
+        # Controller CNN [B, H, W, D] => [B, RH1, RW1, RD1]
+        h_ccnn = ccnn(x)
+        h_ccnn_last = h_ccnn[-1]
+        crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
 
         for tt in xrange(timespan):
-            # Include attention controller RNN here.
+            # Controller RNN [B, R1]
+            if not use_gt_attn:
+                crnn_state[tt] = crnn_cell(crnn_inp, crnn_state[tt - 1])
+                # Controller MLP [B, R1] => [B, 6]
+                h_crnn = tf.slice(
+                    crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
+                ctrl_out = cmlp(h_crnn)[-1]
+                attn_ctr[tt] = tf.slice(ctrl_out, [0, 0], [-1, 2])
+                attn_delta[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
+                attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
+
+            attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
+                attn_ctr[tt], attn_delta[tt], attn_size)
 
             # [B, H, A]
             filters_y[tt] = _get_attn_filter(
-                attn_ctr[tt][:, 0, 0], attn_delta[tt][:, 0, 0],
-                attn_lg_var[tt][:, 0, 0], inp_height, attn_size)
+                attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
+                attn_lg_var[tt][:, 0], inp_height, attn_size)
             # [B, W, A]
             filters_x[tt] = _get_attn_filter(
-                attn_ctr[tt][:, 0, 1], attn_delta[tt][:, 0, 1],
-                attn_lg_var[tt][:, 0, 1], inp_width, attn_size)
+                attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
+                attn_lg_var[tt][:, 1], inp_width, attn_size)
 
             # Attended patch [B, A, A, D]
             x_patch = _extract_patch(
                 x, filters_y[tt], filters_x[tt], inp_depth)
 
-            # CNN [B, A, A, D] => [B, RH, RW, RD]
+            # CNN [B, A, A, D] => [B, RH2, RW2, RD2]
             h_acnn = acnn(x_patch)
             h_acnn_last = h_acnn[-1]
 
-            # RNN [B, T, R]
-            arnn_inp = tf.reshape(
-                h_acnn_last, [-1, arnn_h * arnn_w * acnn_channels[-1]])
-            state[tt] = arnn_cell(arnn_inp, state[tt - 1])
+            # RNN [B, T, R2]
+            arnn_inp = tf.reshape(h_acnn_last, [-1, arnn_inp_dim])
+            arnn_state[tt] = arnn_cell(arnn_inp, arnn_state[tt - 1])
+
+        # Attention coordinate for debugging [B, T, 2]
+        attn_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                      for tmp in attn_top_left])
+        attn_bot_right = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                       for tmp in attn_bot_right])
+        model['attn_top_left'] = attn_top_left
+        model['attn_bot_right'] = attn_bot_right
 
         # Dense segmentation network [B, T, R] => [B, T, M]
-        h_arnn = [tf.slice(state[tt], [0, arnn_dim], [-1, arnn_dim])
+        h_arnn = [tf.slice(arnn_state[tt], [0, arnn_dim], [-1, arnn_dim])
                   for tt in xrange(timespan)]
         h_arnn_all = tf.concat(1, [tf.expand_dims(h, 1) for h in h_arnn])
         h_arnn_all = tf.reshape(h_arnn_all, [-1, arnn_dim])
-        mlp_dims = [arnn_dim] + [core_dim] * num_mlp_layers
-        mlp_act = [tf.nn.relu] * num_mlp_layers
-        mlp_dropout = [1.0 - mlp_dropout_ratio] * num_mlp_layers
-        segm_mlp = nn.mlp(dims=mlp_dims, act=mlp_act, dropout_keep=mlp_dropout,
-                          phase_train=phase_train, wd=wd)
-        h_core = segm_mlp(h_arnn_all)[-1]
-        h_core = tf.reshape(h_core, [-1, arnn_h, arnn_w, mlp_depth])
+        h_core = amlp(h_arnn_all)[-1]
+        h_core = tf.reshape(h_core, [-1, arnn_h, arnn_w, attn_mlp_depth])
 
         # DCNN [B * T, RH, RW, MD] => [B * T, A, A, 1]
         dcnn_filters = dcnn_filter_size
@@ -802,14 +876,14 @@ def get_attn_model(opt, device='/cpu:0'):
         dcnn_unpool = [2] * (dcnn_nlayers - 1) + [1]
         # dcnn_act = [tf.nn.relu] * (len(dcnn_filters) - 1) + [tf.sigmoid]
         dcnn_act = [tf.nn.relu] * dcnn_nlayers
-        dcnn_channels = [mlp_depth] + dcnn_depth
+        dcnn_channels = [attn_mlp_depth] + dcnn_depth
         dcnn_use_bn = [use_bn] * dcnn_nlayers
 
         skip, skip_ch = _build_skip_conn(
             acnn_channels, h_acnn, x_patch, timespan)
 
-        dcnn = nn.dcnn(f=dcnn_filters, ch=dcnn_channels, pool=dcnn_unpool,
-                       act=dcnn_act, use_bn=dcnn_use_bn, skip_ch=skip_ch,
+        dcnn = nn.dcnn(dcnn_filters, dcnn_channels, dcnn_unpool,
+                       dcnn_act, use_bn=dcnn_use_bn, skip_ch=skip_ch,
                        phase_train=phase_train, wd=wd)
         h_dcnn = dcnn(h_core, skip=skip)
 
@@ -856,7 +930,7 @@ def get_attn_model(opt, device='/cpu:0'):
         if segm_loss_fn == 'iou':
             segm_loss = -iou_soft
         elif segm_loss_fn == 'bce':
-            segm_loss = _match_bce(model, y_out, y_gt, match, timespan)
+            segm_loss = _match_bce(y_out, y_gt, match, timespan)
         model['segm_loss'] = segm_loss
 
         loss = segm_loss

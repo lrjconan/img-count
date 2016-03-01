@@ -34,8 +34,21 @@ import rec_ins_segm_models as models
 log = logger.get()
 
 
-def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match):
-    """Plot some test samples."""
+def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
+    """Plot some test samples.
+
+    Args:
+        fname: str, image output filename.
+        x_orig: [B, H0, W0, D], original image, without input transformation.
+        x: [B, H, W, D], image after input transformation.
+        y_out: [B, T, H, W, D], segmentation output of the model.
+        s_out: [B, T], confidence score output of the model.
+        y_gt: [B, T, H, W, D], segmentation groundtruth.
+        s_gt: [B, T], confidence score groudtruth.
+        match: [B, T, T], matching matrix.
+        attn: ([B, T, 2], [B, T, 2]), top left and bottom right coordinates of 
+        the attention box.
+    """
     num_ex = y_out.shape[0]
     offset = 2
     num_items = y_out.shape[1] + offset
@@ -53,6 +66,12 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match):
     gradient = np.linspace(0, 1, 256)
     im_height = x.shape[1]
     im_with = x.shape[2]
+
+    if attn:
+        attn_top_left_y = attn[0][:, :, 0]
+        attn_top_left_x = attn[0][:, :, 1]
+        attn_bot_right_y = attn[1][:, :, 0]
+        attn_bot_right_x = attn[1][:, :, 1]
 
     for row in xrange(num_row):
         for col in xrange(num_col):
@@ -94,6 +113,16 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match):
                 axarr[row, col].text(0, 0, '{:.2f} {}'.format(
                     s_out[ii, jj - offset], matched),
                     color=(0, 0, 0), size=8)
+
+                if attn:
+                    # Plot attention box.
+                    kk = jj - 2
+                    axarr[row, col].add_patch(patches.Rectangle(
+                        (attn_top_left_x[ii, kk], attn_top_left_y[ii, kk]),
+                        attn_bot_right_x[ii, kk] - attn_top_left_x[ii, kk],
+                        attn_bot_right_y[ii, kk] - attn_top_left_y[ii, kk],
+                        fill=False,
+                        color='g'))
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=300)
@@ -205,11 +234,15 @@ def _parse_args():
     kAttnCnnFilterSize = [3, 3, 3, 3, 3]
     kAttnCnnDepth = [4, 8, 8, 12, 16]
 
+    kCtrlMlpDim = 256
+    kNumCtrlMlpLayers = 2
+
     kCtrlRnnHiddenDim = 256
     kAttnRnnHiddenDim = 256
 
-    kNumMlpLayers = 2
-    kMlpDepth = 6
+    kNumAttnMlpLayers = 2
+    kAttnMlpDepth = 6
+
     kMlpDropout = 0.5
     kDcnnFilterSize = [3, 3, 3, 3, 3, 3]
     kDcnnDepth = [1, 2, 4, 4, 6, 8]
@@ -294,14 +327,18 @@ def _parse_args():
 
     parser.add_argument('-ctrl_rnn_hid_dim', default=kCtrlRnnHiddenDim,
                         type=int, help='RNN hidden dimension')
-
     parser.add_argument('-attn_rnn_hid_dim', default=kCtrlRnnHiddenDim,
                         type=int, help='RNN hidden dimension')
 
-    parser.add_argument('-num_mlp_layers', default=kNumMlpLayers,
-                        type=int, help='Number of MLP layers')
-    parser.add_argument('-mlp_depth', default=kMlpDepth,
-                        type=int, help='MLP depth')
+    parser.add_argument('-num_ctrl_mlp_layers', default=kNumCtrlMlpLayers,
+                        type=int, help='Number of controller MLP layers')
+    parser.add_argument('-ctrl_mlp_dim', default=kCtrlMlpDim,
+                        type=int, help='Controller MLP dimension')
+    parser.add_argument('-num_attn_mlp_layers', default=kNumAttnMlpLayers,
+                        type=int, help='Number of attention MLP layers')
+    parser.add_argument('-attn_mlp_depth', default=kAttnMlpDepth,
+                        type=int, help='Attntion MLP depth')
+
     parser.add_argument('-mlp_dropout', default=kMlpDropout,
                         type=float, help='MLP dropout')
 
@@ -434,8 +471,11 @@ if __name__ == '__main__':
             'dcnn_filter_size': dcnn_filter_size_all[: args.num_attn_conv + 1][::-1],
             'dcnn_depth': dcnn_depth_all[: args.num_attn_conv + 1][::-1],
 
-            'mlp_depth': args.mlp_depth,
-            'num_mlp_layers': args.num_mlp_layers,
+            'num_ctrl_mlp_layers': args.num_ctrl_mlp_layers,
+            'ctrl_mlp_dim': args.ctrl_mlp_dim,
+
+            'attn_mlp_depth': args.attn_mlp_depth,
+            'num_attn_mlp_layers': args.num_attn_mlp_layers,
             'mlp_dropout': args.mlp_dropout,
 
             'weight_decay': args.weight_decay,
@@ -555,18 +595,6 @@ if __name__ == '__main__':
     log.info('Number of training examples: {}'.format(num_ex_train))
     log.info('Batch size: {}'.format(batch_size))
 
-    def run_samples(x, y, s, phase_train, fname):
-        x2, y2, y_out, match = sess.run(
-            [m['x_trans'], m['y_gt_trans'], m['y_out'],  m['match']],
-            feed_dict={
-                m['x']: x,
-                m['phase_train']: phase_train,
-                m['y_gt']: y,
-                m['s_gt']: s
-            })
-        plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s, y_gt=y2,
-                     s_gt=s, match=match)
-
     def prob():
         log.info('Running validation')
         _x, _y, _s = get_batch_valid(np.arange(10))
@@ -610,8 +638,39 @@ if __name__ == '__main__':
         print 'yout min samples', _y_out[max(min_id - 10, 0): min(min_id + 10, _bce.size)]
         pass
 
+    def run_samples():
+        """Samples"""
+        def _run_samples(x, y, s, phase_train, fname):
+            x2, y2, y_out, match, atl, abr = sess.run(
+                [m['x_trans'], m['y_gt_trans'], m['y_out'],  m['match'],
+                 m['attn_top_left'], m['attn_bot_right']],
+                feed_dict={
+                    m['x']: x,
+                    m['phase_train']: phase_train,
+                    m['y_gt']: y,
+                    m['s_gt']: s
+                })
+            plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s, y_gt=y2,
+                         s_gt=s, match=match, attn=(atl, abr))
+        if args.logs:
+            # Plot some samples.
+            log.info('Plot validation samples')
+            _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
+            _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
+            _run_samples(_x, _y, _s, False, valid_sample_img.get_fname())
+            if not valid_sample_img.is_registered():
+                valid_sample_img.register()
+
+            log.info('Plot training samples')
+            _x, _y, _s = get_batch_train(np.arange(args.num_samples_plot))
+            _run_samples(_x, _y, _s, True, train_sample_img.get_fname())
+            if not train_sample_img.is_registered():
+                train_sample_img.register()
+
+        pass
+
     def run_validation():
-        # Validation
+        """Validation"""
         loss = 0.0
         iou_hard = 0.0
         iou_soft = 0.0
@@ -651,26 +710,38 @@ if __name__ == '__main__':
             loss_logger.add(step, ['', loss])
             iou_logger.add(step, ['', iou_soft, '', iou_hard])
 
-            # Plot some samples.
-            log.info('Plot validation samples')
-            _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
-            _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
-            run_samples(_x, _y, _s, False, valid_sample_img.get_fname())
-            if not valid_sample_img.is_registered():
-                valid_sample_img.register()
-
-            log.info('Plot training samples')
-            _x, _y, _s = get_batch_train(np.arange(args.num_samples_plot))
-            run_samples(_x, _y, _s, True, train_sample_img.get_fname())
-            if not train_sample_img.is_registered():
-                train_sample_img.register()
-
         pass
 
-    # prob()
+    def train_step(x, y, s):
+        """Train step"""
+        start_time = time.time()
+        r = sess.run([m['loss'], m['segm_loss'],
+                      m['iou_soft'], m['iou_hard'],
+                      m['learn_rate'], m['train_step']], feed_dict={
+            m['x']: x,
+            m['phase_train']: True,
+            m['y_gt']: y,
+            m['s_gt']: s
+        })
+
+        # Print statistics
+        if step % train_opt['steps_per_log'] == 0:
+            loss = r[0]
+            segm_loss = r[1]
+            iou_soft = r[2]
+            iou_hard = r[3]
+            learn_rate = r[4]
+            step_time = (time.time() - start_time) * 1000
+            log.info('{:d} train loss {:.4f} t {:.2f}ms'.format(
+                step, loss, step_time))
+            if args.logs:
+                loss_logger.add(step, [loss, ''])
+                iou_logger.add(step, [iou_soft, '', iou_hard, ''])
+                learn_rate_logger.add(step, learn_rate)
+                step_time_logger.add(step, step_time)
 
     def train_loop(step=0):
-        # Train loop
+        """Train loop"""
         for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
                                                  batch_size=batch_size,
                                                  get_fn=get_batch_train,
@@ -678,36 +749,11 @@ if __name__ == '__main__':
                                                  progress_bar=False):
             # Run validation
             if step % train_opt['steps_per_valid'] == 0:
-                run_validation()
-                prob()
+                # run_validation()
+                run_samples()
 
             # Train step
-            start_time = time.time()
-            r = sess.run([m['loss'], m['segm_loss'],
-                          m['iou_soft'], m['iou_hard'],
-                          m['learn_rate'], m['train_step']], feed_dict={
-                m['x']: x_bat,
-                m['phase_train']: True,
-                m['y_gt']: y_bat,
-                m['s_gt']: s_bat
-            })
-
-            # Print statistics
-            if step % train_opt['steps_per_log'] == 0:
-                loss = r[0]
-                segm_loss = r[1]
-                iou_soft = r[2]
-                iou_hard = r[3]
-                learn_rate = r[4]
-                step_time = (time.time() - start_time) * 1000
-                log.info('{:d} train loss {:.4f} t {:.2f}ms'.format(
-                    step, loss, step_time))
-
-                if args.logs:
-                    loss_logger.add(step, [loss, ''])
-                    iou_logger.add(step, [iou_soft, '', iou_hard, ''])
-                    learn_rate_logger.add(step, learn_rate)
-                    step_time_logger.add(step, step_time)
+            train_step(x_bat, y_bat, s_bat)
 
             # Model ID reminder
             if step % (10 * train_opt['steps_per_log']) == 0:
