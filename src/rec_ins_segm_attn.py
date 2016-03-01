@@ -614,17 +614,19 @@ if __name__ == '__main__':
     def run_samples():
         """Samples"""
         def _run_samples(x, y, s, phase_train, fname):
-            x2, y2, y_out, match, atl, abr, ac, ad = sess.run(
+            x2, y2, y_out, match, atl, abr, ac, ad, y_coarse = sess.run(
                 [m['x_trans'], m['y_gt_trans'], m['y_out'],  m['match'],
                  m['attn_top_left'], m['attn_bot_right'], 
-                 m['attn_ctr'], m['attn_delta']],
+                 m['attn_ctr'], m['attn_delta'], m['y_coarse']],
                 feed_dict={
                     m['x']: x,
                     m['phase_train']: phase_train,
                     m['y_gt']: y,
                     m['s_gt']: s
                 })
-            plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s, y_gt=y2,
+            # plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s, y_gt=y2,
+            #              s_gt=s, match=match, attn=(atl, abr, ac, ad))
+            plot_samples(fname, x_orig=x, x=x2, y_out=y_coarse, s_out=s, y_gt=y2,
                          s_gt=s, match=match, attn=(atl, abr, ac, ad))
         if args.logs:
             # Plot some samples.
