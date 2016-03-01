@@ -850,12 +850,9 @@ def get_attn_model(opt, device='/cpu:0'):
             if not use_gt_attn:
                 crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[
                     tt] = crnn_cell(crnn_inp, crnn_state[tt - 1])
-                print 'State', tt, crnn_state[tt]
-                # Controller MLP [B, R1] => [B, 6]
                 h_crnn = tf.slice(
                     crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
                 ctrl_out = cmlp(h_crnn)[-1]
-                print 'Control output', tt, ctrl_out
                 _ctr = tf.slice(ctrl_out, [0, 0], [-1, 2])
                 _lg_delta = tf.slice(ctrl_out, [0, 2], [-1, 2])
                 attn_ctr[tt], attn_delta[tt] = _unnormalize_attn(
@@ -1004,7 +1001,7 @@ def get_attn_model(opt, device='/cpu:0'):
         elif segm_loss_fn == 'bce':
             segm_loss = _match_bce(y_out, y_gt, match, timespan)
         model['segm_loss'] = segm_loss
-        # tf.add_to_collection('losses', segm_loss)
+        tf.add_to_collection('losses', segm_loss)
         model['loss'] = segm_loss
 
         # Loss for coarse attention
@@ -1016,12 +1013,13 @@ def get_attn_model(opt, device='/cpu:0'):
             match_sum_coarse, reduction_indices=[1])
         if segm_loss_fn == 'iou':
             iou_soft_coarse = tf.reduce_sum(tf.reduce_sum(
-                iou_soft_coarse * match_coarse, reduction_indices=[1, 2]) / match_count_coarse) / num_ex
+                iou_soft_coarse * match_coarse, reduction_indices=[1, 2])
+                / match_count_coarse) / num_ex
             coarse_loss = -iou_soft_coarse
         elif segm_loss_fn == 'bce':
             coarse_loss = _match_bce(y_coarse, y_gt, match_coarse, timespan)
         model['coarse_loss'] = coarse_loss
-        tf.add_to_collection('losses', coarse_loss)
+        # tf.add_to_collection('losses', coarse_loss)
 
         total_loss = tf.add_n(tf.get_collection(
             'losses'), name='total_loss')
