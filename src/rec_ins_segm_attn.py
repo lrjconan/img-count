@@ -225,7 +225,7 @@ def _parse_args():
     kStepsPerDecay = 5000
     kStepsPerLog = 10
     kLossMixRatio = 1.0
-    kNumCtrlConv = 3
+    kNumCtrlConv = 5
     kNumAttnConv = 3
 
     kAttnSize = 48
@@ -304,10 +304,10 @@ def _parse_args():
 
     for ii in xrange(len(kCtrlCnnFilterSize)):
         parser.add_argument('-ctrl_cnn_{}_filter_size'.format(ii + 1),
-                            default=kAttnCnnFilterSize[ii], type=int,
+                            default=kCtrlCnnFilterSize[ii], type=int,
                             help='Controller CNN layer {} filter size'.format(ii + 1))
         parser.add_argument('-ctrl_cnn_{}_depth'.format(ii + 1),
-                            default=kAttnCnnDepth[ii], type=int,
+                            default=kCtrlCnnDepth[ii], type=int,
                             help='Controller CNN layer {} depth'.format(ii + 1))
 
     for ii in xrange(len(kAttnCnnFilterSize)):
