@@ -984,26 +984,6 @@ def get_attn_model(opt, device='/cpu:0'):
         num_ex = tf.to_float(y_gt_shape[0])
         max_num_obj = tf.to_float(y_gt_shape[1])
 
-        # Pairwise IOU
-        iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
-
-        # Matching
-        match = _segm_match(iou_soft, s_gt)
-        model['match'] = match
-        match_sum = tf.reduce_sum(match, reduction_indices=[2])
-        match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
-        iou_soft = tf.reduce_sum(tf.reduce_sum(
-            iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
-        model['iou_soft'] = iou_soft
-
-        if segm_loss_fn == 'iou':
-            segm_loss = -iou_soft
-        elif segm_loss_fn == 'bce':
-            segm_loss = _match_bce(y_out, y_gt, match, timespan)
-        model['segm_loss'] = segm_loss
-        tf.add_to_collection('losses', segm_loss)
-        model['loss'] = segm_loss
-
         # Loss for coarse attention
         iou_soft_coarse = _f_iou(y_coarse, y_gt, timespan, pairwise=True)
         match_coarse = _segm_match(iou_soft_coarse, s_gt)
@@ -1019,7 +999,28 @@ def get_attn_model(opt, device='/cpu:0'):
         elif segm_loss_fn == 'bce':
             coarse_loss = _match_bce(y_coarse, y_gt, match_coarse, timespan)
         model['coarse_loss'] = coarse_loss
-        # tf.add_to_collection('losses', coarse_loss)
+        tf.add_to_collection('losses', coarse_loss)
+        
+        # Loss for fine segmentation
+        iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
+        # match = _segm_match(iou_soft, s_gt)
+        # model['match'] = match
+        # match_sum = tf.reduce_sum(match, reduction_indices=[2])
+        # match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
+        match = match_coarse
+        match_sum = match_sum_coarse
+        match_count = match_count_coarse
+        model['match'] = match
+        iou_soft = tf.reduce_sum(tf.reduce_sum(
+            iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
+        model['iou_soft'] = iou_soft
+        if segm_loss_fn == 'iou':
+            segm_loss = -iou_soft
+        elif segm_loss_fn == 'bce':
+            segm_loss = _match_bce(y_out, y_gt, match, timespan)
+        model['segm_loss'] = segm_loss
+        tf.add_to_collection('losses', segm_loss)
+        model['loss'] = segm_loss
 
         total_loss = tf.add_n(tf.get_collection(
             'losses'), name='total_loss')
