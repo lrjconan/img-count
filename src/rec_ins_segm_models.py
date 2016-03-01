@@ -790,10 +790,13 @@ def get_attn_model(opt, device='/cpu:0'):
                           for tmp in tf.split(1, timespan, attn_delta)]
             attn_lg_var = [tf.reshape(tmp, [-1, 2])
                            for tmp in tf.split(1, timespan, attn_lg_var)]
+            attn_lg_gamma = [tf.ones(tf.pack([num_ex, 1, 1, 1]))
+                             for tt in xrange(timespan)]
         else:
             attn_ctr = [None] * timespan
             attn_delta = [None] * timespan
             attn_lg_var = [None] * timespan
+            attn_lg_gamma = [None] * timespan
 
         gtbox_top_left = [None] * timespan
         gtbox_bot_right = [None] * timespan

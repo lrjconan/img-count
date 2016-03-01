@@ -101,7 +101,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn'):
     nlayers = len(f)
     w = [None] * nlayers
     b = [None] * nlayers
-    log.info('CNN')
+    log.info('CNN: {}'.format(scope))
     log.info('Channels: {}'.format(ch))
     log.info('Activation: {}'.format(act))
 
@@ -160,7 +160,7 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
     w = [None] * nlayers
     b = [None] * nlayers
 
-    log.info('DCNN')
+    log.info('DCNN: {}'.format(scope))
     log.info('Channels: {}'.format(ch))
     log.info('Activation: {}'.format(act))
     log.info('Skip channels: {}'.format(skip_ch))
@@ -248,7 +248,7 @@ def mlp(dims, act, dropout_keep=None, phase_train=None, wd=None, scope='mlp'):
     w = [None] * nlayers
     b = [None] * nlayers
 
-    log.info('MLP')
+    log.info('MLP: {}'.format(scope))
     log.info('Dimensions: {}'.format(dims))
     log.info('Activation: {}'.format(act))
     log.info('Dropout: {}'.format(dropout_keep))
@@ -292,6 +292,9 @@ def conv_lstm(inp_depth, hid_depth, filter_size, wd=None, scope='conv_lstm'):
         wd: Weight decay
         name: Prefix
     """
+    log.info('ConvLSTM: {}'.format(scope))
+    log.info('Input depth: {}'.format(inp_depth))
+    log.info('Hidden depth: {}'.format(hid_depth))
 
     with tf.variable_scope(scope):
         # Input gate
@@ -347,6 +350,10 @@ def lstm(inp_dim, hid_dim, wd=None, scope='lstm'):
         wd: Weight decay
         scope: Prefix
     """
+    log.info('LSTM: {}'.format(scope))
+    log.info('Input dim: {}'.format(inp_dim))
+    log.info('Hidden dim: {}'.format(hid_dim))
+
     with tf.variable_scope(scope):
         # Input gate
         w_xi = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xi')
@@ -393,6 +400,10 @@ def gru(inp_dim, hid_dim, wd=None, scope='gru'):
         wd: Weight decay
         scope: Prefix
     """
+    log.info('GRU: {}'.format(scope))
+    log.info('Input dim: {}'.format(inp_dim))
+    log.info('Hidden dim: {}'.format(hid_dim))
+
     with tf.variable_scope(scope):
         w_xi = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xi')
         w_hi = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hi')

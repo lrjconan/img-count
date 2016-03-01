@@ -635,7 +635,7 @@ if __name__ == '__main__':
             plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s, y_gt=y2,
                          s_gt=s, match=match, attn=(atl, abr, ac, ad))
             if fname_coarse:
-                plot_samples(fname, x_orig=x, x=x2, y_out=y_coarse, s_out=s, y_gt=y2,
+                plot_samples(fname_coarse, x_orig=x, x=x2, y_out=y_coarse, s_out=s, y_gt=y2,
                              s_gt=s, match=match_coarse, attn=(atl, abr, ac, ad))
 
         if args.logs:
