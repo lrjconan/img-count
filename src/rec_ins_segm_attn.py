@@ -707,7 +707,7 @@ if __name__ == '__main__':
                                                  progress_bar=False):
             # Run validation
             if step % train_opt['steps_per_valid'] == 0:
-                # run_validation(step)
+                run_validation(step)
                 run_samples()
 
             # Train step
