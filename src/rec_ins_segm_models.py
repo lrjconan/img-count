@@ -967,7 +967,7 @@ def get_attn_model(opt, device='/cpu:0'):
         elif segm_loss_fn == 'bce':
             segm_loss = _match_bce(y_out, y_gt, match, timespan)
         model['segm_loss'] = segm_loss
-        tf.add_to_collection('losses', segm_loss)
+        # tf.add_to_collection('losses', segm_loss)
         model['loss'] = segm_loss
 
         # Loss for coarse attention
