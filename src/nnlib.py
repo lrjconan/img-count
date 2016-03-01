@@ -103,6 +103,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn'):
     b = [None] * nlayers
     log.info('CNN')
     log.info('Channels: {}'.format(ch))
+    log.info('Activation: {}'.format(act))
 
     with tf.variable_scope(scope):
         for ii in xrange(nlayers):
@@ -161,6 +162,7 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
 
     log.info('DCNN')
     log.info('Channels: {}'.format(ch))
+    log.info('Activation: {}'.format(act))
     log.info('Skip channels: {}'.format(skip_ch))
 
     in_ch = ch[0]
@@ -248,6 +250,7 @@ def mlp(dims, act, dropout_keep=None, phase_train=None, wd=None, scope='mlp'):
 
     log.info('MLP')
     log.info('Dimensions: {}'.format(dims))
+    log.info('Activation: {}'.format(act))
     log.info('Dropout: {}'.format(dropout_keep))
 
     with tf.variable_scope(scope):
