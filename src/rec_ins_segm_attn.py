@@ -712,7 +712,7 @@ if __name__ == '__main__':
 
         pass
 
-    def train_step(x, y, s):
+    def train_step(step, x, y, s):
         """Train step"""
         start_time = time.time()
         r = sess.run([m['loss'], m['segm_loss'],
@@ -753,7 +753,7 @@ if __name__ == '__main__':
                 run_samples()
 
             # Train step
-            train_step(x_bat, y_bat, s_bat)
+            train_step(step, x_bat, y_bat, s_bat)
 
             # Model ID reminder
             if step % (10 * train_opt['steps_per_log']) == 0:
