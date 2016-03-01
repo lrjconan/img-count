@@ -937,6 +937,7 @@ def get_attn_model(opt, device='/cpu:0'):
         y_coarse = tf.reshape(y_coarse, [-1, timespan, inp_height, inp_width])
 
         model['y_out'] = y_out
+        model['y_coarse'] = y_coarse
 
         # Loss function
         global_step = tf.Variable(0.0)
