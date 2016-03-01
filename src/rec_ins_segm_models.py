@@ -974,14 +974,14 @@ def get_attn_model(opt, device='/cpu:0'):
         # Loss for coarse attention
         iou_soft_coarse = _f_iou(y_coarse, y_gt, timespan, pairwise=True)
         match_coarse = _segm_match(iou_soft_coarse, s_gt)
-        match_sum_coarse = tf.reduce_sum(match, reduction_indices=[2])
-        match_count_coarse = tf.reduce_sum(match_sum, reduction_indices=[1])
+        match_sum_coarse = tf.reduce_sum(match_coarse, reduction_indices=[2])
+        match_count_coarse = tf.reduce_sum(match_sum_coarse, reduction_indices=[1])
         if segm_loss_fn == 'iou':
             iou_soft_coarse = tf.reduce_sum(tf.reduce_sum(
                 iou_soft_coarse * match_coarse, reduction_indices=[1, 2]) / match_count_coarse) / num_ex
             coarse_loss = -iou_soft_coarse
         elif segm_loss_fn == 'bce':
-            coarse_loss = _match_bce(y_coarse, y_gt, match, timespan)
+            coarse_loss = _match_bce(y_coarse, y_gt, match_coarse, timespan)
         model['coarse_loss'] = coarse_loss
         tf.add_to_collection('losses', coarse_loss)
 
