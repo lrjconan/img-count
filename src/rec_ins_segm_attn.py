@@ -678,7 +678,7 @@ if __name__ == '__main__':
 
         log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} coarse_loss {:.4f} '
                   'iou soft {:.4f} iou hard {:.4f}').format(
-            step, loss, segm_loss, conf_loss, iou_soft, iou_hard))
+            step, loss, segm_loss, coarse_loss, iou_soft, iou_hard))
 
         if args.logs:
             loss_logger.add(step, ['', loss])
