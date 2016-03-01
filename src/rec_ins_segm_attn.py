@@ -72,6 +72,10 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
         attn_top_left_x = attn[0][:, :, 1]
         attn_bot_right_y = attn[1][:, :, 0]
         attn_bot_right_x = attn[1][:, :, 1]
+        attn_ctr_y = attn[2][:, :, 0]
+        attn_ctr_x = attn[2][:, :, 1]
+        attn_delta_y = attn[3][:, :, 0]
+        attn_delta_x = attn[3][:, :, 1]
 
     for row in xrange(num_row):
         for col in xrange(num_col):
@@ -123,7 +127,14 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
                         attn_bot_right_y[ii, kk] - attn_top_left_y[ii, kk],
                         fill=False,
                         color='g'))
-                    print attn_top_left_x[ii, kk], attn_top_left_y[ii, kk], attn_bot_right_x[ii, kk], attn_bot_right_y[ii, kk]
+                    print ('top left', attn_top_left_x[ii, kk], 
+                        attn_top_left_y[ii, kk], 
+                        'bottom right', attn_bot_right_x[ii, kk], 
+                        attn_bot_right_y[ii, kk],
+                        'center', attn_ctr_x[ii, kk],
+                        attn_ctr_y[ii, kk],
+                        'delta', attn_delta_x[ii, kk],
+                        attn_delta_y[ii, kk])
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=300)
@@ -555,6 +566,10 @@ if __name__ == '__main__':
             os.path.join(logs_folder, 'loss.csv'), ['train', 'valid'],
             name='Loss',
             buffer_size=1)
+        coarse_loss_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'coarse_loss.csv'), ['train', 'valid'],
+            name='Coarse Loss',
+            buffer_size=1)
         iou_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'iou.csv'),
             ['train soft', 'valid soft', 'train hard', 'valid hard'],
@@ -599,9 +614,10 @@ if __name__ == '__main__':
     def run_samples():
         """Samples"""
         def _run_samples(x, y, s, phase_train, fname):
-            x2, y2, y_out, match, atl, abr = sess.run(
+            x2, y2, y_out, match, atl, abr, ac, ad = sess.run(
                 [m['x_trans'], m['y_gt_trans'], m['y_out'],  m['match'],
-                 m['attn_top_left'], m['attn_bot_right']],
+                 m['attn_top_left'], m['attn_bot_right'], 
+                 m['attn_ctr'], m['attn_delta']],
                 feed_dict={
                     m['x']: x,
                     m['phase_train']: phase_train,
@@ -609,7 +625,7 @@ if __name__ == '__main__':
                     m['s_gt']: s
                 })
             plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s, y_gt=y2,
-                         s_gt=s, match=match, attn=(atl, abr))
+                         s_gt=s, match=match, attn=(atl, abr, ac, ad))
         if args.logs:
             # Plot some samples.
             log.info('Plot validation samples')
@@ -633,13 +649,13 @@ if __name__ == '__main__':
         iou_hard = 0.0
         iou_soft = 0.0
         segm_loss = 0.0
-        conf_loss = 0.0
+        coarse_loss = 0.0
         log.info('Running validation')
         for _x, _y, _s in BatchIterator(num_ex_valid,
                                         batch_size=batch_size,
                                         get_fn=get_batch_valid,
                                         progress_bar=False):
-            results = sess.run([m['loss'], m['segm_loss'], m['segm_loss'],
+            results = sess.run([m['loss'], m['segm_loss'], m['coarse_loss'],
                                 m['iou_soft'], m['iou_hard']],
                                feed_dict={
                 m['x']: _x,
@@ -649,23 +665,24 @@ if __name__ == '__main__':
             })
             _loss = results[0]
             _segm_loss = results[1]
-            _conf_loss = 0
+            _coarse_loss = results[2]
             _iou_soft = results[3]
             _iou_hard = results[4]
 
             num_ex_batch = _x.shape[0]
             loss += _loss * num_ex_batch / num_ex_valid
             segm_loss += _segm_loss * num_ex_batch / num_ex_valid
-            conf_loss += _conf_loss * num_ex_batch / num_ex_valid
+            coarse_loss += _coarse_loss * num_ex_batch / num_ex_valid
             iou_soft += _iou_soft * num_ex_batch / num_ex_valid
             iou_hard += _iou_hard * num_ex_batch / num_ex_valid
 
-        log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} conf_loss {:.4f} '
+        log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} coarse_loss {:.4f} '
                   'iou soft {:.4f} iou hard {:.4f}').format(
             step, loss, segm_loss, conf_loss, iou_soft, iou_hard))
 
         if args.logs:
             loss_logger.add(step, ['', loss])
+            coarse_loss_logger.add(step, ['', coarse_loss])
             iou_logger.add(step, ['', iou_soft, '', iou_hard])
 
         pass
@@ -673,7 +690,7 @@ if __name__ == '__main__':
     def train_step(step, x, y, s):
         """Train step"""
         start_time = time.time()
-        r = sess.run([m['loss'], m['segm_loss'],
+        r = sess.run([m['loss'], m['segm_loss'], m['coarse_loss'],
                       m['iou_soft'], m['iou_hard'],
                       m['learn_rate'], m['train_step']], feed_dict={
             m['x']: x,
@@ -686,14 +703,16 @@ if __name__ == '__main__':
         if step % train_opt['steps_per_log'] == 0:
             loss = r[0]
             segm_loss = r[1]
-            iou_soft = r[2]
-            iou_hard = r[3]
-            learn_rate = r[4]
+            coarse_loss = r[2]
+            iou_soft = r[3]
+            iou_hard = r[4]
+            learn_rate = r[5]
             step_time = (time.time() - start_time) * 1000
-            log.info('{:d} train loss {:.4f} t {:.2f}ms'.format(
-                step, loss, step_time))
+            log.info('{:d} train loss {:.4f} {:.4f} t {:.2f}ms'.format(
+                step, segm_loss, coarse_loss, step_time))
             if args.logs:
                 loss_logger.add(step, [loss, ''])
+                coarse_loss_logger.add(step, [coarse_loss, ''])
                 iou_logger.add(step, [iou_soft, '', iou_hard, ''])
                 learn_rate_logger.add(step, learn_rate)
                 step_time_logger.add(step, step_time)

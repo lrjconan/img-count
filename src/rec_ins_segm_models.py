@@ -604,8 +604,7 @@ def _get_attn_filter(center, delta, lg_var, image_size, filter_size):
     # [1, L, 1] - [B, 1, F] = [B, L, F]
     filter = tf.mul(
         1 / tf.sqrt(tf.exp(lg_var)) / tf.sqrt(2 * np.pi),
-        tf.exp(-0.5 * (span - mu) * (span - mu) /
-               tf.exp(lg_var)))
+        tf.exp(-0.5 * (span - mu) * (span - mu) / tf.exp(lg_var)))
 
     return filter
 
@@ -879,6 +878,12 @@ def get_attn_model(opt, device='/cpu:0'):
                                       for tmp in attn_top_left])
         attn_bot_right = tf.concat(1, [tf.expand_dims(tmp, 1)
                                        for tmp in attn_bot_right])
+        attn_ctr = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                 for tmp in attn_ctr])
+        attn_delta = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                   for tmp in attn_delta])
+        model['attn_ctr'] = attn_ctr
+        model['attn_delta'] = attn_delta
         model['attn_top_left'] = attn_top_left
         model['attn_bot_right'] = attn_bot_right
 
@@ -915,12 +920,22 @@ def get_attn_model(opt, device='/cpu:0'):
         filters_x_all = tf.reshape(
             tf.concat(1, [tf.expand_dims(f, 1) for f in filters_x]),
             [-1, inp_width, attn_size])
-        y_out = _extract_patch(h_dcnn[-1],
-                               tf.transpose(filters_y_all, [0, 2, 1]),
-                               tf.transpose(filters_x_all, [0, 2, 1]), 1)
+        filters_y_all_inv = tf.transpose(filters_y_all, [0, 2, 1])
+        filters_x_all_inv = tf.transpose(filters_x_all, [0, 2, 1])
+        y_out = _extract_patch(
+            h_dcnn[-1], filters_y_all_inv, filters_x_all_inv, 1)
         y_out_b = nn.weight_variable([1])
         y_out = tf.sigmoid(y_out + y_out_b)
         y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
+
+        const_ones = tf.ones(
+            tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * 50
+        y_coarse = _extract_patch(
+            const_ones, filters_y_all_inv, filters_x_all_inv, 1)
+        y_coarse_b = nn.weight_variable([1])
+        y_coarse = tf.sigmoid(y_coarse + y_coarse_b)
+        y_coarse = tf.reshape(y_coarse, [-1, timespan, inp_height, inp_width])
+
         model['y_out'] = y_out
 
         # Loss function
@@ -952,11 +967,23 @@ def get_attn_model(opt, device='/cpu:0'):
         elif segm_loss_fn == 'bce':
             segm_loss = _match_bce(y_out, y_gt, match, timespan)
         model['segm_loss'] = segm_loss
+        tf.add_to_collection('losses', segm_loss)
+        model['loss'] = segm_loss
 
-        loss = segm_loss
-        model['loss'] = loss
+        # Loss for coarse attention
+        iou_soft_coarse = _f_iou(y_coarse, y_gt, timespan, pairwise=True)
+        match_coarse = _segm_match(iou_soft_coarse, s_gt)
+        match_sum_coarse = tf.reduce_sum(match, reduction_indices=[2])
+        match_count_coarse = tf.reduce_sum(match_sum, reduction_indices=[1])
+        if segm_loss_fn == 'iou':
+            iou_soft_coarse = tf.reduce_sum(tf.reduce_sum(
+                iou_soft_coarse * match_coarse, reduction_indices=[1, 2]) / match_count_coarse) / num_ex
+            coarse_loss = -iou_soft_coarse
+        elif segm_loss_fn == 'bce':
+            coarse_loss = _match_bce(y_coarse, y_gt, match, timespan)
+        model['coarse_loss'] = coarse_loss
+        tf.add_to_collection('losses', coarse_loss)
 
-        tf.add_to_collection('losses', loss)
         total_loss = tf.add_n(tf.get_collection(
             'losses'), name='total_loss')
         model['total_loss'] = total_loss
