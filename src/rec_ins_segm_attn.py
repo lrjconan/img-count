@@ -595,49 +595,6 @@ if __name__ == '__main__':
     log.info('Number of training examples: {}'.format(num_ex_train))
     log.info('Batch size: {}'.format(batch_size))
 
-    def prob():
-        log.info('Running validation')
-        _x, _y, _s = get_batch_valid(np.arange(10))
-        results = sess.run([m['loss'], m['segm_loss'], m['segm_loss'],
-                            m['iou_soft'], m['iou_hard'],
-                            m['bce_total'], m['bce_mat'], m['y_out'],
-                            m['y_gt_trans']],
-                           feed_dict={
-            m['x']: _x,
-            m['phase_train']: False,
-            m['y_gt']: _y,
-            m['s_gt']: _s
-        })
-        _loss = results[0]
-        _segm_loss = results[1]
-        _conf_loss = 0
-        _iou_soft = results[3]
-        _iou_hard = results[4]
-        _bce_total = results[5]
-        _bce_mat = results[6]
-        _y_out = results[7]
-        _y_gt = results[8]
-        _bce = -_y_gt[0, 1] * np.log(_y_out[0, 1] + 1e-5) - \
-            (1 - _y_gt[0, 1]) * np.log(1 - _y_out[0, 1] + 1e-5)
-        _bce = _bce.reshape([-1])
-        print 'bce max', _bce.max()
-        print 'bce min', _bce.min()
-
-        max_id = _bce.argmax()
-        min_id = _bce.argmin()
-        _y_gt = _y_gt[0, 1].reshape([-1])
-        _y_out = _y_out[0, 1]   .reshape([-1])
-
-        print 'bce samples', _bce[: 10]
-        print 'bce max samples', _bce[max(max_id - 10, 0): min(max_id + 10, _bce.size)]
-        print 'ygt max samples', _y_gt[max(max_id - 10, 0): min(max_id + 10, _bce.size)]
-        print 'yout max samples', _y_out[max(max_id - 10, 0): min(max_id + 10, _bce.size)]
-
-        print 'bce min samples', _bce[max(min_id - 10, 0): min(min_id + 10, _bce.size)]
-        print 'ygt min samples', _y_gt[max(min_id - 10, 0): min(min_id + 10, _bce.size)]
-        print 'yout min samples', _y_out[max(min_id - 10, 0): min(min_id + 10, _bce.size)]
-        pass
-
     def run_samples():
         """Samples"""
         def _run_samples(x, y, s, phase_train, fname):
