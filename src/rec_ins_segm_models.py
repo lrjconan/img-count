@@ -659,6 +659,23 @@ def _get_gt_attn(y_gt, attn_size):
     return ctr, delta, lg_var
 
 
+def _unnormalize_attn(ctr, lg_delta, inp_height, inp_width, attn_size):
+    ctr_y = ctr[:, 0] + 1.0
+    ctr_x = ctr[:, 1] + 1.0
+    ctr_y *= (inp_height + 1) / 2.0
+    ctr_x *= (inp_width + 1) / 2.0
+    ctr = tf.concat(1, [tf.expand_dims(ctr_y, 1), tf.expand_dims(ctr_x, 1)])
+    delta = tf.exp(lg_delta)
+    delta_y = delta[:, 0]
+    delta_x = delta[:, 1]
+    delta_y = (inp_height - 1.0) / (attn_size - 1.0) * delta_y
+    delta_x = (inp_width - 1.0) / (attn_size - 1.0) * delta_x
+    delta = tf.concat(1, [tf.expand_dims(delta_y, 1),
+                          tf.expand_dims(delta_x, 1)])
+
+    return ctr, delta
+
+
 def _get_attn_coord(ctr, delta, attn_size):
     """Get attention coordinates given parameters."""
     a = ctr * 2.0
@@ -826,8 +843,10 @@ def get_attn_model(opt, device='/cpu:0'):
                 h_crnn = tf.slice(
                     crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
                 ctrl_out = cmlp(h_crnn)[-1]
-                attn_ctr[tt] = tf.slice(ctrl_out, [0, 0], [-1, 2])
-                attn_delta[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
+                _ctr = tf.slice(ctrl_out, [0, 0], [-1, 2])
+                _lg_delta = tf.slice(ctrl_out, [0, 2], [-1, 2])
+                attn_ctr[tt], attn_delta[tt] = _unnormalize_attn(
+                    _ctr, _lg_delta, inp_height, inp_width, attn_size)
                 attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
 
             attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
