@@ -46,7 +46,7 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
         y_gt: [B, T, H, W, D], segmentation groundtruth.
         s_gt: [B, T], confidence score groudtruth.
         match: [B, T, T], matching matrix.
-        attn: ([B, T, 2], [B, T, 2]), top left and bottom right coordinates of 
+        attn: ([B, T, 2], [B, T, 2]), top left and bottom right coordinates of
         the attention box.
     """
     num_ex = y_out.shape[0]
@@ -566,8 +566,16 @@ if __name__ == '__main__':
             os.path.join(logs_folder, 'loss.csv'), ['train', 'valid'],
             name='Loss',
             buffer_size=1)
-        coarse_loss_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'coarse_loss.csv'), ['train', 'valid'],
+        conf_loss_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'conf_loss.csv'), ['train', 'valid'],
+            name='Confidence Loss',
+            buffer_size=1)
+        segm_loss_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'segm_loss.csv'), ['train', 'valid'],
+            name='Segmentation Loss',
+            buffer_size=1)
+        box_loss_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'box_loss.csv'), ['train', 'valid'],
             name='Coarse Loss',
             buffer_size=1)
         iou_logger = TimeSeriesLogger(
@@ -599,14 +607,14 @@ if __name__ == '__main__':
         valid_sample_img = LazyRegisterer(os.path.join(
             logs_folder, 'valid_sample_img.png'),
             'image', 'Validation samples')
-        valid_sample_coarse_img = LazyRegisterer(os.path.join(
-            logs_folder, 'valid_sample_coarse_img.png'),
+        valid_sample_box_img = LazyRegisterer(os.path.join(
+            logs_folder, 'valid_sample_box_img.png'),
             'image', 'Validation samples (box)')
         train_sample_img = LazyRegisterer(os.path.join(
             logs_folder, 'train_sample_img.png'),
             'image', 'Training samples')
-        train_sample_coarse_img = LazyRegisterer(os.path.join(
-            logs_folder, 'train_sample_coarse_img.png'),
+        train_sample_box_img = LazyRegisterer(os.path.join(
+            logs_folder, 'train_sample_box_img.png'),
             'image', 'Training samples (box)')
         log.info(
             ('Visualization can be viewed at: '
@@ -624,12 +632,12 @@ if __name__ == '__main__':
 
     def run_samples():
         """Samples"""
-        def _run_samples(x, y, s, phase_train, fname, fname_coarse=None):
-            x2, y2, y_out, match, atl, abr, ac, ad, y_coarse, match_coarse = sess.run(
+        def _run_samples(x, y, s, phase_train, fname, fname_box=None):
+            x2, y2, y_out, match, atl, abr, ac, ad, y_box, match_box = sess.run(
                 [m['x_trans'], m['y_gt_trans'], m['y_out'],  m['match'],
                  m['attn_top_left'], m['attn_bot_right'],
                  m['attn_ctr'], m['attn_delta'],
-                 m['y_coarse'], m['match_coarse']],
+                 m['y_box'], m['match_box']],
                 feed_dict={
                     m['x']: x,
                     m['phase_train']: phase_train,
@@ -639,9 +647,9 @@ if __name__ == '__main__':
 
             plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s, y_gt=y2,
                          s_gt=s, match=match, attn=(atl, abr, ac, ad))
-            if fname_coarse:
-                plot_samples(fname_coarse, x_orig=x, x=x2, y_out=y_coarse, s_out=s, y_gt=y2,
-                             s_gt=s, match=match_coarse, attn=(atl, abr, ac, ad))
+            if fname_box:
+                plot_samples(fname_box, x_orig=x, x=x2, y_out=y_box, s_out=s, y_gt=y2,
+                             s_gt=s, match=match_box, attn=(atl, abr, ac, ad))
 
         if args.logs:
             # Plot some samples.
@@ -649,18 +657,18 @@ if __name__ == '__main__':
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
             _run_samples(_x, _y, _s, False, valid_sample_img.get_fname(),
-                         fname_coarse=valid_sample_coarse_img.get_fname())
+                         fname_box=valid_sample_box_img.get_fname())
             if not valid_sample_img.is_registered():
                 valid_sample_img.register()
-                valid_sample_coarse_img.register()
+                valid_sample_box_img.register()
 
             log.info('Plot training samples')
             _x, _y, _s = get_batch_train(np.arange(args.num_samples_plot))
             _run_samples(_x, _y, _s, True, train_sample_img.get_fname(),
-                         fname_coarse=train_sample_coarse_img.get_fname())
+                         fname_box=train_sample_box_img.get_fname())
             if not train_sample_img.is_registered():
                 train_sample_img.register()
-                train_sample_coarse_img.register()
+                train_sample_box_img.register()
 
         pass
 
@@ -670,14 +678,14 @@ if __name__ == '__main__':
         iou_hard = 0.0
         iou_soft = 0.0
         segm_loss = 0.0
-        coarse_loss = 0.0
+        box_loss = 0.0
         log.info('Running validation')
         for _x, _y, _s in BatchIterator(num_ex_valid,
                                         batch_size=batch_size,
                                         get_fn=get_batch_valid,
                                         progress_bar=False):
-            results = sess.run([m['loss'], m['segm_loss'], m['coarse_loss'],
-                                m['iou_soft'], m['iou_hard']],
+            results = sess.run([m['loss'], m['conf_loss'], m['segm_loss'],
+                                m['box_loss'], m['iou_soft'], m['iou_hard']],
                                feed_dict={
                 m['x']: _x,
                 m['phase_train']: False,
@@ -685,25 +693,27 @@ if __name__ == '__main__':
                 m['s_gt']: _s
             })
             _loss = results[0]
-            _segm_loss = results[1]
-            _coarse_loss = results[2]
-            _iou_soft = results[3]
-            _iou_hard = results[4]
+            _conf_loss = results[1]
+            _segm_loss = results[2]
+            _box_loss = results[3]
+            _iou_soft = results[4]
+            _iou_hard = results[5]
 
             num_ex_batch = _x.shape[0]
             loss += _loss * num_ex_batch / num_ex_valid
+            conf_loss += _conf_loss * num_ex_batch / num_ex_valid
             segm_loss += _segm_loss * num_ex_batch / num_ex_valid
-            coarse_loss += _coarse_loss * num_ex_batch / num_ex_valid
+            box_loss += _box_loss * num_ex_batch / num_ex_valid
             iou_soft += _iou_soft * num_ex_batch / num_ex_valid
             iou_hard += _iou_hard * num_ex_batch / num_ex_valid
 
-        log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} coarse_loss {:.4f} '
-                  'iou soft {:.4f} iou hard {:.4f}').format(
-            step, loss, segm_loss, coarse_loss, iou_soft, iou_hard))
+        log.info(('{:d} vtl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
+                  'ious {:.4f} iouh {:.4f}').format(
+            step, loss, conf_loss, segm_loss, box_loss, iou_soft, iou_hard))
 
         if args.logs:
             loss_logger.add(step, ['', loss])
-            coarse_loss_logger.add(step, ['', coarse_loss])
+            box_loss_logger.add(step, ['', box_loss])
             iou_logger.add(step, ['', iou_soft, '', iou_hard])
 
         pass
@@ -711,12 +721,9 @@ if __name__ == '__main__':
     def train_step(step, x, y, s):
         """Train step"""
         start_time = time.time()
-        r = sess.run([m['loss'], m['segm_loss'], m['coarse_loss'],
-                      m['iou_soft'], m['iou_hard'],
-                      m['learn_rate'],
-                      m['crnn_g_i_avg'],
-                      m['crnn_g_f_avg'],
-                      m['crnn_g_o_avg'],
+        r = sess.run([m['loss'], m['conf_loss'], m['segm_loss'], m['box_loss'],
+                      m['iou_soft'], m['iou_hard'], m['learn_rate'],
+                      m['crnn_g_i_avg'], m['crnn_g_f_avg'], m['crnn_g_o_avg'],
                       m['train_step']], feed_dict={
             m['x']: x,
             m['phase_train']: True,
@@ -727,24 +734,30 @@ if __name__ == '__main__':
         # Print statistics
         if step % train_opt['steps_per_log'] == 0:
             loss = r[0]
-            segm_loss = r[1]
-            coarse_loss = r[2]
-            iou_soft = r[3]
-            iou_hard = r[4]
-            learn_rate = r[5]
-            crnn_g_i_avg = r[6]
-            crnn_g_f_avg = r[7]
-            crnn_g_o_avg = r[8]
+            conf_loss = r[1]
+            segm_loss = r[2]
+            box_loss = r[3]
+            iou_soft = r[4]
+            iou_hard = r[5]
+            learn_rate = r[6]
+            crnn_g_i_avg = r[7]
+            crnn_g_f_avg = r[8]
+            crnn_g_o_avg = r[9]
             step_time = (time.time() - start_time) * 1000
-            log.info('{:d} train loss {:.4f} {:.4f} t {:.2f}ms'.format(
-                step, segm_loss, coarse_loss, step_time))
+            log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
+                      'ious {:.4f} iouh {:.4f} t {:.2f}ms').format(
+                step, conf_loss, segm_loss, box_loss, iou_soft, iou_hard,
+                step_time))
             if args.logs:
                 loss_logger.add(step, [loss, ''])
-                coarse_loss_logger.add(step, [coarse_loss, ''])
+                conf_loss_logger.add(step, [conf_loss, ''])
+                segm_loss_logger.add(step, [segm_loss, ''])
+                box_loss_logger.add(step, [box_loss, ''])
                 iou_logger.add(step, [iou_soft, '', iou_hard, ''])
                 learn_rate_logger.add(step, learn_rate)
                 step_time_logger.add(step, step_time)
-                crnn_logger.add(step, [crnn_g_i_avg, crnn_g_f_avg, crnn_g_o_avg])
+                crnn_logger.add(
+                    step, [crnn_g_i_avg, crnn_g_f_avg, crnn_g_o_avg])
 
     def train_loop(step=0):
         """Train loop"""

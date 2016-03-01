@@ -768,6 +768,7 @@ def get_attn_model(opt, device='/cpu:0'):
         crnn_g_i = [None] * timespan
         crnn_g_f = [None] * timespan
         crnn_g_o = [None] * timespan
+        h_crnn = [None] * timespan
         crnn_state[-1] = tf.zeros(tf.pack([num_ex, crnn_dim * 2]))
         crnn_cell = nn.lstm(crnn_inp_dim, crnn_dim, wd=wd, scope='ctrl_lstm')
 
@@ -780,6 +781,9 @@ def get_attn_model(opt, device='/cpu:0'):
         cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=False,
                       dropout_keep=cmlp_dropout,
                       phase_train=phase_train, wd=wd, scope='ctrl_mlp')
+
+        # Score MLP definition
+        smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd, scope='smlp')
 
         # Attention filters
         filters_y = [None] * timespan
@@ -850,9 +854,9 @@ def get_attn_model(opt, device='/cpu:0'):
             if not use_gt_attn:
                 crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[
                     tt] = crnn_cell(crnn_inp, crnn_state[tt - 1])
-                h_crnn = tf.slice(
+                h_crnn[tt] = tf.slice(
                     crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
-                ctrl_out = cmlp(h_crnn)[-1]
+                ctrl_out = cmlp(h_crnn[tt])[-1]
                 _ctr = tf.slice(ctrl_out, [0, 0], [-1, 2])
                 _lg_delta = tf.slice(ctrl_out, [0, 2], [-1, 2])
                 attn_ctr[tt], attn_delta[tt] = _unnormalize_attn(
@@ -919,6 +923,12 @@ def get_attn_model(opt, device='/cpu:0'):
         model['crnn_g_f_avg'] = crnn_g_f_avg
         model['crnn_g_o_avg'] = crnn_g_o_avg
 
+        # Scoring network
+        h_crnn_all = tf.concat(1, [tf.expand_dims(h, 1) for h in h_crnn])
+        score_inp = tf.reshape(h_crnn_all, [-1, ctrl_rnn_hid_dim])
+        s_out = tf.reshape(smlp(score_inp)[-1], [-1, timespan])
+        model['s_out'] = s_out
+
         # Dense segmentation network [B, T, R] => [B, T, M]
         h_arnn = [tf.slice(arnn_state[tt], [0, arnn_dim], [-1, arnn_dim])
                   for tt in xrange(timespan)]
@@ -963,14 +973,14 @@ def get_attn_model(opt, device='/cpu:0'):
 
         const_ones = tf.ones(
             tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * 10
-        y_coarse = _extract_patch(
+        y_box = _extract_patch(
             const_ones, filters_y_all_inv, filters_x_all_inv, 1)
-        # y_coarse_b = nn.weight_variable([1])
-        y_coarse = tf.sigmoid(y_coarse - 5)
-        y_coarse = tf.reshape(y_coarse, [-1, timespan, inp_height, inp_width])
+        # y_box_b = nn.weight_variable([1])
+        y_box = tf.sigmoid(y_box - 5)
+        y_box = tf.reshape(y_box, [-1, timespan, inp_height, inp_width])
 
         model['y_out'] = y_out
-        model['y_coarse'] = y_coarse
+        model['y_box'] = y_box
 
         # Loss function
         global_step = tf.Variable(0.0)
@@ -985,21 +995,21 @@ def get_attn_model(opt, device='/cpu:0'):
         max_num_obj = tf.to_float(y_gt_shape[1])
 
         # Loss for coarse attention
-        iou_soft_coarse = _f_iou(y_coarse, y_gt, timespan, pairwise=True)
-        match_coarse = _segm_match(iou_soft_coarse, s_gt)
-        model['match_coarse'] = match_coarse
-        match_sum_coarse = tf.reduce_sum(match_coarse, reduction_indices=[2])
-        match_count_coarse = tf.reduce_sum(
-            match_sum_coarse, reduction_indices=[1])
+        iou_soft_box = _f_iou(y_box, y_gt, timespan, pairwise=True)
+        match_box = _segm_match(iou_soft_box, s_gt)
+        model['match_box'] = match_box
+        match_sum_box = tf.reduce_sum(match_box, reduction_indices=[2])
+        match_count_box = tf.reduce_sum(
+            match_sum_box, reduction_indices=[1])
         if segm_loss_fn == 'iou':
-            iou_soft_coarse = tf.reduce_sum(tf.reduce_sum(
-                iou_soft_coarse * match_coarse, reduction_indices=[1, 2])
-                / match_count_coarse) / num_ex
-            coarse_loss = -iou_soft_coarse
+            iou_soft_box = tf.reduce_sum(tf.reduce_sum(
+                iou_soft_box * match_box, reduction_indices=[1, 2])
+                / match_count_box) / num_ex
+            box_loss = -iou_soft_box
         elif segm_loss_fn == 'bce':
-            coarse_loss = _match_bce(y_coarse, y_gt, match_coarse, timespan)
-        model['coarse_loss'] = coarse_loss
-        tf.add_to_collection('losses', coarse_loss)
+            box_loss = _match_bce(y_box, y_gt, match_box, timespan)
+        model['box_loss'] = box_loss
+        tf.add_to_collection('losses', box_loss)
         
         # Loss for fine segmentation
         iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
@@ -1007,9 +1017,9 @@ def get_attn_model(opt, device='/cpu:0'):
         # model['match'] = match
         # match_sum = tf.reduce_sum(match, reduction_indices=[2])
         # match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
-        match = match_coarse
-        match_sum = match_sum_coarse
-        match_count = match_count_coarse
+        match = match_box
+        match_sum = match_sum_box
+        match_count = match_count_box
         model['match'] = match
         iou_soft = tf.reduce_sum(tf.reduce_sum(
             iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
@@ -1020,11 +1030,15 @@ def get_attn_model(opt, device='/cpu:0'):
             segm_loss = _match_bce(y_out, y_gt, match, timespan)
         model['segm_loss'] = segm_loss
         tf.add_to_collection('losses', segm_loss)
-        model['loss'] = segm_loss
+
+        # Score loss
+        conf_loss = _conf_loss(s_out, match, timespan, use_cum_min=True)
+        model['conf_loss'] = conf_loss
+        tf.add_to_collection('losses', loss_mix_ratio * conf_loss)
 
         total_loss = tf.add_n(tf.get_collection(
             'losses'), name='total_loss')
-        model['total_loss'] = total_loss
+        model['loss'] = total_loss
 
         train_step = GradientClipOptimizer(
             tf.train.AdamOptimizer(learn_rate, epsilon=eps),

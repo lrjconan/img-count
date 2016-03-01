@@ -110,7 +110,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn'):
     with tf.variable_scope(scope):
         for ii in xrange(nlayers):
             w[ii] = weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]], wd=wd)
-            b[ii] = weight_variable([ch[ii + 1]], wd=wd)
+            b[ii] = weight_variable([ch[ii + 1]])
             log.info('Filter: {}'.format([f[ii], f[ii], ch[ii], ch[ii + 1]]))
 
     def run_cnn(x):
@@ -179,7 +179,7 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
 
             log.info('Filter: {}'.format([f[ii], f[ii], out_ch, in_ch]))
             w[ii] = weight_variable([f[ii], f[ii], out_ch, in_ch], wd=wd)
-            b[ii] = weight_variable([out_ch], wd=wd)
+            b[ii] = weight_variable([out_ch])
             in_ch = out_ch
 
     def run_dcnn(x, skip=None):
@@ -261,7 +261,7 @@ def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, 
             nout = dims[ii + 1]
             w[ii] = weight_variable([nin, nout], wd=wd)
             if add_bias:
-                b[ii] = weight_variable([nout], wd=wd)
+                b[ii] = weight_variable([nout])
 
     def run_mlp(x):
         h = [None] * nlayers
@@ -276,7 +276,7 @@ def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, 
                     prev_inp = dropout(prev_inp, dropout_keep[ii], phase_train)
 
             h[ii] = tf.matmul(prev_inp, w[ii])
-            
+
             if add_bias:
                 h[ii] += b[ii]
 
@@ -308,21 +308,21 @@ def conv_lstm(inp_depth, hid_depth, filter_size, wd=None, scope='conv_lstm'):
                                wd=wd, name='w_xi')
         w_hi = weight_variable([filter_size, filter_size, hid_depth, hid_depth],
                                wd=wd, name='w_hi')
-        b_i = weight_variable([hid_depth], wd=wd, name='b_i')
+        b_i = weight_variable([hid_depth], name='b_i')
 
         # Forget gate
         w_xf = weight_variable([filter_size, filter_size, inp_depth, hid_depth],
                                wd=wd, name='w_xf')
         w_hf = weight_variable([filter_size, filter_size, hid_depth, hid_depth],
                                wd=wd, name='w_hf')
-        b_f = weight_variable([hid_depth], wd=wd, name='b_f')
+        b_f = weight_variable([hid_depth], name='b_f')
 
         # Input activation
         w_xu = weight_variable([filter_size, filter_size, inp_depth, hid_depth],
                                wd=wd, name='w_xu')
         w_hu = weight_variable([filter_size, filter_size, hid_depth, hid_depth],
                                wd=wd, name='w_hu')
-        b_u = weight_variable([hid_depth], wd=wd, name='b_u')
+        b_u = weight_variable([hid_depth], name='b_u')
 
         # Output gate
         w_xo = weight_variable([filter_size, filter_size, inp_depth, hid_depth],
@@ -365,25 +365,25 @@ def lstm(inp_dim, hid_dim, wd=None, scope='lstm'):
         w_xi = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xi')
         w_hi = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hi')
         b_i = weight_variable([hid_dim], init=tf.constant_initializer(0.0),
-                              wd=wd, name='b_i')
+                              name='b_i')
 
         # Forget gate
         w_xf = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xf')
         w_hf = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hf')
         b_f = weight_variable([hid_dim], init=tf.constant_initializer(1.0),
-                              wd=wd, name='b_f')
+                              name='b_f')
 
         # Input activation
         w_xu = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xu')
         w_hu = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hu')
         b_u = weight_variable([hid_dim], init=tf.constant_initializer(0.0),
-                              wd=wd, name='b_u')
+                              name='b_u')
 
         # Output gate
         w_xo = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xo')
         w_ho = weight_variable([hid_dim, hid_dim], wd=wd, name='w_ho')
         b_o = weight_variable([hid_dim], init=tf.constant_initializer(0.0),
-                              wd=wd, name='b_o')
+                              name='b_o')
 
     def unroll(inp, state):
         c = tf.slice(state, [0, 0], [-1, hid_dim])
@@ -417,15 +417,15 @@ def gru(inp_dim, hid_dim, wd=None, scope='gru'):
     with tf.variable_scope(scope):
         w_xi = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xi')
         w_hi = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hi')
-        b_i = weight_variable([hid_dim], wd=wd, name='b_i')
+        b_i = weight_variable([hid_dim], name='b_i')
 
         w_xu = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xu')
         w_hu = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hu')
-        b_u = weight_variable([hid_dim], wd=wd, name='b_u')
+        b_u = weight_variable([hid_dim], name='b_u')
 
         w_xr = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xr')
         w_hr = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hr')
-        b_r = weight_variable([hid_dim], wd=wd, name='b_r')
+        b_r = weight_variable([hid_dim], name='b_r')
 
     def unroll(inp, state):
         g_i = tf.sigmoid(tf.matmul(inp, w_xi) + tf.matmul(state, w_hi) + b_i)
