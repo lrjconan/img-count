@@ -236,7 +236,7 @@ def _parse_args():
     kAttnCnnDepth = [4, 8, 8, 12, 16]
 
     kCtrlMlpDim = 256
-    kNumCtrlMlpLayers = 2
+    kNumCtrlMlpLayers = 1
 
     kCtrlRnnHiddenDim = 256
     kAttnRnnHiddenDim = 256
