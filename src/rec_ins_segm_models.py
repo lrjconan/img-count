@@ -940,11 +940,11 @@ def get_attn_model(opt, device='/cpu:0'):
         y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
 
         const_ones = tf.ones(
-            tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * 10
+            tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * 50
         y_coarse = _extract_patch(
             const_ones, filters_y_all_inv, filters_x_all_inv, 1)
         # y_coarse_b = nn.weight_variable([1])
-        y_coarse = tf.sigmoid(y_coarse - 5)
+        y_coarse = tf.sigmoid(y_coarse - 25)
         y_coarse = tf.reshape(y_coarse, [-1, timespan, inp_height, inp_width])
 
         model['y_out'] = y_out
