@@ -636,7 +636,7 @@ def _extract_patch(x, f_y, f_x, nchannels):
     return tf.concat(3, patch)
 
 
-def _get_gt_attn(y_gt, attn_size):
+def _get_gt_attn(y_gt, attn_size, padding_ratio=0.0):
     """Get groundtruth attention box given segmentation."""
     s = tf.shape(y_gt)
     # [B, T, H, W, 2]
@@ -650,11 +650,12 @@ def _get_gt_attn(y_gt, attn_size):
     delta = (bot_right - top_left + 1.0) / attn_size
     lg_var = tf.zeros(tf.shape(ctr)) + 1.0
     
-    # Enlarge the groundtruth box by 60%.
-    size = bot_right - top_left
-    top_left -= 0.15 * size
-    bot_right += 0.15 * size
-    box = _get_filled_box_idx(idx, top_left, bot_right)
+    # Enlarge the groundtruth box.
+    if padding_ratio > 0:
+        size = bot_right - top_left
+        top_left -= padding_ratio * size
+        bot_right += padding_ratio * size
+        box = _get_filled_box_idx(idx, top_left, bot_right)
 
     return ctr, delta, lg_var, box, idx
 
@@ -757,6 +758,7 @@ def get_attn_model(opt, device='/cpu:0'):
 
     num_attn_mlp_layers = opt['num_attn_mlp_layers']
     attn_mlp_depth = opt['attn_mlp_depth']
+    attn_box_padding_ratio = opt['attn_box_padding_ratio']
 
     wd = opt['weight_decay']
     use_bn = opt['use_bn']
@@ -834,7 +836,7 @@ def get_attn_model(opt, device='/cpu:0'):
 
         # Groundtruth bounding box, [B, T, 2]
         attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, idx_map = \
-            _get_gt_attn(y_gt, attn_size)
+            _get_gt_attn(y_gt, attn_size, padding_ratio=attn_box_padding_ratio)
         if use_gt_attn:
             attn_ctr = attn_ctr_gt
             attn_delta = attn_delta_gt

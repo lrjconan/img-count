@@ -243,8 +243,8 @@ def _parse_args():
 
     kCtrlCnnFilterSize = [3, 3, 3, 3, 3]
     kCtrlCnnDepth = [4, 8, 8, 12, 16]
-    kAttnCnnFilterSize = [3, 3, 3, 3, 3]
-    kAttnCnnDepth = [4, 8, 8, 12, 16]
+    kAttnCnnFilterSize = [5, 5, 5]
+    kAttnCnnDepth = [4, 8, 16]
 
     kCtrlMlpDim = 256
     kNumCtrlMlpLayers = 1
@@ -256,8 +256,8 @@ def _parse_args():
     kAttnMlpDepth = 6
 
     kMlpDropout = 0.5
-    kDcnnFilterSize = [3, 3, 3, 3, 3, 3]
-    kDcnnDepth = [1, 2, 4, 4, 6, 8]
+    kDcnnFilterSize = [3, 5, 5, 5]
+    kDcnnDepth = [1, 4, 8, 16]
 
     kAttnBoxPaddingRatio = 0.2
     
@@ -359,7 +359,7 @@ def _parse_args():
     # Extra model options (beta)
     parser.add_argument('-segm_loss_fn', default='iou',
                         help='Segmentation loss function, "iou" or "bce"')
-    parser.add_argument('-box_loss_fn', defualt='iou',
+    parser.add_argument('-box_loss_fn', default='iou',
                         help='Box loss function, "iou" or "bce"')
     parser.add_argument('-use_bn', action='store_true',
                         help='Whether to use batch normalization.')
@@ -440,28 +440,19 @@ if __name__ == '__main__':
 
         attn_cnn_filter_size_all = [args.attn_cnn_1_filter_size,
                                     args.attn_cnn_2_filter_size,
-                                    args.attn_cnn_3_filter_size,
-                                    args.attn_cnn_4_filter_size,
-                                    args.attn_cnn_5_filter_size]
+                                    args.attn_cnn_3_filter_size]
         attn_cnn_depth_all = [args.attn_cnn_1_depth,
                               args.attn_cnn_2_depth,
-                              args.attn_cnn_3_depth,
-                              args.attn_cnn_4_depth,
-                              args.attn_cnn_5_depth]
+                              args.attn_cnn_3_depth]
 
         dcnn_filter_size_all = [args.dcnn_0_filter_size,
                                 args.dcnn_1_filter_size,
                                 args.dcnn_2_filter_size,
-                                args.dcnn_3_filter_size,
-                                args.dcnn_4_filter_size,
-                                args.dcnn_5_filter_size]
-
+                                args.dcnn_3_filter_size]
         dcnn_depth_all = [args.dcnn_0_depth,
                           args.dcnn_1_depth,
                           args.dcnn_2_depth,
-                          args.dcnn_3_depth,
-                          args.dcnn_4_depth,
-                          args.dcnn_5_depth]
+                          args.dcnn_3_depth]
 
         if args.dataset == 'synth_shape':
             timespan = args.max_num_objects + 1
@@ -507,7 +498,7 @@ if __name__ == '__main__':
             'segm_loss_fn': args.segm_loss_fn,
             'box_loss_fn': args.box_loss_fn,
             'use_bn': args.use_bn,
-            'use_gt_attn': args.use_gt_attn
+            'use_gt_attn': args.use_gt_attn,
             'attn_box_padding_ratio': args.attn_box_padding_ratio
         }
         data_opt = {
