@@ -599,6 +599,11 @@ if __name__ == '__main__':
             'learning rate',
             name='Learning rate',
             buffer_size=1)
+        box_loss_coeff_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'box_loss_coeff.csv'),
+            'box loss coeff',
+            name='Box Loss Coefficient',
+            buffer_size=1)
         step_time_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
             name='Step time',
@@ -738,7 +743,7 @@ if __name__ == '__main__':
         r = sess.run([m['loss'], m['conf_loss'], m['segm_loss'], m['box_loss'],
                       m['iou_soft'], m['iou_hard'], m['learn_rate'],
                       m['crnn_g_i_avg'], m['crnn_g_f_avg'], m['crnn_g_o_avg'],
-                      m['train_step']], feed_dict={
+                      m['box_loss_coeff'], m['train_step']], feed_dict={
             m['x']: x,
             m['phase_train']: True,
             m['y_gt']: y,
@@ -757,6 +762,7 @@ if __name__ == '__main__':
             crnn_g_i_avg = r[7]
             crnn_g_f_avg = r[8]
             crnn_g_o_avg = r[9]
+            box_loss_coeff = r[10]
             step_time = (time.time() - start_time) * 1000
             log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                       'ious {:.4f} iouh {:.4f} t {:.2f}ms').format(
@@ -769,6 +775,7 @@ if __name__ == '__main__':
                 box_loss_logger.add(step, [box_loss, ''])
                 iou_logger.add(step, [iou_soft, '', iou_hard, ''])
                 learn_rate_logger.add(step, learn_rate)
+                box_loss_coeff_logger.add(step, box_loss_coeff)
                 step_time_logger.add(step, step_time)
                 crnn_logger.add(
                     step, [crnn_g_i_avg, crnn_g_f_avg, crnn_g_o_avg])

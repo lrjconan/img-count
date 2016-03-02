@@ -1073,6 +1073,7 @@ def get_attn_model(opt, device='/cpu:0'):
         box_loss_coeff = tf.train.exponential_decay(
             1.0, global_step, steps_per_box_loss_coeff_decay,
             box_loss_coeff_decay, staircase=False)
+        model['box_loss_coeff'] = box_loss_coeff
         tf.add_to_collection('losses', box_loss_coeff * box_loss)
 
         # Loss for fine segmentation
