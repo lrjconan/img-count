@@ -633,11 +633,11 @@ if __name__ == '__main__':
     def run_samples():
         """Samples"""
         def _run_samples(x, y, s, phase_train, fname, fname_box=None):
-            x2, y2, y_out, match, atl, abr, ac, ad, y_box, match_box = sess.run(
+            x2, y2, y_out, match, atl, abr, ac, ad, abox, abox_gt, match_box = sess.run(
                 [m['x_trans'], m['y_gt_trans'], m['y_out'],  m['match'],
                  m['attn_top_left'], m['attn_bot_right'],
                  m['attn_ctr'], m['attn_delta'],
-                 m['y_box'], m['match_box']],
+                 m['attn_box'], m['attn_box_gt'], m['match_box']],
                 feed_dict={
                     m['x']: x,
                     m['phase_train']: phase_train,
@@ -648,12 +648,12 @@ if __name__ == '__main__':
             plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s, y_gt=y2,
                          s_gt=s, match=match, attn=(atl, abr, ac, ad))
             if fname_box:
-                plot_samples(fname_box, x_orig=x, x=x2, y_out=y_box, s_out=s, y_gt=y2,
+                plot_samples(fname_box, x_orig=x, x=x2, y_out=abox, s_out=s, y_gt=y2,
                              s_gt=s, match=match_box, attn=(atl, abr, ac, ad))
 
         if args.logs:
             # Plot some samples.
-            log.info('Plot validation samples')
+            log.info('Plotting validation samples')
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
             _run_samples(_x, _y, _s, False, valid_sample_img.get_fname(),
@@ -662,7 +662,7 @@ if __name__ == '__main__':
                 valid_sample_img.register()
                 valid_sample_box_img.register()
 
-            log.info('Plot training samples')
+            log.info('Plotting training samples')
             _x, _y, _s = get_batch_train(np.arange(args.num_samples_plot))
             _run_samples(_x, _y, _s, True, train_sample_img.get_fname(),
                          fname_box=train_sample_box_img.get_fname())
@@ -675,10 +675,11 @@ if __name__ == '__main__':
     def run_validation(step):
         """Validation"""
         loss = 0.0
-        iou_hard = 0.0
-        iou_soft = 0.0
+        conf_loss = 0.0
         segm_loss = 0.0
         box_loss = 0.0
+        iou_soft = 0.0
+        iou_hard = 0.0
         log.info('Running validation')
         for _x, _y, _s in BatchIterator(num_ex_valid,
                                         batch_size=batch_size,
@@ -746,7 +747,7 @@ if __name__ == '__main__':
             step_time = (time.time() - start_time) * 1000
             log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                       'ious {:.4f} iouh {:.4f} t {:.2f}ms').format(
-                step, conf_loss, segm_loss, box_loss, iou_soft, iou_hard,
+                step, loss, conf_loss, segm_loss, box_loss, iou_soft, iou_hard,
                 step_time))
             if args.logs:
                 loss_logger.add(step, [loss, ''])

@@ -639,13 +639,8 @@ def _extract_patch(x, f_y, f_x, nchannels):
 def _get_gt_attn(y_gt, attn_size):
     """Get groundtruth attention box given segmentation."""
     s = tf.shape(y_gt)
-    # [B, T, H, W, 1]
-    idx_y = tf.zeros(tf.pack([s[0], s[1], s[2], s[3], 1]), dtype='float')
-    idx_x = tf.zeros(tf.pack([s[0], s[1], s[2], s[3], 1]), dtype='float')
-    idx_y += tf.reshape(tf.to_float(tf.range(s[2])), [1, 1, -1, 1, 1])
-    idx_x += tf.reshape(tf.to_float(tf.range(s[3])), [1, 1, 1, -1, 1])
     # [B, T, H, W, 2]
-    idx = tf.concat(4, [idx_y, idx_x])
+    idx = _get_idx_map(s)
     idx_min = idx + tf.expand_dims((1.0 - y_gt) * tf.to_float(s[2] * s[3]), 4)
     idx_max = idx * tf.expand_dims(y_gt, 4)
     # [B, T, 2]
@@ -654,8 +649,50 @@ def _get_gt_attn(y_gt, attn_size):
     ctr = (bot_right + top_left) / 2.0
     delta = (bot_right - top_left + 1.0) / attn_size
     lg_var = tf.zeros(tf.shape(ctr)) + 1.0
+    box = _get_filled_box_idx(idx, top_left, bot_right)
 
-    return ctr, delta, lg_var
+    return ctr, delta, lg_var, box, idx
+
+
+def _get_idx_map(shape):
+    """Get index map for a image.
+
+    Args:
+        shape: [B, T, H, W]
+    Returns:
+        idx: [B, T, H, W, 2]
+    """
+    s = shape
+    # [B, T, H, W, 1]
+    idx_y = tf.zeros(tf.pack([s[0], s[1], s[2], s[3], 1]), dtype='float')
+    idx_x = tf.zeros(tf.pack([s[0], s[1], s[2], s[3], 1]), dtype='float')
+    idx_y += tf.reshape(tf.to_float(tf.range(s[2])), [1, 1, -1, 1, 1])
+    idx_x += tf.reshape(tf.to_float(tf.range(s[3])), [1, 1, 1, -1, 1])
+    idx = tf.concat(4, [idx_y, idx_x])
+
+    return idx
+
+
+def _get_filled_box_idx(idx, top_left, bot_right):
+    """Fill a box with top left and bottom right coordinates."""
+    # [B, T, H, W]
+    idx_y = idx[:, :, :, :, 0]
+    idx_x = idx[:, :, :, :, 1]
+    top_left_y = tf.expand_dims(tf.expand_dims(top_left[:, :, 0], 2), 3)
+    top_left_x = tf.expand_dims(tf.expand_dims(top_left[:, :, 1], 2), 3)
+    bot_right_y = tf.expand_dims(tf.expand_dims(bot_right[:, :, 0], 2), 3)
+    bot_right_x = tf.expand_dims(tf.expand_dims(bot_right[:, :, 1], 2), 3)
+    lower = tf.logical_and(idx_y >= top_left_y, idx_x >= top_left_x)
+    upper = tf.logical_and(idx_y <= bot_right_y, idx_x <= bot_right_x)
+    box = tf.to_float(tf.logical_and(lower, upper))
+
+    return box
+
+
+# def _get_filled_box(shape, top_left, bot_right):
+#     """Fill a box with top left and bottom right coordinates."""
+#     idx = _get_idx_map(shape)
+#     return _get_filled_box_idx(idx, top_left, bot_right)
 
 
 def _unnormalize_attn(ctr, lg_delta, inp_height, inp_width, attn_size):
@@ -790,8 +827,12 @@ def get_attn_model(opt, device='/cpu:0'):
         filters_x = [None] * timespan
 
         # Groundtruth bounding box, [B, T, 2]
+        attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, idx_map = _get_gt_attn(
+            y_gt, attn_size)
         if use_gt_attn:
-            attn_ctr, attn_delta, attn_lg_var = _get_gt_attn(y_gt, attn_size)
+            attn_ctr = attn_ctr_gt
+            attn_delta = attn_delta_gt
+            attn_lg_var = attn_lg_var_gt
             attn_ctr = [tf.reshape(tmp, [-1, 2])
                         for tmp in tf.split(1, timespan, attn_ctr)]
             attn_delta = [tf.reshape(tmp, [-1, 2])
@@ -973,14 +1014,16 @@ def get_attn_model(opt, device='/cpu:0'):
 
         const_ones = tf.ones(
             tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * 10
-        y_box = _extract_patch(
+        attn_box = _extract_patch(
             const_ones, filters_y_all_inv, filters_x_all_inv, 1)
-        # y_box_b = nn.weight_variable([1])
-        y_box = tf.sigmoid(y_box - 5)
-        y_box = tf.reshape(y_box, [-1, timespan, inp_height, inp_width])
+        # attn_box_b = nn.weight_variable([1])
+        attn_box = tf.sigmoid(attn_box - 5)
+        attn_box = tf.reshape(attn_box, [-1, timespan, inp_height, inp_width])
+
+        # attn_box = _get_filled_box_idx(idx_map, attn_top_left, attn_bot_right)
 
         model['y_out'] = y_out
-        model['y_box'] = y_box
+        model['attn_box'] = attn_box
 
         # Loss function
         global_step = tf.Variable(0.0)
@@ -995,7 +1038,9 @@ def get_attn_model(opt, device='/cpu:0'):
         max_num_obj = tf.to_float(y_gt_shape[1])
 
         # Loss for coarse attention
-        iou_soft_box = _f_iou(y_box, y_gt, timespan, pairwise=True)
+        # iou_soft_box = _f_iou(attn_box, y_gt, timespan, pairwise=True)
+        iou_soft_box = _f_iou(attn_box, attn_box_gt, timespan, pairwise=True)
+        model['attn_box_gt'] = attn_box_gt
         match_box = _segm_match(iou_soft_box, s_gt)
         model['match_box'] = match_box
         match_sum_box = tf.reduce_sum(match_box, reduction_indices=[2])
@@ -1007,10 +1052,10 @@ def get_attn_model(opt, device='/cpu:0'):
                 / match_count_box) / num_ex
             box_loss = -iou_soft_box
         elif segm_loss_fn == 'bce':
-            box_loss = _match_bce(y_box, y_gt, match_box, timespan)
+            box_loss = _match_bce(attn_box, attn_box_gt, match_box, timespan)
         model['box_loss'] = box_loss
         tf.add_to_collection('losses', box_loss)
-        
+
         # Loss for fine segmentation
         iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
         # match = _segm_match(iou_soft, s_gt)
