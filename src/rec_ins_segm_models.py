@@ -339,7 +339,7 @@ def get_orig_model(opt, device='/cpu:0'):
     loss_mix_ratio = opt['loss_mix_ratio']
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
-    steps_per_decay = opt['steps_per_decay']
+    steps_per_learn_rate_decay = opt['steps_per_learn_rate_decay']
     num_mlp_layers = opt['num_mlp_layers']
     mlp_dropout_ratio = opt['mlp_dropout']
     segm_loss_fn = opt['segm_loss_fn']
@@ -518,7 +518,7 @@ def get_orig_model(opt, device='/cpu:0'):
         # Loss function
         global_step = tf.Variable(0.0)
         learn_rate = tf.train.exponential_decay(
-            base_learn_rate, global_step, steps_per_decay,
+            base_learn_rate, global_step, steps_per_learn_rate_decay,
             learn_rate_decay, staircase=True)
         model['learn_rate'] = learn_rate
         eps = 1e-7
@@ -652,10 +652,13 @@ def _get_gt_attn(y_gt, attn_size, padding_ratio=0.0):
     
     # Enlarge the groundtruth box.
     if padding_ratio > 0:
+        log.info('Pad groundtruth box by {:.2f}'.format(padding_ratio))
         size = bot_right - top_left
         top_left -= padding_ratio * size
         bot_right += padding_ratio * size
         box = _get_filled_box_idx(idx, top_left, bot_right)
+    else:
+        log.warning('Not padding groundtruth box')
 
     return ctr, delta, lg_var, box, idx
 
@@ -768,7 +771,9 @@ def get_attn_model(opt, device='/cpu:0'):
     loss_mix_ratio = opt['loss_mix_ratio']
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
-    steps_per_decay = opt['steps_per_decay']
+    steps_per_learn_rate_decay = opt['steps_per_learn_rate_decay']
+    steps_per_box_loss_coeff_decay = opt['steps_per_box_loss_coeff_decay']
+    box_loss_coeff_decay = opt['box_loss_coeff_decay']
 
     with tf.device(_get_device_fn(device)):
         # Input definition
@@ -1037,7 +1042,7 @@ def get_attn_model(opt, device='/cpu:0'):
         # Loss function
         global_step = tf.Variable(0.0)
         learn_rate = tf.train.exponential_decay(
-            base_learn_rate, global_step, steps_per_decay,
+            base_learn_rate, global_step, steps_per_learn_rate_decay,
             learn_rate_decay, staircase=True)
         model['learn_rate'] = learn_rate
         eps = 1e-7
@@ -1046,8 +1051,7 @@ def get_attn_model(opt, device='/cpu:0'):
         num_ex = tf.to_float(y_gt_shape[0])
         max_num_obj = tf.to_float(y_gt_shape[1])
 
-        # Loss for coarse attention
-        # iou_soft_box = _f_iou(attn_box, y_gt, timespan, pairwise=True)
+        # Loss for attnention box
         iou_soft_box = _f_iou(attn_box, attn_box_gt, timespan, pairwise=True)
         model['attn_box_gt'] = attn_box_gt
         match_box = _segm_match(iou_soft_box, s_gt)
@@ -1065,7 +1069,11 @@ def get_attn_model(opt, device='/cpu:0'):
         else:
             raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
         model['box_loss'] = box_loss
-        tf.add_to_collection('losses', box_loss)
+
+        box_loss_coeff = tf.train.exponential_decay(
+            1.0, global_step, steps_per_box_loss_coeff_decay,
+            box_loss_coeff_decay, staircase=False)
+        tf.add_to_collection('losses', box_loss_coeff * box_loss)
 
         # Loss for fine segmentation
         iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
@@ -1087,7 +1095,8 @@ def get_attn_model(opt, device='/cpu:0'):
         else:
             raise Exception('Unknown segm_loss_fn: {}'.format(segm_loss_fn))
         model['segm_loss'] = segm_loss
-        tf.add_to_collection('losses', segm_loss)
+        segm_loss_coeff = 1 - box_loss_coeff
+        tf.add_to_collection('losses', segm_loss_coeff * segm_loss)
 
         # Score loss
         conf_loss = _conf_loss(s_out, match, timespan, use_cum_min=True)

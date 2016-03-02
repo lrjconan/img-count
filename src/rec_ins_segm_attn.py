@@ -233,9 +233,12 @@ def _parse_args():
     kWeightDecay = 5e-5
     kBaseLearnRate = 1e-3
     kLearnRateDecay = 0.96
-    kStepsPerDecay = 5000
+    kStepsPerLearnRateDecay = 5000
     kStepsPerLog = 10
     kLossMixRatio = 1.0
+    kBoxLossCoeffDecay = 0.7
+    kStepsPerBoxLossCoeffDecay = 2000
+
     kNumCtrlConv = 5
     kNumAttnConv = 3
 
@@ -260,7 +263,7 @@ def _parse_args():
     kDcnnDepth = [1, 4, 8, 16]
 
     kAttnBoxPaddingRatio = 0.2
-    
+
     # Default training options
     kNumSteps = 500000
     kStepsPerCkpt = 1000
@@ -304,8 +307,9 @@ def _parse_args():
                         type=float, help='Model learning rate')
     parser.add_argument('-learn_rate_decay', default=kLearnRateDecay,
                         type=float, help='Model learning rate decay')
-    parser.add_argument('-steps_per_decay', default=kStepsPerDecay,
-                        type=int, help='Steps every learning rate decay')
+    parser.add_argument('-steps_per_learn_rate_decay',
+                        default=kStepsPerLearnRateDecay, type=int,
+                        help='Steps every learning rate decay')
     parser.add_argument('-loss_mix_ratio', default=kLossMixRatio, type=float,
                         help='Mix ratio between segmentation and score loss')
     parser.add_argument('-num_ctrl_conv', default=kNumCtrlConv, type=int,
@@ -366,8 +370,13 @@ def _parse_args():
     parser.add_argument('-use_gt_attn', action='store_true',
                         help='Whether to use ground truth attention.')
     parser.add_argument('-attn_box_padding_ratio',
-                        default=kAttnBoxPaddingRatio, type=float, 
+                        default=kAttnBoxPaddingRatio, type=float,
                         help='Padding ratio of attention box')
+    parser.add_argument('-steps_per_box_loss_coeff_decay',
+                        default=kStepsPerBoxLossCoeffDecay, type=int,
+                        help='Number of steps to decay box loss coefficient.')
+    parser.add_argument('-box_loss_coeff_decay', default=kBoxLossCoeffDecay,
+                        type=float, help='Box loss coefficient decay factor.')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -491,7 +500,7 @@ if __name__ == '__main__':
             'weight_decay': args.weight_decay,
             'base_learn_rate': args.base_learn_rate,
             'learn_rate_decay': args.learn_rate_decay,
-            'steps_per_decay': args.steps_per_decay,
+            'steps_per_learn_rate_decay': args.steps_per_learn_rate_decay,
             'loss_mix_ratio': args.loss_mix_ratio,
 
             # Test arguments
@@ -499,7 +508,9 @@ if __name__ == '__main__':
             'box_loss_fn': args.box_loss_fn,
             'use_bn': args.use_bn,
             'use_gt_attn': args.use_gt_attn,
-            'attn_box_padding_ratio': args.attn_box_padding_ratio
+            'attn_box_padding_ratio': args.attn_box_padding_ratio,
+            'box_loss_coeff_decay': args.box_loss_coeff_decay,
+            'steps_per_box_loss_coeff_decay': args.steps_per_box_loss_coeff_decay,
         }
         data_opt = {
             'height': args.height,
