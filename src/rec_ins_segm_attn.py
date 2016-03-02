@@ -633,8 +633,8 @@ if __name__ == '__main__':
     def run_samples():
         """Samples"""
         def _run_samples(x, y, s, phase_train, fname, fname_box=None):
-            x2, y2, y_out, match, atl, abr, ac, ad, abox, abox_gt, match_box = sess.run(
-                [m['x_trans'], m['y_gt_trans'], m['y_out'],  m['match'],
+            x2, y2, y_out, s_out, match, atl, abr, ac, ad, abox, abox_gt, match_box = sess.run(
+                [m['x_trans'], m['y_gt_trans'], m['y_out'], m['s_out'], m['match'],
                  m['attn_top_left'], m['attn_bot_right'],
                  m['attn_ctr'], m['attn_delta'],
                  m['attn_box'], m['attn_box_gt'], m['match_box']],
@@ -645,7 +645,7 @@ if __name__ == '__main__':
                     m['s_gt']: s
                 })
 
-            plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s, y_gt=y2,
+            plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s_out, y_gt=y2,
                          s_gt=s, match=match, attn=(atl, abr, ac, ad))
             if fname_box:
                 plot_samples(fname_box, x_orig=x, x=x2, y_out=abox, s_out=s, y_gt=y2,
