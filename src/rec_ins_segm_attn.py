@@ -576,7 +576,7 @@ if __name__ == '__main__':
             buffer_size=1)
         box_loss_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'box_loss.csv'), ['train', 'valid'],
-            name='Coarse Loss',
+            name='Box Loss',
             buffer_size=1)
         iou_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'iou.csv'),
@@ -648,7 +648,7 @@ if __name__ == '__main__':
             plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s_out, y_gt=y2,
                          s_gt=s, match=match, attn=(atl, abr, ac, ad))
             if fname_box:
-                plot_samples(fname_box, x_orig=x, x=x2, y_out=abox, s_out=s, y_gt=y2,
+                plot_samples(fname_box, x_orig=x, x=x2, y_out=abox, s_out=s_out, y_gt=y2,
                              s_gt=s, match=match_box, attn=(atl, abr, ac, ad))
 
         if args.logs:
@@ -714,6 +714,8 @@ if __name__ == '__main__':
 
         if args.logs:
             loss_logger.add(step, ['', loss])
+            conf_loss_logger.add(step, ['', conf_loss])
+            segm_loss_logger.add(step, ['', segm_loss])
             box_loss_logger.add(step, ['', box_loss])
             iou_logger.add(step, ['', iou_soft, '', iou_hard])
 
