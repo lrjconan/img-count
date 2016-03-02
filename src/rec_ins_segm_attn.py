@@ -259,6 +259,8 @@ def _parse_args():
     kDcnnFilterSize = [3, 3, 3, 3, 3, 3]
     kDcnnDepth = [1, 2, 4, 4, 6, 8]
 
+    kAttnBoxPaddingRatio = 0.2
+    
     # Default training options
     kNumSteps = 500000
     kStepsPerCkpt = 1000
@@ -357,10 +359,15 @@ def _parse_args():
     # Extra model options (beta)
     parser.add_argument('-segm_loss_fn', default='iou',
                         help='Segmentation loss function, "iou" or "bce"')
+    parser.add_argument('-box_loss_fn', defualt='iou',
+                        help='Box loss function, "iou" or "bce"')
     parser.add_argument('-use_bn', action='store_true',
                         help='Whether to use batch normalization.')
     parser.add_argument('-use_gt_attn', action='store_true',
                         help='Whether to use ground truth attention.')
+    parser.add_argument('-attn_box_padding_ratio',
+                        default=kAttnBoxPaddingRatio, type=float, 
+                        help='Padding ratio of attention box')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -498,8 +505,10 @@ if __name__ == '__main__':
 
             # Test arguments
             'segm_loss_fn': args.segm_loss_fn,
+            'box_loss_fn': args.box_loss_fn,
             'use_bn': args.use_bn,
             'use_gt_attn': args.use_gt_attn
+            'attn_box_padding_ratio': args.attn_box_padding_ratio
         }
         data_opt = {
             'height': args.height,

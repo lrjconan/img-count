@@ -762,6 +762,7 @@ def get_attn_model(opt, device='/cpu:0'):
     use_bn = opt['use_bn']
     use_gt_attn = opt['use_gt_attn']
     segm_loss_fn = opt['segm_loss_fn']
+    box_loss_fn = opt['box_loss_fn']
     loss_mix_ratio = opt['loss_mix_ratio']
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
@@ -832,8 +833,8 @@ def get_attn_model(opt, device='/cpu:0'):
         filters_x = [None] * timespan
 
         # Groundtruth bounding box, [B, T, 2]
-        attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, idx_map = _get_gt_attn(
-            y_gt, attn_size)
+        attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, idx_map = \
+            _get_gt_attn(y_gt, attn_size)
         if use_gt_attn:
             attn_ctr = attn_ctr_gt
             attn_delta = attn_delta_gt
@@ -1052,13 +1053,15 @@ def get_attn_model(opt, device='/cpu:0'):
         match_sum_box = tf.reduce_sum(match_box, reduction_indices=[2])
         match_count_box = tf.reduce_sum(
             match_sum_box, reduction_indices=[1])
-        if segm_loss_fn == 'iou':
+        if box_loss_fn == 'iou':
             iou_soft_box = tf.reduce_sum(tf.reduce_sum(
                 iou_soft_box * match_box, reduction_indices=[1, 2])
                 / match_count_box) / num_ex
             box_loss = -iou_soft_box
-        elif segm_loss_fn == 'bce':
+        elif box_loss_fn == 'bce':
             box_loss = _match_bce(attn_box, attn_box_gt, match_box, timespan)
+        else:
+            raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
         model['box_loss'] = box_loss
         tf.add_to_collection('losses', box_loss)
 
@@ -1079,6 +1082,8 @@ def get_attn_model(opt, device='/cpu:0'):
             segm_loss = -iou_soft
         elif segm_loss_fn == 'bce':
             segm_loss = _match_bce(y_out, y_gt, match, timespan)
+        else:
+            raise Exception('Unknown segm_loss_fn: {}'.format(segm_loss_fn))
         model['segm_loss'] = segm_loss
         tf.add_to_collection('losses', segm_loss)
 
