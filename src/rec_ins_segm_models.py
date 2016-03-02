@@ -649,6 +649,11 @@ def _get_gt_attn(y_gt, attn_size):
     ctr = (bot_right + top_left) / 2.0
     delta = (bot_right - top_left + 1.0) / attn_size
     lg_var = tf.zeros(tf.shape(ctr)) + 1.0
+    
+    # Enlarge the groundtruth box by 60%.
+    size = bot_right - top_left
+    top_left -= 0.15 * size
+    bot_right += 0.15 * size
     box = _get_filled_box_idx(idx, top_left, bot_right)
 
     return ctr, delta, lg_var, box, idx
