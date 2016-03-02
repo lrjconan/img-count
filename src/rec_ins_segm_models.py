@@ -1072,7 +1072,7 @@ def get_attn_model(opt, device='/cpu:0'):
 
         box_loss_coeff = tf.train.exponential_decay(
             1.0, global_step, steps_per_box_loss_coeff_decay,
-            box_loss_coeff_decay, staircase=False)
+            box_loss_coeff_decay, staircase=True)
         model['box_loss_coeff'] = box_loss_coeff
         tf.add_to_collection('losses', box_loss_coeff * box_loss)
 
@@ -1120,5 +1120,6 @@ def get_attn_model(opt, device='/cpu:0'):
         iou_hard = tf.reduce_sum(tf.reduce_sum(
             iou_hard * match, reduction_indices=[1, 2]) / match_count) / num_ex
         model['iou_hard'] = iou_hard
+        model['count_acc'] = _count_acc(s_out, s_gt)
 
     return model
