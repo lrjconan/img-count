@@ -1013,7 +1013,7 @@ def get_attn_model(opt, device='/cpu:0'):
         y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
 
         gamma = 10.0
-        # gamma = nn.weight_variable([1])
+        # gamma = nn.weight_variable([2])
         const_ones = tf.ones(
             tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * gamma
         attn_box = _extract_patch(
