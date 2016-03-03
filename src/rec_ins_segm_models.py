@@ -649,7 +649,7 @@ def _get_gt_attn(y_gt, attn_size, padding_ratio=0.0):
     ctr = (bot_right + top_left) / 2.0
     delta = (bot_right - top_left + 1.0) / attn_size
     lg_var = tf.zeros(tf.shape(ctr)) + 1.0
-    
+
     # Enlarge the groundtruth box.
     if padding_ratio > 0:
         log.info('Pad groundtruth box by {:.2f}'.format(padding_ratio))
@@ -1028,11 +1028,11 @@ def get_attn_model(opt, device='/cpu:0'):
         # gamma = 10.0
         gamma = nn.weight_variable([1])
         const_ones = tf.ones(
-            tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * gamma
+            tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * tf.exp(gamma)
         attn_box = _extract_patch(
-             const_ones, filters_y_all_inv, filters_x_all_inv, 1)
+            const_ones, filters_y_all_inv, filters_x_all_inv, 1)
         attn_box_b = nn.weight_variable([1])
-        attn_box = tf.sigmoid(attn_box - attn_box_b)
+        attn_box = tf.sigmoid(attn_box - tf.exp(attn_box_b))
         attn_box = tf.reshape(attn_box, [-1, timespan, inp_height, inp_width])
         # attn_box = _get_filled_box_idx(idx_map, attn_top_left, attn_bot_right)
 
