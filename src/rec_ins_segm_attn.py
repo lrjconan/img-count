@@ -246,7 +246,7 @@ def _parse_args():
 
     kCtrlCnnFilterSize = [3, 3, 3, 3, 3]
     kCtrlCnnDepth = [4, 8, 8, 12, 16]
-    kAttnCnnFilterSize = [5, 5, 5]
+    kAttnCnnFilterSize = [3, 3, 3]
     kAttnCnnDepth = [4, 8, 16]
 
     kCtrlMlpDim = 256
@@ -259,7 +259,7 @@ def _parse_args():
     kAttnMlpDepth = 6
 
     kMlpDropout = 0.5
-    kDcnnFilterSize = [3, 5, 5, 5]
+    kDcnnFilterSize = [3, 3, 3, 3]
     kDcnnDepth = [1, 4, 8, 16]
 
     kAttnBoxPaddingRatio = 0.2
