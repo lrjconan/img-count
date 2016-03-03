@@ -377,6 +377,8 @@ def _parse_args():
                         help='Number of steps to decay box loss coefficient.')
     parser.add_argument('-box_loss_coeff_decay', default=kBoxLossCoeffDecay,
                         type=float, help='Box loss coefficient decay factor.')
+    parser.add_argument('-use_attn_rnn', action='store_true',
+                        help='Whether to use an inner RNN.')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -511,6 +513,7 @@ if __name__ == '__main__':
             'attn_box_padding_ratio': args.attn_box_padding_ratio,
             'box_loss_coeff_decay': args.box_loss_coeff_decay,
             'steps_per_box_loss_coeff_decay': args.steps_per_box_loss_coeff_decay,
+            'use_attn_rnn': args.use_attn_rnn
         }
         data_opt = {
             'height': args.height,

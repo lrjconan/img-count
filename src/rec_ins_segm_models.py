@@ -875,24 +875,31 @@ def get_attn_model(opt, device='/cpu:0'):
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
                       acnn_use_bn, phase_train=phase_train, wd=wd,
                       scope='attn_cnn')
+        h_acnn_last = [None] * timespan
 
         # Attention RNN definition
         acnn_subsample = np.array(acnn_pool).prod()
         arnn_h = attn_size / acnn_subsample
         arnn_w = attn_size / acnn_subsample
-        arnn_dim = attn_rnn_hid_dim
-        arnn_inp_dim = arnn_h * arnn_w * acnn_channels[-1]
-        arnn_state = [None] * (timespan + 1)
-        arnn_g_i = [None] * timespan
-        arnn_g_f = [None] * timespan
-        arnn_g_o = [None] * timespan
-        arnn_state[-1] = tf.zeros(tf.pack([num_ex, arnn_dim * 2]))
-        arnn_cell = nn.lstm(arnn_inp_dim, arnn_dim, wd=wd, scope='attn_lstm')
+
+        if use_attn_rnn:
+            arnn_dim = attn_rnn_hid_dim
+            arnn_inp_dim = arnn_h * arnn_w * acnn_channels[-1]
+            arnn_state = [None] * (timespan + 1)
+            arnn_g_i = [None] * timespan
+            arnn_g_f = [None] * timespan
+            arnn_g_o = [None] * timespan
+            arnn_state[-1] = tf.zeros(tf.pack([num_ex, arnn_dim * 2]))
+            arnn_cell = nn.lstm(arnn_inp_dim, arnn_dim,
+                                wd=wd, scope='attn_lstm')
+            amlp_inp_dim = arnn_dim
+        else:
+            amlp_inp_dim = arnn_h * arrn_w * acnn_channels[-1]
 
         # Attention MLP definition
         core_depth = attn_mlp_depth
         core_dim = arnn_h * arnn_w * core_depth
-        amlp_dims = [arnn_dim] + [core_dim] * num_attn_mlp_layers
+        amlp_dims = [amlp_inp_dim] + [core_dim] * num_attn_mlp_layers
         amlp_act = [tf.nn.relu] * num_attn_mlp_layers
         amlp_dropout = [1.0 - mlp_dropout_ratio] * num_attn_mlp_layers
         amlp = nn.mlp(amlp_dims, amlp_act, dropout_keep=amlp_dropout,
@@ -939,12 +946,13 @@ def get_attn_model(opt, device='/cpu:0'):
 
             # CNN [B, A, A, D] => [B, RH2, RW2, RD2]
             h_acnn = acnn(x_patch)
-            h_acnn_last = h_acnn[-1]
+            h_acnn_last[tt] = h_acnn[-1]
 
-            # RNN [B, T, R2]
-            arnn_inp = tf.reshape(h_acnn_last, [-1, arnn_inp_dim])
-            arnn_state[tt], arnn_g_i[tt], arnn_g_f[tt], arnn_g_o[
-                tt] = arnn_cell(arnn_inp, arnn_state[tt - 1])
+            if use_attn_rnn:
+                # RNN [B, T, R2]
+                arnn_inp = tf.reshape(h_acnn_last, [-1, arnn_inp_dim])
+                arnn_state[tt], arnn_g_i[tt], arnn_g_f[tt], arnn_g_o[tt] = \
+                    arnn_cell(arnn_inp, arnn_state[tt - 1])
 
         # Attention coordinate for debugging [B, T, 2]
         attn_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
@@ -984,11 +992,19 @@ def get_attn_model(opt, device='/cpu:0'):
         model['s_out'] = s_out
 
         # Dense segmentation network [B, T, R] => [B, T, M]
-        h_arnn = [tf.slice(arnn_state[tt], [0, arnn_dim], [-1, arnn_dim])
-                  for tt in xrange(timespan)]
-        h_arnn_all = tf.concat(1, [tf.expand_dims(h, 1) for h in h_arnn])
-        h_arnn_all = tf.reshape(h_arnn_all, [-1, arnn_dim])
-        h_core = amlp(h_arnn_all)[-1]
+        if use_attn_rnn:
+            h_arnn = [tf.slice(arnn_state[tt], [0, arnn_dim], [-1, arnn_dim])
+                      for tt in xrange(timespan)]
+            h_arnn_all = tf.concat(1, [tf.expand_dims(h, 1) for h in h_arnn])
+            h_arnn_all = tf.reshape(h_arnn_all, [-1, amlp_inp_dim])
+            amlp_inp = h_arnn_all
+        else:
+            h_acnn_all = tf.concat(1, [tf.expand_dims(h, 1)
+                                       for h in h_acnn_last])
+            h_acnn_all = tf.reshape(h_acnn_all, [-1, amlp_inp_dim])
+            amlp_inp = h_acnn_all
+
+        h_core = amlp(amlp_inp)[-1]
         h_core = tf.reshape(h_core, [-1, arnn_h, arnn_w, attn_mlp_depth])
 
         # DCNN [B * T, RH, RW, MD] => [B * T, A, A, 1]
@@ -1030,7 +1046,8 @@ def get_attn_model(opt, device='/cpu:0'):
             tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * gamma
         # gamma = nn.weight_variable([1])
         # const_ones = tf.ones(
-        #     tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * tf.exp(gamma)
+        # tf.pack([num_ex * timespan, attn_size, attn_size, 1])) *
+        # tf.exp(gamma)
         attn_box = _extract_patch(
             const_ones, filters_y_all_inv, filters_x_all_inv, 1)
         attn_box_b = 5.0
