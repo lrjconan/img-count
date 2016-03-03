@@ -895,7 +895,7 @@ def get_attn_model(opt, device='/cpu:0'):
                                 wd=wd, scope='attn_lstm')
             amlp_inp_dim = arnn_dim
         else:
-            amlp_inp_dim = arnn_h * arrn_w * acnn_channels[-1]
+            amlp_inp_dim = arnn_h * arnn_w * acnn_channels[-1]
 
         # Attention MLP definition
         core_depth = attn_mlp_depth
