@@ -774,6 +774,7 @@ def get_attn_model(opt, device='/cpu:0'):
     steps_per_learn_rate_decay = opt['steps_per_learn_rate_decay']
     steps_per_box_loss_coeff_decay = opt['steps_per_box_loss_coeff_decay']
     box_loss_coeff_decay = opt['box_loss_coeff_decay']
+    use_attn_rnn = opt['use_attn_rnn']
 
     with tf.device(_get_device_fn(device)):
         # Input definition
