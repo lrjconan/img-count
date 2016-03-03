@@ -268,6 +268,7 @@ def _parse_args():
     kNumSteps = 500000
     kStepsPerCkpt = 1000
     kStepsPerValid = 250
+    kStepsPerPlot = 50
     kBatchSize = 32
 
     parser = argparse.ArgumentParser(
@@ -387,6 +388,8 @@ def _parse_args():
                         type=int, help='Number of steps per checkpoint')
     parser.add_argument('-steps_per_valid', default=kStepsPerValid,
                         type=int, help='Number of steps per validation')
+    parser.add_argument('-steps_per_plot', default=kStepsPerPlot,
+                        type=int, help='Number of steps per plot samples')
     parser.add_argument('-steps_per_log', default=kStepsPerLog,
                         type=int, help='Number of steps per log')
     parser.add_argument('-batch_size', default=kBatchSize,
@@ -557,6 +560,7 @@ if __name__ == '__main__':
         'num_steps': args.num_steps,
         'steps_per_ckpt': args.steps_per_ckpt,
         'steps_per_valid': args.steps_per_valid,
+        'steps_per_plot': args.steps_per_plot,
         'steps_per_log': args.steps_per_log
     }
 
@@ -806,6 +810,8 @@ if __name__ == '__main__':
             # Run validation
             if step % train_opt['steps_per_valid'] == 0:
                 run_validation(step)
+
+            if step % train_opt['steps_per_plot'] == 0:
                 run_samples()
 
             # Train step
