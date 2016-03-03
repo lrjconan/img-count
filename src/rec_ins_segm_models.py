@@ -310,6 +310,31 @@ def _build_skip_conn(cnn_channels, h_cnn, x, timespan):
     return skip, skip_ch
 
 
+def _build_skip_conn_attn(cnn_channels, h_cnn_time, x_time, timespan):
+    """Build skip connection for attention based model."""
+    skip = [None]
+    skip_ch = [0]
+
+    nlayers = len(h_cnn_time[0])
+    timespan = len(h_cnn_time)
+
+    for jj in xrange(nlayers):
+        lidx = nlayers - jj - 2
+        if lidx >= 0:
+            ll = [h_cnn_time[tt][lidx] for tt in xrange(timespan)]
+        else:
+            ll = x_time
+        layer = tf.concat(1, [tf.expand_dims(l, 1) for l in ll])
+        ss = tf.shape(layer)
+        layer = tf.reshape(layer, tf.pack([-1, ss[2], ss[3], ss[4]]))
+        skip.append(layer)
+        ch_idx = lidx + 1
+        skip_ch.append(cnn_channels[ch_idx])
+
+    return skip, skip_ch
+
+
+
 def get_orig_model(opt, device='/cpu:0'):
     """CNN -> -> RNN -> DCNN -> Instances"""
     model = {}
@@ -876,6 +901,9 @@ def get_attn_model(opt, device='/cpu:0'):
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
                       acnn_use_bn, phase_train=phase_train, wd=wd,
                       scope='attn_cnn')
+
+        x_patch = [None] * timespan
+        h_acnn = [None] * timespan
         h_acnn_last = [None] * timespan
 
         # Attention RNN definition
@@ -942,13 +970,12 @@ def get_attn_model(opt, device='/cpu:0'):
                 attn_lg_var[tt][:, 1], inp_width, attn_size)
 
             # Attended patch [B, A, A, D]
-            x_patch = _extract_patch(
+            x_patch[tt] = attn_lg_gamma[tt] * _extract_patch(
                 x, filters_y[tt], filters_x[tt], inp_depth)
-            x_patch = attn_lg_gamma[tt] * x_patch
 
             # CNN [B, A, A, D] => [B, RH2, RW2, RD2]
-            h_acnn = acnn(x_patch)
-            h_acnn_last[tt] = h_acnn[-1]
+            h_acnn[tt] = acnn(x_patch[tt])
+            h_acnn_last[tt] = h_acnn[tt][-1]
 
             if use_attn_rnn:
                 # RNN [B, T, R2]
@@ -1013,12 +1040,11 @@ def get_attn_model(opt, device='/cpu:0'):
         dcnn_filters = dcnn_filter_size
         dcnn_nlayers = len(dcnn_filters)
         dcnn_unpool = [2] * (dcnn_nlayers - 1) + [1]
-        # dcnn_act = [tf.nn.relu] * (len(dcnn_filters) - 1) + [tf.sigmoid]
         dcnn_act = [tf.nn.relu] * dcnn_nlayers
         dcnn_channels = [attn_mlp_depth] + dcnn_depth
         dcnn_use_bn = [use_bn] * dcnn_nlayers
 
-        skip, skip_ch = _build_skip_conn(
+        skip, skip_ch = _build_skip_conn_attn(
             acnn_channels, h_acnn, x_patch, timespan)
 
         dcnn = nn.dcnn(dcnn_filters, dcnn_channels, dcnn_unpool,
@@ -1040,7 +1066,7 @@ def get_attn_model(opt, device='/cpu:0'):
             h_dcnn[-1], filters_y_all_inv, filters_x_all_inv, 1)
         y_out = 1.0 / attn_lg_gamma * y_out
         y_out_b = nn.weight_variable([1])
-        y_out = tf.sigmoid(y_out + y_out_b)
+        y_out = tf.sigmoid(y_out - tf.exp(y_out_b))
         y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
 
         gamma = 10.0
@@ -1093,9 +1119,10 @@ def get_attn_model(opt, device='/cpu:0'):
             raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
         model['box_loss'] = box_loss
 
-        box_loss_coeff = tf.train.exponential_decay(
-            1.0, global_step, steps_per_box_loss_coeff_decay,
-            box_loss_coeff_decay, staircase=True)
+        # box_loss_coeff = tf.train.exponential_decay(
+        #     1.0, global_step, steps_per_box_loss_coeff_decay,
+        #     box_loss_coeff_decay, staircase=True)
+        box_loss_coeff = tf.constant(1.0)
         model['box_loss_coeff'] = box_loss_coeff
         tf.add_to_collection('losses', box_loss_coeff * box_loss)
 
@@ -1119,7 +1146,8 @@ def get_attn_model(opt, device='/cpu:0'):
         else:
             raise Exception('Unknown segm_loss_fn: {}'.format(segm_loss_fn))
         model['segm_loss'] = segm_loss
-        segm_loss_coeff = 1 - box_loss_coeff
+        # segm_loss_coeff = 1.0 - box_loss_coeff
+        segm_loss_coeff = 1.0
         tf.add_to_collection('losses', segm_loss_coeff * segm_loss)
 
         # Score loss
