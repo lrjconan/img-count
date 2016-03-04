@@ -51,8 +51,8 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
     """
     num_ex = y_out.shape[0]
     offset = 3
-    num_items = y_out.shape[1] + offset
-    max_items_per_row = 10
+    num_items = y_out.shape[1] - 1 + offset
+    max_items_per_row = 9
     num_rows_per_ex = int(np.ceil(num_items / max_items_per_row))
     if num_items > max_items_per_row:
         num_col = max_items_per_row
