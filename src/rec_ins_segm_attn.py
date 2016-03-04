@@ -121,9 +121,10 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
             elif jj == num_items - 1:
                 total_img = np.zeros([x[ii].shape[0], x[ii].shape[1], 3])
                 for kk in xrange(y_gt.shape[1]):
-                    total_img += np.expand_dims(
-                        (y_out[ii][kk] > 0.5).astype('uint8'), 2) * \
-                        cmap2[kk % cmap2.shape[0]]
+                    if s_out[ii][kk] > 0.5:
+                        total_img += np.expand_dims(
+                            (y_out[ii][kk] > 0.5).astype('uint8'), 2) * \
+                            cmap2[kk % cmap2.shape[0]]
                 axarr[row, col].imshow(total_img)
             else:
                 axarr[row, col].imshow(y_out[ii, jj - offset])
@@ -822,8 +823,8 @@ if __name__ == '__main__':
                                                  cycle=True,
                                                  progress_bar=False):
             # Run validation
-            if step % train_opt['steps_per_valid'] == 0:
-                run_validation(step)
+            # if step % train_opt['steps_per_valid'] == 0:
+                # run_validation(step)
 
             if step % train_opt['steps_per_plot'] == 0:
                 run_samples()
