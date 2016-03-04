@@ -50,8 +50,11 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
         the attention box.
     """
     num_ex = y_out.shape[0]
-    offset = 3
-    num_items = y_out.shape[1] - 1 + offset
+    offset = 2
+
+    # One orig image, one transformed image, T - 1 segmentations, one total image.
+    # T + 2 images.
+    num_items = y_out.shape[1] + offset
     max_items_per_row = 9
     num_rows_per_ex = int(np.ceil(num_items / max_items_per_row))
     if num_items > max_items_per_row:
@@ -135,7 +138,7 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
 
                 if attn:
                     # Plot attention box.
-                    kk = jj - 2
+                    kk = jj - offset
                     axarr[row, col].add_patch(patches.Rectangle(
                         (attn_top_left_x[ii, kk], attn_top_left_y[ii, kk]),
                         attn_bot_right_x[ii, kk] - attn_top_left_x[ii, kk],
