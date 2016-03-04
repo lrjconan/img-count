@@ -1000,18 +1000,24 @@ def get_attn_model(opt, device='/cpu:0'):
         model['attn_bot_right'] = attn_bot_right
 
         # Prob
-        crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
-        crnn_g_f = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_f])
-        crnn_g_o = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_o])
-        crnn_g_i_avg = tf.reduce_sum(
-            crnn_g_i) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
-        crnn_g_f_avg = tf.reduce_sum(
-            crnn_g_f) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
-        crnn_g_o_avg = tf.reduce_sum(
-            crnn_g_o) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
-        model['crnn_g_i_avg'] = crnn_g_i_avg
-        model['crnn_g_f_avg'] = crnn_g_f_avg
-        model['crnn_g_o_avg'] = crnn_g_o_avg
+        if use_gt_attn:
+            model['crnn_g_i_avg'] = tf.constant(0.0)
+            model['crnn_g_f_avg'] = tf.constant(0.0)
+            model['crnn_g_o_avg'] = tf.constant(0.0)
+        else:
+            crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
+            crnn_g_f = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_f])
+            crnn_g_o = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_o])
+            crnn_g_i_avg = tf.reduce_sum(
+                crnn_g_i) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
+            crnn_g_f_avg = tf.reduce_sum(
+                crnn_g_f) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
+            crnn_g_o_avg = tf.reduce_sum(
+                crnn_g_o) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
+            model['crnn_g_i_avg'] = crnn_g_i_avg
+            model['crnn_g_f_avg'] = crnn_g_f_avg
+            model['crnn_g_o_avg'] = crnn_g_o_avg
+
 
         # Scoring network
         h_crnn_all = tf.concat(1, [tf.expand_dims(h, 1) for h in h_crnn])
