@@ -867,6 +867,7 @@ def get_attn_model(opt, device='/cpu:0'):
         # Groundtruth bounding box, [B, T, 2]
         attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, idx_map = \
             _get_gt_attn(y_gt, attn_size, padding_ratio=attn_box_padding_ratio)
+
         if use_gt_attn:
             attn_ctr = attn_ctr_gt
             attn_delta = attn_delta_gt
@@ -940,11 +941,12 @@ def get_attn_model(opt, device='/cpu:0'):
 
         for tt in xrange(timespan):
             # Controller RNN [B, R1]
+            crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[
+                tt] = crnn_cell(crnn_inp, crnn_state[tt - 1])
+            h_crnn[tt] = tf.slice(
+                crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
+            
             if not use_gt_attn:
-                crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[
-                    tt] = crnn_cell(crnn_inp, crnn_state[tt - 1])
-                h_crnn[tt] = tf.slice(
-                    crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
                 ctrl_out = cmlp(h_crnn[tt])[-1]
                 _ctr = tf.slice(ctrl_out, [0, 0], [-1, 2])
                 _lg_delta = tf.slice(ctrl_out, [0, 2], [-1, 2])
@@ -1000,23 +1002,18 @@ def get_attn_model(opt, device='/cpu:0'):
         model['attn_bot_right'] = attn_bot_right
 
         # Prob
-        if use_gt_attn:
-            model['crnn_g_i_avg'] = tf.constant(0.0)
-            model['crnn_g_f_avg'] = tf.constant(0.0)
-            model['crnn_g_o_avg'] = tf.constant(0.0)
-        else:
-            crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
-            crnn_g_f = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_f])
-            crnn_g_o = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_o])
-            crnn_g_i_avg = tf.reduce_sum(
-                crnn_g_i) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
-            crnn_g_f_avg = tf.reduce_sum(
-                crnn_g_f) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
-            crnn_g_o_avg = tf.reduce_sum(
-                crnn_g_o) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
-            model['crnn_g_i_avg'] = crnn_g_i_avg
-            model['crnn_g_f_avg'] = crnn_g_f_avg
-            model['crnn_g_o_avg'] = crnn_g_o_avg
+        crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
+        crnn_g_f = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_f])
+        crnn_g_o = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_o])
+        crnn_g_i_avg = tf.reduce_sum(
+            crnn_g_i) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
+        crnn_g_f_avg = tf.reduce_sum(
+            crnn_g_f) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
+        crnn_g_o_avg = tf.reduce_sum(
+            crnn_g_o) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
+        model['crnn_g_i_avg'] = crnn_g_i_avg
+        model['crnn_g_f_avg'] = crnn_g_f_avg
+        model['crnn_g_o_avg'] = crnn_g_o_avg
 
 
         # Scoring network
