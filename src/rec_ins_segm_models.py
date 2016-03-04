@@ -1124,7 +1124,7 @@ def get_attn_model(opt, device='/cpu:0'):
         #     box_loss_coeff_decay, staircase=True)
         box_loss_coeff = tf.constant(1.0)
         model['box_loss_coeff'] = box_loss_coeff
-        # tf.add_to_collection('losses', box_loss_coeff * box_loss)
+        tf.add_to_collection('losses', box_loss_coeff * box_loss)
 
         # Loss for fine segmentation
         iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
