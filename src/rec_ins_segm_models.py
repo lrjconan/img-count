@@ -854,7 +854,7 @@ def get_attn_model(opt, device='/cpu:0'):
         cmlp_act = [tf.nn.relu] * (num_ctrl_mlp_layers - 1) + [None]
         cmlp_dropout = None
         # cmlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
-        cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=True,
+        cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=False,
                       dropout_keep=cmlp_dropout,
                       phase_train=phase_train, wd=wd, scope='ctrl_mlp')
 
@@ -1069,18 +1069,18 @@ def get_attn_model(opt, device='/cpu:0'):
         y_out = tf.sigmoid(y_out - tf.exp(y_out_b))
         y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
 
-        gamma = 10.0
+        # gamma = 10.0
+        gamma = nn.weight_variable([1])
         const_ones = tf.ones(
             tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * gamma
-        # gamma = nn.weight_variable([1])
         # const_ones = tf.ones(
         # tf.pack([num_ex * timespan, attn_size, attn_size, 1])) *
         # tf.exp(gamma)
         attn_box = _extract_patch(
             const_ones, filters_y_all_inv, filters_x_all_inv, 1)
-        attn_box_b = 5.0
+        # attn_box_b = 5.0
+        attn_box_b = nn.weight_variable([1])
         attn_box = tf.sigmoid(attn_box - attn_box_b)
-        # attn_box_b = nn.weight_variable([1])
         # attn_box = tf.sigmoid(attn_box - tf.exp(attn_box_b))
         attn_box = tf.reshape(attn_box, [-1, timespan, inp_height, inp_width])
         # attn_box = _get_filled_box_idx(idx_map, attn_top_left, attn_bot_right)
