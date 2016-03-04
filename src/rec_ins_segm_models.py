@@ -854,7 +854,7 @@ def get_attn_model(opt, device='/cpu:0'):
         cmlp_act = [tf.nn.relu] * (num_ctrl_mlp_layers - 1) + [None]
         cmlp_dropout = None
         # cmlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
-        cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=False,
+        cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=True,
                       dropout_keep=cmlp_dropout,
                       phase_train=phase_train, wd=wd, scope='ctrl_mlp')
 
@@ -979,7 +979,7 @@ def get_attn_model(opt, device='/cpu:0'):
 
             if use_attn_rnn:
                 # RNN [B, T, R2]
-                arnn_inp = tf.reshape(h_acnn_last, [-1, arnn_inp_dim])
+                arnn_inp = tf.reshape(h_acnn_last[tt], [-1, arnn_inp_dim])
                 arnn_state[tt], arnn_g_i[tt], arnn_g_f[tt], arnn_g_o[tt] = \
                     arnn_cell(arnn_inp, arnn_state[tt - 1])
 
@@ -1129,15 +1129,15 @@ def get_attn_model(opt, device='/cpu:0'):
         # Loss for fine segmentation
         iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
 
-        match = _segm_match(iou_soft, s_gt)
-        model['match'] = match
-        match_sum = tf.reduce_sum(match, reduction_indices=[2])
-        match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
-
-        # match = match_box
+        # match = _segm_match(iou_soft, s_gt)
         # model['match'] = match
-        # match_sum = match_sum_box
-        # match_count = match_count_box
+        # match_sum = tf.reduce_sum(match, reduction_indices=[2])
+        # match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
+
+        match = match_box
+        model['match'] = match
+        match_sum = match_sum_box
+        match_count = match_count_box
         
         iou_soft = tf.reduce_sum(tf.reduce_sum(
             iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
