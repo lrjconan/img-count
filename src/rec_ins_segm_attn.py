@@ -50,9 +50,9 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
         the attention box.
     """
     num_ex = y_out.shape[0]
-    offset = 2
+    offset = 3
     num_items = y_out.shape[1] + offset
-    max_items_per_row = 9
+    max_items_per_row = 10
     num_rows_per_ex = int(np.ceil(num_items / max_items_per_row))
     if num_items > max_items_per_row:
         num_col = max_items_per_row
@@ -63,6 +63,13 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
 
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
     cmap = ['r', 'y', 'c', 'g', 'm']
+    cmap2 = np.array([[192, 57, 43],
+                      [243, 156, 18],
+                      [26, 188, 156],
+                      [41, 128, 185],
+                      [142, 68, 173],
+                      [44, 62, 80],
+                      [127, 140, 141]], dtype='uint8')
     gradient = np.linspace(0, 1, 256)
     im_height = x.shape[1]
     im_with = x.shape[2]
@@ -111,6 +118,13 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
                         axarr[row, col].text(
                             top_left_x + 5, top_left_y - 5,
                             '{}'.format(kk), size=5)
+            elif jj == num_items - 1:
+                total_img = np.zeros([x[ii].shape[0], x[ii].shape[1], 3])
+                for kk in xrange(y_gt.shape[1]):
+                    total_img += np.expand_dims(
+                        (y_out[ii][kk] > 0.5).astype('uint8'), 2) * \
+                        cmap2[kk % cmap2.shape[0]]
+                axarr[row, col].imshow(total_img)
             else:
                 axarr[row, col].imshow(y_out[ii, jj - offset])
                 matched = match[ii, jj - offset].nonzero()[0]

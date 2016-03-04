@@ -334,7 +334,6 @@ def _build_skip_conn_attn(cnn_channels, h_cnn_time, x_time, timespan):
     return skip, skip_ch
 
 
-
 def get_orig_model(opt, device='/cpu:0'):
     """CNN -> -> RNN -> DCNN -> Instances"""
     model = {}
@@ -1071,17 +1070,16 @@ def get_attn_model(opt, device='/cpu:0'):
 
         # gamma = 10.0
         gamma = nn.weight_variable([1])
-        const_ones = tf.ones(
-            tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * gamma
         # const_ones = tf.ones(
-        # tf.pack([num_ex * timespan, attn_size, attn_size, 1])) *
-        # tf.exp(gamma)
+        # tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * gamma
+        const_ones = tf.ones(
+            tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * tf.exp(gamma)
         attn_box = _extract_patch(
             const_ones, filters_y_all_inv, filters_x_all_inv, 1)
         # attn_box_b = 5.0
         attn_box_b = nn.weight_variable([1])
-        attn_box = tf.sigmoid(attn_box - attn_box_b)
-        # attn_box = tf.sigmoid(attn_box - tf.exp(attn_box_b))
+        # attn_box = tf.sigmoid(attn_box - attn_box_b)
+        attn_box = tf.sigmoid(attn_box - tf.exp(attn_box_b))
         attn_box = tf.reshape(attn_box, [-1, timespan, inp_height, inp_width])
         # attn_box = _get_filled_box_idx(idx_map, attn_top_left, attn_bot_right)
 
@@ -1138,7 +1136,7 @@ def get_attn_model(opt, device='/cpu:0'):
         model['match'] = match
         match_sum = match_sum_box
         match_count = match_count_box
-        
+
         iou_soft = tf.reduce_sum(tf.reduce_sum(
             iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
         model['iou_soft'] = iou_soft

@@ -254,6 +254,7 @@ def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, 
     log.info('Dimensions: {}'.format(dims))
     log.info('Activation: {}'.format(act))
     log.info('Dropout: {}'.format(dropout_keep))
+    log.info('Add bias: {}'.format(add_bias))
 
     with tf.variable_scope(scope):
         for ii in xrange(nlayers):
