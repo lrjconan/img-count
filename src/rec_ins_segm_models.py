@@ -1588,7 +1588,7 @@ def get_attn_model(opt, device='/cpu:0'):
         elif box_loss_fn == 'bce':
             box_loss = _match_bce(attn_box, attn_box_gt, match_box, timespan)
         elif box_loss_fn == 'mse':
-            _s_gt = tf.reshape(_s_gt, [-1, timespan, 1])
+            _s_gt = tf.reshape(s_gt, [-1, timespan, 1])
             # _count = tf.reduce_sum(_s_gt, 
             _attn_top_left = attn_top_left * _s_gt / inp_height - 0.5
             _attn_top_left_gt = attn_top_left_gt * _s_gt/ inp_height - 0.5
