@@ -826,8 +826,8 @@ if __name__ == '__main__':
                                                  cycle=True,
                                                  progress_bar=False):
             # Run validation
-            # if step % train_opt['steps_per_valid'] == 0:
-                # run_validation(step)
+            if step % train_opt['steps_per_valid'] == 0:
+                run_validation(step)
 
             if step % train_opt['steps_per_plot'] == 0:
                 run_samples()
