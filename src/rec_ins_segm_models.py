@@ -1588,9 +1588,13 @@ def get_attn_model(opt, device='/cpu:0'):
         elif box_loss_fn == 'bce':
             box_loss = _match_bce(attn_box, attn_box_gt, match_box, timespan)
         elif box_loss_fn == 'mse':
-            diff1 = (attn_top_left - attn_top_left_gt) / inp_height
-            diff2 = (attn_bot_right - attn_bot_right_gt) / inp_height
-            box_loss = tf.reduce_sum(diff1 * diff1 + diff2 * diff2) / timespan / num_ex / 4
+            _attn_top_left = attn_top_left / inp_height - 0.5
+            _attn_top_left_gt = _attn_top_left_gt / inp_height - 0.5
+            _attn_bot_right = attn_bot_right / inp_height - 0.5
+            _attn_bot_right_gt = attn_bot_right_gt / inp_height - 0.5
+            diff1 = (_attn_top_left - _attn_top_left_gt)
+            diff2 = (_attn_bot_right - _attn_bot_right_gt)
+            box_loss = tf.reduce_sum(diff1 * diff1 + diff2 * diff2) / timespan / num_ex
         else:
             raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
         model['box_loss'] = box_loss
