@@ -945,7 +945,7 @@ def get_attn_model(opt, device='/cpu:0'):
                 tt] = crnn_cell(crnn_inp, crnn_state[tt - 1])
             h_crnn[tt] = tf.slice(
                 crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
-            
+
             if not use_gt_attn:
                 ctrl_out = cmlp(h_crnn[tt])[-1]
                 _ctr = tf.slice(ctrl_out, [0, 0], [-1, 2])
@@ -1015,7 +1015,6 @@ def get_attn_model(opt, device='/cpu:0'):
         model['crnn_g_f_avg'] = crnn_g_f_avg
         model['crnn_g_o_avg'] = crnn_g_o_avg
 
-
         # Scoring network
         h_crnn_all = tf.concat(1, [tf.expand_dims(h, 1) for h in h_crnn])
         score_inp = tf.reshape(h_crnn_all, [-1, ctrl_rnn_hid_dim])
@@ -1071,18 +1070,19 @@ def get_attn_model(opt, device='/cpu:0'):
         y_out = tf.sigmoid(y_out - tf.exp(y_out_b))
         y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
 
-        # gamma = 10.0
-        gamma = nn.weight_variable([1])
-        # const_ones = tf.ones(
-        # tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * gamma
+        gamma = 15.0
+        # gamma = nn.weight_variable([1])
         const_ones = tf.ones(
-            tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * tf.exp(gamma)
+            tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * gamma
+        # const_ones = tf.ones(
+        # tf.pack([num_ex * timespan, attn_size, attn_size, 1])) *
+        # tf.exp(gamma)
         attn_box = _extract_patch(
             const_ones, filters_y_all_inv, filters_x_all_inv, 1)
-        # attn_box_b = 5.0
-        attn_box_b = nn.weight_variable([1])
-        # attn_box = tf.sigmoid(attn_box - attn_box_b)
-        attn_box = tf.sigmoid(attn_box - tf.exp(attn_box_b))
+        attn_box_b = 5.0
+        # attn_box_b = nn.weight_variable([1])
+        attn_box = tf.sigmoid(attn_box - attn_box_b)
+        # attn_box = tf.sigmoid(attn_box - tf.exp(attn_box_b))
         attn_box = tf.reshape(attn_box, [-1, timespan, inp_height, inp_width])
         # attn_box = _get_filled_box_idx(idx_map, attn_top_left, attn_bot_right)
 
