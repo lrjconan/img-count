@@ -1538,7 +1538,7 @@ def get_attn_model(opt, device='/cpu:0'):
         # b_out = nn.weight_variable([1])
         # y_out = tf.sigmoid(tf.nn.conv2d_transpose(
         #     y_out, w_out, y_out_shape, strides=[1, 1, 1, 1]) + b_out)
-        # y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
+        y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
 
         gamma = 10.0
         # gamma = nn.weight_variable([1])
