@@ -649,6 +649,10 @@ if __name__ == '__main__':
             ['input gate', 'forget gate', 'output gate'],
             name='Controller RNN',
             buffer_size=1)
+        gt_knob_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'gt_knob.csv'), 'groundtruth knob',
+            name='Groundtruth knob',
+            buffer_size=1)
 
         log_manager.register(log.filename, 'plain', 'Raw logs')
 
@@ -784,7 +788,8 @@ if __name__ == '__main__':
         r = sess.run([m['loss'], m['conf_loss'], m['segm_loss'], m['box_loss'],
                       m['iou_soft'], m['iou_hard'], m['learn_rate'],
                       m['crnn_g_i_avg'], m['crnn_g_f_avg'], m['crnn_g_o_avg'],
-                      m['box_loss_coeff'], m['count_acc'], m['train_step']],
+                      m['box_loss_coeff'], m['count_acc'], m['gt_knob_prob'],
+                      m['train_step']],
                      feed_dict={
             m['x']: x,
             m['phase_train']: True,
@@ -806,6 +811,7 @@ if __name__ == '__main__':
             crnn_g_o_avg = r[9]
             box_loss_coeff = r[10]
             count_acc = r[11]
+            gt_knob = r[12]
             step_time = (time.time() - start_time) * 1000
             log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                       'ious {:.4f} iouh {:.4f} t {:.2f}ms').format(
@@ -823,6 +829,7 @@ if __name__ == '__main__':
                 step_time_logger.add(step, step_time)
                 crnn_logger.add(
                     step, [crnn_g_i_avg, crnn_g_f_avg, crnn_g_o_avg])
+                gt_knob_logger.add(step, [gt_knob])
 
     def train_loop(step=0):
         """Train loop"""

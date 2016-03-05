@@ -707,7 +707,7 @@ def _get_gt_attn(y_gt, attn_size, padding_ratio=0.0):
         box = _get_filled_box_idx(idx, top_left, bot_right)
     else:
         log.warning('Not padding groundtruth box')
-        
+
     ctr = (bot_right + top_left) / 2.0
     delta = (bot_right - top_left + 1.0) / attn_size
     lg_var = tf.zeros(tf.shape(ctr)) + 1.0
@@ -987,6 +987,10 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # [1, N]
         iou_bias = tf.expand_dims(tf.to_float(
             tf.reverse(tf.range(timespan), [True])) * 1e-5, 0)
+        gt_knob_prob = tf.train.exponential_decay(
+            0.9, global_step, 1000,
+            0.96, staircase=True)
+        model['gt_knob_prob'] = gt_knob_prob
 
         # Y out
         y_out = [None] * timespan
@@ -1058,10 +1062,12 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
             # Here is the knob kick in GT bbox.
             if use_knob:
-                attn_ctr[tt] = phase_train_f * attn_ctr_gtm + \
-                    (1 - phase_train_f) * attn_ctr[tt]
+                gt_knob_1 = tf.to_float(tf.random_uniform(
+                    [1], 0, 1.0) <= gt_knob_prob)
+                attn_ctr[tt] = phase_train_f * gt_knob_1 * attn_ctr_gtm + \
+                    (1 - phase_train_f * gt_knob_1) * attn_ctr[tt]
                 attn_delta[tt] = phase_train_f * attn_delta_gtm + \
-                    (1 - phase_train_f) * attn_delta[tt]
+                    (1 - phase_train_f * gt_knob_1) * attn_delta[tt]
 
             attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
                 attn_ctr[tt], attn_delta[tt], attn_size)
@@ -1126,11 +1132,13 @@ def get_attn_model_2(opt, device='/cpu:0'):
             # [B, N, 1, 1]
             if use_canvas:
                 if use_knob:
+                    gt_knob_2 = tf.to_float(tf.random_uniform(
+                        [1], 0, 1.0) <= gt_knob_prob)
                     grd_match = tf.expand_dims(grd_match, 3)
                     _y_out = tf.expand_dims(tf.reduce_sum(
                         grd_match * y_gt, 1), 3)
-                    _y_out = phase_train_f * _y_out + \
-                        (1 - phase_train_f) * \
+                    _y_out = phase_train_f * gt_knob_2 * _y_out + \
+                        (1 - phase_train_f * gt_knob_2) * \
                         tf.reshape(y_out[tt], [-1, inp_height, inp_width, 1])
                 else:
                     _y_out = y_out[tt]
