@@ -818,6 +818,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
     box_loss_coeff_decay = opt['box_loss_coeff_decay']
     use_attn_rnn = opt['use_attn_rnn']
     use_knob = opt['use_knob']
+    knob_base = opt['knob_base']
+    knob_decay = opt['knob_decay']
+    steps_per_knob_decay = opt['steps_per_knob_decay']
     use_canvas = opt['use_canvas']
 
     with tf.device(_get_device_fn(device)):
@@ -849,8 +852,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # Canvas
         if use_canvas:
             canvas = tf.zeros(tf.pack([num_ex, inp_height, inp_width, 1]))
-            # ccnn_inp_depth = inp_depth + 1
-            ccnn_inp_depth = inp_depth
+            ccnn_inp_depth = inp_depth + 1
+            # ccnn_inp_depth = inp_depth
             acnn_inp_depth = inp_depth + 1
         else:
             ccnn_inp_depth = inp_depth
@@ -985,8 +988,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
         iou_bias = tf.expand_dims(tf.to_float(
             tf.reverse(tf.range(timespan), [True])) * iou_bias_eps, 0)
         gt_knob_prob = tf.train.exponential_decay(
-            0.0, global_step, 1000,
-            0.9, staircase=True)
+            knob_base, global_step, steps_per_knob_decay, knob_decay, 
+            staircase=True)
         gt_knob = tf.to_float(tf.random_uniform(
             tf.pack([num_ex, 2]), 0, 1.0) <= gt_knob_prob)
         model['gt_knob_prob'] = gt_knob_prob
@@ -998,9 +1001,10 @@ def get_attn_model_2(opt, device='/cpu:0'):
         for tt in xrange(timespan):
             # Controller CNN [B, H, W, D] => [B, RH1, RW1, RD1]
             if use_canvas:
-                # ccnn_inp = tf.concat(3, [x, canvas])
-                ccnn_inp = x
-                acnn_inp = tf.concat(3, [x, canvas])
+                ccnn_inp = tf.concat(3, [x, canvas])
+                acnn_inp = ccnn_inp
+                # ccnn_inp = x
+                # acnn_inp = tf.concat(3, [x, canvas])
             else:
                 ccnn_inp = x
                 acnn_inp = x
@@ -1091,7 +1095,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
             # Attended patch [B, A, A, D]
             x_patch[tt] = attn_lg_gamma[tt] * _extract_patch(
-                ccnn_inp, filters_y, filters_x, ccnn_inp_depth)
+                acnn_inp, filters_y, filters_x, acnn_inp_depth)
 
             # CNN [B, A, A, D] => [B, RH2, RW2, RD2]
             h_acnn[tt] = acnn(x_patch[tt])

@@ -256,6 +256,9 @@ def _parse_args():
     kLossMixRatio = 1.0
     kBoxLossCoeffDecay = 0.7
     kStepsPerBoxLossCoeffDecay = 2000
+    kKnobDecay = 0.9
+    kStepsPerKnobDecay = 300
+    kKnobBase = 1.0
 
     kNumCtrlConv = 5
     kNumAttnConv = 3
@@ -402,6 +405,12 @@ def _parse_args():
                         help='Whether to use a canvas to store.')
     parser.add_argument('-use_knob', action='store_true',
                         help='Whether to use a knob.')
+    parser.add_argument('-knob_decay', default=kKnobDecay, type=float,
+                        help='Knob decay factor.')
+    parser.add_argument('-steps_per_knob_decay', default=kStepsPerKnobDecay, 
+                        type=int, help='Number of steps to decay knob.')
+    parser.add_argument('-knob_base', default=kKnobBase, type=float,
+                        help='Knob start rate.')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -540,7 +549,10 @@ if __name__ == '__main__':
             'steps_per_box_loss_coeff_decay': args.steps_per_box_loss_coeff_decay,
             'use_attn_rnn': args.use_attn_rnn,
             'use_canvas': args.use_canvas,
-            'use_knob': args.use_knob
+            'use_knob': args.use_knob,
+            'knob_decay': args.knob_decay,
+            'knob_base': args.knob_base,
+            'steps_per_knob_decay': args.steps_per_knob_decay
         }
         data_opt = {
             'height': args.height,
