@@ -1589,7 +1589,7 @@ def get_attn_model(opt, device='/cpu:0'):
             box_loss = _match_bce(attn_box, attn_box_gt, match_box, timespan)
         elif box_loss_fn == 'mse':
             _attn_top_left = attn_top_left / inp_height - 0.5
-            _attn_top_left_gt = _attn_top_left_gt / inp_height - 0.5
+            _attn_top_left_gt = attn_top_left_gt / inp_height - 0.5
             _attn_bot_right = attn_bot_right / inp_height - 0.5
             _attn_bot_right_gt = attn_bot_right_gt / inp_height - 0.5
             diff1 = (_attn_top_left - _attn_top_left_gt)
