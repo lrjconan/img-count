@@ -1146,7 +1146,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
                         tf.reshape(y_out[tt], [-1, inp_height, inp_width, 1])
                 else:
                     _y_out = y_out[tt]
-            canvas += _y_out
+                canvas += _y_out
 
         s_out = tf.concat(1, s_out)
         model['s_out'] = s_out
