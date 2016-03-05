@@ -1193,15 +1193,15 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # Loss for fine segmentation
         iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
 
-        # match = _segm_match(iou_soft, s_gt)
-        # model['match'] = match
-        # match_sum = tf.reduce_sum(match, reduction_indices=[2])
-        # match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
-
-        match = match_box
+        match = _segm_match(iou_soft, s_gt)
         model['match'] = match
-        match_sum = match_sum_box
-        match_count = match_count_box
+        match_sum = tf.reduce_sum(match, reduction_indices=[2])
+        match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
+
+        # match = match_box
+        # model['match'] = match
+        # match_sum = match_sum_box
+        # match_count = match_count_box
 
         iou_soft = tf.reduce_sum(tf.reduce_sum(
             iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
