@@ -1436,7 +1436,7 @@ def get_attn_model(opt, device='/cpu:0'):
                     arnn_cell(arnn_inp, arnn_state[tt - 1])
 
             # Scoring network
-            h_crnn_all = tf.concat(1, [tf.expand_dims(h, 1) for h in h_crnn])
+            h_crnn_all = tf.concat(1, [tf.expand_dims(h, 1) for h in h_crnn[tt]])
             score_inp = tf.reshape(h_crnn_all, [-1, ctrl_rnn_hid_dim])
             s_out = tf.reshape(smlp(score_inp)[-1], [-1, timespan])
             model['s_out'] = s_out
