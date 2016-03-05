@@ -65,14 +65,12 @@ def _cum_min(s, d):
 
 def _inter(a, b):
     """Computes intersection."""
-    eps = 1e-5
     reduction_indices = _get_reduction_indices(a)
     return tf.reduce_sum(a * b, reduction_indices=reduction_indices)
 
 
-def _union(a, b):
+def _union(a, b, eps=1e-5):
     """Computes union."""
-    eps = 1e-5
     reduction_indices = _get_reduction_indices(a)
     return tf.reduce_sum(a + b - (a * b) + eps,
                          reduction_indices=reduction_indices)
@@ -851,7 +849,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # Canvas
         if use_canvas:
             canvas = tf.zeros(tf.pack([num_ex, inp_height, inp_width, 1]))
-            ccnn_inp_depth = inp_depth + 1
+            # ccnn_inp_depth = inp_depth + 1
+            ccnn_inp_depth = inp_depth
             acnn_inp_depth = inp_depth + 1
         else:
             ccnn_inp_depth = inp_depth
@@ -982,8 +981,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
         grd_match_cum = tf.zeros(tf.pack([num_ex, timespan]))
         # Add a bias on every entry so there is no duplicate match
         # [1, N]
+        iou_bias_eps = 1e-7
         iou_bias = tf.expand_dims(tf.to_float(
-            tf.reverse(tf.range(timespan), [True])) * 1e-5, 0)
+            tf.reverse(tf.range(timespan), [True])) * iou_bias_eps, 0)
         gt_knob_prob = tf.train.exponential_decay(
             0.0, global_step, 1000,
             0.9, staircase=True)
@@ -998,9 +998,12 @@ def get_attn_model_2(opt, device='/cpu:0'):
         for tt in xrange(timespan):
             # Controller CNN [B, H, W, D] => [B, RH1, RW1, RD1]
             if use_canvas:
-                ccnn_inp = tf.concat(3, [x, canvas])
+                # ccnn_inp = tf.concat(3, [x, canvas])
+                ccnn_inp = x
+                acnn_inp = tf.concat(3, [x, canvas])
             else:
                 ccnn_inp = x
+                acnn_inp = x
             h_ccnn = ccnn(ccnn_inp)
             h_ccnn_last = h_ccnn[-1]
             crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
@@ -1049,11 +1052,11 @@ def get_attn_model_2(opt, device='/cpu:0'):
             if use_knob:
                 # Greedy matching here.
                 # IOU [B, 1, T]
-                attn_iou_soft[tt] = _inter(
-                    attn_box[tt], attn_box_gt) / _union(attn_box[tt], attn_box_gt)
+                # [B, 1, H, W] * [B, T, H, W] = [B, T]
+                attn_iou_soft[tt] = _inter(attn_box[tt], attn_box_gt) / \
+                                    _union(attn_box[tt], attn_box_gt, eps=0)
                 attn_iou_soft[tt] += iou_bias
-                grd_match = _greedy_match(tf.squeeze(
-                    attn_iou_soft[tt]), grd_match_cum)
+                grd_match = _greedy_match(attn_iou_soft[tt], grd_match_cum)
                 grd_match_cum += grd_match
 
                 # [B, T, 1]
@@ -1139,7 +1142,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
                         (1 - phase_train_f * gt_knob_2) * \
                         tf.reshape(y_out[tt], [-1, inp_height, inp_width, 1])
                 else:
-                    _y_out = tf.reshape(y_out[tt], 
+                    _y_out = tf.reshape(y_out[tt],
                                         [-1, inp_height, inp_width, 1])
                 canvas += _y_out
 
@@ -1455,7 +1458,7 @@ def get_attn_model(opt, device='/cpu:0'):
         crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
 
         model['gt_knob_prob'] = tf.constant(0.0)
-        
+
         for tt in xrange(timespan):
             # Controller RNN [B, R1]
             crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[
