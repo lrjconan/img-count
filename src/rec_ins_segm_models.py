@@ -896,10 +896,6 @@ def get_attn_model_2(opt, device='/cpu:0'):
         smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd, scope='smlp')
         s_out = [None] * timespan
 
-        # Attention filters
-        filters_y = [None] * timespan
-        filters_x = [None] * timespan
-
         # Groundtruth bounding box, [B, T, 2]
         attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, \
             attn_top_left_gt, attn_bot_right_gt, idx_map = \
@@ -1033,14 +1029,14 @@ def get_attn_model_2(opt, device='/cpu:0'):
                     tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
 
             # Initial filters (predicted)
-            filters_y[tt] = _get_attn_filter(
+            filters_y = _get_attn_filter(
                 attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
                 attn_lg_var[tt][:, 0], inp_height, attn_size)
-            filters_x[tt] = _get_attn_filter(
+            filters_x = _get_attn_filter(
                 attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
                 attn_lg_var[tt][:, 1], inp_width, attn_size)
-            filters_y_inv = tf.transpose(filters_y[tt], [0, 2, 1])
-            filters_x_inv = tf.transpose(filters_x[tt], [0, 2, 1])
+            filters_y_inv = tf.transpose(filters_y, [0, 2, 1])
+            filters_x_inv = tf.transpose(filters_x, [0, 2, 1])
 
             # Attention box
             attn_box[tt] = _extract_patch(
@@ -1049,22 +1045,22 @@ def get_attn_model_2(opt, device='/cpu:0'):
             attn_box[tt] = tf.reshape(
                 attn_box[tt], [-1, 1, inp_height, inp_width])
 
-            # Greedy matching here.
-            # IOU [B, 1, T]
-            attn_iou_soft[tt] = _inter(
-                attn_box[tt], attn_box_gt) / _union(attn_box[tt], attn_box_gt)
-            attn_iou_soft[tt] += iou_bias
-            grd_match = _greedy_match(tf.squeeze(
-                attn_iou_soft[tt]), grd_match_cum)
-            grd_match_cum += grd_match
-
-            # [B, T, 1]
-            grd_match = tf.expand_dims(grd_match, 2)
-            attn_ctr_gtm = tf.reduce_sum(grd_match * attn_ctr_gt, 1)
-            attn_delta_gtm = tf.reduce_sum(grd_match * attn_delta_gt, 1)
-
             # Here is the knob kick in GT bbox.
             if use_knob:
+                # Greedy matching here.
+                # IOU [B, 1, T]
+                attn_iou_soft[tt] = _inter(
+                    attn_box[tt], attn_box_gt) / _union(attn_box[tt], attn_box_gt)
+                attn_iou_soft[tt] += iou_bias
+                grd_match = _greedy_match(tf.squeeze(
+                    attn_iou_soft[tt]), grd_match_cum)
+                grd_match_cum += grd_match
+
+                # [B, T, 1]
+                grd_match = tf.expand_dims(grd_match, 2)
+                attn_ctr_gtm = tf.reduce_sum(grd_match * attn_ctr_gt, 1)
+                attn_delta_gtm = tf.reduce_sum(grd_match * attn_delta_gt, 1)
+
                 gt_knob_1 = gt_knob[:, 0: 1]
                 attn_ctr[tt] = phase_train_f * gt_knob_1 * attn_ctr_gtm + \
                     (1 - phase_train_f * gt_knob_1) * attn_ctr[tt]
@@ -1075,24 +1071,24 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 attn_ctr[tt], attn_delta[tt], attn_size)
 
             # [B, H, A]
-            filters_y[tt] = _get_attn_filter(
+            filters_y = _get_attn_filter(
                 attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
                 attn_lg_var[tt][:, 0], inp_height, attn_size)
 
             # [B, W, A]
-            filters_x[tt] = _get_attn_filter(
+            filters_x = _get_attn_filter(
                 attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
                 attn_lg_var[tt][:, 1], inp_width, attn_size)
 
             # [B, A, H]
-            filters_y_inv = tf.transpose(filters_y[tt], [0, 2, 1])
+            filters_y_inv = tf.transpose(filters_y, [0, 2, 1])
 
             # [B, A, W]
-            filters_x_inv = tf.transpose(filters_x[tt], [0, 2, 1])
+            filters_x_inv = tf.transpose(filters_x, [0, 2, 1])
 
             # Attended patch [B, A, A, D]
             x_patch[tt] = attn_lg_gamma[tt] * _extract_patch(
-                ccnn_inp, filters_y[tt], filters_x[tt], ccnn_inp_depth)
+                ccnn_inp, filters_y, filters_x, ccnn_inp_depth)
 
             # CNN [B, A, A, D] => [B, RH2, RW2, RD2]
             h_acnn[tt] = acnn(x_patch[tt])
