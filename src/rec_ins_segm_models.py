@@ -991,8 +991,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
         iou_bias = tf.expand_dims(tf.to_float(
             tf.reverse(tf.range(timespan), [True])) * 1e-5, 0)
         gt_knob_prob = tf.train.exponential_decay(
-            0.9, global_step, 1000,
-            0.96, staircase=True)
+            0.8, global_step, 1000,
+            0.9, staircase=True)
         model['gt_knob_prob'] = gt_knob_prob
 
         # Y out
@@ -1069,7 +1069,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
                     [1], 0, 1.0) <= gt_knob_prob)
                 attn_ctr[tt] = phase_train_f * gt_knob_1 * attn_ctr_gtm + \
                     (1 - phase_train_f * gt_knob_1) * attn_ctr[tt]
-                attn_delta[tt] = phase_train_f * attn_delta_gtm + \
+                attn_delta[tt] = phase_train_f * gt_knob_1 * attn_delta_gtm + \
                     (1 - phase_train_f * gt_knob_1) * attn_delta[tt]
 
             attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
