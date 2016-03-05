@@ -17,7 +17,7 @@ def get_model(name, opt, device='/cpu:0'):
     if name == 'original':
         return get_orig_model(opt, device=device)
     elif name == 'attention':
-        return get_attn_model(opt, device=device)
+        return get_attn_model2(opt, device=device)
     else:
         raise Exception('Unknown model name "{}"'.format(name))
 
@@ -983,14 +983,19 @@ def get_attn_model_2(opt, device='/cpu:0'):
         dcnn_act = [tf.nn.relu] * dcnn_nlayers
         dcnn_channels = [attn_mlp_depth] + dcnn_depth
         dcnn_use_bn = [use_bn] * dcnn_nlayers
-
+        dcnn_skip_ch = [0] + acnn_channels[::-1][1:]
+        dcnn = nn.dcnn(dcnn_filters, dcnn_channels, dcnn_unpool,
+                       dcnn_act, use_bn=dcnn_use_bn, skip_ch=dcnn_skip_ch,
+                       phase_train=phase_train, wd=wd)
         # Y out
 
         # Y out bias
-        y_out_b = nn.weight_variable([1])
+        # y_out_b = nn.weight_variable([1])
+        y_out_bias = 5.0
         attn_box_const = 10.0
         const_ones = tf.ones(
             tf.pack([num_ex, attn_size, attn_size, 1])) * attn_box_const
+        attn_box_bias = 5.0
 
         for tt in xrange(timespan):
             # Controller CNN [B, H, W, D] => [B, RH1, RW1, RD1]
@@ -1059,11 +1064,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
             h_core = amlp(amlp_inp)[-1]
             h_core = tf.reshape(h_core, [-1, arnn_h, arnn_w, attn_mlp_depth])
 
-            skip, skip_ch = _build_skip_conn_inner(
-                acnn_channels, h_acnn[tt], x_patch[tt])
-            dcnn = nn.dcnn(dcnn_filters, dcnn_channels, dcnn_unpool,
-                           dcnn_act, use_bn=dcnn_use_bn, skip_ch=skip_ch,
-                           phase_train=phase_train, wd=wd)
+            # DCNN
+            skip = [None] + h_acnn[tt][::-1][1:]
             h_dcnn = dcnn(h_core, skip=skip)
 
             # Inverse attention [B, T, A, A, 1] => [B, T, H, W, 1]
@@ -1073,18 +1075,19 @@ def get_attn_model_2(opt, device='/cpu:0'):
             y_out[tt] = _extract_patch(
                 h_dcnn[-1], filters_y_inv, filters_x_inv, 1)
             y_out = 1.0 / attn_lg_gamma[tt] * y_out
-            y_out[tt] = tf.sigmoid(y_out[tt] - tf.exp(y_out_b))
+            y_out[tt] = tf.sigmoid(y_out[tt] - y_out_bias)
             y_out[tt] = tf.reshape(
-                y_out[tt], [-1, timespan, inp_height, inp_width])
+                y_out[tt], [-1, 1, inp_height, inp_width])
 
             attn_box[tt] = _extract_patch(
                 const_ones, filters_y_inv, filters_x_inv, 1)
-            attn_box_b = 5.0
-            attn_box[tt] = tf.sigmoid(attn_box - attn_box_b)
+            attn_box[tt] = tf.sigmoid(attn_box - attn_box_bias)
+            attn_box[tt] = tf.reshape(
+                attn_box[tt], [-1, 1, inp_height, inp_width])
 
         model['s_out'] = tf.concat(1, s_out)
-        model['y_out'] = y_out
-        model['attn_box'] = attn_box
+        model['y_out'] = tf.concat(1, y_out)
+        model['attn_box'] = tf.concat(1, attn_box)
 
         # Loss function
         global_step = tf.Variable(0.0)
@@ -1565,14 +1568,18 @@ def get_attn_model(opt, device='/cpu:0'):
         elif box_loss_fn == 'mse':
             _s_gt = tf.reshape(s_gt, [-1, timespan, 1])
             _s_count = tf.reduce_sum(s_gt, reduction_indices=[1])
-            _attn_top_left = tf.to_float(attn_top_left) * _s_gt / inp_height * 2 - 1
-            _attn_top_left_gt = tf.to_float(attn_top_left_gt) * _s_gt/ inp_height * 2 - 1
-            _attn_bot_right = tf.to_float(attn_bot_right) * _s_gt / inp_height * 2 - 1
-            _attn_bot_right_gt = tf.to_float(attn_bot_right_gt) * _s_gt / inp_height * 2 - 1
+            _attn_top_left = tf.to_float(
+                attn_top_left) * _s_gt / inp_height * 2 - 1
+            _attn_top_left_gt = tf.to_float(
+                attn_top_left_gt) * _s_gt / inp_height * 2 - 1
+            _attn_bot_right = tf.to_float(
+                attn_bot_right) * _s_gt / inp_height * 2 - 1
+            _attn_bot_right_gt = tf.to_float(
+                attn_bot_right_gt) * _s_gt / inp_height * 2 - 1
             diff1 = (_attn_top_left - _attn_top_left_gt)
             diff2 = (_attn_bot_right - _attn_bot_right_gt)
             box_loss = tf.reduce_sum(tf.reduce_sum(
-                diff1 * diff1 + diff2 * diff2, reduction_indices=[1, 2]) / 
+                diff1 * diff1 + diff2 * diff2, reduction_indices=[1, 2]) /
                 _s_count) / num_ex
         else:
             raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
