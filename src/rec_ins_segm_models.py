@@ -1515,47 +1515,20 @@ def get_attn_model(opt, device='/cpu:0'):
             [-1, inp_width, attn_size])
         filters_y_all_inv = tf.transpose(filters_y_all, [0, 2, 1])
         filters_x_all_inv = tf.transpose(filters_x_all, [0, 2, 1])
-        # y_out = _extract_patch(
-        #     h_dcnn[-1] + 5.0, filters_y_all_inv, filters_x_all_inv, 1)
-        y_out_b = nn.weight_variable([1])
-        # y_out = _extract_patch(
-        #     h_dcnn[-1] + y_out_b, filters_y_all_inv, filters_x_all_inv, 1)
         y_out = _extract_patch(
             h_dcnn[-1], filters_y_all_inv, filters_x_all_inv, 1)
         y_out = 1.0 / attn_lg_gamma * y_out
-
-        # y_out = tf.minimum(tf.maximum(tf.relu(y_out), 0.0), 1.0)
-        # y_out = tf.maximum(tf.tanh(y_out), 0.0)
-        # y_out = tf.sigmoid(y_out - 5.0)
-        # y_out = tf.sigmoid(y_out - y_out_b)
+        y_out_b = nn.weight_variable([1])
         y_out = tf.sigmoid(y_out - tf.exp(y_out_b))
-        # attn_box_hard = _get_filled_box_idx(idx_map, attn_top_left, attn_bot_right)
-        # y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
-        # y_out = tf.sigmoid(y_out) * tf.stop_gradient(attn_box_hard)
-
-        # y_out_shape = tf.pack([num_ex * timespan, inp_height, inp_width, 1])
-        # w_out = nn.weight_variable([3, 3, 1, 1])
-        # b_out = nn.weight_variable([1])
-        # y_out = tf.sigmoid(tf.nn.conv2d_transpose(
-        #     y_out, w_out, y_out_shape, strides=[1, 1, 1, 1]) + b_out)
-        # y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
 
         gamma = 10.0
-        # gamma = nn.weight_variable([1])
         const_ones = tf.ones(
             tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * gamma
-        # const_ones = tf.ones(
-        # tf.pack([num_ex * timespan, attn_size, attn_size, 1])) *
-        # tf.exp(gamma)
         attn_box = _extract_patch(
             const_ones, filters_y_all_inv, filters_x_all_inv, 1)
         attn_box_b = 5.0
-        # attn_box_b = nn.weight_variable([1])
         attn_box = tf.sigmoid(attn_box - attn_box_b)
-        # attn_box = tf.sigmoid(attn_box - tf.exp(attn_box_b))
         attn_box = tf.reshape(attn_box, [-1, timespan, inp_height, inp_width])
-        # attn_box = attn_box * tf.stop_gradient(attn_box_hard
-        # attn_box = _get_filled_box_idx(idx_map, attn_top_left, attn_bot_right)
 
         model['y_out'] = y_out
         model['attn_box'] = attn_box
@@ -1613,15 +1586,15 @@ def get_attn_model(opt, device='/cpu:0'):
         # Loss for fine segmentation
         iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
 
-        # match = _segm_match(iou_soft, s_gt)
-        # model['match'] = match
-        # match_sum = tf.reduce_sum(match, reduction_indices=[2])
-        # match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
-
-        match = match_box
+        match = _segm_match(iou_soft, s_gt)
         model['match'] = match
-        match_sum = match_sum_box
-        match_count = match_count_box
+        match_sum = tf.reduce_sum(match, reduction_indices=[2])
+        match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
+
+        # match = match_box
+        # model['match'] = match
+        # match_sum = match_sum_box
+        # match_count = match_count_box
 
         iou_soft = tf.reduce_sum(tf.reduce_sum(
             iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
