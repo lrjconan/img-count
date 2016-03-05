@@ -398,6 +398,10 @@ def _parse_args():
                         type=float, help='Box loss coefficient decay factor.')
     parser.add_argument('-use_attn_rnn', action='store_true',
                         help='Whether to use an inner RNN.')
+    parser.add_argument('-use_canvas', action='store_true',
+                        help='Whether to use a canvas to store.')
+    parser.add_argument('-use_knob', action='store_true',
+                        help='Whether to use a knob.')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -534,7 +538,9 @@ if __name__ == '__main__':
             'attn_box_padding_ratio': args.attn_box_padding_ratio,
             'box_loss_coeff_decay': args.box_loss_coeff_decay,
             'steps_per_box_loss_coeff_decay': args.steps_per_box_loss_coeff_decay,
-            'use_attn_rnn': args.use_attn_rnn
+            'use_attn_rnn': args.use_attn_rnn,
+            'use_canvas': args.use_canvas,
+            'use_knob': args.use_knob
         }
         data_opt = {
             'height': args.height,

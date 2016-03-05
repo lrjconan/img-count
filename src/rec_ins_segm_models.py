@@ -63,6 +63,28 @@ def _cum_min(s, d):
     return tf.concat(1, s_min_list)
 
 
+def _inter(a, b):
+    """Computes intersection."""
+    eps = 1e-5
+    reduction_indices = _get_reduction_indices(a)
+    return tf.reduce_sum(a * b, reduction_indices=reduction_indices)
+
+
+def _union(a, b):
+    """Computes union."""
+    eps = 1e-5
+    reduction_indices = _get_reduction_indices(a)
+    return tf.reduce_sum(a + b - (a * b) + eps,
+                         reduction_indices=reduction_indices)
+
+
+def _get_reduction_indices(a):
+    """Gets the list of axes to sum over."""
+    dim = len(a.get_shape())
+
+    return [dim - 2, dim - 1]
+
+
 def _f_iou(a, b, timespan, pairwise=False):
     """
     Computes IOU score.
@@ -75,35 +97,8 @@ def _f_iou(a, b, timespan, pairwise=False):
         pairwise: whether the inputs are already aligned, outputs [B, N] or
                   the inputs are orderless, outputs [B, N, M].
     """
-    eps = 1e-5
 
-    def _get_reduction_indices(a):
-        """Gets the list of axes to sum over."""
-        dim = len(a.get_shape())
-
-        return [dim - 2, dim - 1]
-
-    def _inter(a, b):
-        """Computes intersection."""
-        reduction_indices = _get_reduction_indices(a)
-        return tf.reduce_sum(a * b, reduction_indices=reduction_indices)
-
-    def _union(a, b):
-        """Computes union."""
-        reduction_indices = _get_reduction_indices(a)
-        return tf.reduce_sum(a + b - (a * b) + eps,
-                             reduction_indices=reduction_indices)
     if pairwise:
-        # a_shape = tf.shape(a)
-        # b_shape = tf.shape(b)
-        # zeros_a = tf.zeros(tf.concat(0, [a_shape[0: 1], b_shape[1: 2], a_shape[1: ]]))
-        # # [B, N, H, W] => [B, N, 1, H, W]
-        # a = tf.expand_dims(a, 2)
-        # a = a + zeros_a
-        # # [B, M, H, W] => [B, 1, M, H, W]
-        # b = tf.expand_dims(b, 1)
-        # return _inter(a, b) / _union(a, b)
-
         # N * [B, 1, M]
         y_list = [None] * timespan
         # [B, N, H, W] => [B, N, 1, H, W]
@@ -831,9 +826,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
     steps_per_box_loss_coeff_decay = opt['steps_per_box_loss_coeff_decay']
     box_loss_coeff_decay = opt['box_loss_coeff_decay']
     use_attn_rnn = opt['use_attn_rnn']
-    # use_knob = opt['use_knob']
-    # use_canvas = opt['use_canvas']
-    use_canvas = False
+    use_knob = opt['use_knob']
+    use_canvas = opt['use_canvas']
 
     with tf.device(_get_device_fn(device)):
         # Input definition
@@ -847,6 +841,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         s_gt = tf.placeholder('float', [None, timespan])
         # Whether in training stage.
         phase_train = tf.placeholder('bool')
+        phase_train_f = tf.to_float(phase_train)
         model['x'] = x
         model['y_gt'] = y_gt
         model['s_gt'] = s_gt
@@ -859,10 +854,12 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
         # Canvas
         if use_canvas:
-            canvas = tf.zeros([inp_height, inp_width, 1])
+            canvas = tf.zeros(tf.pack([num_ex, inp_height, inp_width, 1]))
             ccnn_inp_depth = inp_depth + 1
+            acnn_inp_depth = inp_depth + 1
         else:
             ccnn_inp_depth = inp_depth
+            acnn_inp_depth = inp_depth
 
         # Controller CNN definition
         ccnn_filters = ctrl_cnn_filter_size
@@ -909,22 +906,11 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
         # Groundtruth bounding box, [B, T, 2]
         attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, \
-        attn_top_left_gt, attn_bot_right_gt, idx_map = \
+            attn_top_left_gt, attn_bot_right_gt, idx_map = \
             _get_gt_attn(y_gt, attn_size, padding_ratio=attn_box_padding_ratio)
+        attn_lg_gamma_gt = tf.ones(tf.pack([num_ex, timespan, 1]))
 
-        if use_gt_attn:
-            attn_ctr = attn_ctr_gt
-            attn_delta = attn_delta_gt
-            attn_lg_var = attn_lg_var_gt
-            attn_ctr = [tf.reshape(tmp, [-1, 2])
-                        for tmp in tf.split(1, timespan, attn_ctr)]
-            attn_delta = [tf.reshape(tmp, [-1, 2])
-                          for tmp in tf.split(1, timespan, attn_delta)]
-            attn_lg_var = [tf.reshape(tmp, [-1, 2])
-                           for tmp in tf.split(1, timespan, attn_lg_var)]
-            attn_lg_gamma = [tf.ones(tf.pack([num_ex, 1, 1, 1]))
-                             for tt in xrange(timespan)]
-        else:
+        if not use_gt_attn:
             attn_ctr = [None] * timespan
             attn_delta = [None] * timespan
             attn_lg_var = [None] * timespan
@@ -938,7 +924,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # Attention CNN definition
         acnn_filters = attn_cnn_filter_size
         acnn_nlayers = len(acnn_filters)
-        acnn_channels = [inp_depth] + attn_cnn_depth
+        acnn_channels = [acnn_inp_depth] + attn_cnn_depth
         acnn_pool = [2] * acnn_nlayers
         acnn_act = [tf.nn.relu] * acnn_nlayers
         acnn_use_bn = [use_bn] * acnn_nlayers
@@ -989,14 +975,27 @@ def get_attn_model_2(opt, device='/cpu:0'):
         dcnn = nn.dcnn(dcnn_filters, dcnn_channels, dcnn_unpool,
                        dcnn_act, use_bn=dcnn_use_bn, skip_ch=dcnn_skip_ch,
                        phase_train=phase_train, wd=wd)
-        # Y out
-        y_out = [None] * timespan
+
+        # Attention box
         attn_box = [None] * timespan
-        y_out_bias = 5.0
+        attn_iou_soft = [None] * timespan
         attn_box_const = 10.0
         const_ones = tf.ones(
             tf.pack([num_ex, attn_size, attn_size, 1])) * attn_box_const
         attn_box_bias = 5.0
+
+        # Knob
+        # Cumulative greedy match
+        # [B, N]
+        grd_match_cum = tf.zeros(tf.pack([num_ex, timespan]))
+        # Add a bias on every entry so there is no duplicate match
+        # [1, N]
+        iou_bias = tf.expand_dims(tf.to_float(
+            tf.reverse(tf.range(timespan), [True])) * 1e-5, 0)
+
+        # Y out
+        y_out = [None] * timespan
+        y_out_bias = 5.0
 
         for tt in xrange(timespan):
             # Controller CNN [B, H, W, D] => [B, RH1, RW1, RD1]
@@ -1014,23 +1013,60 @@ def get_attn_model_2(opt, device='/cpu:0'):
             h_crnn[tt] = tf.slice(
                 crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
 
-            if not use_gt_attn:
+            if use_gt_attn:
+                attn_ctr[tt] = attn_ctr_gt[:, tt, :]
+                attn_delta[tt] = attn_delta_gt[:, tt, :]
+                attn_lg_var[tt] = attn_lg_var_gt[:, tt, :]
+                attn_lg_gamma[tt] = attn_lg_gamma_gt[:, tt, :]
+            else:
                 ctrl_out = cmlp(h_crnn[tt])[-1]
                 _ctr = tf.slice(ctrl_out, [0, 0], [-1, 2])
                 _lg_delta = tf.slice(ctrl_out, [0, 2], [-1, 2])
                 attn_ctr[tt], attn_delta[tt] = _unnormalize_attn(
                     _ctr, _lg_delta, inp_height, inp_width, attn_size)
-                attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2])) + 1.0
+                attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
                 # attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
                 attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
                 attn_lg_gamma[tt] = tf.reshape(
                     tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
 
+            # Initial filters (predicted)
+            filters_y[tt] = _get_attn_filter(
+                attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
+                attn_lg_var[tt][:, 0], inp_height, attn_size)
+            filters_x[tt] = _get_attn_filter(
+                attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
+                attn_lg_var[tt][:, 1], inp_width, attn_size)
+            filters_y_inv = tf.transpose(filters_y[tt], [0, 2, 1])
+            filters_x_inv = tf.transpose(filters_x[tt], [0, 2, 1])
+
+            # Attention box
+            attn_box[tt] = _extract_patch(
+                const_ones, filters_y_inv, filters_x_inv, 1)
+            attn_box[tt] = tf.sigmoid(attn_box[tt] - attn_box_bias)
+            attn_box[tt] = tf.reshape(
+                attn_box[tt], [-1, 1, inp_height, inp_width])
+
             # Greedy matching here.
+            # IOU [B, 1, T]
+            attn_iou_soft[tt] = _inter(
+                attn_box[tt], attn_box_gt) / _union(attn_box[tt], attn_box_gt)
+            attn_iou_soft[tt] += iou_bias
+            grd_match = _greedy_match(tf.squeeze(
+                attn_iou_soft[tt]), grd_match_cum)
+            grd_match_cum += grd_match
+
+            # [B, T, 1]
+            grd_match = tf.expand_dims(grd_match, 2)
+            attn_ctr_gtm = tf.reduce_sum(grd_match * attn_ctr_gt, 1)
+            attn_delta_gtm = tf.reduce_sum(grd_match * attn_delta_gt, 1)
 
             # Here is the knob kick in GT bbox.
             if use_knob:
-                pass
+                attn_ctr[tt] = phase_train_f * attn_ctr_gtm + \
+                    (1 - phase_train_f) * attn_ctr[tt]
+                attn_delta[tt] = phase_train_f * attn_delta_gtm + \
+                    (1 - phase_train_f) * attn_delta[tt]
 
             attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
                 attn_ctr[tt], attn_delta[tt], attn_size)
@@ -1039,10 +1075,17 @@ def get_attn_model_2(opt, device='/cpu:0'):
             filters_y[tt] = _get_attn_filter(
                 attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
                 attn_lg_var[tt][:, 0], inp_height, attn_size)
+
             # [B, W, A]
             filters_x[tt] = _get_attn_filter(
                 attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
                 attn_lg_var[tt][:, 1], inp_width, attn_size)
+
+            # [B, A, H]
+            filters_y_inv = tf.transpose(filters_y[tt], [0, 2, 1])
+
+            # [B, A, W]
+            filters_x_inv = tf.transpose(filters_x[tt], [0, 2, 1])
 
             # Attended patch [B, A, A, D]
             x_patch[tt] = attn_lg_gamma[tt] * _extract_patch(
@@ -1076,10 +1119,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
             skip = [None] + h_acnn[tt][::-1][1:] + [x_patch[tt]]
             h_dcnn = dcnn(h_core, skip=skip)
 
-            # Inverse attention [B, T, A, A, 1] => [B, T, H, W, 1]
-            # Filters [B, L, A] => [B, A, L]
-            filters_y_inv = tf.transpose(filters_y[tt], [0, 2, 1])
-            filters_x_inv = tf.transpose(filters_x[tt], [0, 2, 1])
+            # Output
             y_out[tt] = _extract_patch(
                 h_dcnn[-1], filters_y_inv, filters_x_inv, 1)
             y_out[tt] = 1.0 / attn_lg_gamma[tt] * y_out[tt]
@@ -1088,13 +1128,18 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 y_out[tt], [-1, 1, inp_height, inp_width])
 
             # Here is the knob kick in GT segmentations at this timestep.
-            canvas += y_out[tt]
-
-            attn_box[tt] = _extract_patch(
-                const_ones, filters_y_inv, filters_x_inv, 1)
-            attn_box[tt] = tf.sigmoid(attn_box[tt] - attn_box_bias)
-            attn_box[tt] = tf.reshape(
-                attn_box[tt], [-1, 1, inp_height, inp_width])
+            # [B, N, 1, 1]
+            if use_canvas:
+                if use_knob:
+                    grd_match = tf.expand_dims(grd_match, 3)
+                    _y_out = tf.expand_dims(tf.reduce_sum(
+                        grd_match * y_gt, 1), 3)
+                    _y_out = phase_train_f * _y_out + \
+                        (1 - phase_train_f) * \
+                        tf.reshape(y_out[tt], [-1, inp_height, inp_width, 1])
+                else:
+                    _y_out = y_out[tt]
+            canvas += _y_out
 
         s_out = tf.concat(1, s_out)
         model['s_out'] = s_out
