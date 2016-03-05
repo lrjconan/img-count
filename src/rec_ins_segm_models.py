@@ -63,6 +63,45 @@ def _cum_min(s, d):
     return tf.concat(1, s_min_list)
 
 
+def _f_dice(a, b, timespan, pairwise=False):
+    """
+    Computes DICE score.
+
+    Args:
+        a: [B, N, H, W], or [N, H, W], or [H, W]
+        b: [B, N, H, W], or [N, H, W], or [H, W]
+           in pairwise mode, the second dimension can be different,
+           e.g. [B, M, H, W], or [M, H, W], or [H, W]
+        pairwise: whether the inputs are already aligned, outputs [B, N] or
+                  the inputs are orderless, outputs [B, N, M].
+    """
+
+    if pairwise:
+        # N * [B, 1, M]
+        y_list = [None] * timespan
+        # [B, N, H, W] => [B, N, 1, H, W]
+        a = tf.expand_dims(a, 2)
+        # [B, N, 1, H, W] => N * [B, 1, 1, H, W]
+        a_list = tf.split(1, timespan, a)
+        # [B, M, H, W] => [B, 1, M, H, W]
+        b = tf.expand_dims(b, 1)
+
+        for ii in xrange(timespan):
+            # [B, 1, M]
+            y_list[ii] = 2 * _inter(a_list[ii], b) / \
+                (_card(a_list[ii]) + _card(b))
+
+        # N * [B, 1, M] => [B, N, M]
+        return tf.concat(1, y_list)
+    else:
+        return 2 * _inter(a, b) / (_card(a) + _card(b))
+
+
+def _card(a):
+    """Computes cardinality."""
+    return tf.reduce_sum(a, reduction_indices=[3, 4])
+
+
 def _inter(a, b):
     """Computes intersection."""
     reduction_indices = _get_reduction_indices(a)
@@ -254,6 +293,24 @@ def _count_acc(s_out, s_gt):
         tf.equal(count_out, count_gt))) / num_ex
 
     return count_acc
+
+
+def _dic(s_out, s_gt, abs=False):
+    """Difference in count.
+
+    Args:
+        s_out:
+        s_gt:
+    """
+    num_ex = tf.to_float(tf.shape(s_out)[0])
+    count_out = tf.reduce_sum(tf.to_float(s_out > 0.5), reduction_indices=[1])
+    count_gt = tf.reduce_sum(s_gt, reduction_indices=[1])
+    count_diff = count_out - count_gt
+    if abs:
+        count_diff = tf.abs(count_diff)
+    count_diff = tf.reduce_sum(tf.to_float(count_diff)) / num_ex
+
+    return count_diff
 
 
 def _rnd_img_transformation(x, y_gt, padding, phase_train):
@@ -988,7 +1045,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         iou_bias = tf.expand_dims(tf.to_float(
             tf.reverse(tf.range(timespan), [True])) * iou_bias_eps, 0)
         gt_knob_prob = tf.train.exponential_decay(
-            knob_base, global_step, steps_per_knob_decay, knob_decay, 
+            knob_base, global_step, steps_per_knob_decay, knob_decay,
             staircase=True)
         gt_knob = tf.to_float(tf.random_uniform(
             tf.pack([num_ex, 2]), 0, 1.0) <= gt_knob_prob)
@@ -1058,7 +1115,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 # IOU [B, 1, T]
                 # [B, 1, H, W] * [B, T, H, W] = [B, T]
                 attn_iou_soft[tt] = _inter(attn_box[tt], attn_box_gt) / \
-                                    _union(attn_box[tt], attn_box_gt, eps=0)
+                    _union(attn_box[tt], attn_box_gt, eps=0)
                 attn_iou_soft[tt] += iou_bias
                 grd_match = _greedy_match(attn_iou_soft[tt], grd_match_cum)
                 grd_match_cum += grd_match
@@ -1242,7 +1299,15 @@ def get_attn_model_2(opt, device='/cpu:0'):
         iou_hard = tf.reduce_sum(tf.reduce_sum(
             iou_hard * match, reduction_indices=[1, 2]) / match_count) / num_ex
         model['iou_hard'] = iou_hard
+
+        dice = _f_dice(y_out_hard, y_gt, timespan, pairwise=True)
+        dice = tf.reduce_sum(tf.reduce_sum(
+            dice * match, reduction_indices=[1, 2]) / match_count) / num_ex
+        model['dice'] = dice
+
         model['count_acc'] = _count_acc(s_out, s_gt)
+        model['dic'] = _dic(s_out, s_gt, abs=False)
+        model['dic_abs'] = _dic(s_out, s_gt, abs=True)
 
         # Attention coordinate for debugging [B, T, 2]
         attn_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
@@ -1709,6 +1774,14 @@ def get_attn_model(opt, device='/cpu:0'):
         iou_hard = tf.reduce_sum(tf.reduce_sum(
             iou_hard * match, reduction_indices=[1, 2]) / match_count) / num_ex
         model['iou_hard'] = iou_hard
+
+        dice = _f_dice(y_out_hard, y_gt, timespan, pairwise=True)
+        dice = tf.reduce_sum(tf.reduce_sum(
+            dice * match, reduction_indices=[1, 2]) / match_count) / num_ex
+        model['dice'] = dice
+
         model['count_acc'] = _count_acc(s_out, s_gt)
+        model['dic'] = _dic(s_out, s_gt, abs=False)
+        model['dic_abs'] = _dic(s_out, s_gt, abs=True)
 
     return model

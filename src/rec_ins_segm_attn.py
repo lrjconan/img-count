@@ -637,6 +637,18 @@ if __name__ == '__main__':
             ['train soft', 'valid soft', 'train hard', 'valid hard'],
             name='IoU',
             buffer_size=1)
+        dice_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'dice.csv'),
+            ['train', 'valid'],
+            name='Dice')
+        dic_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'dic.csv'),
+            ['train', 'valid'],
+            name='DiC')
+        dic_abs_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'dic_abs.csv'),
+            ['train', 'valid'],
+            name='|DiC|')
         learn_rate_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'learn_rate.csv'),
             'learning rate',
@@ -749,6 +761,10 @@ if __name__ == '__main__':
         iou_soft = 0.0
         iou_hard = 0.0
         count_acc = 0.0
+        dice = 0
+        dic = 0
+        dic_abs = 0
+
         log.info('Running validation')
         for _x, _y, _s in BatchIterator(num_ex_valid,
                                         batch_size=batch_size,
@@ -756,7 +772,8 @@ if __name__ == '__main__':
                                         progress_bar=False):
             results = sess.run([m['loss'], m['conf_loss'], m['segm_loss'],
                                 m['box_loss'], m['iou_soft'], m['iou_hard'],
-                                m['count_acc']],
+                                m['count_acc'], m['dice'], m['dic'], 
+                                m['dic_abs']],
                                feed_dict={
                 m['x']: _x,
                 m['phase_train']: False,
@@ -770,6 +787,9 @@ if __name__ == '__main__':
             _iou_soft = results[4]
             _iou_hard = results[5]
             _count_acc = results[6]
+            _dice = results[7]
+            _dic = results[8]
+            _dic_abs = results[9]
 
             num_ex_batch = _x.shape[0]
             loss += _loss * num_ex_batch / num_ex_valid
@@ -779,6 +799,9 @@ if __name__ == '__main__':
             iou_soft += _iou_soft * num_ex_batch / num_ex_valid
             iou_hard += _iou_hard * num_ex_batch / num_ex_valid
             count_acc += _count_acc * num_ex_batch / num_ex_valid
+            dice += _dice * num_ex_batch / num_ex_valid
+            dic += _dic * num_ex_batch / num_ex_valid
+            dic_abs += _dic_abs * num_ex_batch / num_ex_valid
 
         log.info(('{:d} vtl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                   'ious {:.4f} iouh {:.4f}').format(
@@ -791,6 +814,9 @@ if __name__ == '__main__':
             box_loss_logger.add(step, ['', box_loss])
             iou_logger.add(step, ['', iou_soft, '', iou_hard])
             count_acc_logger.add(step, ['', count_acc])
+            dice_logger.add(step, ['', dice])
+            dic_logger.add(step, ['', dic])
+            dic_abs_logger.add(step, ['', dic_abs])
 
         pass
 
@@ -801,6 +827,7 @@ if __name__ == '__main__':
                       m['iou_soft'], m['iou_hard'], m['learn_rate'],
                       m['crnn_g_i_avg'], m['crnn_g_f_avg'], m['crnn_g_o_avg'],
                       m['box_loss_coeff'], m['count_acc'], m['gt_knob_prob'],
+                      m['dice'], m['dic'], m['dic_abs'],
                       m['train_step']],
                      feed_dict={
             m['x']: x,
@@ -824,6 +851,9 @@ if __name__ == '__main__':
             box_loss_coeff = r[10]
             count_acc = r[11]
             gt_knob = r[12]
+            dice = r[13]
+            dic = r[14]
+            dic_abs = r[15]
             step_time = (time.time() - start_time) * 1000
             log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                       'ious {:.4f} iouh {:.4f} t {:.2f}ms').format(
@@ -835,6 +865,9 @@ if __name__ == '__main__':
                 segm_loss_logger.add(step, [segm_loss, ''])
                 box_loss_logger.add(step, [box_loss, ''])
                 iou_logger.add(step, [iou_soft, '', iou_hard, ''])
+                dice_logger.add(step, [dice, ''])
+                dic_logger.add(step, [dic, ''])
+                dic_abs_logger.add(step, [dic_abs, ''])
                 learn_rate_logger.add(step, learn_rate)
                 box_loss_coeff_logger.add(step, box_loss_coeff)
                 count_acc_logger.add(step, [count_acc, ''])
