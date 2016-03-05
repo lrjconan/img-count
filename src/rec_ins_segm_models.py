@@ -1517,16 +1517,20 @@ def get_attn_model(opt, device='/cpu:0'):
         filters_x_all_inv = tf.transpose(filters_x_all, [0, 2, 1])
         # y_out = _extract_patch(
         #     h_dcnn[-1] + 5.0, filters_y_all_inv, filters_x_all_inv, 1)
-        y_out_b = nn.weight_variable([1])
+        # y_out_b = nn.weight_variable([1])
+        # y_out = _extract_patch(
+        #     h_dcnn[-1] + y_out_b, filters_y_all_inv, filters_x_all_inv, 1)
         y_out = _extract_patch(
-            h_dcnn[-1] + y_out_b, filters_y_all_inv, filters_x_all_inv, 1)
+            h_dcnn[-1], filters_y_all_inv, filters_x_all_inv, 1)
         y_out = 1.0 / attn_lg_gamma * y_out
 
         # y_out = tf.minimum(tf.maximum(tf.relu(y_out), 0.0), 1.0)
         # y_out = tf.maximum(tf.tanh(y_out), 0.0)
         # y_out = tf.sigmoid(y_out - 5.0)
-        y_out = tf.sigmoid(y_out - y_out_b)
+        # y_out = tf.sigmoid(y_out - y_out_b)
         # y_out = tf.sigmoid(y_out - tf.exp(y_out_b))
+        attn_box_hard = _get_filled_box_idx(idx_map, attn_top_left, attn_bot_right)
+        y_out = tf.sigmoid(y_out) * attn_box_hard
         y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
 
         gamma = 10.0
