@@ -697,9 +697,6 @@ def _get_gt_attn(y_gt, attn_size, padding_ratio=0.0):
     # [B, T, 2]
     top_left = tf.reduce_min(idx_min, reduction_indices=[2, 3])
     bot_right = tf.reduce_max(idx_max, reduction_indices=[2, 3])
-    ctr = (bot_right + top_left) / 2.0
-    delta = (bot_right - top_left + 1.0) / attn_size
-    lg_var = tf.zeros(tf.shape(ctr)) + 1.0
 
     # Enlarge the groundtruth box.
     if padding_ratio > 0:
@@ -710,6 +707,10 @@ def _get_gt_attn(y_gt, attn_size, padding_ratio=0.0):
         box = _get_filled_box_idx(idx, top_left, bot_right)
     else:
         log.warning('Not padding groundtruth box')
+        
+    ctr = (bot_right + top_left) / 2.0
+    delta = (bot_right - top_left + 1.0) / attn_size
+    lg_var = tf.zeros(tf.shape(ctr)) + 1.0
 
     return ctr, delta, lg_var, box, top_left, bot_right, idx
 
@@ -747,12 +748,6 @@ def _get_filled_box_idx(idx, top_left, bot_right):
     box = tf.to_float(tf.logical_and(lower, upper))
 
     return box
-
-
-# def _get_filled_box(shape, top_left, bot_right):
-#     """Fill a box with top left and bottom right coordinates."""
-#     idx = _get_idx_map(shape)
-#     return _get_filled_box_idx(idx, top_left, bot_right)
 
 
 def _unnormalize_attn(ctr, lg_delta, inp_height, inp_width, attn_size):
