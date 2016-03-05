@@ -1462,7 +1462,7 @@ def get_attn_model(opt, device='/cpu:0'):
             dcnn_filters = dcnn_filter_size
             dcnn_nlayers = len(dcnn_filters)
             dcnn_unpool = [2] * (dcnn_nlayers - 1) + [1]
-            dcnn_act = [tf.nn.relu] * dcnn_nlayers
+            dcnn_act = [tf.nn.relu] * (dcnn_nlayers - 1) + [None]
             dcnn_channels = [attn_mlp_depth] + dcnn_depth
             dcnn_use_bn = [use_bn] * dcnn_nlayers
 
@@ -1487,8 +1487,8 @@ def get_attn_model(opt, device='/cpu:0'):
         y_out = _extract_patch(
             h_dcnn[-1], filters_y_all_inv, filters_x_all_inv, 1)
         y_out = 1.0 / attn_lg_gamma * y_out
-        y_out_b = nn.weight_variable([1])
-        y_out = tf.sigmoid(y_out - tf.exp(y_out_b))
+        # y_out_b = nn.weight_variable([1])
+        # y_out = tf.sigmoid(y_out - tf.exp(y_out_b))
         y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
 
         # Attention coordinate for debugging [B, T, 2]
