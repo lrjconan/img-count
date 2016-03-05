@@ -1531,7 +1531,7 @@ def get_attn_model(opt, device='/cpu:0'):
         # y_out = tf.sigmoid(y_out - tf.exp(y_out_b))
         attn_box_hard = _get_filled_box_idx(idx_map, attn_top_left, attn_bot_right)
         y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
-        y_out = tf.sigmoid(y_out) * attn_box_hard
+        y_out = tf.sigmoid(y_out) * tf.stop_gradient(attn_box_hard)
 
         gamma = 10.0
         # gamma = nn.weight_variable([1])
@@ -1547,6 +1547,7 @@ def get_attn_model(opt, device='/cpu:0'):
         attn_box = tf.sigmoid(attn_box - attn_box_b)
         # attn_box = tf.sigmoid(attn_box - tf.exp(attn_box_b))
         attn_box = tf.reshape(attn_box, [-1, timespan, inp_height, inp_width])
+        # attn_box = attn_box * tf.stop_gradient(attn_box_hard
         # attn_box = _get_filled_box_idx(idx_map, attn_top_left, attn_bot_right)
 
         model['y_out'] = y_out
