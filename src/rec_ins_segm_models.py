@@ -841,7 +841,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         model['y_gt'] = y_gt
         model['s_gt'] = s_gt
         model['phase_train'] = phase_train
-        
+
         # Global step
         global_step = tf.Variable(0.0)
 
@@ -993,6 +993,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
         gt_knob_prob = tf.train.exponential_decay(
             0.8, global_step, 1000,
             0.9, staircase=True)
+        gt_knob = tf.to_float(tf.random_uniform(
+            tf.pack([num_ex, 2]), 0, 1.0) <= gt_knob_prob)
         model['gt_knob_prob'] = gt_knob_prob
 
         # Y out
@@ -1065,8 +1067,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
             # Here is the knob kick in GT bbox.
             if use_knob:
-                gt_knob_1 = tf.to_float(tf.random_uniform(
-                    [1], 0, 1.0) <= gt_knob_prob)
+                gt_knob_1 = gt_knob[:, 0: 1]
                 attn_ctr[tt] = phase_train_f * gt_knob_1 * attn_ctr_gtm + \
                     (1 - phase_train_f * gt_knob_1) * attn_ctr[tt]
                 attn_delta[tt] = phase_train_f * gt_knob_1 * attn_delta_gtm + \
@@ -1135,8 +1136,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
             # [B, N, 1, 1]
             if use_canvas:
                 if use_knob:
-                    gt_knob_2 = tf.to_float(tf.random_uniform(
-                        [1], 0, 1.0) <= gt_knob_prob)
+                    gt_knob_2 = tf.expand_dims(
+                        tf.expand_dims(gt_knob[:, 1: 2], 2), 3)
                     grd_match = tf.expand_dims(grd_match, 3)
                     _y_out = tf.expand_dims(tf.reduce_sum(
                         grd_match * y_gt, 1), 3)
