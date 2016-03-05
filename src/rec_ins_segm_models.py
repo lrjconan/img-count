@@ -952,7 +952,7 @@ def get_attn_model(opt, device='/cpu:0'):
                 _lg_delta = tf.slice(ctrl_out, [0, 2], [-1, 2])
                 attn_ctr[tt], attn_delta[tt] = _unnormalize_attn(
                     _ctr, _lg_delta, inp_height, inp_width, attn_size)
-                attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
+                attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2])) + 1.0
                 # attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
                 attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
                 attn_lg_gamma[tt] = tf.reshape(
@@ -1070,7 +1070,7 @@ def get_attn_model(opt, device='/cpu:0'):
         y_out = tf.sigmoid(y_out - tf.exp(y_out_b))
         y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
 
-        gamma = 15.0
+        gamma = 10.0
         # gamma = nn.weight_variable([1])
         const_ones = tf.ones(
             tf.pack([num_ex * timespan, attn_size, attn_size, 1])) * gamma
