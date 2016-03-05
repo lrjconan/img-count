@@ -831,8 +831,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
     steps_per_box_loss_coeff_decay = opt['steps_per_box_loss_coeff_decay']
     box_loss_coeff_decay = opt['box_loss_coeff_decay']
     use_attn_rnn = opt['use_attn_rnn']
-    use_knob = opt['use_knob']
-    use_canvas = opt['use_canvas']
+    # use_knob = opt['use_knob']
+    # use_canvas = opt['use_canvas']
+    use_canvas = False
 
     with tf.device(_get_device_fn(device)):
         # Input definition
@@ -907,7 +908,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
         filters_x = [None] * timespan
 
         # Groundtruth bounding box, [B, T, 2]
-        attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, idx_map = \
+        attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, \
+        attn_top_left_gt, attn_bot_right_gt, idx_map = \
             _get_gt_attn(y_gt, attn_size, padding_ratio=attn_box_padding_ratio)
 
         if use_gt_attn:
@@ -983,14 +985,13 @@ def get_attn_model_2(opt, device='/cpu:0'):
         dcnn_act = [tf.nn.relu] * dcnn_nlayers
         dcnn_channels = [attn_mlp_depth] + dcnn_depth
         dcnn_use_bn = [use_bn] * dcnn_nlayers
-        dcnn_skip_ch = [0] + acnn_channels[::-1][1:]
+        dcnn_skip_ch = [0] + acnn_channels[::-1][1:] + [ccnn_inp_depth]
         dcnn = nn.dcnn(dcnn_filters, dcnn_channels, dcnn_unpool,
                        dcnn_act, use_bn=dcnn_use_bn, skip_ch=dcnn_skip_ch,
                        phase_train=phase_train, wd=wd)
         # Y out
-
-        # Y out bias
-        # y_out_b = nn.weight_variable([1])
+        y_out = [None] * timespan
+        attn_box = [None] * timespan
         y_out_bias = 5.0
         attn_box_const = 10.0
         const_ones = tf.ones(
@@ -1025,6 +1026,12 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 attn_lg_gamma[tt] = tf.reshape(
                     tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
 
+            # Greedy matching here.
+
+            # Here is the knob kick in GT bbox.
+            if use_knob:
+                pass
+
             attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
                 attn_ctr[tt], attn_delta[tt], attn_size)
 
@@ -1039,7 +1046,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
             # Attended patch [B, A, A, D]
             x_patch[tt] = attn_lg_gamma[tt] * _extract_patch(
-                x, filters_y[tt], filters_x[tt], inp_depth)
+                ccnn_inp, filters_y[tt], filters_x[tt], ccnn_inp_depth)
 
             # CNN [B, A, A, D] => [B, RH2, RW2, RD2]
             h_acnn[tt] = acnn(x_patch[tt])
@@ -1061,11 +1068,12 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 amlp_inp = h_arnn
             else:
                 amlp_inp = h_acnn_last[tt]
+            amlp_inp = tf.reshape(amlp_inp, [-1, amlp_inp_dim])
             h_core = amlp(amlp_inp)[-1]
             h_core = tf.reshape(h_core, [-1, arnn_h, arnn_w, attn_mlp_depth])
 
             # DCNN
-            skip = [None] + h_acnn[tt][::-1][1:]
+            skip = [None] + h_acnn[tt][::-1][1:] + [x_patch[tt]]
             h_dcnn = dcnn(h_core, skip=skip)
 
             # Inverse attention [B, T, A, A, 1] => [B, T, H, W, 1]
@@ -1074,20 +1082,26 @@ def get_attn_model_2(opt, device='/cpu:0'):
             filters_x_inv = tf.transpose(filters_x[tt], [0, 2, 1])
             y_out[tt] = _extract_patch(
                 h_dcnn[-1], filters_y_inv, filters_x_inv, 1)
-            y_out = 1.0 / attn_lg_gamma[tt] * y_out
+            y_out[tt] = 1.0 / attn_lg_gamma[tt] * y_out[tt]
             y_out[tt] = tf.sigmoid(y_out[tt] - y_out_bias)
             y_out[tt] = tf.reshape(
                 y_out[tt], [-1, 1, inp_height, inp_width])
 
+            # Here is the knob kick in GT segmentations at this timestep.
+            canvas += y_out[tt]
+
             attn_box[tt] = _extract_patch(
                 const_ones, filters_y_inv, filters_x_inv, 1)
-            attn_box[tt] = tf.sigmoid(attn_box - attn_box_bias)
+            attn_box[tt] = tf.sigmoid(attn_box[tt] - attn_box_bias)
             attn_box[tt] = tf.reshape(
                 attn_box[tt], [-1, 1, inp_height, inp_width])
 
-        model['s_out'] = tf.concat(1, s_out)
-        model['y_out'] = tf.concat(1, y_out)
-        model['attn_box'] = tf.concat(1, attn_box)
+        s_out = tf.concat(1, s_out)
+        model['s_out'] = s_out
+        y_out = tf.concat(1, y_out)
+        model['y_out'] = y_out
+        attn_box = tf.concat(1, attn_box)
+        model['attn_box'] = attn_box
 
         # Loss function
         global_step = tf.Variable(0.0)
