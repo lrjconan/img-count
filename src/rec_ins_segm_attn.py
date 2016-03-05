@@ -640,15 +640,18 @@ if __name__ == '__main__':
         dice_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'dice.csv'),
             ['train', 'valid'],
-            name='Dice')
+            name='Dice',
+            buffer_size=1)
         dic_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'dic.csv'),
             ['train', 'valid'],
-            name='DiC')
+            name='DiC',
+            buffer_size=1)
         dic_abs_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'dic_abs.csv'),
             ['train', 'valid'],
-            name='|DiC|')
+            name='|DiC|',
+            buffer_size=1)
         learn_rate_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'learn_rate.csv'),
             'learning rate',
