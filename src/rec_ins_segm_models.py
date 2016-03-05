@@ -1589,10 +1589,10 @@ def get_attn_model(opt, device='/cpu:0'):
             box_loss = _match_bce(attn_box, attn_box_gt, match_box, timespan)
         elif box_loss_fn == 'mse':
             _s_gt = tf.reshape(s_gt, [-1, timespan, 1])
-            _attn_top_left = tf.to_float(attn_top_left) * _s_gt / inp_height - 0.5
-            _attn_top_left_gt = tf.to_float(attn_top_left_gt) * _s_gt/ inp_height - 0.5
-            _attn_bot_right = tf.to_float(attn_bot_right) * _s_gt / inp_height - 0.5
-            _attn_bot_right_gt = tf.to_float(attn_bot_right_gt) * _s_gt / inp_height - 0.5
+            _attn_top_left = tf.to_float(attn_top_left) * _s_gt / inp_height * 2 - 1
+            _attn_top_left_gt = tf.to_float(attn_top_left_gt) * _s_gt/ inp_height * 2 - 1
+            _attn_bot_right = tf.to_float(attn_bot_right) * _s_gt / inp_height * 2 - 1
+            _attn_bot_right_gt = tf.to_float(attn_bot_right_gt) * _s_gt / inp_height * 2 - 1
             diff1 = (_attn_top_left - _attn_top_left_gt)
             diff2 = (_attn_bot_right - _attn_bot_right_gt)
             box_loss = tf.reduce_sum(diff1 * diff1 + diff2 * diff2) / \
