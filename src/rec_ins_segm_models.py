@@ -1474,23 +1474,6 @@ def get_attn_model(opt, device='/cpu:0'):
                        phase_train=phase_train, wd=wd)
         h_dcnn = dcnn(h_core, skip=skip)
 
-        # Inverse attention [B, T, A, A, 1] => [B, T, H, W, 1]
-        # Filters T * [B, L, A] => [B * T, L, A]
-        filters_y_all = tf.reshape(
-            tf.concat(1, [tf.expand_dims(f, 1) for f in filters_y]),
-            [-1, inp_height, attn_size])
-        filters_x_all = tf.reshape(
-            tf.concat(1, [tf.expand_dims(f, 1) for f in filters_x]),
-            [-1, inp_width, attn_size])
-        filters_y_all_inv = tf.transpose(filters_y_all, [0, 2, 1])
-        filters_x_all_inv = tf.transpose(filters_x_all, [0, 2, 1])
-        y_out = _extract_patch(
-            h_dcnn[-1], filters_y_all_inv, filters_x_all_inv, 1)
-        y_out = 1.0 / attn_lg_gamma * y_out
-        # y_out_b = nn.weight_variable([1])
-        # y_out = tf.sigmoid(y_out - tf.exp(y_out_b))
-        y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
-
         # Attention coordinate for debugging [B, T, 2]
         attn_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
                                       for tmp in attn_top_left])
@@ -1521,6 +1504,23 @@ def get_attn_model(opt, device='/cpu:0'):
         model['crnn_g_i_avg'] = crnn_g_i_avg
         model['crnn_g_f_avg'] = crnn_g_f_avg
         model['crnn_g_o_avg'] = crnn_g_o_avg
+
+        # Inverse attention [B, T, A, A, 1] => [B, T, H, W, 1]
+        # Filters T * [B, L, A] => [B * T, L, A]
+        filters_y_all = tf.reshape(
+            tf.concat(1, [tf.expand_dims(f, 1) for f in filters_y]),
+            [-1, inp_height, attn_size])
+        filters_x_all = tf.reshape(
+            tf.concat(1, [tf.expand_dims(f, 1) for f in filters_x]),
+            [-1, inp_width, attn_size])
+        filters_y_all_inv = tf.transpose(filters_y_all, [0, 2, 1])
+        filters_x_all_inv = tf.transpose(filters_x_all, [0, 2, 1])
+        y_out = _extract_patch(
+            h_dcnn[-1], filters_y_all_inv, filters_x_all_inv, 1)
+        y_out = 1.0 / attn_lg_gamma * y_out
+        # y_out_b = nn.weight_variable([1])
+        # y_out = tf.sigmoid(y_out - tf.exp(y_out_b))
+        y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
 
         gamma = 10.0
         # gamma = nn.weight_variable([1])
