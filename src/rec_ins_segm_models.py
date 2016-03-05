@@ -991,7 +991,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         iou_bias = tf.expand_dims(tf.to_float(
             tf.reverse(tf.range(timespan), [True])) * 1e-5, 0)
         gt_knob_prob = tf.train.exponential_decay(
-            0.8, global_step, 1000,
+            0.0, global_step, 1000,
             0.9, staircase=True)
         gt_knob = tf.to_float(tf.random_uniform(
             tf.pack([num_ex, 2]), 0, 1.0) <= gt_knob_prob)
