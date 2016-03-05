@@ -1594,7 +1594,7 @@ def get_attn_model(opt, device='/cpu:0'):
             _attn_bot_right_gt = attn_bot_right_gt / inp_height - 0.5
             diff1 = (_attn_top_left - _attn_top_left_gt)
             diff2 = (_attn_bot_right - _attn_bot_right_gt)
-            box_loss = tf.reduce_sum(diff1 * diff1 + diff2 * diff2) / timespan / num_ex
+            box_loss = tf.reduce_sum(diff1 * diff1 + diff2 * diff2) / timespan / num_ex / inp_height / inp_width
         else:
             raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
         model['box_loss'] = box_loss
