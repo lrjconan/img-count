@@ -841,6 +841,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
         model['y_gt'] = y_gt
         model['s_gt'] = s_gt
         model['phase_train'] = phase_train
+        
+        # Global step
+        global_step = tf.Variable(0.0)
 
         # Random image transformation
         x, y_gt = _rnd_img_transformation(x, y_gt, padding, phase_train)
@@ -1152,7 +1155,6 @@ def get_attn_model_2(opt, device='/cpu:0'):
         model['attn_box'] = attn_box
 
         # Loss function
-        global_step = tf.Variable(0.0)
         learn_rate = tf.train.exponential_decay(
             base_learn_rate, global_step, steps_per_learn_rate_decay,
             learn_rate_decay, staircase=True)
