@@ -989,7 +989,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
             tf.reverse(tf.range(timespan), [True])) * 1e-5, 0)
         gt_knob_prob = tf.train.exponential_decay(
             0.8, global_step, 1000,
-            0.96, staircase=True)
+            0.9, staircase=True)
         model['gt_knob_prob'] = gt_knob_prob
 
         # Y out
