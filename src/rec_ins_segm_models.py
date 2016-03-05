@@ -172,8 +172,6 @@ def _segm_match(iou, s_gt):
         y_gt: [B, T, H, W], groundtruth segmentations
         s_gt: [B, T], groudtruth score sequence
     """
-    # IOU score, [B, N, M]
-    # iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
     # Mask X, [B, M] => [B, 1, M]
     mask_x = tf.expand_dims(s_gt, dim=1)
     # Mask Y, [B, M] => [B, N, 1]
