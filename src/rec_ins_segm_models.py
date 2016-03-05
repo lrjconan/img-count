@@ -1139,7 +1139,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
                         (1 - phase_train_f * gt_knob_2) * \
                         tf.reshape(y_out[tt], [-1, inp_height, inp_width, 1])
                 else:
-                    _y_out = y_out[tt]
+                    _y_out = tf.reshape(y_out[tt], 
+                                        [-1, inp_height, inp_width, 1])
                 canvas += _y_out
 
         s_out = tf.concat(1, s_out)
@@ -1453,6 +1454,8 @@ def get_attn_model(opt, device='/cpu:0'):
         h_ccnn_last = h_ccnn[-1]
         crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
 
+        model['gt_knob_prob'] = tf.constant(0.0)
+        
         for tt in xrange(timespan):
             # Controller RNN [B, R1]
             crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[
