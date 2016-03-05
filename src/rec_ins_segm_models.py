@@ -1072,7 +1072,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
             filters_x_inv = tf.transpose(filters_x[tt], [0, 2, 1])
             y_out[tt] = _extract_patch(
                 h_dcnn[-1], filters_y_inv, filters_x_inv, 1)
-            y_out = 1.0 / attn_lg_gamma * y_out
+            y_out = 1.0 / attn_lg_gamma[tt] * y_out
             y_out[tt] = tf.sigmoid(y_out[tt] - tf.exp(y_out_b))
             y_out[tt] = tf.reshape(
                 y_out[tt], [-1, timespan, inp_height, inp_width])
@@ -1474,7 +1474,7 @@ def get_attn_model(opt, device='/cpu:0'):
                        phase_train=phase_train, wd=wd)
         h_dcnn = dcnn(h_core, skip=skip)
 
-        # Attention coordinate for debugging [B, T, 2]
+        # Concat all attentions.
         attn_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
                                       for tmp in attn_top_left])
         attn_bot_right = tf.concat(1, [tf.expand_dims(tmp, 1)
@@ -1518,6 +1518,7 @@ def get_attn_model(opt, device='/cpu:0'):
         y_out = _extract_patch(
             h_dcnn[-1], filters_y_all_inv, filters_x_all_inv, 1)
         y_out = 1.0 / attn_lg_gamma * y_out
+        y_out = tf.sigmoid(y_out)
         # y_out_b = nn.weight_variable([1])
         # y_out = tf.sigmoid(y_out - tf.exp(y_out_b))
         y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
