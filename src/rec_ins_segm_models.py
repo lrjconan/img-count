@@ -716,7 +716,7 @@ def _get_gt_attn(y_gt, attn_size, padding_ratio=0.0):
     else:
         log.warning('Not padding groundtruth box')
 
-    return ctr, delta, lg_var, box, idx
+    return ctr, delta, lg_var, box, top_left, bot_right, idx
 
 
 def _get_idx_map(shape):
@@ -1318,7 +1318,7 @@ def get_attn_model(opt, device='/cpu:0'):
         filters_x = [None] * timespan
 
         # Groundtruth bounding box, [B, T, 2]
-        attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, idx_map = \
+        attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, attn_top_left_gt, attn_bot_right_gt, idx_map = \
             _get_gt_attn(y_gt, attn_size, padding_ratio=attn_box_padding_ratio)
         if use_gt_attn:
             attn_ctr = attn_ctr_gt
@@ -1536,7 +1536,8 @@ def get_attn_model(opt, device='/cpu:0'):
         y_out_shape = tf.pack([num_ex * timespan, inp_height, inp_width, 1])
         w_out = nn.weight_variable([3, 3, 1, 1])
         b_out = nn.weight_variable([1])
-        y_out = tf.sigmoid(tf.nn.conv2d_transpose(y_out, w_out, y_out_shape, strides=[1, 1, 1, 1]) + b_out)
+        y_out = tf.sigmoid(tf.nn.conv2d_transpose(
+            y_out, w_out, y_out_shape, strides=[1, 1, 1, 1]) + b_out)
         y_out = tf.reshape(y_out, [-1, timespan, inp_height, inp_width])
 
         gamma = 10.0
@@ -1586,6 +1587,10 @@ def get_attn_model(opt, device='/cpu:0'):
             box_loss = -iou_soft_box
         elif box_loss_fn == 'bce':
             box_loss = _match_bce(attn_box, attn_box_gt, match_box, timespan)
+        elif box_loss_fn == 'mse':
+            diff1 = (attn_top_left - attn_top_left_gt) / float(inp_height)
+            diff2 = (attn_bot_right - attn_bot_right_gt) / float(inp_height)
+            box_loss = tf.reduce_sum(diff1 * diff1 + diff2 * diff2)
         else:
             raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
         model['box_loss'] = box_loss
