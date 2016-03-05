@@ -1435,44 +1435,44 @@ def get_attn_model(opt, device='/cpu:0'):
                 arnn_state[tt], arnn_g_i[tt], arnn_g_f[tt], arnn_g_o[tt] = \
                     arnn_cell(arnn_inp, arnn_state[tt - 1])
 
-            # Scoring network
-            h_crnn_all = tf.concat(1, [tf.expand_dims(h, 1) for h in h_crnn[tt]])
-            score_inp = tf.reshape(h_crnn_all, [-1, ctrl_rnn_hid_dim])
-            s_out = tf.reshape(smlp(score_inp)[-1], [-1, timespan])
-            model['s_out'] = s_out
+        # Scoring network
+        h_crnn_all = tf.concat(1, [tf.expand_dims(h, 1) for h in h_crnn])
+        score_inp = tf.reshape(h_crnn_all, [-1, ctrl_rnn_hid_dim])
+        s_out = tf.reshape(smlp(score_inp)[-1], [-1, timespan])
+        model['s_out'] = s_out
 
-            # Dense segmentation network [B, T, R] => [B, T, M]
-            if use_attn_rnn:
-                h_arnn = [tf.slice(arnn_state[tt], [0, arnn_dim], [-1, arnn_dim])
-                          for tt in xrange(timespan)]
-                h_arnn_all = tf.concat(
-                    1, [tf.expand_dims(h, 1) for h in h_arnn])
-                h_arnn_all = tf.reshape(h_arnn_all, [-1, amlp_inp_dim])
-                amlp_inp = h_arnn_all
-            else:
-                h_acnn_all = tf.concat(1, [tf.expand_dims(h, 1)
-                                           for h in h_acnn_last])
-                h_acnn_all = tf.reshape(h_acnn_all, [-1, amlp_inp_dim])
-                amlp_inp = h_acnn_all
+        # Dense segmentation network [B, T, R] => [B, T, M]
+        if use_attn_rnn:
+            h_arnn = [tf.slice(arnn_state[tt], [0, arnn_dim], [-1, arnn_dim])
+                      for tt in xrange(timespan)]
+            h_arnn_all = tf.concat(
+                1, [tf.expand_dims(h, 1) for h in h_arnn])
+            h_arnn_all = tf.reshape(h_arnn_all, [-1, amlp_inp_dim])
+            amlp_inp = h_arnn_all
+        else:
+            h_acnn_all = tf.concat(1, [tf.expand_dims(h, 1)
+                                       for h in h_acnn_last])
+            h_acnn_all = tf.reshape(h_acnn_all, [-1, amlp_inp_dim])
+            amlp_inp = h_acnn_all
 
-            h_core = amlp(amlp_inp)[-1]
-            h_core = tf.reshape(h_core, [-1, arnn_h, arnn_w, attn_mlp_depth])
+        h_core = amlp(amlp_inp)[-1]
+        h_core = tf.reshape(h_core, [-1, arnn_h, arnn_w, attn_mlp_depth])
 
-            # DCNN [B * T, RH, RW, MD] => [B * T, A, A, 1]
-            dcnn_filters = dcnn_filter_size
-            dcnn_nlayers = len(dcnn_filters)
-            dcnn_unpool = [2] * (dcnn_nlayers - 1) + [1]
-            dcnn_act = [tf.nn.relu] * (dcnn_nlayers - 1) + [None]
-            dcnn_channels = [attn_mlp_depth] + dcnn_depth
-            dcnn_use_bn = [use_bn] * dcnn_nlayers
+        # DCNN [B * T, RH, RW, MD] => [B * T, A, A, 1]
+        dcnn_filters = dcnn_filter_size
+        dcnn_nlayers = len(dcnn_filters)
+        dcnn_unpool = [2] * (dcnn_nlayers - 1) + [1]
+        dcnn_act = [tf.nn.relu] * (dcnn_nlayers - 1) + [None]
+        dcnn_channels = [attn_mlp_depth] + dcnn_depth
+        dcnn_use_bn = [use_bn] * dcnn_nlayers
 
-            skip, skip_ch = _build_skip_conn_attn(
-                acnn_channels, h_acnn, x_patch, timespan)
+        skip, skip_ch = _build_skip_conn_attn(
+            acnn_channels, h_acnn, x_patch, timespan)
 
-            dcnn = nn.dcnn(dcnn_filters, dcnn_channels, dcnn_unpool,
-                           dcnn_act, use_bn=dcnn_use_bn, skip_ch=skip_ch,
-                           phase_train=phase_train, wd=wd)
-            h_dcnn = dcnn(h_core, skip=skip)
+        dcnn = nn.dcnn(dcnn_filters, dcnn_channels, dcnn_unpool,
+                       dcnn_act, use_bn=dcnn_use_bn, skip_ch=skip_ch,
+                       phase_train=phase_train, wd=wd)
+        h_dcnn = dcnn(h_core, skip=skip)
 
         # Inverse attention [B, T, A, A, 1] => [B, T, H, W, 1]
         # Filters T * [B, L, A] => [B * T, L, A]
