@@ -964,10 +964,10 @@ def get_attn_model_2(opt, device='/cpu:0'):
             _get_gt_attn(y_gt, attn_size,
                          padding_ratio=tf.truncated_normal(
                              tf.pack([num_ex, timespan, 2]),
-                             attn_box_padding_ratio, 0.05),
+                             attn_box_padding_ratio, 0.1),
                          center_shift_ratio=tf.truncated_normal(
                              tf.pack([num_ex, timespan, 2]),
-                             0.0, 0.025))
+                             0.0, 0.1))
         attn_lg_gamma_gt = tf.ones(tf.pack([num_ex, timespan, 1]))
         attn_box_lg_gamma_gt = tf.ones(tf.pack([num_ex, timespan, 1]))
         gtbox_top_left = [None] * timespan
@@ -1066,7 +1066,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
             1.0, gt_knob_prob_box * gt_knob_time_scale)
         gt_knob_box = tf.to_float(tf.random_uniform(
             tf.pack([num_ex, timespan, 1]), 0, 1.0) <= gt_knob_prob_box)
-        model['gt_knob_prob_box'] = gt_knob_prob_box
+        model['gt_knob_prob_box'] = gt_knob_prob_box[0, 0, 0]
 
         # Knob for mix in groundtruth segmentation.
         global_step_segm = tf.maximum(0.0, global_step - 500)
@@ -1077,7 +1077,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
             1.0, gt_knob_prob_segm * gt_knob_time_scale)
         gt_knob_segm = tf.to_float(tf.random_uniform(
             tf.pack([num_ex, timespan, 1]), 0, 1.0) <= gt_knob_prob_segm)
-        model['gt_knob_prob_segm'] = gt_knob_prob_segm
+        model['gt_knob_prob_segm'] = gt_knob_prob_segm[0, 0, 0]
 
         # Y out
         y_out = [None] * timespan
