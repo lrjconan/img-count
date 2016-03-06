@@ -1040,14 +1040,24 @@ def get_attn_model_2(opt, device='/cpu:0'):
         iou_bias_eps = 1e-7
         iou_bias = tf.expand_dims(tf.to_float(
             tf.reverse(tf.range(timespan), [True])) * iou_bias_eps, 0)
-        gt_knob_prob = tf.train.exponential_decay(
-            knob_base, global_step, steps_per_knob_decay, knob_decay,
+
+        # Knob for mix in groundtruth box.
+        global_step_box = tf.maximum(0.0, global_step - 500)
+        gt_knob_prob_box = tf.train.exponential_decay(
+            knob_base, global_step_box, steps_per_knob_decay, knob_decay,
             staircase=True)
-        # gt_knob = tf.to_float(tf.random_uniform(
-        #     tf.pack([num_ex, 2]), 0, 1.0) <= gt_knob_prob)
-        gt_knob = tf.to_float(tf.random_uniform(
-            tf.pack([num_ex, timespan, 2]), 0, 1.0) <= gt_knob_prob)
-        model['gt_knob_prob'] = gt_knob_prob
+        gt_knob_box = tf.to_float(tf.random_uniform(
+            tf.pack([num_ex, timespan, 1]), 0, 1.0) <= gt_knob_prob_box)
+        model['gt_knob_prob_box'] = gt_knob_prob_box
+       
+        # Knob for mix in groundtruth segmentation.
+        global_step_segm = tf.maximum(0.0, global_step - 1000)
+        gt_knob_prob_segm = tf.train.exponential_decay(
+            knob_base, global_step_segm, steps_per_knob_decay, knob_decay,
+            staircase=True)
+        gt_knob_segm = tf.to_float(tf.random_uniform(
+            tf.pack([num_ex, timespan, 1]), 0, 1.0) <= gt_knob_prob_segm)
+        model['gt_knob_prob_segm'] = gt_knob_prob_segm
 
         # Y out
         y_out = [None] * timespan
@@ -1127,12 +1137,12 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 attn_ctr_gtm = tf.reduce_sum(grd_match * attn_ctr_gt, 1)
                 attn_delta_gtm = tf.reduce_sum(grd_match * attn_delta_gt, 1)
 
-                # gt_knob_1 = gt_knob[:, 0: 1]
-                gt_knob_1 = gt_knob[:, tt, 0: 1]
-                attn_ctr[tt] = phase_train_f * gt_knob_1 * attn_ctr_gtm + \
-                    (1 - phase_train_f * gt_knob_1) * attn_ctr[tt]
-                attn_delta[tt] = phase_train_f * gt_knob_1 * attn_delta_gtm + \
-                    (1 - phase_train_f * gt_knob_1) * attn_delta[tt]
+                attn_ctr[tt] = phase_train_f * gt_knob_prob_box * \
+                    attn_ctr_gtm + \
+                    (1 - phase_train_f * gt_knob_prob_box) * attn_ctr[tt]
+                attn_delta[tt] = phase_train_f * gt_knob_prob_box * \
+                    attn_delta_gtm + \
+                    (1 - phase_train_f * gt_knob_prob_box) * attn_delta[tt]
 
             attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
                 attn_ctr[tt], attn_delta[tt], attn_size)
@@ -1197,15 +1207,13 @@ def get_attn_model_2(opt, device='/cpu:0'):
             # [B, N, 1, 1]
             if use_canvas:
                 if use_knob:
-                    # gt_knob_2 = tf.expand_dims(
-                    #     tf.expand_dims(gt_knob[:, 1: 2], 2), 3)
-                    gt_knob_2 = tf.expand_dims(
-                        tf.expand_dims(gt_knob[:, tt, 1: 2], 2), 3)
+                    _gt_knob_segm = tf.expand_dims(
+                        tf.expand_dims(gt_knob_segm[:, tt, 0: 1], 2), 3)
                     grd_match = tf.expand_dims(grd_match, 3)
                     _y_out = tf.expand_dims(tf.reduce_sum(
                         grd_match * y_gt, 1), 3)
-                    _y_out = phase_train_f * gt_knob_2 * _y_out + \
-                        (1 - phase_train_f * gt_knob_2) * \
+                    _y_out = phase_train_f * _gt_knob_segm * _y_out + \
+                        (1 - phase_train_f * _gt_knob_segm) * \
                         tf.reshape(y_out[tt], [-1, inp_height, inp_width, 1])
                 else:
                     _y_out = tf.reshape(y_out[tt],
