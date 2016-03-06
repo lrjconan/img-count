@@ -807,8 +807,8 @@ if __name__ == '__main__':
             dic_abs += _dic_abs * num_ex_batch / num_ex_valid
 
         log.info(('{:d} vtl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
-                  'ious {:.4f} iouh {:.4f}').format(
-            step, loss, conf_loss, segm_loss, box_loss, iou_soft, iou_hard))
+                  'ious {:.4f} iouh {:.4f} dice {:.4f}').format(
+            step, loss, conf_loss, segm_loss, box_loss, iou_soft, iou_hard, dice))
 
         if args.logs:
             loss_logger.add(step, ['', loss])
@@ -859,8 +859,9 @@ if __name__ == '__main__':
             dic_abs = r[15]
             step_time = (time.time() - start_time) * 1000
             log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
-                      'ious {:.4f} iouh {:.4f} t {:.2f}ms').format(
+                      'ious {:.4f} iouh {:.4f} dice {:.4f} t {:.2f}ms').format(
                 step, loss, conf_loss, segm_loss, box_loss, iou_soft, iou_hard,
+                dice,
                 step_time))
             if args.logs:
                 loss_logger.add(step, [loss, ''])
