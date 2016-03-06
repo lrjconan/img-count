@@ -939,7 +939,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
         # Controller MLP definition
         cmlp_dims = [crnn_dim] + [ctrl_mlp_dim] * \
-            (num_ctrl_mlp_layers - 1) + [7]
+            (num_ctrl_mlp_layers - 1) + [8]
         cmlp_act = [tf.nn.relu] * (num_ctrl_mlp_layers - 1) + [None]
         cmlp_dropout = None
         # cmlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
@@ -1026,9 +1026,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # Attention box
         attn_box = [None] * timespan
         attn_iou_soft = [None] * timespan
-        attn_box_const = 10.0
+        # attn_box_const = 10.0
         const_ones = tf.ones(
-            tf.pack([num_ex, attn_size, attn_size, 1])) * attn_box_const
+            tf.pack([num_ex, attn_size, attn_size, 1]))
         attn_box_bias = 5.0
 
         # Knob
@@ -1087,6 +1087,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
                 # attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
                 attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
+                attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
                 attn_lg_gamma[tt] = tf.reshape(
                     tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
 
@@ -1102,7 +1103,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
             # Attention box
             attn_box[tt] = _extract_patch(
-                const_ones, filters_y_inv, filters_x_inv, 1)
+                const_ones * tf.exp(attn_box_lg_gamma[tt]),
+                filters_y_inv, filters_x_inv, 1)
             attn_box[tt] = tf.sigmoid(attn_box[tt] - attn_box_bias)
             attn_box[tt] = tf.reshape(
                 attn_box[tt], [-1, 1, inp_height, inp_width])
