@@ -1158,12 +1158,14 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 attn_delta_gtm = tf.reduce_sum(
                     grd_match * attn_delta_gt_noise, 1)
 
-                attn_ctr[tt] = phase_train_f * gt_knob_prob_box * \
+                attn_ctr[tt] = phase_train_f * gt_knob_prob_box[:, tt, 0] * \
                     attn_ctr_gtm + \
-                    (1 - phase_train_f * gt_knob_prob_box) * attn_ctr[tt]
-                attn_delta[tt] = phase_train_f * gt_knob_prob_box * \
+                    (1 - phase_train_f * gt_knob_prob_box[:, tt, 0]) * \
+                    attn_ctr[tt]
+                attn_delta[tt] = phase_train_f * gt_knob_prob_box[:, tt, 0] * \
                     attn_delta_gtm + \
-                    (1 - phase_train_f * gt_knob_prob_box) * attn_delta[tt]
+                    (1 - phase_train_f * gt_knob_prob_box[:, tt, 0]) * \
+                    attn_delta[tt]
 
             attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
                 attn_ctr[tt], attn_delta[tt], attn_size)
