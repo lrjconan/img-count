@@ -877,8 +877,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
     knob_decay = opt['knob_decay']
     steps_per_knob_decay = opt['steps_per_knob_decay']
     use_canvas = opt['use_canvas']
-    knob_box_offset = opt['gt_knob_box_offset']
-    knob_segm_offset = opt['gt_knob_segm_offset']
+    knob_box_offset = opt['knob_box_offset']
+    knob_segm_offset = opt['knob_segm_offset']
 
     with tf.device(_get_device_fn(device)):
         # Input definition
