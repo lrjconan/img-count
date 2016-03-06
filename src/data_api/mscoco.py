@@ -140,4 +140,15 @@ class MSCOCO(object):
         x = []
         y = []
         for ii, coord in enumerate(segm):
-            if x[ii] 
+            if ii % 2 == 0:
+                x.append(coord)
+            else:
+                y.append(coord)
+
+        print np.array(x), np.array(y)
+
+if __name__ == '__main__':
+    mscoco = MSCOCO('/ais/gobi3/datasets/mscoco', 'valid')
+    img_ids = mscoco.getImgIds()
+    img_id = img_ids[0]
+    mscoco.get_instance_segmentation(img_id)
