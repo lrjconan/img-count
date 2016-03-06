@@ -879,6 +879,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
     use_canvas = opt['use_canvas']
     knob_box_offset = opt['knob_box_offset']
     knob_segm_offset = opt['knob_segm_offset']
+    knob_use_timescale = opt['knob_use_timescale']
 
     with tf.device(_get_device_fn(device)):
         # Input definition
@@ -1060,9 +1061,12 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # gt_knob_time_scale = tf.reshape(
         #     1.0 + tf.to_float(tf.range(timespan)) * 2.0 / (timespan - 1),
         #     [1, timespan, 1])
-        gt_knob_time_scale = tf.reshape(
-            1.0 + tf.log(1.0 + tf.to_float(tf.range(timespan)) * 3.0), 
-            [1, timespan, 1])
+        if knob_use_timescale:
+            gt_knob_time_scale = tf.reshape(
+                1.0 + tf.log(1.0 + tf.to_float(tf.range(timespan)) * 3.0), 
+                [1, timespan, 1])
+        else:
+            gt_knob_time_scale = tf.ones([1, timespan, 1])
         global_step_box = tf.maximum(0.0, global_step - knob_box_offset)
         gt_knob_prob_box = tf.maximum(
             0.0, 1 - (1 - knob_decay) / steps_per_knob_decay * global_step_box)

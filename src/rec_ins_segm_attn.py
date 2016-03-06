@@ -417,6 +417,8 @@ def _parse_args():
                         help='Number of steps when it starts to decay.')
     parser.add_argument('-knob_segm_offset', default=kKnobSegmOffset, type=int,
                         help='Number of steps when it starts to decay.')
+    parser.add_argument('-knob_use_timescale', action='store_true', 
+                        help='Use time scale curriculum.')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -560,7 +562,8 @@ if __name__ == '__main__':
             'knob_base': args.knob_base,
             'steps_per_knob_decay': args.steps_per_knob_decay,
             'knob_box_offset': args.knob_box_offset,
-            'knob_segm_offset': args.knob_segm_offset
+            'knob_segm_offset': args.knob_segm_offset,
+            'knob_use_timescale': args.knob_use_timescale
         }
         data_opt = {
             'height': args.height,
