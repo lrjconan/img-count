@@ -134,7 +134,7 @@ class MSCOCO(object):
                     category: int
                 }
         """
-        anns = self._coco.ImgToAnns[image_id]
+        anns = self._coco.imgToAnns[image_id]
         ann = anns[0]
         segm = ann['segmentation'][0]
         x = []
