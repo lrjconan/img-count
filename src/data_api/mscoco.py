@@ -119,3 +119,25 @@ class MSCOCO(object):
             image_url: string, url to the image file.
         """
         return None
+
+    def get_instance_segmentation(self, image_id, cat_id=-1):
+        """Get instance segmentation.
+
+        Args:
+            image_id
+
+        Returns:
+            image_id: dict
+                {
+                    instance_id: int
+                    segmentation: np.ndarray
+                    category: int
+                }
+        """
+        anns = coco.ImgToAnns[image_id]
+        ann = anns[0]
+        segm = ann['segmentation'][0]
+        x = []
+        y = []
+        for ii, coord in enumerate(segm):
+            if x[ii] 
