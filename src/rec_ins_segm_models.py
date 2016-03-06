@@ -1055,19 +1055,25 @@ def get_attn_model_2(opt, device='/cpu:0'):
             tf.reverse(tf.range(timespan), [True])) * iou_bias_eps, 0)
 
         # Knob for mix in groundtruth box.
+        gt_knob_time_scale = tf.reshape(
+            tf.linspace(1.0, 3.0, timespan), [1, timespan, 1])
         global_step_box = tf.maximum(0.0, global_step - 500)
         gt_knob_prob_box = tf.train.exponential_decay(
             knob_base, global_step_box, steps_per_knob_decay, knob_decay,
-            staircase=True)
+            staircase=False)
+        gt_knob_prob_box = tf.minimum(
+            1.0, gt_knob_prob_box * gt_knob_time_scale)
         gt_knob_box = tf.to_float(tf.random_uniform(
             tf.pack([num_ex, timespan, 1]), 0, 1.0) <= gt_knob_prob_box)
         model['gt_knob_prob_box'] = gt_knob_prob_box
-       
+
         # Knob for mix in groundtruth segmentation.
         global_step_segm = tf.maximum(0.0, global_step - 1000)
         gt_knob_prob_segm = tf.train.exponential_decay(
             knob_base, global_step_segm, steps_per_knob_decay, knob_decay,
-            staircase=True)
+            staircase=False)
+        gt_knob_prob_segm = tf.minimum(
+            1.0, gt_knob_prob_segm * gt_knob_time_scale)
         gt_knob_segm = tf.to_float(tf.random_uniform(
             tf.pack([num_ex, timespan, 1]), 0, 1.0) <= gt_knob_prob_segm)
         model['gt_knob_prob_segm'] = gt_knob_prob_segm
