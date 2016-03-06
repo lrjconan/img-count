@@ -150,5 +150,5 @@ class MSCOCO(object):
 if __name__ == '__main__':
     mscoco = MSCOCO('/ais/gobi3/datasets/mscoco', 'valid')
     img_ids = mscoco.get_image_ids()
-    img_id = img_ids[0]
+    img_id = img_ids[2]
     mscoco.get_instance_segmentation(img_id)
