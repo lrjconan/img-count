@@ -677,7 +677,8 @@ if __name__ == '__main__':
             name='Controller RNN',
             buffer_size=1)
         gt_knob_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'gt_knob.csv'), 'groundtruth knob',
+            os.path.join(logs_folder, 'gt_knob.csv'), 
+            ['box', 'segmentation'],
             name='Groundtruth knob',
             buffer_size=1)
 
@@ -816,8 +817,8 @@ if __name__ == '__main__':
             segm_loss_logger.add(step, ['', segm_loss])
             box_loss_logger.add(step, ['', box_loss])
             iou_logger.add(step, ['', iou_soft, '', iou_hard])
-            count_acc_logger.add(step, ['', count_acc])
             dice_logger.add(step, ['', dice])
+            count_acc_logger.add(step, ['', count_acc])
             dic_logger.add(step, ['', dic])
             dic_abs_logger.add(step, ['', dic_abs])
 
@@ -829,7 +830,8 @@ if __name__ == '__main__':
         r = sess.run([m['loss'], m['conf_loss'], m['segm_loss'], m['box_loss'],
                       m['iou_soft'], m['iou_hard'], m['learn_rate'],
                       m['crnn_g_i_avg'], m['crnn_g_f_avg'], m['crnn_g_o_avg'],
-                      m['box_loss_coeff'], m['count_acc'], m['gt_knob_prob'],
+                      m['box_loss_coeff'], m['count_acc'], 
+                      m['gt_knob_prob_box'], m['gt_knob_prob_segm'],
                       m['dice'], m['dic'], m['dic_abs'],
                       m['train_step']],
                      feed_dict={
@@ -853,10 +855,11 @@ if __name__ == '__main__':
             crnn_g_o_avg = r[9]
             box_loss_coeff = r[10]
             count_acc = r[11]
-            gt_knob = r[12]
-            dice = r[13]
-            dic = r[14]
-            dic_abs = r[15]
+            gt_knob_box = r[12]
+            gt_knob_segm = r[13]
+            dice = r[14]
+            dic = r[15]
+            dic_abs = r[16]
             step_time = (time.time() - start_time) * 1000
             log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                       'ious {:.4f} iouh {:.4f} dice {:.4f} t {:.2f}ms').format(
@@ -870,15 +873,15 @@ if __name__ == '__main__':
                 box_loss_logger.add(step, [box_loss, ''])
                 iou_logger.add(step, [iou_soft, '', iou_hard, ''])
                 dice_logger.add(step, [dice, ''])
+                count_acc_logger.add(step, [count_acc, ''])
                 dic_logger.add(step, [dic, ''])
                 dic_abs_logger.add(step, [dic_abs, ''])
                 learn_rate_logger.add(step, learn_rate)
                 box_loss_coeff_logger.add(step, box_loss_coeff)
-                count_acc_logger.add(step, [count_acc, ''])
                 step_time_logger.add(step, step_time)
                 crnn_logger.add(
                     step, [crnn_g_i_avg, crnn_g_f_avg, crnn_g_o_avg])
-                gt_knob_logger.add(step, [gt_knob])
+                gt_knob_logger.add(step, [gt_knob_box, gt_knob_segm])
 
     def train_loop(step=0):
         """Train loop"""
