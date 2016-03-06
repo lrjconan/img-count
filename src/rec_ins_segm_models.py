@@ -877,6 +877,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
     knob_decay = opt['knob_decay']
     steps_per_knob_decay = opt['steps_per_knob_decay']
     use_canvas = opt['use_canvas']
+    knob_box_offset = opt['gt_knob_box_offset']
+    knob_segm_offset = opt['gt_knob_segm_offset']
 
     with tf.device(_get_device_fn(device)):
         # Input definition
@@ -1055,13 +1057,17 @@ def get_attn_model_2(opt, device='/cpu:0'):
             tf.reverse(tf.range(timespan), [True])) * iou_bias_eps, 0)
 
         # Knob for mix in groundtruth box.
-        gt_knob_time_scale = tf.reshape(
-            1.0 + tf.to_float(tf.range(timespan)) * 2.0 / timespan,
-            [1, timespan, 1])
-        global_step_box = tf.maximum(0.0, global_step - 300)
-        gt_knob_prob_box = tf.train.exponential_decay(
-            knob_base, global_step_box, steps_per_knob_decay, knob_decay,
-            staircase=False)
+        # gt_knob_time_scale = tf.reshape(
+        #     1.0 + tf.to_float(tf.range(timespan)) * 2.0 / (timespan - 1),
+        #     [1, timespan, 1])
+        gt_knob_time_scale = tf.reshape(tf.log(1.0 + tf.range(timespan) * 3.0),
+                                        [1, timespan, 1])
+        global_step_box = tf.maximum(0.0, global_step - knob_box_offset)
+        gt_knob_prob_box = tf.maximum(
+            0.0, 1 - (1 - knob_decay) / steps_per_knob_decay * global_step_box)
+        # gt_knob_prob_box = tf.train.exponential_decay(
+        #     knob_base, global_step_box, steps_per_knob_decay, knob_decay,
+        #     staircase=False)
         gt_knob_prob_box = tf.minimum(
             1.0, gt_knob_prob_box * gt_knob_time_scale)
         gt_knob_box = tf.to_float(tf.random_uniform(
@@ -1069,10 +1075,13 @@ def get_attn_model_2(opt, device='/cpu:0'):
         model['gt_knob_prob_box'] = gt_knob_prob_box[0, 0, 0]
 
         # Knob for mix in groundtruth segmentation.
-        global_step_segm = tf.maximum(0.0, global_step - 500)
-        gt_knob_prob_segm = tf.train.exponential_decay(
-            knob_base, global_step_segm, steps_per_knob_decay, knob_decay,
-            staircase=False)
+        global_step_segm = tf.maximum(0.0, global_step - knob_segm_offset)
+        gt_knob_prob_segm = tf.maximum(
+            0.0, 1 - (1 - knob_decay) / steps_per_knob_decay * global_step_segm)
+        # gt_knob_prob_segm = tf.train.exponential_decay(
+        #     knob_base, global_step_segm, steps_per_knob_decay, knob_decay,
+        #     staircase=False)
+
         gt_knob_prob_segm = tf.minimum(
             1.0, gt_knob_prob_segm * gt_knob_time_scale)
         gt_knob_segm = tf.to_float(tf.random_uniform(
@@ -1230,8 +1239,10 @@ def get_attn_model_2(opt, device='/cpu:0'):
             # [B, N, 1, 1]
             if use_canvas:
                 if use_knob:
+                    # _gt_knob_segm = tf.expand_dims(
+                    #     tf.expand_dims(gt_knob_segm[:, tt, 0: 1], 2), 3)
                     _gt_knob_segm = tf.expand_dims(
-                        tf.expand_dims(gt_knob_segm[:, tt, 0: 1], 2), 3)
+                        tf.expand_dims(gt_knob_prob_segm[:, tt, 0: 1], 2), 3)
                     grd_match = tf.expand_dims(grd_match, 3)
                     _y_out = tf.expand_dims(tf.reduce_sum(
                         grd_match * y_gt, 1), 3)

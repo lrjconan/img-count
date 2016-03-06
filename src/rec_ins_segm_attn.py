@@ -259,6 +259,8 @@ def _parse_args():
     kKnobDecay = 0.9
     kStepsPerKnobDecay = 300
     kKnobBase = 1.0
+    kKnobBoxOffset = 300
+    kKnobSegmOffset = 500
 
     kNumCtrlConv = 5
     kNumAttnConv = 3
@@ -411,6 +413,10 @@ def _parse_args():
                         type=int, help='Number of steps to decay knob.')
     parser.add_argument('-knob_base', default=kKnobBase, type=float,
                         help='Knob start rate.')
+    parser.add_argument('-knob_box_offset', default=kKnobBoxOffset, type=int,
+                        help='Number of steps when it starts to decay.')
+    parser.add_argument('-knob_segm_offset', default=kKnobSegmOffset, type=int,
+                        help='Number of steps when it starts to decay.')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -552,7 +558,9 @@ if __name__ == '__main__':
             'use_knob': args.use_knob,
             'knob_decay': args.knob_decay,
             'knob_base': args.knob_base,
-            'steps_per_knob_decay': args.steps_per_knob_decay
+            'steps_per_knob_decay': args.steps_per_knob_decay,
+            'knob_box_offset': args.knob_box_offset,
+            'knob_segm_offset': args.knob_segm_offset
         }
         data_opt = {
             'height': args.height,
