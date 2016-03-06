@@ -85,22 +85,17 @@ def _f_dice(a, b, timespan, pairwise=False):
         a_list = tf.split(1, timespan, a)
         # [B, M, H, W] => [B, 1, M, H, W]
         b = tf.expand_dims(b, 1)
+        card_b = tf.reduce_sum(b + 1e-5, [3, 4])
 
         for ii in xrange(timespan):
             # [B, 1, M]
             y_list[ii] = 2 * _inter(a_list[ii], b) / \
-                (_card(a_list[ii]) + _card(b))
+                (tf.reduce_sum(a_list[ii] + 1e-5, [3, 4]) + card_b)
 
         # N * [B, 1, M] => [B, N, M]
         return tf.concat(1, y_list)
     else:
         return 2 * _inter(a, b) / (_card(a) + _card(b))
-
-
-def _card(a):
-    """Computes cardinality."""
-    return tf.reduce_sum(a, reduction_indices=[3, 4])
-
 
 def _inter(a, b):
     """Computes intersection."""
