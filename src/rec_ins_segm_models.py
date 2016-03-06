@@ -97,6 +97,7 @@ def _f_dice(a, b, timespan, pairwise=False):
     else:
         return 2 * _inter(a, b) / (_card(a) + _card(b))
 
+
 def _inter(a, b):
     """Computes intersection."""
     reduction_indices = _get_reduction_indices(a)
