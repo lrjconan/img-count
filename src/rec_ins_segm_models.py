@@ -956,15 +956,15 @@ def get_attn_model_2(opt, device='/cpu:0'):
             attn_top_left_gt, attn_bot_right_gt, idx_map = \
             _get_gt_attn(y_gt, attn_size, padding_ratio=attn_box_padding_ratio)
         attn_lg_gamma_gt = tf.ones(tf.pack([num_ex, timespan, 1]))
-
-        if not use_gt_attn:
-            attn_ctr = [None] * timespan
-            attn_delta = [None] * timespan
-            attn_lg_var = [None] * timespan
-            attn_lg_gamma = [None] * timespan
-
+        attn_box_lg_gamma_gt = tf.ones(tf.pack([num_ex, timespan, 1]))
         gtbox_top_left = [None] * timespan
         gtbox_bot_right = [None] * timespan
+
+        attn_ctr = [None] * timespan
+        attn_delta = [None] * timespan
+        attn_lg_var = [None] * timespan
+        attn_lg_gamma = [None] * timespan
+        attn_box_lg_gamma = [None] * timespan
         attn_top_left = [None] * timespan
         attn_bot_right = [None] * timespan
 
@@ -1078,6 +1078,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 attn_delta[tt] = attn_delta_gt[:, tt, :]
                 attn_lg_var[tt] = attn_lg_var_gt[:, tt, :]
                 attn_lg_gamma[tt] = attn_lg_gamma_gt[:, tt, :]
+                attn_box_lg_gamma[tt] = attn_box_lg_gamma_gt[:, tt, :]
             else:
                 ctrl_out = cmlp(h_crnn[tt])[-1]
                 _ctr = tf.slice(ctrl_out, [0, 0], [-1, 2])
