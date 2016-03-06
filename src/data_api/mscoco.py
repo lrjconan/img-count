@@ -144,7 +144,7 @@ class MSCOCO(object):
                 x.append(coord)
             else:
                 y.append(coord)
-
+        import numpy as np
         print np.array(x), np.array(y)
 
 if __name__ == '__main__':
