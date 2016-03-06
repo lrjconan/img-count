@@ -749,7 +749,7 @@ def _get_gt_attn(y_gt, attn_size, padding_ratio=0.0, center_shift_ratio=0.0):
 
     # Enlarge the groundtruth box.
     if padding_ratio > 0:
-        log.info('Pad groundtruth box by {:.2f}'.format(padding_ratio))
+        # log.info('Pad groundtruth box by {:.2f}'.format(padding_ratio))
         size = bot_right - top_left
         top_left += center_shift_ratio * size
         top_left -= padding_ratio * size
@@ -1057,7 +1057,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # Knob for mix in groundtruth box.
         gt_knob_time_scale = tf.reshape(
             tf.linspace(1.0, 3.0, timespan), [1, timespan, 1])
-        global_step_box = tf.maximum(0.0, global_step - 500)
+        global_step_box = tf.maximum(0.0, global_step - 300)
         gt_knob_prob_box = tf.train.exponential_decay(
             knob_base, global_step_box, steps_per_knob_decay, knob_decay,
             staircase=False)
@@ -1068,7 +1068,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         model['gt_knob_prob_box'] = gt_knob_prob_box
 
         # Knob for mix in groundtruth segmentation.
-        global_step_segm = tf.maximum(0.0, global_step - 1000)
+        global_step_segm = tf.maximum(0.0, global_step - 500)
         gt_knob_prob_segm = tf.train.exponential_decay(
             knob_base, global_step_segm, steps_per_knob_decay, knob_decay,
             staircase=False)
