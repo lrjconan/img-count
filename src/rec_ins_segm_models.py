@@ -1072,7 +1072,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         #     0.0, 1 - (1 - knob_decay) / steps_per_knob_decay * global_step_box)
         gt_knob_prob_box = tf.train.exponential_decay(
             knob_base, global_step_box, steps_per_knob_decay, knob_decay,
-            staircase=True)
+            staircase=False)
         gt_knob_prob_box = tf.minimum(
             1.0, gt_knob_prob_box * gt_knob_time_scale)
         gt_knob_box = tf.to_float(tf.random_uniform(
@@ -1085,7 +1085,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         #     0.0, 1 - (1 - knob_decay) / steps_per_knob_decay * global_step_segm)
         gt_knob_prob_segm = tf.train.exponential_decay(
             knob_base, global_step_segm, steps_per_knob_decay, knob_decay,
-            staircase=True)
+            staircase=False)
 
         gt_knob_prob_segm = tf.minimum(
             1.0, gt_knob_prob_segm * gt_knob_time_scale)
