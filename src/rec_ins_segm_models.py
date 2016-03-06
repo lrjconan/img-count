@@ -1251,6 +1251,11 @@ def get_attn_model_2(opt, device='/cpu:0'):
                     grd_match = tf.expand_dims(grd_match, 3)
                     _y_out = tf.expand_dims(tf.reduce_sum(
                         grd_match * y_gt, 1), 3)
+                    # Add independent uniform noise to groundtruth.
+                    _noise = tf.random_uniform(
+                        tf.pack([num_ex, inp_height, inp_width]), 0, 0.2)
+                    _noise = _noise * _noise
+                    _y_out = _y_out - _y_out * _noise
                     _y_out = phase_train_f * _gt_knob_segm * _y_out + \
                         (1 - phase_train_f * _gt_knob_segm) * \
                         tf.reshape(y_out[tt], [-1, inp_height, inp_width, 1])
