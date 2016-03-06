@@ -736,7 +736,7 @@ def _extract_patch(x, f_y, f_x, nchannels):
     return tf.concat(3, patch)
 
 
-def _get_gt_attn(y_gt, attn_size, padding_ratio=0.0):
+def _get_gt_attn(y_gt, attn_size, padding_ratio=0.0, center_shift_ratio=0.0):
     """Get groundtruth attention box given segmentation."""
     s = tf.shape(y_gt)
     # [B, T, H, W, 2]
@@ -751,7 +751,9 @@ def _get_gt_attn(y_gt, attn_size, padding_ratio=0.0):
     if padding_ratio > 0:
         log.info('Pad groundtruth box by {:.2f}'.format(padding_ratio))
         size = bot_right - top_left
+        top_left += center_shift_ratio * size
         top_left -= padding_ratio * size
+        bot_right += center_shift_ratio * size
         bot_right += padding_ratio * size
         box = _get_filled_box_idx(idx, top_left, bot_right)
     else:
@@ -954,7 +956,18 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # Groundtruth bounding box, [B, T, 2]
         attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, \
             attn_top_left_gt, attn_bot_right_gt, idx_map = \
-            _get_gt_attn(y_gt, attn_size, padding_ratio=attn_box_padding_ratio)
+            _get_gt_attn(y_gt, attn_size, padding_ratio=attn_box_padding_ratio,
+                         center_shift_ratio=0.0)
+        attn_ctr_gt_noise, attn_delta_gt_noise, attn_lg_var_gt_noise, \
+            attn_box_gt_noise, \
+            attn_top_left_gt_noise, attn_bot_right_gt_noise, idx_map_noise = \
+            _get_gt_attn(y_gt, attn_size,
+                         padding_ratio=tf.truncated_normal(
+                             tf.pack([num_ex, timespan, 2]),
+                             attn_box_padding_ratio, 0.05),
+                         center_shift_ratio=tf.truncated_normal(
+                             tf.pack([num_ex, timespan, 2]),
+                             0.0, 0.025))
         attn_lg_gamma_gt = tf.ones(tf.pack([num_ex, timespan, 1]))
         attn_box_lg_gamma_gt = tf.ones(tf.pack([num_ex, timespan, 1]))
         gtbox_top_left = [None] * timespan
@@ -1123,8 +1136,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
                 # [B, T, 1]
                 grd_match = tf.expand_dims(grd_match, 2)
-                attn_ctr_gtm = tf.reduce_sum(grd_match * attn_ctr_gt, 1)
-                attn_delta_gtm = tf.reduce_sum(grd_match * attn_delta_gt, 1)
+                attn_ctr_gtm = tf.reduce_sum(grd_match * attn_ctr_gt_noise, 1)
+                attn_delta_gtm = tf.reduce_sum(
+                    grd_match * attn_delta_gt_noise, 1)
 
                 # gt_knob_1 = gt_knob[:, 0: 1]
                 gt_knob_1 = gt_knob[:, tt, 0: 1]
