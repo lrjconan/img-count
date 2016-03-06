@@ -1056,7 +1056,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
         # Knob for mix in groundtruth box.
         gt_knob_time_scale = tf.reshape(
-            tf.linspace(1.0, 3.0, timespan), [1, timespan, 1])
+            1.0 + tf.to_float(tf.range(timespan)) * 2.0 / timespan,
+            [1, timespan, 1])
         global_step_box = tf.maximum(0.0, global_step - 300)
         gt_knob_prob_box = tf.train.exponential_decay(
             knob_base, global_step_box, steps_per_knob_decay, knob_decay,
