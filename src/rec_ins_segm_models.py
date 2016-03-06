@@ -1104,7 +1104,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
             # Attention box
             attn_box[tt] = _extract_patch(
-                const_ones * tf.exp(attn_box_lg_gamma[tt]),
+                const_ones *
+                tf.reshape(tf.exp(attn_box_lg_gamma[tt]), [-1, 1, 1, 1]),
                 filters_y_inv, filters_x_inv, 1)
             attn_box[tt] = tf.sigmoid(attn_box[tt] - attn_box_bias)
             attn_box[tt] = tf.reshape(
