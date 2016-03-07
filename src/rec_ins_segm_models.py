@@ -1096,6 +1096,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # Y out
         y_out = [None] * timespan
         y_out_bias = 5.0
+        _prob_1 = tf.zeros([1])
 
         for tt in xrange(timespan):
             # Controller CNN [B, H, W, D] => [B, RH1, RW1, RD1]
@@ -1183,6 +1184,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
                     attn_delta_gtm + \
                     (1 - phase_train_f * _gt_knob_box[:, tt, 0: 1]) * \
                     attn_delta[tt]
+                _prob_1 += tf.reduce_sum(phase_train_f * _gt_knob_box[:, tt, 0: 1])
 
             attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
                 attn_ctr[tt], attn_delta[tt], attn_size)
@@ -1273,6 +1275,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         model['y_out'] = y_out
         attn_box = tf.concat(1, attn_box)
         model['attn_box'] = attn_box
+        model['_prob_1'] = _prob_1
 
         # Loss function
         learn_rate = tf.train.exponential_decay(
