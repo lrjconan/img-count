@@ -1086,7 +1086,6 @@ def get_attn_model_2(opt, device='/cpu:0'):
         gt_knob_prob_segm = tf.train.exponential_decay(
             knob_base, global_step_segm, steps_per_knob_decay, knob_decay,
             staircase=False)
-
         gt_knob_prob_segm = tf.minimum(
             1.0, gt_knob_prob_segm * gt_knob_time_scale)
         gt_knob_segm = tf.to_float(tf.random_uniform(
@@ -1172,13 +1171,13 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 attn_delta_gtm = tf.reduce_sum(
                     grd_match * attn_delta_gt_noise, 1)
 
-                attn_ctr[tt] = phase_train_f * gt_knob_prob_box[:, tt, 0] * \
+                attn_ctr[tt] = phase_train_f * gt_knob_prob_box[:, tt, 0: 1] * \
                     attn_ctr_gtm + \
                     (1 - phase_train_f * gt_knob_prob_box[:, tt, 0]) * \
                     attn_ctr[tt]
-                attn_delta[tt] = phase_train_f * gt_knob_prob_box[:, tt, 0] * \
+                attn_delta[tt] = phase_train_f * gt_knob_prob_box[:, tt, 0: 1] * \
                     attn_delta_gtm + \
-                    (1 - phase_train_f * gt_knob_prob_box[:, tt, 0]) * \
+                    (1 - phase_train_f * gt_knob_prob_box[:, tt, 0: 1]) * \
                     attn_delta[tt]
 
             attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(

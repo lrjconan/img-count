@@ -791,7 +791,7 @@ if __name__ == '__main__':
                                 m['dic_abs']],
                                feed_dict={
                 m['x']: _x,
-                m['phase_train']: False,
+                m['phase_train']: True,
                 m['y_gt']: _y,
                 m['s_gt']: _s
             })
