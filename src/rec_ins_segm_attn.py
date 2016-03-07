@@ -789,7 +789,8 @@ if __name__ == '__main__':
                                 m['box_loss'], m['iou_soft'], m['iou_hard'],
                                 m['count_acc'], m['dice'], m['dic'], 
                                 m['dic_abs'],
-                                m['_prob_1'], m['_prob_2'], m['_prob_3'], m['_prob_4']],
+                                # m['_prob_1'], m['_prob_2'], m['_prob_3'], m['_prob_4']
+                                ],
                                feed_dict={
                 m['x']: _x,
                 m['phase_train']: False,
@@ -806,14 +807,14 @@ if __name__ == '__main__':
             _dice = results[7]
             _dic = results[8]
             _dic_abs = results[9]
-            _prob_1 = results[10]
-            _prob_2 = results[11]
-            _prob_3 = results[12]
-            _prob_4 = results[13]
-            log.info('VProb 1: {}'.format(_prob_1))
-            log.info('VProb 2: {}'.format(_prob_2))
-            log.info('VProb 3: {}'.format(_prob_3))
-            log.info('VProb 4: {}'.format(_prob_4))
+            # _prob_1 = results[10]
+            # _prob_2 = results[11]
+            # _prob_3 = results[12]
+            # _prob_4 = results[13]
+            # log.info('VProb 1: {}'.format(_prob_1))
+            # log.info('VProb 2: {}'.format(_prob_2))
+            # log.info('VProb 3: {}'.format(_prob_3))
+            # log.info('VProb 4: {}'.format(_prob_4))
 
             num_ex_batch = _x.shape[0]
             loss += _loss * num_ex_batch / num_ex_valid
@@ -853,7 +854,7 @@ if __name__ == '__main__':
                       m['box_loss_coeff'], m['count_acc'], 
                       m['gt_knob_prob_box'], m['gt_knob_prob_segm'],
                       m['dice'], m['dic'], m['dic_abs'], 
-                      m['_prob_1'], m['_prob_2'], m['_prob_3'], m['_prob_4'],
+                      # m['_prob_1'], m['_prob_2'], m['_prob_3'], m['_prob_4'],
                       m['train_step']],
                      feed_dict={
             m['x']: x,
@@ -881,14 +882,14 @@ if __name__ == '__main__':
             dice = r[14]
             dic = r[15]
             dic_abs = r[16]
-            _prob_1 = r[17]
-            _prob_2 = r[18]
-            _prob_3 = r[19]
-            _prob_4 = r[20]
-            log.info('Prob 1: {}'.format(_prob_1))
-            log.info('Prob 2: {}'.format(_prob_2))
-            log.info('Prob 3: {}'.format(_prob_3))
-            log.info('Prob 4: {}'.format(_prob_4))
+            # _prob_1 = r[17]
+            # _prob_2 = r[18]
+            # _prob_3 = r[19]
+            # _prob_4 = r[20]
+            # log.info('Prob 1: {}'.format(_prob_1))
+            # log.info('Prob 2: {}'.format(_prob_2))
+            # log.info('Prob 3: {}'.format(_prob_3))
+            # log.info('Prob 4: {}'.format(_prob_4))
             step_time = (time.time() - start_time) * 1000
             log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                       'ious {:.4f} iouh {:.4f} dice {:.4f} t {:.2f}ms').format(
