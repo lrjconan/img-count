@@ -1176,7 +1176,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 # _gt_knob_box = gt_knob_prob_box
                 attn_ctr[tt] = phase_train_f * _gt_knob_box[:, tt, 0: 1] * \
                     attn_ctr_gtm + \
-                    (1 - phase_train_f * _gt_knob_box[:, tt, 0]) * \
+                    (1 - phase_train_f * _gt_knob_box[:, tt, 0: 1]) * \
                     attn_ctr[tt]
                 attn_delta[tt] = phase_train_f * _gt_knob_box[:, tt, 0: 1] * \
                     attn_delta_gtm + \
