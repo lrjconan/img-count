@@ -1163,7 +1163,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
                     _union(attn_box[tt], attn_box_gt, eps=0)
                 attn_iou_soft[tt] += iou_bias
                 grd_match = _greedy_match(attn_iou_soft[tt], grd_match_cum)
-                grd_match_cum += grd_match
+                # Let's try not using cumulative match.
+                # grd_match_cum += grd_match
 
                 # [B, T, 1]
                 grd_match = tf.expand_dims(grd_match, 2)
@@ -1171,13 +1172,15 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 attn_delta_gtm = tf.reduce_sum(
                     grd_match * attn_delta_gt_noise, 1)
 
-                attn_ctr[tt] = phase_train_f * gt_knob_prob_box[:, tt, 0: 1] * \
+                _gt_knob_box = gt_knob_box
+                # _gt_knob_box = gt_knob_prob_box
+                attn_ctr[tt] = phase_train_f * _gt_knob_box[:, tt, 0: 1] * \
                     attn_ctr_gtm + \
-                    (1 - phase_train_f * gt_knob_prob_box[:, tt, 0]) * \
+                    (1 - phase_train_f * _gt_knob_box[:, tt, 0]) * \
                     attn_ctr[tt]
-                attn_delta[tt] = phase_train_f * gt_knob_prob_box[:, tt, 0: 1] * \
+                attn_delta[tt] = phase_train_f * _gt_knob_box[:, tt, 0: 1] * \
                     attn_delta_gtm + \
-                    (1 - phase_train_f * gt_knob_prob_box[:, tt, 0: 1]) * \
+                    (1 - phase_train_f * _gt_knob_box[:, tt, 0: 1]) * \
                     attn_delta[tt]
 
             attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
@@ -1243,10 +1246,10 @@ def get_attn_model_2(opt, device='/cpu:0'):
             # [B, N, 1, 1]
             if use_canvas:
                 if use_knob:
-                    # _gt_knob_segm = tf.expand_dims(
-                    #     tf.expand_dims(gt_knob_segm[:, tt, 0: 1], 2), 3)
                     _gt_knob_segm = tf.expand_dims(
-                        tf.expand_dims(gt_knob_prob_segm[:, tt, 0: 1], 2), 3)
+                        tf.expand_dims(gt_knob_segm[:, tt, 0: 1], 2), 3)
+                    # _gt_knob_segm = tf.expand_dims(
+                    #     tf.expand_dims(gt_knob_prob_segm[:, tt, 0: 1], 2), 3)
                     grd_match = tf.expand_dims(grd_match, 3)
                     _y_out = tf.expand_dims(tf.reduce_sum(
                         grd_match * y_gt, 1), 3)
