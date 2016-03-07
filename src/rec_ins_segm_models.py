@@ -966,8 +966,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
             attn_top_left_gt_noise, attn_bot_right_gt_noise, idx_map_noise = \
             _get_gt_attn(y_gt, attn_size,
                          padding_ratio=tf.random_uniform(
-                             tf.pack([num_ex, timespan, 2]),
-                             -0.1, 0.2),
+                             tf.pack([num_ex, timespan, 1]),
+                             0.0, 0.25),
                          center_shift_ratio=tf.random_uniform(
                              tf.pack([num_ex, timespan, 2]),
                              -0.1, 0.1))
