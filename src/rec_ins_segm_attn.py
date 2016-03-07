@@ -788,8 +788,8 @@ if __name__ == '__main__':
             results = sess.run([m['loss'], m['conf_loss'], m['segm_loss'],
                                 m['box_loss'], m['iou_soft'], m['iou_hard'],
                                 m['count_acc'], m['dice'], m['dic'], 
-                                m['dic_abs']],
-                                m['_prob_1'], m['_prob_2'], m['_prob_3'], m['_prob_4'],
+                                m['dic_abs'],
+                                m['_prob_1'], m['_prob_2'], m['_prob_3'], m['_prob_4']]
                                feed_dict={
                 m['x']: _x,
                 m['phase_train']: False,
