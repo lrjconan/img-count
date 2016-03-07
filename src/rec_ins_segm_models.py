@@ -965,12 +965,12 @@ def get_attn_model_2(opt, device='/cpu:0'):
             attn_box_gt_noise, \
             attn_top_left_gt_noise, attn_bot_right_gt_noise, idx_map_noise = \
             _get_gt_attn(y_gt, attn_size,
-                         padding_ratio=tf.truncated_normal(
+                         padding_ratio=tf.random_uniform(
                              tf.pack([num_ex, timespan, 2]),
-                             attn_box_padding_ratio, 0.05),
-                         center_shift_ratio=tf.truncated_normal(
+                             -0.1, 0.2),
+                         center_shift_ratio=tf.random_uniform(
                              tf.pack([num_ex, timespan, 2]),
-                             0.0, 0.05))
+                             -0.1, 0.1))
         attn_lg_gamma_gt = tf.ones(tf.pack([num_ex, timespan, 1]))
         attn_box_lg_gamma_gt = tf.ones(tf.pack([num_ex, timespan, 1]))
         gtbox_top_left = [None] * timespan
