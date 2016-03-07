@@ -1,6 +1,9 @@
 from pycocotools.coco import COCO
+import cv2
+import numpy as np
 import os.path
 import re
+import time
 
 train_annotation_fname = 'annotations/instances_train2014.json'
 valid_annotation_fname = 'annotations/instances_val2014.json'
@@ -127,28 +130,69 @@ class MSCOCO(object):
             image_id
 
         Returns:
-            image_id: dict
+            [
                 {
-                    instance_id: int
+                    id: int
                     segmentation: np.ndarray
                     category: int
                 }
+            ]
         """
+        if image_id not in self._coco.imgToAnns:
+            return []
         anns = self._coco.imgToAnns[image_id]
-        ann = anns[0]
-        segm = ann['segmentation'][0]
-        x = []
-        y = []
-        for ii, coord in enumerate(segm):
-            if ii % 2 == 0:
-                x.append(coord)
-            else:
-                y.append(coord)
-        import numpy as np
-        print np.array(x), np.array(y)
+        img = self._coco.imgs[image_id]
+        h = img['height']
+        w = img['width']
+        results = []
+        for ann in anns:
+            pts = []
+            if cat_id == -1 or cat_id == ann['category_id']:
+                for segm in ann['segmentation']:
+                    ll = []
+                    coord = [0, 0]
+                    if type(segm) != list:
+                        continue
+                    for jj, ss in enumerate(segm):
+                        try:
+                            float(ss)
+                        except ValueError:
+                            print jj, segm
+                        if jj % 2 == 0:
+                            coord[0] = ss
+                        else:
+                            coord[1] = ss
+                            ll.append(coord)
+                            coord = [0, 0]
+                    pts.append(np.array(ll, dtype='int'))
+                segm_map = np.zeros([h, w], dtype='uint8')
+                cv2.fillPoly(segm_map, pts, (255, 255, 255))
+                results.append({
+                    'id': ann['id'],
+                    'category_id': ann['category_id'],
+                    'segmentation': segm_map
+                })
+
+        return results
 
 if __name__ == '__main__':
     mscoco = MSCOCO('/ais/gobi3/datasets/mscoco', 'valid')
     img_ids = mscoco.get_image_ids()
     img_id = img_ids[2]
-    mscoco.get_instance_segmentation(img_id)
+    # print mscoco.get_cat_list()
+    # print mscoco.get_cat_dict()
+    results = []
+
+    start = time.time()
+    for ii in xrange(1000):
+        img_id = img_ids[ii]
+        rr = mscoco.get_instance_segmentation(img_id, cat_id=1)
+        results.append(rr)
+
+    count = 0
+    for rr in results:
+        for ss in rr:
+            count += 1
+
+    print count
+    print time.time() - start
