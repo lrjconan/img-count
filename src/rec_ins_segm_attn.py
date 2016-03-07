@@ -843,7 +843,8 @@ if __name__ == '__main__':
                       m['crnn_g_i_avg'], m['crnn_g_f_avg'], m['crnn_g_o_avg'],
                       m['box_loss_coeff'], m['count_acc'], 
                       m['gt_knob_prob_box'], m['gt_knob_prob_segm'],
-                      m['dice'], m['dic'], m['dic_abs'], m['_prob_1'],
+                      m['dice'], m['dic'], m['dic_abs'], 
+                      m['_prob_1'], m['_prob_2'], m['_prob_3'], m['_prob_4'],
                       m['train_step']],
                      feed_dict={
             m['x']: x,
@@ -872,7 +873,13 @@ if __name__ == '__main__':
             dic = r[15]
             dic_abs = r[16]
             _prob_1 = r[17]
+            _prob_2 = r[18]
+            _prob_3 = r[19]
+            _prob_4 = r[20]
             log.info('Prob 1: {}'.format(_prob_1))
+            log.info('Prob 2: {}'.format(_prob_2))
+            log.info('Prob 3: {}'.format(_prob_3))
+            log.info('Prob 4: {}'.format(_prob_4))
             step_time = (time.time() - start_time) * 1000
             log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                       'ious {:.4f} iouh {:.4f} dice {:.4f} t {:.2f}ms').format(
