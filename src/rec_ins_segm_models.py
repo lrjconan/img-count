@@ -1268,8 +1268,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
                     _y_out = phase_train_f * _gt_knob_segm * _y_out + \
                         (1 - phase_train_f * _gt_knob_segm) * \
                         tf.reshape(y_out[tt], [-1, inp_height, inp_width, 1])
-                    _prob_3 += phase_train_f * _gt_knob_segm * _y_out
-                    _prob_4 += (1 - phase_train_f * _gt_knob_segm)
+                    _prob_3 += tf.reduce_sum(phase_train_f * _gt_knob_segm * _y_out)
+                    _prob_4 += tf.reduce_sum((1 - phase_train_f * _gt_knob_segm))
                 else:
                     _y_out = tf.reshape(y_out[tt],
                                         [-1, inp_height, inp_width, 1])
