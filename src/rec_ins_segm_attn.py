@@ -698,6 +698,7 @@ if __name__ == '__main__':
         num_dcnn = len(model_opt['dcnn_filter_size'])
         ccnn_bn_loggers = []
         for ii in xrange(num_ctrl_cnn):
+            print 'CCNN logger'
             _ccnn_bn_logger = TimeSeriesLogger(
                 os.path.join(logs_folder, 'ccnn_{}_bn.csv'.format(ii)),
                 ['batch mean', 'batch variance', 'ema mean', 'ema variance'],
@@ -706,20 +707,22 @@ if __name__ == '__main__':
 
         acnn_bn_loggers = []
         for ii in xrange(num_attn_cnn):
-            _ccnn_bn_logger = TimeSeriesLogger(
+            print 'ACNN logger'
+            _acnn_bn_logger = TimeSeriesLogger(
                 os.path.join(logs_folder, 'acnn_{}_bn.csv'.format(ii)),
                 ['batch mean', 'batch variance', 'ema mean', 'ema variance'],
                 name='Attention CNN {} batch norm stats'.format(ii))
-            acnn_bn_loggers.append(_ccnn_bn_logger)
+            acnn_bn_loggers.append(_acnn_bn_logger)
 
         dcnn_bn_loggers = []
         for ii in xrange(num_dcnn):
+            print 'DCNN logger'
             _dcnn_bn_logger = TimeSeriesLogger(
                 os.path.join(logs_folder, 'dcnn_{}_bn.csv'.format(ii)),
                 ['train batch mean', 'valid batch mean', 'train batch variance',
                     'validation batch variance', 'ema mean', 'ema variance'],
                 name='D-CNN {} batch norm stats'.format(ii))
-            dcnn_bn_loggers.append(_ccnn_bn_logger)
+            dcnn_bn_loggers.append(_dcnn_bn_logger)
 
         log_manager.register(log.filename, 'plain', 'Raw logs')
 
@@ -953,12 +956,15 @@ if __name__ == '__main__':
             dic_logger.add(step, ['', dic])
             dic_abs_logger.add(step, ['', dic_abs])
             for ii in xrange(num_ctrl_cnn):
+                print 'CCNN logger'
                 ccnn_bn_loggers[ii].add(
                     step, ['', ctrl_cnn_bm, '', ctrl_cnn_bv, '', ''])
             for ii in xrange(num_attn_cnn):
+                print 'ACNN logger'
                 acnn_bn_loggers[ii].add(
                     step, ['', attn_cnn_bm, '', attn_cnn_bv, '', ''])
             for ii in xrange(num_dcnn):
+                print 'DCNN logger'
                 dcnn_bn_loggers[ii].add(
                     step, ['', dcnn_bm, '', dcnn_bv, '', ''])
 
