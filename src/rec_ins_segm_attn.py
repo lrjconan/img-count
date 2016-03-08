@@ -996,7 +996,7 @@ if __name__ == '__main__':
 
         results_list.append(m['train_step'])
 
-        r = sess.run(results_list,
+        results = sess.run(results_list,
                      feed_dict={
                          m['x']: x,
                          m['phase_train']: True,
@@ -1006,23 +1006,23 @@ if __name__ == '__main__':
 
         # Print statistics
         if step % train_opt['steps_per_log'] == 0:
-            loss = r[0]
-            conf_loss = r[1]
-            segm_loss = r[2]
-            box_loss = r[3]
-            iou_soft = r[4]
-            iou_hard = r[5]
-            learn_rate = r[6]
-            crnn_g_i_avg = r[7]
-            crnn_g_f_avg = r[8]
-            crnn_g_o_avg = r[9]
-            box_loss_coeff = r[10]
-            count_acc = r[11]
-            gt_knob_box = r[12]
-            gt_knob_segm = r[13]
-            dice = r[14]
-            dic = r[15]
-            dic_abs = r[16]
+            loss = results[0]
+            conf_loss = results[1]
+            segm_loss = results[2]
+            box_loss = results[3]
+            iou_soft = results[4]
+            iou_hard = results[5]
+            learn_rate = results[6]
+            crnn_g_i_avg = results[7]
+            crnn_g_f_avg = results[8]
+            crnn_g_o_avg = results[9]
+            box_loss_coeff = results[10]
+            count_acc = results[11]
+            gt_knob_box = results[12]
+            gt_knob_segm = results[13]
+            dice = results[14]
+            dic = results[15]
+            dic_abs = results[16]
 
             offset = 16
 
