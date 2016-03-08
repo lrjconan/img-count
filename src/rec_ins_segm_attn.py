@@ -700,7 +700,8 @@ if __name__ == '__main__':
         for ii in xrange(num_ctrl_cnn):
             _ccnn_bn_logger = TimeSeriesLogger(
                 os.path.join(logs_folder, 'ccnn_{}_bn.csv'.format(ii)),
-                ['batch mean', 'batch variance', 'ema mean', 'ema variance'],
+                ['train batch mean', 'valid batch variance', 'train batch mean',
+                    'valid batch variance', 'ema mean', 'ema variance'],
                 name='Control CNN {} batch norm stats'.format(ii),
                 buffer_size=1)
             ccnn_bn_loggers.append(_ccnn_bn_logger)
@@ -709,7 +710,8 @@ if __name__ == '__main__':
         for ii in xrange(num_attn_cnn):
             _acnn_bn_logger = TimeSeriesLogger(
                 os.path.join(logs_folder, 'acnn_{}_bn.csv'.format(ii)),
-                ['batch mean', 'batch variance', 'ema mean', 'ema variance'],
+                ['train batch mean', 'valid batch variance', 'train batch mean',
+                    'valid batch variance', 'ema mean', 'ema variance'],
                 name='Attention CNN {} batch norm stats'.format(ii),
                 buffer_size=1)
             acnn_bn_loggers.append(_acnn_bn_logger)
@@ -1000,12 +1002,12 @@ if __name__ == '__main__':
         results_list.append(m['train_step'])
 
         results = sess.run(results_list,
-                     feed_dict={
-                         m['x']: x,
-                         m['phase_train']: True,
-                         m['y_gt']: y,
-                         m['s_gt']: s
-                     })
+                           feed_dict={
+                               m['x']: x,
+                               m['phase_train']: True,
+                               m['y_gt']: y,
+                               m['s_gt']: s
+                           })
 
         # Print statistics
         if step % train_opt['steps_per_log'] == 0:
