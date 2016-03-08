@@ -721,7 +721,7 @@ if __name__ == '__main__':
             _dcnn_bn_logger = TimeSeriesLogger(
                 os.path.join(logs_folder, 'dcnn_{}_bn.csv'.format(ii)),
                 ['train batch mean', 'valid batch mean', 'train batch variance',
-                    'validation batch variance', 'ema mean', 'ema variance'],
+                    'valid batch variance', 'ema mean', 'ema variance'],
                 name='D-CNN {} batch norm stats'.format(ii),
                 buffer_size=1)
             dcnn_bn_loggers.append(_dcnn_bn_logger)
