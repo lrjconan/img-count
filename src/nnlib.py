@@ -63,18 +63,18 @@ def batch_norm(n_out, scope='bn', affine=True):
                            name='beta', trainable=True)
         gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
                             name='gamma', trainable=affine)
-        batch_mean = tf.Variable(tf.constant(0.0, shape=[n_out]))
-        batch_var = tf.Variable(tf.constant(1.0, shape=[n_out]))
+        batch_mean = tf.Variable(tf.constant(0.0, shape=[n_out]), name='batch_mean')
+        batch_var = tf.Variable(tf.constant(1.0, shape=[n_out]), name='batch_var')
         ema = tf.train.ExponentialMovingAverage(decay=0.999)
-        # ema_apply_op = ema.apply([batch_mean, batch_var])
+        ema_apply_op = ema.apply([batch_mean, batch_var])
+        ema_mean, ema_var = ema.average(batch_mean), ema.average(batch_var)
 
         def run_bn(x, phase_train):
             _batch_mean, _batch_var = tf.nn.moments(x, [0, 1, 2], name='moments')
             _batch_mean.set_shape([n_out])
             _batch_var.set_shape([n_out])
-            # ema_apply_op = ema.apply([batch_mean, batch_var])
-            ema_apply_op = ema.apply([_batch_mean, _batch_var])
-            ema_mean, ema_var = ema.average(batch_mean), ema.average(batch_var)
+            tf.assign(batch_mean, _batch_mean)
+            tf.assign(batch_var, _batch_var)
 
             def mean_var_with_update():
                 with tf.control_dependencies([ema_apply_op]):
