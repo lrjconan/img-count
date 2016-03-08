@@ -974,25 +974,25 @@ if __name__ == '__main__':
                         m['box_loss_coeff'], m['count_acc'],
                         m['gt_knob_prob_box'], m['gt_knob_prob_segm'],
                         m['dice'], m['dic'], m['dic_abs']]
-        
+
         num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
         num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
         num_dcnn = len(model_opt['dcnn_filter_size'])
         for ii in xrange(num_ctrl_cnn):
-            results_list.append(m['ctrl_cnn_{}_bm'])
-            results_list.append(m['ctrl_cnn_{}_bv'])
-            results_list.append(m['ctrl_cnn_{}_em'])
-            results_list.append(m['ctrl_cnn_{}_ev'])
+            results_list.append(m['ctrl_cnn_{}_bm'.format(ii)])
+            results_list.append(m['ctrl_cnn_{}_bv'.format(ii)])
+            results_list.append(m['ctrl_cnn_{}_em'.format(ii)])
+            results_list.append(m['ctrl_cnn_{}_ev'.format(ii)])
         for ii in xrange(num_attn_cnn):
-            results_list.append(m['attn_cnn_{}_bm'])
-            results_list.append(m['attn_cnn_{}_bv'])
-            results_list.append(m['attn_cnn_{}_em'])
-            results_list.append(m['attn_cnn_{}_ev'])
+            results_list.append(m['attn_cnn_{}_bm'.format(ii)])
+            results_list.append(m['attn_cnn_{}_bv'.format(ii)])
+            results_list.append(m['attn_cnn_{}_em'.format(ii)])
+            results_list.append(m['attn_cnn_{}_ev'.format(ii)])
         for ii in xrange(num_dcnn):
-            results_list.append(m['dcnn_{}_bm'])
-            results_list.append(m['dcnn_{}_bv'])
-            results_list.append(m['dcnn_{}_em'])
-            results_list.append(m['dcnn_{}_ev'])
+            results_list.append(m['dcnn_{}_bm'.format(ii)])
+            results_list.append(m['dcnn_{}_bv'.format(ii)])
+            results_list.append(m['dcnn_{}_em'.format(ii)])
+            results_list.append(m['dcnn_{}_ev'.format(ii)])
 
         results_list.append(m['train_step'])
 
