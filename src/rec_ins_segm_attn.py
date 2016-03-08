@@ -974,6 +974,10 @@ if __name__ == '__main__':
                         m['box_loss_coeff'], m['count_acc'],
                         m['gt_knob_prob_box'], m['gt_knob_prob_segm'],
                         m['dice'], m['dic'], m['dic_abs']]
+        
+        num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
+        num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
+        num_dcnn = len(model_opt['dcnn_filter_size'])
         for ii in xrange(num_ctrl_cnn):
             results_list.append(m['ctrl_cnn_{}_bm'])
             results_list.append(m['ctrl_cnn_{}_bv'])
@@ -1066,9 +1070,6 @@ if __name__ == '__main__':
                     step, [crnn_g_i_avg, crnn_g_f_avg, crnn_g_o_avg])
                 gt_knob_logger.add(step, [gt_knob_box, gt_knob_segm])
 
-                num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
-                num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
-                num_dcnn = len(model_opt['dcnn_filter_size'])
                 for ii in xrange(num_ctrl_cnn):
                     ccnn_bn_loggers[ii].add(
                         step, [ctrl_cnn_bm, '', ctrl_cnn_bv, '', ctrl_cnn_em,
