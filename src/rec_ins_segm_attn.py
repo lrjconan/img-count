@@ -956,7 +956,6 @@ if __name__ == '__main__':
                 ccnn_bn_loggers[ii].add(
                     step, ['', ctrl_cnn_bm, '', ctrl_cnn_bv, '', ''])
             for ii in xrange(num_attn_cnn):
-                print ii
                 acnn_bn_loggers[ii].add(
                     step, ['', attn_cnn_bm, '', attn_cnn_bv, '', ''])
             for ii in xrange(num_dcnn):
@@ -1075,7 +1074,6 @@ if __name__ == '__main__':
                         step, [ctrl_cnn_bm, '', ctrl_cnn_bv, '', ctrl_cnn_em,
                                ctrl_cnn_ev])
                 for ii in xrange(num_attn_cnn):
-                    print ii
                     acnn_bn_loggers[ii].add(
                         step, [ctrl_cnn_bm, '', attn_cnn_bv, '', attn_cnn_em,
                                attn_cnn_ev])
