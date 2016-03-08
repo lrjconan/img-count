@@ -700,7 +700,7 @@ if __name__ == '__main__':
         for ii in xrange(num_ctrl_cnn):
             _ccnn_bn_logger = TimeSeriesLogger(
                 os.path.join(logs_folder, 'ccnn_{}_bn.csv'.format(ii)),
-                ['train batch mean', 'valid batch variance', 'train batch mean',
+                ['train batch mean', 'valid batch mean', 'train batch variance',
                     'valid batch variance', 'ema mean', 'ema variance'],
                 name='Control CNN {} batch norm stats'.format(ii),
                 buffer_size=1)
@@ -710,7 +710,7 @@ if __name__ == '__main__':
         for ii in xrange(num_attn_cnn):
             _acnn_bn_logger = TimeSeriesLogger(
                 os.path.join(logs_folder, 'acnn_{}_bn.csv'.format(ii)),
-                ['train batch mean', 'valid batch variance', 'train batch mean',
+                ['train batch mean', 'valid batch mean', 'train batch variance',
                     'valid batch variance', 'ema mean', 'ema variance'],
                 name='Attention CNN {} batch norm stats'.format(ii),
                 buffer_size=1)
