@@ -68,7 +68,7 @@ def batch_norm(x, n_out, phase_train, scope='bn', affine=True):
         batch_mean.set_shape([n_out])
         batch_var.set_shape([n_out])
 
-        ema = tf.train.ExponentialMovingAverage(decay=0.9)
+        ema = tf.train.ExponentialMovingAverage(decay=0.9999)
         ema_apply_op = ema.apply([batch_mean, batch_var])
         ema_mean, ema_var = ema.average(batch_mean), ema.average(batch_var)
 
@@ -106,6 +106,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn'):
     log.info('CNN: {}'.format(scope))
     log.info('Channels: {}'.format(ch))
     log.info('Activation: {}'.format(act))
+    phase_train = tf.constant(True)
 
     with tf.variable_scope(scope):
         for ii in xrange(nlayers):
@@ -166,6 +167,7 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
     log.info('Channels: {}'.format(ch))
     log.info('Activation: {}'.format(act))
     log.info('Skip channels: {}'.format(skip_ch))
+    phase_train = tf.constant(True)
 
     in_ch = ch[0]
 
