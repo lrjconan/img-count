@@ -751,7 +751,7 @@ if __name__ == '__main__':
             log.info('Plotting validation samples')
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
             _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
-            _run_samples(_x, _y, _s, False, valid_sample_img.get_fname(),
+            _run_samples(_x, _y, _s, True, valid_sample_img.get_fname(),
                          fname_box=valid_sample_box_img.get_fname())
             if not valid_sample_img.is_registered():
                 valid_sample_img.register()
@@ -793,7 +793,7 @@ if __name__ == '__main__':
                                 ],
                                feed_dict={
                 m['x']: _x,
-                m['phase_train']: False,
+                m['phase_train']: True,
                 m['y_gt']: _y,
                 m['s_gt']: _s
             })
