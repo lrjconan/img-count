@@ -66,7 +66,7 @@ def batch_norm(n_out, scope='bn', affine=True):
         batch_mean = tf.Variable(tf.constant(0.0, shape=[n_out]))
         batch_var = tf.Variable(tf.constant(1.0, shape=[n_out]))
         ema = tf.train.ExponentialMovingAverage(decay=0.999)
-        ema_apply_op = ema.apply([batch_mean, batch_var])
+        # ema_apply_op = ema.apply([batch_mean, batch_var])
 
     def run_bn(x, phase_train):
         _batch_mean, _batch_var = tf.nn.moments(x, [0, 1, 2], name='moments')
