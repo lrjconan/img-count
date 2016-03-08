@@ -926,7 +926,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         ccnn_use_bn = [use_bn] * ccnn_nlayers
         ccnn = nn.cnn(ccnn_filters, ccnn_channels, ccnn_pool, ccnn_act,
                       ccnn_use_bn, phase_train=phase_train, wd=wd,
-                      scope='ctrl_cnn')
+                      scope='ctrl_cnn', model=model)
 
         # Controller RNN definition
         ccnn_subsample = np.array(ccnn_pool).prod()
@@ -993,7 +993,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         acnn_use_bn = [use_bn] * acnn_nlayers
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
                       acnn_use_bn, phase_train=phase_train, wd=wd,
-                      scope='attn_cnn')
+                      scope='attn_cnn', model=model)
 
         x_patch = [None] * timespan
         h_acnn = [None] * timespan
@@ -1038,7 +1038,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         dcnn_skip_ch = [0] + acnn_channels[::-1][1:] + [ccnn_inp_depth]
         dcnn = nn.dcnn(dcnn_filters, dcnn_channels, dcnn_unpool,
                        dcnn_act, use_bn=dcnn_use_bn, skip_ch=dcnn_skip_ch,
-                       phase_train=phase_train, wd=wd)
+                       phase_train=phase_train, wd=wd, model=model)
 
         # Attention box
         attn_box = [None] * timespan
@@ -1059,9 +1059,6 @@ def get_attn_model_2(opt, device='/cpu:0'):
             tf.reverse(tf.range(timespan), [True])) * iou_bias_eps, 0)
 
         # Knob for mix in groundtruth box.
-        # gt_knob_time_scale = tf.reshape(
-        #     1.0 + tf.to_float(tf.range(timespan)) * 2.0 / (timespan - 1),
-        #     [1, timespan, 1])
         if knob_use_timescale:
             gt_knob_time_scale = tf.reshape(
                 1.0 + tf.log(1.0 + tf.to_float(tf.range(timespan)) * 3.0), 

@@ -46,7 +46,50 @@ def weight_variable(shape, init=None, wd=None, name=None):
     return var
 
 
-def batch_norm(x, n_out, phase_train, scope='bn', affine=True):
+def batch_norm(n_out, scope='bn', affine=True):
+    """
+    Batch normalization on convolutional maps.
+    Args:
+        x: input tensor, [B, H, W, D]
+        n_out: integer, depth of input maps
+        phase_train: boolean tf.Variable, true indicates training phase
+        scope: string, variable scope
+        affine: whether to affine-transform outputs
+    Return:
+        normed: batch-normalized maps
+    """
+    with tf.variable_scope(scope):
+        beta = tf.Variable(tf.constant(0.0, shape=[n_out]),
+                           name='beta', trainable=True)
+        gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
+                            name='gamma', trainable=affine)
+        # batch_mean = tf.Variable(tf.constant(
+        #     0.0, shape=[n_out]), name='batch_mean')
+        # batch_var = tf.Variable(tf.constant(
+        #     0.0, shape=[n_out]), name='batch_var')
+        ema = tf.train.ExponentialMovingAverage(decay=0.999)
+
+    def run_bn(x, phase_train):
+        batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2], name='moments')
+        batch_mean.set_shape([n_out])
+        batch_var.set_shape([n_out])
+        ema_apply_op = ema.apply([batch_mean, batch_var])
+        ema_mean, ema_var = ema.average(batch_mean), ema.average(batch_var)
+
+        def mean_var_with_update():
+            with tf.control_dependencies([ema_apply_op]):
+                return tf.identity(batch_mean), tf.identity(batch_var)
+
+        mean, var = control_flow_ops.cond(phase_train,
+                                          mean_var_with_update,
+                                          lambda: (ema_mean, ema_var))
+        normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
+        return normed, batch_mean, batch_var, ema_mean, ema_var
+
+    return run_bn
+
+
+def batch_norm_old(x, n_out, phase_train, scope='bn', affine=True):
     """
     Batch normalization on convolutional maps.
     Args:
@@ -83,13 +126,11 @@ def batch_norm(x, n_out, phase_train, scope='bn', affine=True):
                                           mean_var_with_update,
                                           lambda: (batch_mean, batch_var))
 
-        # normed = tf.nn.batch_norm_with_global_normalization(x, mean, var,
-        # beta, gamma, 1e-3, affine)
         normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
-    return normed
+    return normed, batch_mean, batch_var, ema_mean, ema_var
 
 
-def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn'):
+def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=None):
     """Add CNN. N = number of layers.
 
     Args:
@@ -107,16 +148,19 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn'):
     nlayers = len(f)
     w = [None] * nlayers
     b = [None] * nlayers
+    bn = [None] * nlayers
     log.info('CNN: {}'.format(scope))
     log.info('Channels: {}'.format(ch))
     log.info('Activation: {}'.format(act))
-    # phase_train = tf.constant(True)
+    log.info('BN: {}'.format(use_bn))
 
     with tf.variable_scope(scope):
         for ii in xrange(nlayers):
             w[ii] = weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]], wd=wd)
             b[ii] = weight_variable([ch[ii + 1]])
             log.info('Filter: {}'.format([f[ii], f[ii], ch[ii], ch[ii + 1]]))
+            if use_bn[ii]:
+                bn[ii] = batch_norm(ch[ii + 1])
 
     def run_cnn(x):
         """
@@ -126,6 +170,8 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn'):
         """
         h = [None] * nlayers
         for ii in xrange(nlayers):
+            out_ch = ch[ii + 1]
+
             if ii == 0:
                 prev_inp = x
             else:
@@ -134,7 +180,15 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn'):
             h[ii] = conv2d(prev_inp, w[ii]) + b[ii]
 
             if use_bn[ii]:
-                h[ii] = batch_norm(h[ii], ch[ii + 1], phase_train)
+                h[ii], bm, bv, em, ev = bn[ii](h[ii], phase_train)
+                model['{}_{}_bm'.format(scope, ii)] = tf.reduce_sum(
+                    bm) / out_ch
+                model['{}_{}_bv'.format(scope, ii)] = tf.reduce_sum(
+                    bv) / out_ch
+                model['{}_{}_em'.format(scope, ii)] = tf.reduce_sum(
+                    em) / out_ch
+                model['{}_{}_ev'.format(scope, ii)] = tf.reduce_sum(
+                    ev) / out_ch
 
             if act[ii] is not None:
                 h[ii] = act[ii](h[ii])
@@ -147,7 +201,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn'):
     return run_cnn
 
 
-def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scope='dcnn'):
+def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scope='dcnn', model=None):
     """Add DCNN. N = number of layers.
 
     Args:
@@ -166,11 +220,13 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
     nlayers = len(f)
     w = [None] * nlayers
     b = [None] * nlayers
+    bn = [None] * nlayers
 
     log.info('DCNN: {}'.format(scope))
     log.info('Channels: {}'.format(ch))
     log.info('Activation: {}'.format(act))
     log.info('Skip channels: {}'.format(skip_ch))
+    log.info('BN: {}'.format(use_bn))
     # phase_train = tf.constant(True)
 
     in_ch = ch[0]
@@ -186,6 +242,8 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
             log.info('Filter: {}'.format([f[ii], f[ii], out_ch, in_ch]))
             w[ii] = weight_variable([f[ii], f[ii], out_ch, in_ch], wd=wd)
             b[ii] = weight_variable([out_ch])
+            if use_bn[ii]:
+                bn[ii] = batch_norm(out_ch)
             in_ch = out_ch
 
     def run_dcnn(x, skip=None):
@@ -225,7 +283,15 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
                 strides=[1, pool[ii], pool[ii], 1]) + b[ii]
 
             if use_bn[ii]:
-                h[ii] = batch_norm(h[ii], out_ch, phase_train)
+                h[ii], bm, bv, em, ev = bn[ii](h[ii], phase_train)
+                model['{}_{}_bm'.format(scope, ii)] = tf.reduce_sum(
+                    bm) / out_ch
+                model['{}_{}_bv'.format(scope, ii)] = tf.reduce_sum(
+                    bv) / out_ch
+                model['{}_{}_em'.format(scope, ii)] = tf.reduce_sum(
+                    em) / out_ch
+                model['{}_{}_ev'.format(scope, ii)] = tf.reduce_sum(
+                    ev) / out_ch
 
             if act[ii] is not None:
                 h[ii] = act[ii](h[ii])

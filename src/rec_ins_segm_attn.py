@@ -409,7 +409,7 @@ def _parse_args():
                         help='Whether to use a knob.')
     parser.add_argument('-knob_decay', default=kKnobDecay, type=float,
                         help='Knob decay factor.')
-    parser.add_argument('-steps_per_knob_decay', default=kStepsPerKnobDecay, 
+    parser.add_argument('-steps_per_knob_decay', default=kStepsPerKnobDecay,
                         type=int, help='Number of steps to decay knob.')
     parser.add_argument('-knob_base', default=kKnobBase, type=float,
                         help='Knob start rate.')
@@ -417,7 +417,7 @@ def _parse_args():
                         help='Number of steps when it starts to decay.')
     parser.add_argument('-knob_segm_offset', default=kKnobSegmOffset, type=int,
                         help='Number of steps when it starts to decay.')
-    parser.add_argument('-knob_use_timescale', action='store_true', 
+    parser.add_argument('-knob_use_timescale', action='store_true',
                         help='Use time scale curriculum.')
 
     # Training options
@@ -688,10 +688,38 @@ if __name__ == '__main__':
             name='Controller RNN',
             buffer_size=1)
         gt_knob_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'gt_knob.csv'), 
+            os.path.join(logs_folder, 'gt_knob.csv'),
             ['box', 'segmentation'],
             name='Groundtruth knob',
             buffer_size=1)
+
+        num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
+        num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
+        num_dcnn = len(model_opt['dcnn_filter_size'])
+        ccnn_bn_loggers = []
+        for ii in xrange(num_ctrl_cnn):
+            _ccnn_bn_logger = TimeSeriesLogger(
+                os.path.join(logs_folder, 'ccnn_{}_bn.csv'.format(ii)),
+                ['batch mean', 'batch variance', 'ema mean', 'ema variance'],
+                name='Control CNN {} batch norm stats'.format(ii))
+            ccnn_bn_loggers.append(_ccnn_bn_logger)
+
+        acnn_bn_loggers = []
+        for ii in xrange(num_attn_cnn):
+            _ccnn_bn_logger = TimeSeriesLogger(
+                os.path.join(logs_folder, 'acnn_{}_bn.csv'.format(ii)),
+                ['batch mean', 'batch variance', 'ema mean', 'ema variance'],
+                name='Attention CNN {} batch norm stats'.format(ii))
+            acnn_bn_loggers.append(_ccnn_bn_logger)
+
+        dcnn_bn_loggers = []
+        for ii in xrange(num_dcnn):
+            _dcnn_bn_logger = TimeSeriesLogger(
+                os.path.join(logs_folder, 'dcnn_{}_bn.csv'.format(ii)),
+                ['train batch mean', 'valid batch mean', 'train batch variance',
+                    'validation batch variance', 'ema mean', 'ema variance'],
+                name='D-CNN {} batch norm stats'.format(ii))
+            dcnn_bn_loggers.append(_ccnn_bn_logger)
 
         log_manager.register(log.filename, 'plain', 'Raw logs')
 
@@ -779,24 +807,54 @@ if __name__ == '__main__':
         dice = 0
         dic = 0
         dic_abs = 0
+        num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
+        num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
+        num_dcnn = len(model_opt['dcnn_filter_size'])
+        ctrl_cnn_bm = [0.0] * num_ctrl_cnn
+        ctrl_cnn_bv = [0.0] * num_ctrl_cnn
+        ctrl_cnn_em = [0.0] * num_ctrl_cnn
+        ctrl_cnn_ev = [0.0] * num_ctrl_cnn
+        attn_cnn_bm = [0.0] * num_attn_cnn
+        attn_cnn_bv = [0.0] * num_attn_cnn
+        attn_cnn_em = [0.0] * num_attn_cnn
+        attn_cnn_ev = [0.0] * num_attn_cnn
+        dcnn_bm = [0.0] * num_dcnn
+        dcnn_bv = [0.0] * num_dcnn
+        dcnn_em = [0.0] * num_dcnn
+        dcnn_ev = [0.0] * num_dcnn
 
         log.info('Running validation')
         for _x, _y, _s in BatchIterator(num_ex_valid,
                                         batch_size=batch_size,
                                         get_fn=get_batch_valid,
                                         progress_bar=False):
-            results = sess.run([m['loss'], m['conf_loss'], m['segm_loss'],
-                                m['box_loss'], m['iou_soft'], m['iou_hard'],
-                                m['count_acc'], m['dice'], m['dic'], 
-                                m['dic_abs'],
-                                # m['_prob_1'], m['_prob_2'], m['_prob_3'], m['_prob_4']
-                                ],
+            results_list = [m['loss'], m['conf_loss'], m['segm_loss'],
+                            m['box_loss'], m['iou_soft'], m['iou_hard'],
+                            m['count_acc'], m['dice'], m['dic'],
+                            m['dic_abs']]
+            for ii in xrange(num_ctrl_cnn):
+                results_list.append(m['ctrl_cnn_{}_bm'.format(ii)])
+                results_list.append(m['ctrl_cnn_{}_bv'.format(ii)])
+                results_list.append(m['ctrl_cnn_{}_em'.format(ii)])
+                results_list.append(m['ctrl_cnn_{}_ev'.format(ii)])
+            for ii in xrange(num_attn_cnn):
+                results_list.append(m['attn_cnn_{}_bm'.format(ii)])
+                results_list.append(m['attn_cnn_{}_bv'.format(ii)])
+                results_list.append(m['attn_cnn_{}_em'.format(ii)])
+                results_list.append(m['attn_cnn_{}_ev'.format(ii)])
+            for ii in xrange(num_dcnn):
+                results_list.append(m['dcnn_{}_bm'.format(ii)])
+                results_list.append(m['dcnn_{}_bv'.format(ii)])
+                results_list.append(m['dcnn_{}_em'.format(ii)])
+                results_list.append(m['dcnn_{}_ev'.format(ii)])
+
+            results = sess.run(results_list,
                                feed_dict={
-                m['x']: _x,
-                m['phase_train']: False,
-                m['y_gt']: _y,
-                m['s_gt']: _s
-            })
+                                   m['x']: _x,
+                                   m['phase_train']: False,
+                                   m['y_gt']: _y,
+                                   m['s_gt']: _s
+                               })
             _loss = results[0]
             _conf_loss = results[1]
             _segm_loss = results[2]
@@ -807,14 +865,40 @@ if __name__ == '__main__':
             _dice = results[7]
             _dic = results[8]
             _dic_abs = results[9]
-            # _prob_1 = results[10]
-            # _prob_2 = results[11]
-            # _prob_3 = results[12]
-            # _prob_4 = results[13]
-            # log.info('VProb 1: {}'.format(_prob_1))
-            # log.info('VProb 2: {}'.format(_prob_2))
-            # log.info('VProb 3: {}'.format(_prob_3))
-            # log.info('VProb 4: {}'.format(_prob_4))
+            _ctrl_cnn_bm = []
+            _ctrl_cnn_bv = []
+            _ctrl_cnn_em = []
+            _ctrl_cnn_ev = []
+            _attn_cnn_bm = []
+            _attn_cnn_bv = []
+            _attn_cnn_em = []
+            _attn_cnn_ev = []
+            _dcnn_bm = []
+            _dcnn_bv = []
+            _dcnn_em = []
+            _dcnn_ev = []
+
+            offset = 10
+            for ii in xrange(num_ctrl_cnn):
+                _ctrl_cnn_bm.append(results[offset])
+                _ctrl_cnn_bv.append(results[offset + 1])
+                _ctrl_cnn_em.append(results[offset + 2])
+                _ctrl_cnn_ev.append(results[offset + 3])
+                offset += 4
+
+            for ii in xrange(num_attn_cnn):
+                _attn_cnn_bm.append(results[offset])
+                _attn_cnn_bv.append(results[offset + 1])
+                _attn_cnn_em.append(results[offset + 2])
+                _attn_cnn_ev.append(results[offset + 3])
+                offset += 4
+
+            for ii in xrange(num_dcnn):
+                _dcnn_bm.append(results[offset])
+                _dcnn_bv.append(results[offset + 1])
+                _dcnn_em.append(results[offset + 2])
+                _dcnn_ev.append(results[offset + 3])
+                offset += 4
 
             num_ex_batch = _x.shape[0]
             loss += _loss * num_ex_batch / num_ex_valid
@@ -827,6 +911,32 @@ if __name__ == '__main__':
             dice += _dice * num_ex_batch / num_ex_valid
             dic += _dic * num_ex_batch / num_ex_valid
             dic_abs += _dic_abs * num_ex_batch / num_ex_valid
+
+            for ii in xrange(num_ctrl_cnn):
+                ctrl_cnn_bm[ii] += _ctrl_cnn_bm[ii] * \
+                    num_ex_batch / num_ex_valid
+                ctrl_cnn_bv[ii] += _ctrl_cnn_bv[ii] * \
+                    num_ex_batch / num_ex_valid
+                ctrl_cnn_em[ii] += _ctrl_cnn_em[ii] * \
+                    num_ex_batch / num_ex_valid
+                ctrl_cnn_ev[ii] += _ctrl_cnn_ev[ii] * \
+                    num_ex_batch / num_ex_valid
+
+            for ii in xrange(num_attn_cnn):
+                attn_cnn_bm[ii] += _ctrl_cnn_bm[ii] * \
+                    num_ex_batch / num_ex_valid
+                attn_cnn_bv[ii] += _ctrl_cnn_bv[ii] * \
+                    num_ex_batch / num_ex_valid
+                attn_cnn_em[ii] += _ctrl_cnn_em[ii] * \
+                    num_ex_batch / num_ex_valid
+                attn_cnn_ev[ii] += _ctrl_cnn_ev[ii] * \
+                    num_ex_batch / num_ex_valid
+
+            for ii in xrange(num_dcnn):
+                dcnn_bm[ii] += _dcnn_bm[ii] * num_ex_batch / num_ex_valid
+                dcnn_bv[ii] += _dcnn_bv[ii] * num_ex_batch / num_ex_valid
+                dcnn_em[ii] += _dcnn_em[ii] * num_ex_batch / num_ex_valid
+                dcnn_ev[ii] += _dcnn_ev[ii] * num_ex_batch / num_ex_valid
 
         log.info(('{:d} vtl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                   'ious {:.4f} iouh {:.4f} dice {:.4f}').format(
@@ -842,26 +952,54 @@ if __name__ == '__main__':
             count_acc_logger.add(step, ['', count_acc])
             dic_logger.add(step, ['', dic])
             dic_abs_logger.add(step, ['', dic_abs])
+            for ii in xrange(num_ctrl_cnn):
+                ccnn_bn_loggers[ii].add(
+                    step, ['', ctrl_cnn_bm, '', ctrl_cnn_bv, '', ''])
+            for ii in xrange(num_attn_cnn):
+                print ii
+                acnn_bn_loggers[ii].add(
+                    step, ['', attn_cnn_bm, '', attn_cnn_bv, '', ''])
+            for ii in xrange(num_dcnn):
+                dcnn_bn_loggers[ii].add(
+                    step, ['', dcnn_bm, '', dcnn_bv, '', ''])
 
         pass
 
     def train_step(step, x, y, s):
         """Train step"""
         start_time = time.time()
-        r = sess.run([m['loss'], m['conf_loss'], m['segm_loss'], m['box_loss'],
-                      m['iou_soft'], m['iou_hard'], m['learn_rate'],
-                      m['crnn_g_i_avg'], m['crnn_g_f_avg'], m['crnn_g_o_avg'],
-                      m['box_loss_coeff'], m['count_acc'], 
-                      m['gt_knob_prob_box'], m['gt_knob_prob_segm'],
-                      m['dice'], m['dic'], m['dic_abs'], 
-                      # m['_prob_1'], m['_prob_2'], m['_prob_3'], m['_prob_4'],
-                      m['train_step']],
+
+        results_list = [m['loss'], m['conf_loss'], m['segm_loss'], m['box_loss'],
+                        m['iou_soft'], m['iou_hard'], m['learn_rate'],
+                        m['crnn_g_i_avg'], m['crnn_g_f_avg'], m['crnn_g_o_avg'],
+                        m['box_loss_coeff'], m['count_acc'],
+                        m['gt_knob_prob_box'], m['gt_knob_prob_segm'],
+                        m['dice'], m['dic'], m['dic_abs']]
+        for ii in xrange(num_ctrl_cnn):
+            results_list.append(m['ctrl_cnn_{}_bm'])
+            results_list.append(m['ctrl_cnn_{}_bv'])
+            results_list.append(m['ctrl_cnn_{}_em'])
+            results_list.append(m['ctrl_cnn_{}_ev'])
+        for ii in xrange(num_attn_cnn):
+            results_list.append(m['attn_cnn_{}_bm'])
+            results_list.append(m['attn_cnn_{}_bv'])
+            results_list.append(m['attn_cnn_{}_em'])
+            results_list.append(m['attn_cnn_{}_ev'])
+        for ii in xrange(num_dcnn):
+            results_list.append(m['dcnn_{}_bm'])
+            results_list.append(m['dcnn_{}_bv'])
+            results_list.append(m['dcnn_{}_em'])
+            results_list.append(m['dcnn_{}_ev'])
+
+        results_list.append(m['train_step'])
+
+        r = sess.run(results_list,
                      feed_dict={
-            m['x']: x,
-            m['phase_train']: True,
-            m['y_gt']: y,
-            m['s_gt']: s
-        })
+                         m['x']: x,
+                         m['phase_train']: True,
+                         m['y_gt']: y,
+                         m['s_gt']: s
+                     })
 
         # Print statistics
         if step % train_opt['steps_per_log'] == 0:
@@ -882,14 +1020,30 @@ if __name__ == '__main__':
             dice = r[14]
             dic = r[15]
             dic_abs = r[16]
-            # _prob_1 = r[17]
-            # _prob_2 = r[18]
-            # _prob_3 = r[19]
-            # _prob_4 = r[20]
-            # log.info('Prob 1: {}'.format(_prob_1))
-            # log.info('Prob 2: {}'.format(_prob_2))
-            # log.info('Prob 3: {}'.format(_prob_3))
-            # log.info('Prob 4: {}'.format(_prob_4))
+
+            offset = 16
+
+            for ii in xrange(num_ctrl_cnn):
+                ctrl_cnn_bm.append(results[offset])
+                ctrl_cnn_bv.append(results[offset + 1])
+                ctrl_cnn_em.append(results[offset + 2])
+                ctrl_cnn_ev.append(results[offset + 3])
+                offset += 4
+
+            for ii in xrange(num_attn_cnn):
+                attn_cnn_bm.append(results[offset])
+                attn_cnn_bv.append(results[offset + 1])
+                attn_cnn_em.append(results[offset + 2])
+                attn_cnn_ev.append(results[offset + 3])
+                offset += 4
+
+            for ii in xrange(num_dcnn):
+                dcnn_bm.append(results[offset])
+                dcnn_bv.append(results[offset + 1])
+                dcnn_em.append(results[offset + 2])
+                dcnn_ev.append(results[offset + 3])
+                offset += 4
+
             step_time = (time.time() - start_time) * 1000
             log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                       'ious {:.4f} iouh {:.4f} dice {:.4f} t {:.2f}ms').format(
@@ -912,6 +1066,22 @@ if __name__ == '__main__':
                 crnn_logger.add(
                     step, [crnn_g_i_avg, crnn_g_f_avg, crnn_g_o_avg])
                 gt_knob_logger.add(step, [gt_knob_box, gt_knob_segm])
+
+                num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
+                num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
+                num_dcnn = len(model_opt['dcnn_filter_size'])
+                for ii in xrange(num_ctrl_cnn):
+                    ccnn_bn_loggers[ii].add(
+                        step, [ctrl_cnn_bm, '', ctrl_cnn_bv, '', ctrl_cnn_em,
+                               ctrl_cnn_ev])
+                for ii in xrange(num_attn_cnn):
+                    print ii
+                    acnn_bn_loggers[ii].add(
+                        step, [ctrl_cnn_bm, '', attn_cnn_bv, '', attn_cnn_em,
+                               attn_cnn_ev])
+                for ii in xrange(num_dcnn):
+                    dcnn_bn_loggers[ii].add(
+                        step, [dcnn_bm, '', dcnn_bv, '', dcnn_em, dcnn_ev])
 
     def train_loop(step=0):
         """Train loop"""
