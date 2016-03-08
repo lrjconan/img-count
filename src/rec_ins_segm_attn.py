@@ -1027,24 +1027,24 @@ if __name__ == '__main__':
             offset = 16
 
             for ii in xrange(num_ctrl_cnn):
-                ctrl_cnn_bm.append(results[offset])
-                ctrl_cnn_bv.append(results[offset + 1])
-                ctrl_cnn_em.append(results[offset + 2])
-                ctrl_cnn_ev.append(results[offset + 3])
+                ctrl_cnn_bm = results[offset]
+                ctrl_cnn_bv = results[offset + 1]
+                ctrl_cnn_em = results[offset + 2]
+                ctrl_cnn_ev = results[offset + 3]
                 offset += 4
 
             for ii in xrange(num_attn_cnn):
-                attn_cnn_bm.append(results[offset])
-                attn_cnn_bv.append(results[offset + 1])
-                attn_cnn_em.append(results[offset + 2])
-                attn_cnn_ev.append(results[offset + 3])
+                attn_cnn_bm = results[offset]
+                attn_cnn_bv = results[offset + 1]
+                attn_cnn_em = results[offset + 2]
+                attn_cnn_ev = results[offset + 3]
                 offset += 4
 
             for ii in xrange(num_dcnn):
-                dcnn_bm.append(results[offset])
-                dcnn_bv.append(results[offset + 1])
-                dcnn_em.append(results[offset + 2])
-                dcnn_ev.append(results[offset + 3])
+                dcnn_bm = results[offset]
+                dcnn_bv = results[offset + 1]
+                dcnn_em = results[offset + 2]
+                dcnn_ev = results[offset + 3]
                 offset += 4
 
             step_time = (time.time() - start_time) * 1000
