@@ -73,11 +73,11 @@ def batch_norm(n_out, scope='bn', affine=True):
             _batch_mean, _batch_var = tf.nn.moments(x, [0, 1, 2], name='moments')
             _batch_mean.set_shape([n_out])
             _batch_var.set_shape([n_out])
-            tf.assign(batch_mean, _batch_mean)
-            tf.assign(batch_var, _batch_var)
+            bm2 = tf.assign(batch_mean, _batch_mean)
+            bv2 = tf.assign(batch_var, _batch_var)
 
             def mean_var_with_update():
-                with tf.control_dependencies([ema_apply_op]):
+                with tf.control_dependencies([bm2, bv2, ema_apply_op]):
                     return tf.identity(_batch_mean), tf.identity(_batch_var)
 
             mean, var = control_flow_ops.cond(phase_train,
