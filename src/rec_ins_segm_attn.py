@@ -1077,14 +1077,17 @@ if __name__ == '__main__':
                 gt_knob_logger.add(step, [gt_knob_box, gt_knob_segm])
 
                 for ii in xrange(num_ctrl_cnn):
+                    print 'CCNN logger'
                     ccnn_bn_loggers[ii].add(
                         step, [ctrl_cnn_bm, '', ctrl_cnn_bv, '', ctrl_cnn_em,
                                ctrl_cnn_ev])
                 for ii in xrange(num_attn_cnn):
+                    print 'ACNN logger'
                     acnn_bn_loggers[ii].add(
                         step, [ctrl_cnn_bm, '', attn_cnn_bv, '', attn_cnn_em,
                                attn_cnn_ev])
                 for ii in xrange(num_dcnn):
+                    print 'DCNN logger'
                     dcnn_bn_loggers[ii].add(
                         step, [dcnn_bm, '', dcnn_bv, '', dcnn_em, dcnn_ev])
 
