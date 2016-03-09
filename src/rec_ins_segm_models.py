@@ -17,7 +17,7 @@ def get_model(name, opt, device='/cpu:0'):
     if name == 'original':
         return get_orig_model(opt, device=device)
     elif name == 'attention':
-        return get_attn_model(opt, device=device)
+        return get_attn_model_2(opt, device=device)
     else:
         raise Exception('Unknown model name "{}"'.format(name))
 

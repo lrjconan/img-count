@@ -217,7 +217,7 @@ def _parse_args():
     kNumConv = 5
     kCnnFilterSize = [3, 3, 3, 3, 3]
     kCnnDepth = [4, 8, 8, 12, 16]
-    kRnnType = 'conv_lstm'                  # {"conv_lstm", "lstm", "gru"}
+    kRnnType = 'lstm'                  # {"conv_lstm", "lstm", "gru"}
     kConvLstmFilterSize = 3
     kConvLstmHiddenDepth = 12
     kRnnHiddenDim = 512
@@ -233,6 +233,7 @@ def _parse_args():
     kNumSteps = 500000
     kStepsPerCkpt = 1000
     kStepsPerValid = 250
+    kStepsPerPlot = 50
     kBatchSize = 32
 
     parser = argparse.ArgumentParser(
@@ -338,6 +339,8 @@ def _parse_args():
                         type=int, help='Number of steps per checkpoint')
     parser.add_argument('-steps_per_valid', default=kStepsPerValid,
                         type=int, help='Number of steps per validation')
+    parser.add_argument('-steps_per_plot', default=kStepsPerPlot,
+                        type=int, help='Number of steps per plot')
     parser.add_argument('-steps_per_log', default=kStepsPerLog,
                         type=int, help='Number of steps per log')
     parser.add_argument('-batch_size', default=kBatchSize,
@@ -477,7 +480,7 @@ if __name__ == '__main__':
         log = logger.get(os.path.join(logs_folder, 'raw'))
     else:
         log = logger.get()
-    
+
     if not args.save_ckpt:
         log.warning(
             'Checkpoints saving is turned off. Use -save_ckpt flag to save.')
@@ -496,6 +499,7 @@ if __name__ == '__main__':
         'num_steps': args.num_steps,
         'steps_per_ckpt': args.steps_per_ckpt,
         'steps_per_valid': args.steps_per_valid,
+        'steps_per_plot': args.steps_per_plot,
         'steps_per_log': args.steps_per_log
     }
 
@@ -539,6 +543,26 @@ if __name__ == '__main__':
             name='Step time',
             buffer_size=10)
 
+        cnn_bn_loggers = []
+        for ii in xrange(num_dcnn):
+            _cnn_bn_logger = TimeSeriesLogger(
+                os.path.join(logs_folder, 'cnn_{}_bn.csv'.format(ii)),
+                ['train batch mean', 'valid batch mean', 'train batch variance',
+                    'valid batch variance', 'ema mean', 'ema variance'],
+                name='CNN {} batch norm stats'.format(ii),
+                buffer_size=1)
+            cnn_bn_loggers.append(_cnn_bn_logger)
+            
+        dcnn_bn_loggers = []
+        for ii in xrange(num_dcnn):
+            _dcnn_bn_logger = TimeSeriesLogger(
+                os.path.join(logs_folder, 'dcnn_{}_bn.csv'.format(ii)),
+                ['train batch mean', 'valid batch mean', 'train batch variance',
+                    'valid batch variance', 'ema mean', 'ema variance'],
+                name='D-CNN {} batch norm stats'.format(ii),
+                buffer_size=1)
+            dcnn_bn_loggers.append(_dcnn_bn_logger)
+
         log_manager.register(log.filename, 'plain', 'Raw logs')
 
         model_opt_fname = os.path.join(logs_folder, 'model_opt.yaml')
@@ -565,17 +589,38 @@ if __name__ == '__main__':
     log.info('Number of training examples: {}'.format(num_ex_train))
     log.info('Batch size: {}'.format(batch_size))
 
-    def run_samples(x, y, s, phase_train, fname):
-        x2, y2, y_out, s_out, match = sess.run(
-            [m['x_trans'], m['y_gt_trans'], m['y_out'], m['s_out'],
-             m['match']], feed_dict={
-                m['x']: x,
-                m['phase_train']: phase_train,
-                m['y_gt']: y,
-                m['s_gt']: s
-            })
-        plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s_out, y_gt=y2,
-                     s_gt=s, match=match)
+    def run_samples():
+        """Samples"""
+        def _run_samples(x, y, s, phase_train, fname):
+            x2, y2, y_out, s_out, match = sess.run(
+                [m['x_trans'], m['y_gt_trans'], m['y_out'], m['s_out'],
+                 m['match']],
+                feed_dict={
+                    m['x']: x,
+                    m['phase_train']: phase_train,
+                    m['y_gt']: y,
+                    m['s_gt']: s
+                })
+
+            plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s_out,
+                         y_gt=y2, s_gt=s)
+
+        if args.logs:
+            # Plot some samples.
+            log.info('Plotting validation samples')
+            _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
+            _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
+            _run_samples(_x, _y, _s, False, valid_sample_img.get_fname())
+            if not valid_sample_img.is_registered():
+                valid_sample_img.register()
+
+            log.info('Plotting training samples')
+            _x, _y, _s = get_batch_train(np.arange(args.num_samples_plot))
+            _run_samples(_x, _y, _s, True, train_sample_img.get_fname())
+            if not train_sample_img.is_registered():
+                train_sample_img.register()
+
+        pass
 
     def run_validation():
         # Validation
@@ -585,25 +630,64 @@ if __name__ == '__main__':
         count_acc = 0.0
         segm_loss = 0.0
         conf_loss = 0.0
+        num_cnn = len(model_opt['cnn_filter_size'])
+        num_dcnn = len(model_opt['dcnn_filter_size'])
+        cnn_bm = [0.0] * num_ctrl_cnn
+        cnn_bv = [0.0] * num_ctrl_cnn
+        cnn_em = [0.0] * num_ctrl_cnn
+        cnn_ev = [0.0] * num_ctrl_cnn
+        dcnn_bm = [0.0] * num_dcnn
+        dcnn_bv = [0.0] * num_dcnn
+        dcnn_em = [0.0] * num_dcnn
+        dcnn_ev = [0.0] * num_dcnn
         log.info('Running validation')
         for _x, _y, _s in BatchIterator(num_ex_valid,
                                         batch_size=batch_size,
                                         get_fn=get_batch_valid,
                                         progress_bar=False):
-            results = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-                                m['iou_soft'], m['iou_hard'], m['count_acc']],
+            results_list = [m['loss'], m['segm_loss'], m['conf_loss'],
+                            m['iou_soft'], m['iou_hard'], m['count_acc']]
+            offset = len(results_list)
+            for ii in xrange(num_cnn):
+                results_list.append(m['cnn_{}_bm'.format(ii)])
+                results_list.append(m['cnn_{}_bv'.format(ii)])
+                results_list.append(m['cnn_{}_em'.format(ii)])
+                results_list.append(m['cnn_{}_ev'.format(ii)])
+
+            for ii in xrange(num_dcnn):
+                results_list.append(m['dcnn_{}_bm'.format(ii)])
+                results_list.append(m['dcnn_{}_bv'.format(ii)])
+                results_list.append(m['dcnn_{}_em'.format(ii)])
+                results_list.append(m['dcnn_{}_ev'.format(ii)])
+
+            results = sess.run(,
                                feed_dict={
-                m['x']: _x,
-                m['phase_train']: False,
-                m['y_gt']: _y,
-                m['s_gt']: _s
-            })
+                                   m['x']: _x,
+                                   m['phase_train']: False,
+                                   m['y_gt']: _y,
+                                   m['s_gt']: _s
+                               })
             _loss = results[0]
             _segm_loss = results[1]
             _conf_loss = results[2]
             _iou_soft = results[3]
             _iou_hard = results[4]
             _count_acc = results[5]
+
+            for ii in xrange(num_cnn):
+                _cnn_bm = results[offset]
+                _cnn_bv = results[offset + 1]
+                _cnn_em = results[offset + 2]
+                _cnn_ev = results[offset + 3]
+                offset += 4
+
+            for ii in xrange(num_dcnn):
+                _dcnn_bm = results[offset]
+                _dcnn_bv = results[offset + 1]
+                _dcnn_em = results[offset + 2]
+                _dcnn_ev = results[offset + 3]
+                offset += 4
+
             num_ex_batch = _x.shape[0]
             loss += _loss * num_ex_batch / num_ex_valid
             segm_loss += _segm_loss * num_ex_batch / num_ex_valid
@@ -611,6 +695,16 @@ if __name__ == '__main__':
             iou_soft += _iou_soft * num_ex_batch / num_ex_valid
             iou_hard += _iou_hard * num_ex_batch / num_ex_valid
             count_acc += _count_acc * num_ex_batch / num_ex_valid
+            for ii in xrange(num_cnn):
+                cnn_bm[ii] += _cnn_bm * num_ex_batch / num_ex_valid
+                cnn_bv[ii] += _cnn_bv * num_ex_batch / num_ex_valid
+                cnn_em[ii] += _cnn_em * num_ex_batch / num_ex_valid
+                cnn_ev[ii] += _cnn_ev * num_ex_batch / num_ex_valid
+            for ii in xrange(num_dcnn):
+                dcnn_bm[ii] += _dcnn_bm * num_ex_batch / num_ex_valid
+                dcnn_bv[ii] += _dcnn_bv * num_ex_batch / num_ex_valid
+                dcnn_em[ii] += _dcnn_em * num_ex_batch / num_ex_valid
+                dcnn_ev[ii] += _dcnn_ev * num_ex_batch / num_ex_valid
 
         log.info(('{:d} valid loss {:.4f} segm_loss {:.4f} conf_loss {:.4f} '
                   'iou soft {:.4f} iou hard {:.4f} count acc {:.4f}').format(
@@ -620,35 +714,49 @@ if __name__ == '__main__':
             loss_logger.add(step, ['', loss])
             iou_logger.add(step, ['', iou_soft, '', iou_hard])
             count_acc_logger.add(step, ['', count_acc])
-
-            # Plot some samples.
-            _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
-            run_samples(_x, _y, _s, False, valid_sample_img.get_fname())
-            if not valid_sample_img.is_registered():
-                valid_sample_img.register()
-
-            _x, _y, _s = get_batch_train(np.arange(args.num_samples_plot))
-            run_samples(_x, _y, _s, True, train_sample_img.get_fname())
-            if not train_sample_img.is_registered():
-                train_sample_img.register()
+            for ii in xrange(num_cnn):
+                cnn_bn_loggers[ii].add(
+                    step, ['', cnn_bm[ii], '', cnn_bv[ii], '', ''])
+            for ii in xrange(num_dcnn):
+                dcnn_bn_loggers[ii].add(
+                    step, ['', dcnn_bm[ii], '', dcnn_bv[ii], '', ''])
 
         pass
 
-    # Train loop
-    for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
-                                             batch_size=batch_size,
-                                             get_fn=get_batch_train,
-                                             cycle=True,
-                                             progress_bar=False):
-        # Run validation
-        if step % train_opt['steps_per_valid'] == 0:
-            run_validation()
-
-        # Train step
+    def train_step(step, x, y, s):
+        """Train step"""
         start_time = time.time()
-        r = sess.run([m['loss'], m['segm_loss'], m['conf_loss'],
-                      m['iou_soft'], m['iou_hard'], m['count_acc'],
-                      m['learn_rate'], m['train_step']], feed_dict={
+        num_cnn = len(model_opt['cnn_filter_size'])
+        num_dcnn = len(model_opt['dcnn_filter_size'])
+        cnn_bm = [0.0] * num_ctrl_cnn
+        cnn_bv = [0.0] * num_ctrl_cnn
+        cnn_em = [0.0] * num_ctrl_cnn
+        cnn_ev = [0.0] * num_ctrl_cnn
+        dcnn_bm = [0.0] * num_dcnn
+        dcnn_bv = [0.0] * num_dcnn
+        dcnn_em = [0.0] * num_dcnn
+        dcnn_ev = [0.0] * num_dcnn
+
+        results_list = [m['loss'], m['segm_loss'], m['conf_loss'],
+                        m['iou_soft'], m['iou_hard'], m['count_acc'],
+                        m['learn_rate']]
+        offset = len(results_list)
+
+        for ii in xrange(num_cnn):
+            results_list.append(m['cnn_{}_bm'.format(ii)])
+            results_list.append(m['cnn_{}_bv'.format(ii)])
+            results_list.append(m['cnn_{}_em'.format(ii)])
+            results_list.append(m['cnn_{}_ev'.format(ii)])
+
+        for ii in xrange(num_dcnn):
+            results_list.append(m['dcnn_{}_bm'.format(ii)])
+            results_list.append(m['dcnn_{}_bv'.format(ii)])
+            results_list.append(m['dcnn_{}_em'.format(ii)])
+            results_list.append(m['dcnn_{}_ev'.format(ii)])
+
+        results_list.append(m['train_step'])
+
+        results = sess.run(results_list, feed_dict={
             m['x']: x_bat,
             m['phase_train']: True,
             m['y_gt']: y_bat,
@@ -657,13 +765,28 @@ if __name__ == '__main__':
 
         # Print statistics
         if step % train_opt['steps_per_log'] == 0:
-            loss = r[0]
-            segm_loss = r[1]
-            conf_loss = r[2]
-            iou_soft = r[3]
-            iou_hard = r[4]
-            count_acc = r[5]
-            learn_rate = r[6]
+            loss = results[0]
+            segm_loss = results[1]
+            conf_loss = results[2]
+            iou_soft = results[3]
+            iou_hard = results[4]
+            count_acc = results[5]
+            learn_rate = results[6]
+
+            for ii in xrange(num_cnn):
+                cnn_bm[ii] = results[offset]
+                cnn_bv[ii] = results[offset + 1]
+                cnn_em[ii] = results[offset + 2]
+                cnn_ev[ii] = results[offset + 3]
+                offset += 4
+
+            for ii in xrange(num_dcnn):
+                dcnn_bm[ii] = results[offset]
+                dcnn_bv[ii] = results[offset + 1]
+                dcnn_em[ii] = results[offset + 2]
+                dcnn_ev[ii] = results[offset + 3]
+                offset += 4
+
             step_time = (time.time() - start_time) * 1000
             log.info('{:d} train loss {:.4f} {:.4f} {:.4f} t {:.2f}ms'.format(
                 step, loss, segm_loss, conf_loss, step_time))
@@ -674,20 +797,49 @@ if __name__ == '__main__':
                 count_acc_logger.add(step, [count_acc, ''])
                 learn_rate_logger.add(step, learn_rate)
                 step_time_logger.add(step, step_time)
+                for ii in xrange(num_cnn):
+                    cnn_bn_loggers[ii].add(
+                        step, [cnn_bm[ii], '', cnn_bv[ii], '', cnn_em[ii],
+                               cnn_ev[ii]])
+                for ii in xrange(num_dcnn):
+                    dcnn_bn_loggers[ii].add(
+                        step, [dcnn_bm[ii], '', dcnn_bv[ii], '', dcnn_em[ii],
+                               dcnn_ev[ii]])
+        pass
 
-        # Model ID reminder
-        if step % (10 * train_opt['steps_per_log']) == 0:
-            log.info('model id {}'.format(model_id))
+    def train_loop(step=0):
+        # Train loop
+        for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
+                                                 batch_size=batch_size,
+                                                 get_fn=get_batch_train,
+                                                 cycle=True,
+                                                 progress_bar=False):
+            # Run validation
+            if step % train_opt['steps_per_valid'] == 0:
+                run_validation()
 
-        # Save model
-        if args.save_ckpt and step % train_opt['steps_per_ckpt'] == 0:
-            saver.save(sess, global_step=step)
+            if step % train_opt['steps_per_plot'] == 0:
+                run_samples()
 
-        step += 1
+            # Train step
+            train_step(step, x_bat, y_bat, s_bat)
 
-        # Termination
-        if step > train_opt['num_steps']:
-            break
+            # Model ID reminder
+            if step % (10 * train_opt['steps_per_log']) == 0:
+                log.info('model id {}'.format(model_id))
+
+            # Save model
+            if args.save_ckpt and step % train_opt['steps_per_ckpt'] == 0:
+                saver.save(sess, global_step=step)
+
+            step += 1
+
+            # Termination
+            if step > train_opt['num_steps']:
+                break
+        pass
+
+    train_loop(step=step)
 
     sess.close()
     loss_logger.close()
