@@ -34,6 +34,39 @@ import rec_ins_segm_models as models
 log = logger.get()
 
 
+def plot_activation(fname, img):
+    """Plot activation map."""
+    num_ex = img.shape[0]
+    num_items = img.shape[-1]
+    max_items_per_row = 9
+    num_rows_per_ex = int(np.ceil(num_items / max_items_per_row))
+    if num_items > max_items_per_row:
+        num_col = max_items_per_row
+        num_row = num_rows_per_ex * num_ex
+    else:
+        num_row = num_ex
+        num_col = num_items
+
+    f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
+
+    for row in xrange(num_row):
+        for col in xrange(num_col):
+            axarr[row, col].set_axis_off()
+
+    for ii in xrange(num_row):
+        for jj in xrange(num_col):
+            x = img[ii, :, :, jj]
+            axarr[ii, jj].imshow(x)
+            axarr[ii, jj].text(0, 0, 'max {:.2f} min {:.2f}'.format(
+                np.max(x), np.min(x)), color=(0, 0, 0), size=8)
+
+    plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
+    plt.savefig(fname, dpi=300)
+    plt.close('all')
+
+    pass
+
+
 def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
     """Plot some test samples.
 
@@ -72,8 +105,17 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
                       [41, 128, 185],
                       [142, 68, 173],
                       [44, 62, 80],
-                      [127, 140, 141]], dtype='uint8')
-    gradient = np.linspace(0, 1, 256)
+                      [127, 140, 141],
+                      [17, 75, 95],
+                      [2, 128, 144],
+                      [228, 253, 225],
+                      [69, 105, 144],
+                      [244, 91, 105],
+                      [91, 192, 235],
+                      [253, 231, 76],
+                      [155, 197, 61],
+                      [229, 89, 52],
+                      [250, 121, 33]], dtype='uint8')
     im_height = x.shape[1]
     im_with = x.shape[2]
 
@@ -145,14 +187,6 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
                         attn_bot_right_y[ii, kk] - attn_top_left_y[ii, kk],
                         fill=False,
                         color='g'))
-                    # print('top left', attn_top_left_x[ii, kk],
-                    #       attn_top_left_y[ii, kk],
-                    #       'bottom right', attn_bot_right_x[ii, kk],
-                    #       attn_bot_right_y[ii, kk],
-                    #       'center', attn_ctr_x[ii, kk],
-                    #       attn_ctr_y[ii, kk],
-                    #       'delta', attn_delta_x[ii, kk],
-                    #       attn_delta_y[ii, kk])
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=300)
@@ -700,8 +734,8 @@ if __name__ == '__main__':
         for ii in xrange(num_ctrl_cnn):
             _ccnn_bn_logger = TimeSeriesLogger(
                 os.path.join(logs_folder, 'ccnn_{}_bn.csv'.format(ii)),
-                ['train batch mean', 'valid batch mean', 'train batch variance',
-                    'valid batch variance', 'ema mean', 'ema variance'],
+                ['train batch mean', 'valid batch mean', 'train batch var',
+                    'valid batch var', 'ema mean', 'ema var'],
                 name='Ctrl CNN {} batch norm stats'.format(ii),
                 buffer_size=1)
             ccnn_bn_loggers.append(_ccnn_bn_logger)
@@ -710,8 +744,8 @@ if __name__ == '__main__':
         for ii in xrange(num_attn_cnn):
             _acnn_bn_logger = TimeSeriesLogger(
                 os.path.join(logs_folder, 'acnn_{}_bn.csv'.format(ii)),
-                ['train batch mean', 'valid batch mean', 'train batch variance',
-                    'valid batch variance', 'ema mean', 'ema variance'],
+                ['train batch mean', 'valid batch mean', 'train batch var',
+                    'valid batch var', 'ema mean', 'ema var'],
                 name='Attn CNN {} batch norm stats'.format(ii),
                 buffer_size=1)
             acnn_bn_loggers.append(_acnn_bn_logger)
@@ -726,12 +760,36 @@ if __name__ == '__main__':
             name='Attn CNN weights mean',
             buffer_size=1)
 
+        ccnn_sparsity_labels = []
+        for ii in xrange(num_ctrl_cnn):
+            ccnn_sparsity_labels.append('layer {}'.format(ii))
+        ccnn_sparsity_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'ccnn_sparsity.csv'),
+            ccnn_sparsity_labels,
+            name='Ctrl CNN sparsity')
+
+        acnn_sparsity_labels = []
+        for ii in xrange(num_attn_cnn):
+            acnn_sparsity_labels.append('layer {}'.format(ii))
+        acnn_sparsity_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'acnn_sparsity.csv'),
+            acnn_sparsity_labels,
+            name='Attn CNN sparsity')
+
+        dcnn_sparsity_labels = []
+        for ii in xrange(num_dcnn):
+            dcnn_sparsity_labels.append('layer {}'.format(ii))
+        dcnn_sparsity_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'dcnn_sparsity.csv'),
+            dcnn_sparsity_labels,
+            name='D-CNN sparsity')
+
         dcnn_bn_loggers = []
         for ii in xrange(num_dcnn):
             _dcnn_bn_logger = TimeSeriesLogger(
                 os.path.join(logs_folder, 'dcnn_{}_bn.csv'.format(ii)),
-                ['train batch mean', 'valid batch mean', 'train batch variance',
-                    'valid batch variance', 'ema mean', 'ema variance'],
+                ['train batch mean', 'valid batch mean', 'train batch var',
+                    'valid batch var', 'ema mean', 'ema var'],
                 name='D-CNN {} batch norm stats'.format(ii),
                 buffer_size=1)
             dcnn_bn_loggers.append(_dcnn_bn_logger)
@@ -1006,6 +1064,12 @@ if __name__ == '__main__':
         dcnn_ev = [0.0] * num_dcnn
         attn_cnn_weights_m = [0.0] * num_attn_cnn
         attn_cnn_bias_m = [0.0] * num_attn_cnn
+        ctrl_cnn_act = [0.0] * num_ctrl_cnn
+        attn_cnn_act = [0.0] * num_ctrl_cnn
+        dcnn_act = [0.0] * num_dcnn
+        ctrl_cnn_sparsity = [0.0] * num_ctrl_cnn
+        attn_cnn_sparsity = [0.0] * num_ctrl_cnn
+        dcnn_sparsity = [0.0] * num_dcnn
 
         results_list = [m['loss'], m['conf_loss'], m['segm_loss'], m['box_loss'],
                         m['iou_soft'], m['iou_hard'], m['learn_rate'],
@@ -1032,6 +1096,9 @@ if __name__ == '__main__':
 
         results_list.extend(m['acnn_w_mean'])
         results_list.extend(m['acnn_b_mean'])
+        results_list.extend(m['h_ccnn'])
+        results_list.extend(m['h_acnn'])
+        results_list.extend(m['h_dcnn'])
 
         results_list.append(m['train_step'])
 
@@ -1094,12 +1161,31 @@ if __name__ == '__main__':
                 attn_cnn_bias_m[ii] = results[offset]
                 offset += 1
 
+            for ii in xrange(num_ctrl_cnn):
+                ctrl_cnn_act[ii] = results[offset]
+                ctrl_cnn_sparsity[ii] = (
+                    ctrl_cnn_act[ii] == 0).astype('float').mean()
+                offset += 1
+
+            for ii in xrange(num_attn_cnn):
+                attn_cnn_act[ii] = results[offset]
+                attn_cnn_sparsity[ii] = (
+                    attn_cnn_act[ii] == 0).astype('float').mean()
+                offset += 1
+
+            for ii in xrange(num_dcnn):
+                dcnn_act[ii] = results[offset]
+                dcnn_sparsity[ii] = (
+                    dcnn_act[ii] == 0).astype('float').mean()
+                offset += 1
+
             step_time = (time.time() - start_time) * 1000
             log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                       'ious {:.4f} iouh {:.4f} dice {:.4f} t {:.2f}ms').format(
                 step, loss, conf_loss, segm_loss, box_loss, iou_soft, iou_hard,
                 dice,
                 step_time))
+
             if args.logs:
                 loss_logger.add(step, [loss, ''])
                 conf_loss_logger.add(step, [conf_loss, ''])
@@ -1134,6 +1220,9 @@ if __name__ == '__main__':
                     acnn_weights_stats.append(attn_cnn_weights_m[ii])
                     acnn_weights_stats.append(attn_cnn_bias_m[ii])
                 acnn_weights_logger.add(step, acnn_weights_stats)
+                ccnn_sparsity_logger.add(step, ctrl_cnn_sparsity)
+                acnn_sparsity_logger.add(step, attn_cnn_sparsity)
+                dcnn_sparsity_logger.add(step, dcnn_sparsity)
 
         pass
 

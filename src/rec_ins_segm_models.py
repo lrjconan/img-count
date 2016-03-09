@@ -927,6 +927,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         ccnn = nn.cnn(ccnn_filters, ccnn_channels, ccnn_pool, ccnn_act,
                       ccnn_use_bn, phase_train=phase_train, wd=wd,
                       scope='ctrl_cnn', model=model)
+        h_ccnn = [None] * timespan
 
         # Controller RNN definition
         ccnn_subsample = np.array(ccnn_pool).prod()
@@ -967,10 +968,10 @@ def get_attn_model_2(opt, device='/cpu:0'):
             _get_gt_attn(y_gt, attn_size,
                          padding_ratio=tf.random_uniform(
                              tf.pack([num_ex, timespan, 1]),
-                             -0.05, 0.15),
+                             0.0, 0.1),
                          center_shift_ratio=tf.random_uniform(
                              tf.pack([num_ex, timespan, 2]),
-                             -0.1, 0.1))
+                             -0.05, 0.05))
         attn_lg_gamma_gt = tf.ones(tf.pack([num_ex, timespan, 1]))
         attn_box_lg_gamma_gt = tf.ones(tf.pack([num_ex, timespan, 1]))
         gtbox_top_left = [None] * timespan
@@ -1039,6 +1040,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         dcnn = nn.dcnn(dcnn_filters, dcnn_channels, dcnn_unpool,
                        dcnn_act, use_bn=dcnn_use_bn, skip_ch=dcnn_skip_ch,
                        phase_train=phase_train, wd=wd, model=model)
+        h_dcnn = [None] * timespan
 
         # Attention box
         attn_box = [None] * timespan
@@ -1104,8 +1106,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
             else:
                 ccnn_inp = x
                 acnn_inp = x
-            h_ccnn = ccnn(ccnn_inp)
-            h_ccnn_last = h_ccnn[-1]
+            h_ccnn[tt] = ccnn(ccnn_inp)
+            h_ccnn_last = h_ccnn[tt][-1]
             crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
 
             # Controller RNN [B, R1]
@@ -1230,11 +1232,11 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
             # DCNN
             skip = [None] + h_acnn[tt][::-1][1:] + [x_patch[tt]]
-            h_dcnn = dcnn(h_core, skip=skip)
+            h_dcnn[tt] = dcnn(h_core, skip=skip)
 
             # Output
             y_out[tt] = _extract_patch(
-                h_dcnn[-1], filters_y_inv, filters_x_inv, 1)
+                h_dcnn[tt][-1], filters_y_inv, filters_x_inv, 1)
             y_out[tt] = 1.0 / attn_lg_gamma[tt] * y_out[tt]
             y_out[tt] = tf.sigmoid(y_out[tt] - y_out_bias)
             y_out[tt] = tf.reshape(
@@ -1272,6 +1274,10 @@ def get_attn_model_2(opt, device='/cpu:0'):
         model['attn_box'] = attn_box
         x_patch = tf.concat(1, [tf.expand_dims(x_patch[tt], 1)
                                 for tt in xrange(timespan)])
+        h_ccnn = [tf.concat(1, [tf.expand_dims(h_ccnn[tt][ii], 1)
+                                for tt in xrange(timespan)])
+                  for ii in xrange(len(ccnn_filters))]
+        model['h_ccnn'] = h_ccnn
         model['x_patch'] = x_patch
         h_acnn = [tf.concat(1, [tf.expand_dims(h_acnn[tt][ii], 1)
                                 for tt in xrange(timespan)])
@@ -1290,6 +1296,10 @@ def get_attn_model_2(opt, device='/cpu:0'):
         model['acnn_b_mean'] = [tf.reduce_sum(
             acnn_b[ii]) / acnn_channels[ii + 1]
             for ii in xrange(len(acnn_filters))]
+        h_dcnn = [tf.concat(1, [tf.expand_dims(h_dcnn[tt][ii], 1)
+                                for tt in xrange(timespan)])
+                  for ii in xrange(len(dcnn_filters))]
+        model['h_dcnn'] = h_dcnn
 
         # Loss function
         learn_rate = tf.train.exponential_decay(
@@ -1497,6 +1507,7 @@ def get_attn_model(opt, device='/cpu:0'):
         ccnn = nn.cnn(ccnn_filters, ccnn_channels, ccnn_pool, ccnn_act,
                       ccnn_use_bn, phase_train=phase_train, wd=wd,
                       scope='ctrl_cnn', model=model)
+        h_ccnn = [None] * timespan
 
         # Controller RNN definition
         ccnn_subsample = np.array(ccnn_pool).prod()
@@ -1599,8 +1610,8 @@ def get_attn_model(opt, device='/cpu:0'):
                       phase_train=phase_train, wd=wd, scope='attn_mlp')
 
         # Controller CNN [B, H, W, D] => [B, RH1, RW1, RD1]
-        h_ccnn = ccnn(x)
-        h_ccnn_last = h_ccnn[-1]
+        h_ccnn[tt] = ccnn(x)
+        h_ccnn_last = h_ccnn[tt][-1]
         crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
 
         model['gt_knob_prob_box'] = tf.constant(0.0)
