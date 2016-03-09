@@ -1031,6 +1031,7 @@ if __name__ == '__main__':
             results_list.append(m['dcnn_{}_ev'.format(ii)])
 
         results_list.extend(m['acnn_w_mean'])
+        results_list.extend(m['acnn_b_mean'])
 
         results_list.append(m['train_step'])
 
