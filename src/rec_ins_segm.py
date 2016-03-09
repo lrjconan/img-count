@@ -548,8 +548,10 @@ if __name__ == '__main__':
             name='Step time',
             buffer_size=10)
 
+        num_cnn = len(model_opt['cnn_filter_size'])
+        num_dcnn = len(model_opt['dcnn_filter_size'])
         cnn_bn_loggers = []
-        for ii in xrange(num_dcnn):
+        for ii in xrange(num_cnn):
             _cnn_bn_logger = TimeSeriesLogger(
                 os.path.join(logs_folder, 'cnn_{}_bn.csv'.format(ii)),
                 ['train batch mean', 'valid batch mean', 'train batch variance',
