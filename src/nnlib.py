@@ -121,7 +121,7 @@ def batch_norm(x, n_out, phase_train, scope='bn', affine=True):
         batch_mean.set_shape([n_out])
         batch_var.set_shape([n_out])
 
-        ema = tf.train.ExponentialMovingAverage(decay=0.999)
+        ema = tf.train.ExponentialMovingAverage(decay=0.9)
         ema_apply_op = ema.apply([batch_mean, batch_var])
         ema_mean, ema_var = ema.average(batch_mean), ema.average(batch_var)
 
