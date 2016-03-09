@@ -1282,11 +1282,14 @@ def get_attn_model_2(opt, device='/cpu:0'):
         acnn_b = [model['attn_cnn_b_{}'.format(ii)]
                   for ii in xrange(len(acnn_filters))]
         model['acnn_w'] = acnn_w
-        model['acnn_w_mean'] = [tf.reduce_mean(
-            acnn_w[ii]) for ii in xrange(len(acnn_filters))]
+        model['acnn_w_mean'] = [tf.reduce_sum(
+            acnn_w[ii]) / acnn_filters[ii] / acnn_filters[ii]
+            / acnn_channels[ii] / acnn_channels[ii + 1]
+            for ii in xrange(len(acnn_filters))]
         model['acnn_b'] = acnn_b
-        model['acnn_b_mean'] = [tf.reduce_mean(
-            acnn_b[ii]) for ii in xrange(len(acnn_filters))]
+        model['acnn_b_mean'] = [tf.reduce_sum(
+            acnn_b[ii]) / acnn_channels[ii + 1]
+            for ii in xrange(len(acnn_filters))]
 
         # Loss function
         learn_rate = tf.train.exponential_decay(
