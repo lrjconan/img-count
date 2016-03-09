@@ -211,7 +211,7 @@ def _parse_args():
     kWeightDecay = 5e-5
     kBaseLearnRate = 1e-3
     kLearnRateDecay = 0.96
-    kStepsPerDecay = 5000
+    kStepsPerLearnRateDecay = 5000
     kStepsPerLog = 10
     kLossMixRatio = 1.0
     kNumConv = 5
@@ -275,7 +275,8 @@ def _parse_args():
                         type=float, help='Model learning rate')
     parser.add_argument('-learn_rate_decay', default=kLearnRateDecay,
                         type=float, help='Model learning rate decay')
-    parser.add_argument('-steps_per_decay', default=kStepsPerDecay,
+    parser.add_argument('-steps_per_learn_rate_decay',
+                        default=kStepsPerLearnRateDecay,
                         type=int, help='Steps every learning rate decay')
     parser.add_argument('-loss_mix_ratio', default=kLossMixRatio, type=float,
                         help='Mix ratio between segmentation and score loss')
@@ -432,7 +433,7 @@ if __name__ == '__main__':
             'weight_decay': args.weight_decay,
             'base_learn_rate': args.base_learn_rate,
             'learn_rate_decay': args.learn_rate_decay,
-            'steps_per_decay': args.steps_per_decay,
+            'steps_learn_rate_per_decay': args.steps_learn_rate_per_decay,
             'loss_mix_ratio': args.loss_mix_ratio,
             'cnn_filter_size': cnn_filter_size_all[: args.num_conv],
             'cnn_depth': cnn_depth_all[: args.num_conv],
@@ -552,7 +553,7 @@ if __name__ == '__main__':
                 name='CNN {} batch norm stats'.format(ii),
                 buffer_size=1)
             cnn_bn_loggers.append(_cnn_bn_logger)
-            
+
         dcnn_bn_loggers = []
         for ii in xrange(num_dcnn):
             _dcnn_bn_logger = TimeSeriesLogger(
