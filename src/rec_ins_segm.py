@@ -433,7 +433,7 @@ if __name__ == '__main__':
             'weight_decay': args.weight_decay,
             'base_learn_rate': args.base_learn_rate,
             'learn_rate_decay': args.learn_rate_decay,
-            'steps_learn_rate_per_decay': args.steps_learn_rate_per_decay,
+            'steps_per_learn_rate_decay': args.steps_per_learn_rate_decay,
             'loss_mix_ratio': args.loss_mix_ratio,
             'cnn_filter_size': cnn_filter_size_all[: args.num_conv],
             'cnn_depth': cnn_depth_all[: args.num_conv],
