@@ -17,7 +17,7 @@ def get_model(name, opt, device='/cpu:0'):
     if name == 'original':
         return get_orig_model(opt, device=device)
     elif name == 'attention':
-        return get_attn_model_2(opt, device=device)
+        return get_attn_model(opt, device=device)
     else:
         raise Exception('Unknown model name "{}"'.format(name))
 
@@ -1488,7 +1488,7 @@ def get_attn_model(opt, device='/cpu:0'):
         ccnn_use_bn = [use_bn] * ccnn_nlayers
         ccnn = nn.cnn(ccnn_filters, ccnn_channels, ccnn_pool, ccnn_act,
                       ccnn_use_bn, phase_train=phase_train, wd=wd,
-                      scope='ctrl_cnn')
+                      scope='ctrl_cnn', model=model)
 
         # Controller RNN definition
         ccnn_subsample = np.array(ccnn_pool).prod()
@@ -1556,7 +1556,7 @@ def get_attn_model(opt, device='/cpu:0'):
         acnn_use_bn = [use_bn] * acnn_nlayers
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
                       acnn_use_bn, phase_train=phase_train, wd=wd,
-                      scope='attn_cnn')
+                      scope='attn_cnn', model=model)
 
         x_patch = [None] * timespan
         h_acnn = [None] * timespan
@@ -1677,7 +1677,7 @@ def get_attn_model(opt, device='/cpu:0'):
 
         dcnn = nn.dcnn(dcnn_filters, dcnn_channels, dcnn_unpool,
                        dcnn_act, use_bn=dcnn_use_bn, skip_ch=skip_ch,
-                       phase_train=phase_train, wd=wd)
+                       phase_train=phase_train, wd=wd, model=model)
         h_dcnn = dcnn(h_core, skip=skip)
 
         # Concat all attentions.
