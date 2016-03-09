@@ -99,7 +99,7 @@ def batch_norm(n_out, scope='bn', affine=True):
     return run_bn
 
 
-def batch_norm_old(x, n_out, phase_train, scope='bn', affine=True):
+def batch_norm(x, n_out, phase_train, scope='bn', affine=True):
     """
     Batch normalization on convolutional maps.
     Args:
@@ -129,12 +129,12 @@ def batch_norm_old(x, n_out, phase_train, scope='bn', affine=True):
             with tf.control_dependencies([ema_apply_op]):
                 return tf.identity(batch_mean), tf.identity(batch_var)
 
-        # mean, var = control_flow_ops.cond(phase_train,
-        #                                   mean_var_with_update,
-        #                                   lambda: (ema_mean, ema_var))
         mean, var = control_flow_ops.cond(phase_train,
                                           mean_var_with_update,
-                                          lambda: (batch_mean, batch_var))
+                                          lambda: (ema_mean, ema_var))
+        # mean, var = control_flow_ops.cond(phase_train,
+        #                                   mean_var_with_update,
+        #                                   lambda: (batch_mean, batch_var))
 
         normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
     return normed, batch_mean, batch_var, ema_mean, ema_var
