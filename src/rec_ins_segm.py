@@ -452,11 +452,15 @@ if __name__ == '__main__':
             'cum_min': not args.no_cum_min,
             # 'feed_output': args.feed_output,
             'segm_loss_fn': args.segm_loss_fn,
-            'use_deconv': args.use_deconv,
+            # 'use_deconv': args.use_deconv,
+            'use_deconv': True,
             'use_bn': args.use_bn,
-            'segm_dense_conn': args.segm_dense_conn,
-            'add_skip_conn': args.add_skip_conn,
-            'score_use_core': args.score_use_core
+            # 'segm_dense_conn': args.segm_dense_conn,
+            'segm_dense_conn': True,
+            # 'add_skip_conn': args.add_skip_conn,
+            'add_skip_conn': True,
+            # 'score_use_core': args.score_use_core
+            'score_use_core': True
         }
         data_opt = {
             'height': args.height,

@@ -518,7 +518,7 @@ def get_orig_model(opt, device='/cpu:0'):
             raise Exception('Unknown RNN type: {}'.format(rnn_type))
 
         for tt in xrange(timespan):
-            rnn_state[tt] = rnn_cell(rnn_inp, rnn_state[tt - 1])
+            rnn_state[tt], _gi, _gf, _go = rnn_cell(rnn_inp, rnn_state[tt - 1])
 
         if rnn_type == 'conv_lstm':
             h_rnn = [tf.slice(rnn_state[tt], [0, 0, 0, rnn_depth],
