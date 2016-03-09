@@ -611,7 +611,7 @@ if __name__ == '__main__':
 
             plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s_out,
                          y_gt=y2, s_gt=s, match=match)
-            
+
         if args.logs:
             # Plot some samples.
             log.info('Plotting validation samples')
@@ -764,10 +764,10 @@ if __name__ == '__main__':
         results_list.append(m['train_step'])
 
         results = sess.run(results_list, feed_dict={
-            m['x']: x_bat,
+            m['x']: x,
             m['phase_train']: True,
-            m['y_gt']: y_bat,
-            m['s_gt']: s_bat
+            m['y_gt']: y,
+            m['s_gt']: s
         })
 
         # Print statistics
