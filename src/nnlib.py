@@ -46,7 +46,7 @@ def weight_variable(shape, init=None, wd=None, name=None):
     return var
 
 
-def batch_norm(n_out, scope='bn', affine=True):
+def batch_norm_2(n_out, scope='bn', affine=True):
     """
     Batch normalization on convolutional maps.
     Args:
@@ -93,7 +93,7 @@ def batch_norm(n_out, scope='bn', affine=True):
             # normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
             normed = tf.nn.batch_norm_with_global_normalization(x, mean, var,
                                                                 beta, gamma, 1e-3, affine)
-            
+
             return normed, batch_mean_2, batch_var_2, ema_mean, ema_var
 
     return run_bn
