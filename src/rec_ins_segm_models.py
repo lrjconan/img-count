@@ -479,7 +479,7 @@ def get_orig_model(opt, device='/cpu:0'):
         cnn_act = [tf.nn.relu] * cnn_nlayers
         cnn_use_bn = [use_bn] * cnn_nlayers
         cnn = nn.cnn(cnn_filters, cnn_channels, cnn_pool, cnn_act, cnn_use_bn,
-                     phase_train=phase_train, wd=wd)
+                     phase_train=phase_train, wd=wd, model=model)
         h_cnn = cnn(x)
         h_pool3 = h_cnn[-1]
 
@@ -576,7 +576,7 @@ def get_orig_model(opt, device='/cpu:0'):
 
             dcnn = nn.dcnn(dcnn_filters, dcnn_channels, dcnn_unpool, dcnn_act,
                            dcnn_use_bn, skip_ch=skip_ch,
-                           phase_train=phase_train, wd=wd)
+                           phase_train=phase_train, wd=wd, model=model)
             h_dcnn = dcnn(h_core, skip=skip)
             y_out = tf.reshape(
                 h_dcnn[-1], [-1, timespan, inp_height, inp_width])
