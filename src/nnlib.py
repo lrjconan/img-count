@@ -66,7 +66,7 @@ def batch_norm(n_out, scope='bn', affine=True):
         batch_mean = tf.Variable(tf.constant(
             0.0, shape=[n_out]), name='batch_mean')
         batch_var = tf.Variable(tf.constant(
-            1.0, shape=[n_out]), name='batch_var')
+            0.0, shape=[n_out]), name='batch_var')
         ema = tf.train.ExponentialMovingAverage(decay=0.999)
         ema_apply_op = ema.apply([batch_mean, batch_var])
         ema_mean, ema_var = ema.average(batch_mean), ema.average(batch_var)

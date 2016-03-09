@@ -973,6 +973,22 @@ if __name__ == '__main__':
         """Train step"""
         start_time = time.time()
 
+        num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
+        num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
+        num_dcnn = len(model_opt['dcnn_filter_size'])
+        ctrl_cnn_bm = [0.0] * num_ctrl_cnn
+        ctrl_cnn_bv = [0.0] * num_ctrl_cnn
+        ctrl_cnn_em = [0.0] * num_ctrl_cnn
+        ctrl_cnn_ev = [0.0] * num_ctrl_cnn
+        attn_cnn_bm = [0.0] * num_attn_cnn
+        attn_cnn_bv = [0.0] * num_attn_cnn
+        attn_cnn_em = [0.0] * num_attn_cnn
+        attn_cnn_ev = [0.0] * num_attn_cnn
+        dcnn_bm = [0.0] * num_dcnn
+        dcnn_bv = [0.0] * num_dcnn
+        dcnn_em = [0.0] * num_dcnn
+        dcnn_ev = [0.0] * num_dcnn
+
         results_list = [m['loss'], m['conf_loss'], m['segm_loss'], m['box_loss'],
                         m['iou_soft'], m['iou_hard'], m['learn_rate'],
                         m['crnn_g_i_avg'], m['crnn_g_f_avg'], m['crnn_g_o_avg'],
@@ -980,9 +996,6 @@ if __name__ == '__main__':
                         m['gt_knob_prob_box'], m['gt_knob_prob_segm'],
                         m['dice'], m['dic'], m['dic_abs']]
 
-        num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
-        num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
-        num_dcnn = len(model_opt['dcnn_filter_size'])
         for ii in xrange(num_ctrl_cnn):
             results_list.append(m['ctrl_cnn_{}_bm'.format(ii)])
             results_list.append(m['ctrl_cnn_{}_bv'.format(ii)])
@@ -1032,24 +1045,24 @@ if __name__ == '__main__':
             offset = 17
 
             for ii in xrange(num_ctrl_cnn):
-                ctrl_cnn_bm = results[offset]
-                ctrl_cnn_bv = results[offset + 1]
-                ctrl_cnn_em = results[offset + 2]
-                ctrl_cnn_ev = results[offset + 3]
+                ctrl_cnn_bm[ii] = results[offset]
+                ctrl_cnn_bv[ii] = results[offset + 1]
+                ctrl_cnn_em[ii] = results[offset + 2]
+                ctrl_cnn_ev[ii] = results[offset + 3]
                 offset += 4
 
             for ii in xrange(num_attn_cnn):
-                attn_cnn_bm = results[offset]
-                attn_cnn_bv = results[offset + 1]
-                attn_cnn_em = results[offset + 2]
-                attn_cnn_ev = results[offset + 3]
+                attn_cnn_bm[ii] = results[offset]
+                attn_cnn_bv[ii] = results[offset + 1]
+                attn_cnn_em[ii] = results[offset + 2]
+                attn_cnn_ev[ii] = results[offset + 3]
                 offset += 4
 
             for ii in xrange(num_dcnn):
-                dcnn_bm = results[offset]
-                dcnn_bv = results[offset + 1]
-                dcnn_em = results[offset + 2]
-                dcnn_ev = results[offset + 3]
+                dcnn_bm[ii] = results[offset]
+                dcnn_bv[ii] = results[offset + 1]
+                dcnn_em[ii] = results[offset + 2]
+                dcnn_ev[ii] = results[offset + 3]
                 offset += 4
 
             step_time = (time.time() - start_time) * 1000
@@ -1077,15 +1090,16 @@ if __name__ == '__main__':
 
                 for ii in xrange(num_ctrl_cnn):
                     ccnn_bn_loggers[ii].add(
-                        step, [ctrl_cnn_bm, '', ctrl_cnn_bv, '', ctrl_cnn_em,
-                               ctrl_cnn_ev])
+                        step, [ctrl_cnn_bm[ii], '', ctrl_cnn_bv[ii], '', 
+                        ctrl_cnn_em[ii], ctrl_cnn_ev[ii]])
                 for ii in xrange(num_attn_cnn):
                     acnn_bn_loggers[ii].add(
-                        step, [ctrl_cnn_bm, '', attn_cnn_bv, '', attn_cnn_em,
-                               attn_cnn_ev])
+                        step, [ctrl_cnn_bm[ii], '', attn_cnn_bv[ii], '', 
+                        attn_cnn_em[ii], attn_cnn_ev[ii]])
                 for ii in xrange(num_dcnn):
                     dcnn_bn_loggers[ii].add(
-                        step, [dcnn_bm, '', dcnn_bv, '', dcnn_em, dcnn_ev])
+                        step, [dcnn_bm[ii], '', dcnn_bv[ii], '', dcnn_em[ii], 
+                        dcnn_ev[ii]])
 
     def train_loop(step=0):
         """Train loop"""
