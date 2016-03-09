@@ -169,7 +169,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
             w[ii] = weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]], wd=wd)
             b[ii] = weight_variable([ch[ii + 1]])
             log.info('Filter: {}'.format([f[ii], f[ii], ch[ii], ch[ii + 1]]))
-            if use_bn[ii]:
+            # if use_bn[ii]:
                 # bn[ii] = batch_norm(ch[ii + 1])
 
     def run_cnn(x):
@@ -253,7 +253,7 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
             log.info('Filter: {}'.format([f[ii], f[ii], out_ch, in_ch]))
             w[ii] = weight_variable([f[ii], f[ii], out_ch, in_ch], wd=wd)
             b[ii] = weight_variable([out_ch])
-            if use_bn[ii]:
+            # if use_bn[ii]:
                 # bn[ii] = batch_norm(out_ch)
             in_ch = out_ch
 
