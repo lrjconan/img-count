@@ -1273,12 +1273,13 @@ def get_attn_model_2(opt, device='/cpu:0'):
         x_patch = tf.concat(1, [tf.expand_dims(x_patch[tt], 1)
                                 for tt in xrange(timespan)])
         model['x_patch'] = x_patch
-        h_acnn = [tf.concat(1, tf.expand_dims(h_acnn[tt], 1))
-                  for tt in xrange(timespan)]
-        model['h_acnn'] = h_acnn
-        acnn_w = [model['acnn_w_{}'.format(ii)]
+        h_acnn = [tf.concat(1, [tf.expand_dims(h_acnn[tt][ii], 1)
+                                for tt in xrange(timespan)])
                   for ii in xrange(len(acnn_filters))]
-        acnn_b = [model['acnn_b_{}'.format(ii)]
+        model['h_acnn'] = h_acnn
+        acnn_w = [model['attn_cnn_w_{}'.format(ii)]
+                  for ii in xrange(len(acnn_filters))]
+        acnn_b = [model['attn_cnn_b_{}'.format(ii)]
                   for ii in xrange(len(acnn_filters))]
         model['acnn_w'] = acnn_w
         model['acnn_w_mean'] = [tf.reduce_mean(

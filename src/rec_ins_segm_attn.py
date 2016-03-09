@@ -716,14 +716,15 @@ if __name__ == '__main__':
                 buffer_size=1)
             acnn_bn_loggers.append(_acnn_bn_logger)
 
+        acnn_weights_labels = []
         for ii in xrange(num_attn_cnn):
-            labels.append('w_{}'.format(ii))
-            labels.append('b_{}'.format(ii))
+            acnn_weights_labels.append('w_{}'.format(ii))
+            acnn_weights_labels.append('b_{}'.format(ii))
         acnn_weights_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'acnn_weights.csv',
-                         labels,
-                         name='Attn CNN weights mean',
-                         buffer_size=1))
+            os.path.join(logs_folder, 'acnn_weights.csv'),
+            acnn_weights_labels,
+            name='Attn CNN weights mean',
+            buffer_size=1)
 
         dcnn_bn_loggers = []
         for ii in xrange(num_dcnn):
@@ -1165,7 +1166,7 @@ if __name__ == '__main__':
             # Termination
             if step > train_opt['num_steps']:
                 break
-                
+
         pass
 
     train_loop(step=step)
