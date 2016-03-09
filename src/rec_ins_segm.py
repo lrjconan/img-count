@@ -660,7 +660,7 @@ if __name__ == '__main__':
                 results_list.append(m['dcnn_{}_em'.format(ii)])
                 results_list.append(m['dcnn_{}_ev'.format(ii)])
 
-            results = sess.run(,
+            results = sess.run(results_list,
                                feed_dict={
                                    m['x']: _x,
                                    m['phase_train']: False,
