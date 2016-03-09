@@ -959,13 +959,13 @@ if __name__ == '__main__':
             dic_abs_logger.add(step, ['', dic_abs])
             for ii in xrange(num_ctrl_cnn):
                 ccnn_bn_loggers[ii].add(
-                    step, ['', ctrl_cnn_bm, '', ctrl_cnn_bv, '', ''])
+                    step, ['', ctrl_cnn_bm[ii], '', ctrl_cnn_bv[ii], '', ''])
             for ii in xrange(num_attn_cnn):
                 acnn_bn_loggers[ii].add(
-                    step, ['', attn_cnn_bm, '', attn_cnn_bv, '', ''])
+                    step, ['', attn_cnn_bm[ii], '', attn_cnn_bv[ii], '', ''])
             for ii in xrange(num_dcnn):
                 dcnn_bn_loggers[ii].add(
-                    step, ['', dcnn_bm, '', dcnn_bv, '', ''])
+                    step, ['', dcnn_bm[ii], '', dcnn_bv[ii], '', ''])
 
         pass
 
@@ -1029,7 +1029,7 @@ if __name__ == '__main__':
             dic = results[15]
             dic_abs = results[16]
 
-            offset = 16
+            offset = 17
 
             for ii in xrange(num_ctrl_cnn):
                 ctrl_cnn_bm = results[offset]
