@@ -1595,7 +1595,8 @@ def get_attn_model(opt, device='/cpu:0'):
         h_ccnn_last = h_ccnn[-1]
         crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
 
-        model['gt_knob_prob'] = tf.constant(0.0)
+        model['gt_knob_prob_box'] = tf.constant(0.0)
+        model['gt_knob_prob_segm'] = tf.constant(0.0)
 
         for tt in xrange(timespan):
             # Controller RNN [B, R1]
