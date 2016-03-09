@@ -90,7 +90,10 @@ def batch_norm(n_out, scope='bn', affine=True):
             mean, var = control_flow_ops.cond(phase_train,
                                               mean_var_with_update,
                                               mean_var_without_update)
-            normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
+            # normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
+            normed = tf.nn.batch_norm_with_global_normalization(x, mean, var,
+                                                                beta, gamma, 1e-3, affine)
+            
             return normed, batch_mean_2, batch_var_2, ema_mean, ema_var
 
     return run_bn
