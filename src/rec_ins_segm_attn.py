@@ -671,12 +671,12 @@ if __name__ == '__main__':
         count_acc_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'count_acc.csv'),
             ['train', 'valid'],
-            name='Count accuracy',
+            name='Count acc',
             buffer_size=1)
         box_loss_coeff_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'box_loss_coeff.csv'),
             'box loss coeff',
-            name='Box Loss Coefficient',
+            name='Box Loss Coeff',
             buffer_size=1)
         step_time_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
@@ -685,12 +685,12 @@ if __name__ == '__main__':
         crnn_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'crnn.csv'),
             ['input gate', 'forget gate', 'output gate'],
-            name='Controller RNN',
+            name='Ctrl RNN',
             buffer_size=1)
         gt_knob_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'gt_knob.csv'),
             ['box', 'segmentation'],
-            name='Groundtruth knob',
+            name='GT mix',
             buffer_size=1)
 
         num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
@@ -702,7 +702,7 @@ if __name__ == '__main__':
                 os.path.join(logs_folder, 'ccnn_{}_bn.csv'.format(ii)),
                 ['train batch mean', 'valid batch mean', 'train batch variance',
                     'valid batch variance', 'ema mean', 'ema variance'],
-                name='Control CNN {} batch norm stats'.format(ii),
+                name='Ctrl CNN {} batch norm stats'.format(ii),
                 buffer_size=1)
             ccnn_bn_loggers.append(_ccnn_bn_logger)
 
@@ -712,9 +712,18 @@ if __name__ == '__main__':
                 os.path.join(logs_folder, 'acnn_{}_bn.csv'.format(ii)),
                 ['train batch mean', 'valid batch mean', 'train batch variance',
                     'valid batch variance', 'ema mean', 'ema variance'],
-                name='Attention CNN {} batch norm stats'.format(ii),
+                name='Attn CNN {} batch norm stats'.format(ii),
                 buffer_size=1)
             acnn_bn_loggers.append(_acnn_bn_logger)
+
+        for ii in xrange(num_attn_cnn):
+            labels.append('w_{}'.format(ii))
+            labels.append('b_{}'.format(ii))
+        acnn_weights_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'acnn_weights.csv',
+                         labels,
+                         name='Attn CNN weights mean',
+                         buffer_size=1))
 
         dcnn_bn_loggers = []
         for ii in xrange(num_dcnn):
@@ -735,12 +744,18 @@ if __name__ == '__main__':
         valid_sample_img = LazyRegisterer(os.path.join(
             logs_folder, 'valid_sample_img.png'),
             'image', 'Validation samples')
+        valid_sample_patch_img = LazyRegisterer(os.path.join(
+            logs_folder, 'valid_sample_patch_img.png'),
+            'image', 'Validation samples (patch)')
         valid_sample_box_img = LazyRegisterer(os.path.join(
             logs_folder, 'valid_sample_box_img.png'),
             'image', 'Validation samples (box)')
         train_sample_img = LazyRegisterer(os.path.join(
             logs_folder, 'train_sample_img.png'),
             'image', 'Training samples')
+        train_sample_patch_img = LazyRegisterer(os.path.join(
+            logs_folder, 'train_sample_path_img.png'),
+            'image', 'Training samples (patch)')
         train_sample_box_img = LazyRegisterer(os.path.join(
             logs_folder, 'train_sample_box_img.png'),
             'image', 'Training samples (box)')
@@ -988,6 +1003,8 @@ if __name__ == '__main__':
         dcnn_bv = [0.0] * num_dcnn
         dcnn_em = [0.0] * num_dcnn
         dcnn_ev = [0.0] * num_dcnn
+        attn_cnn_weights_m = [0.0] * num_attn_cnn
+        attn_cnn_bias_m = [0.0] * num_attn_cnn
 
         results_list = [m['loss'], m['conf_loss'], m['segm_loss'], m['box_loss'],
                         m['iou_soft'], m['iou_hard'], m['learn_rate'],
@@ -1011,6 +1028,8 @@ if __name__ == '__main__':
             results_list.append(m['dcnn_{}_bv'.format(ii)])
             results_list.append(m['dcnn_{}_em'.format(ii)])
             results_list.append(m['dcnn_{}_ev'.format(ii)])
+
+        results_list.extend(m['acnn_w_mean'])
 
         results_list.append(m['train_step'])
 
@@ -1065,6 +1084,14 @@ if __name__ == '__main__':
                 dcnn_ev[ii] = results[offset + 3]
                 offset += 4
 
+            for ii in xrange(num_attn_cnn):
+                attn_cnn_weights_m[ii] = results[offset]
+                offset += 1
+
+            for ii in xrange(num_attn_cnn):
+                attn_cnn_bias_m[ii] = results[offset]
+                offset += 1
+
             step_time = (time.time() - start_time) * 1000
             log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                       'ious {:.4f} iouh {:.4f} dice {:.4f} t {:.2f}ms').format(
@@ -1090,16 +1117,23 @@ if __name__ == '__main__':
 
                 for ii in xrange(num_ctrl_cnn):
                     ccnn_bn_loggers[ii].add(
-                        step, [ctrl_cnn_bm[ii], '', ctrl_cnn_bv[ii], '', 
-                        ctrl_cnn_em[ii], ctrl_cnn_ev[ii]])
+                        step, [ctrl_cnn_bm[ii], '', ctrl_cnn_bv[ii], '',
+                               ctrl_cnn_em[ii], ctrl_cnn_ev[ii]])
                 for ii in xrange(num_attn_cnn):
                     acnn_bn_loggers[ii].add(
-                        step, [ctrl_cnn_bm[ii], '', attn_cnn_bv[ii], '', 
-                        attn_cnn_em[ii], attn_cnn_ev[ii]])
+                        step, [ctrl_cnn_bm[ii], '', attn_cnn_bv[ii], '',
+                               attn_cnn_em[ii], attn_cnn_ev[ii]])
                 for ii in xrange(num_dcnn):
                     dcnn_bn_loggers[ii].add(
-                        step, [dcnn_bm[ii], '', dcnn_bv[ii], '', dcnn_em[ii], 
-                        dcnn_ev[ii]])
+                        step, [dcnn_bm[ii], '', dcnn_bv[ii], '', dcnn_em[ii],
+                               dcnn_ev[ii]])
+                acnn_weights_stats = []
+                for ii in xrange(num_attn_cnn):
+                    acnn_weights_stats.append(attn_cnn_weights_m[ii])
+                    acnn_weights_stats.append(attn_cnn_bias_m[ii])
+                acnn_weights_logger.add(step, acnn_weights_stats)
+
+        pass
 
     def train_loop(step=0):
         """Train loop"""
@@ -1131,6 +1165,8 @@ if __name__ == '__main__':
             # Termination
             if step > train_opt['num_steps']:
                 break
+                
+        pass
 
     train_loop(step=step)
 

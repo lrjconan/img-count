@@ -171,6 +171,9 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
             log.info('Filter: {}'.format([f[ii], f[ii], ch[ii], ch[ii + 1]]))
             # if use_bn[ii]:
                 # bn[ii] = batch_norm(ch[ii + 1])
+            if model:
+                model['{}_w_{}'.format(scope, ii)] = w[ii]
+                model['{}_b_{}'.format(scope, ii)] = b[ii]
 
     def run_cnn(x):
         """
@@ -192,14 +195,15 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
             if use_bn[ii]:
                 # h[ii], bm, bv, em, ev = bn[ii](h[ii], phase_train)
                 h[ii], bm, bv, em, ev = batch_norm(h[ii], out_ch, phase_train)
-                model['{}_{}_bm'.format(scope, ii)] = tf.reduce_sum(
-                    bm) / out_ch
-                model['{}_{}_bv'.format(scope, ii)] = tf.reduce_sum(
-                    bv) / out_ch
-                model['{}_{}_em'.format(scope, ii)] = tf.reduce_sum(
-                    em) / out_ch
-                model['{}_{}_ev'.format(scope, ii)] = tf.reduce_sum(
-                    ev) / out_ch
+                if model:
+                    model['{}_{}_bm'.format(scope, ii)] = tf.reduce_sum(
+                        bm) / out_ch
+                    model['{}_{}_bv'.format(scope, ii)] = tf.reduce_sum(
+                        bv) / out_ch
+                    model['{}_{}_em'.format(scope, ii)] = tf.reduce_sum(
+                        em) / out_ch
+                    model['{}_{}_ev'.format(scope, ii)] = tf.reduce_sum(
+                        ev) / out_ch
 
             if act[ii] is not None:
                 h[ii] = act[ii](h[ii])
