@@ -984,6 +984,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         attn_lg_gamma = [None] * timespan
         attn_gamma = [None] * timespan
         attn_box_lg_gamma = [None] * timespan
+        y_out_lg_gamma = [None] * timespan
         attn_top_left = [None] * timespan
         attn_bot_right = [None] * timespan
 
