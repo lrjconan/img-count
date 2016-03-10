@@ -28,13 +28,62 @@ from utils.batch_iter import BatchIterator
 from utils.lazy_registerer import LazyRegisterer
 from utils.saver import Saver
 from utils.time_series_logger import TimeSeriesLogger
+from utils import plot_utils
 
 import rec_ins_segm_models as models
 
 log = logger.get()
 
 
-def plot_activation(fname, img, axis):
+def plot_total_instances(fname, y_out, s_out):
+    """Plot cumulative image with different colour at each timestep.
+
+    Args:
+        y_out: [B, T, H, W]
+    """
+    num_ex = img.shape[0]
+    num_items = img.shape[1]
+    num_row, num_col, clac = plot_utils.calc_row_col(num_ex, num_items)
+
+    f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
+    plot_utils.set_axis_off(axarr, num_row, num_col)
+
+    cmap2 = np.array([[192, 57, 43],
+                      [243, 156, 18],
+                      [26, 188, 156],
+                      [41, 128, 185],
+                      [142, 68, 173],
+                      [44, 62, 80],
+                      [127, 140, 141],
+                      [17, 75, 95],
+                      [2, 128, 144],
+                      [228, 253, 225],
+                      [69, 105, 144],
+                      [244, 91, 105],
+                      [91, 192, 235],
+                      [253, 231, 76],
+                      [155, 197, 61],
+                      [229, 89, 52],
+                      [250, 121, 33]], dtype='uint8')
+
+    for ii in xrange(num_ex):
+        total_img = np.zeros([y_out[ii].shape[2], y_out[ii].shape[3], 3])
+        for jj in xrange(num_items):
+            row, col = calc(ii, jj)
+            if s_out[ii, jj] > 0.5:
+                total_img += np.expand_dims(
+                    (y_out[ii, jj] > 0.5).astype('uint8'), 2) * \
+                    cmap2[jj % cmap2.shape[0]]
+            axarr[row, col].imshow(total_img)
+
+    plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
+    plt.savefig(fname, dpi=150)
+    plt.close('all')
+
+    pass
+
+
+def plot_thumbnails(fname, img, axis):
     """Plot activation map.
 
     Args:
@@ -42,29 +91,14 @@ def plot_activation(fname, img, axis):
     """
     num_ex = img.shape[0]
     num_items = img.shape[axis]
-    max_items_per_row = 9
-    num_rows_per_ex = int(np.ceil(num_items / max_items_per_row))
-    if num_items > max_items_per_row:
-        num_col = max_items_per_row
-        num_row = num_rows_per_ex * num_ex
-    else:
-        num_row = num_ex
-        num_col = num_items
+    num_row, num_col, calc = plot_utils.calc_row_col(num_ex, num_items)
 
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
-
-    for row in xrange(num_row):
-        for col in xrange(num_col):
-            if num_col > 1:
-                ax = axarr[row, col]
-            else:
-                ax = axarr[row]
-            ax.set_axis_off()
+    plot_utils.set_axis_off(axarr, num_row, num_col)
 
     for ii in xrange(num_ex):
         for jj in xrange(num_items):
-            col = jj % max_items_per_row
-            row = num_rows_per_ex * ii + int(jj / max_items_per_row)
+            row, col = calc(ii, jj)
             if axis == 3:
                 x = img[ii, :, :, jj]
             elif axis == 1:
@@ -84,57 +118,72 @@ def plot_activation(fname, img, axis):
     pass
 
 
-def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
+def plot_input(fname, x, y_gt, s_gt):
+    """Plot input, transformed input and output groundtruth sequence.
+    """
+    num_ex = x.shape[0]
+    offset = 1
+    num_items = offset + y_gt.shape[1]
+    num_row, num_col, calc = plot_utils.calc_row_col(num_ex, num_items)
+
+    f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
+    plot_utils.set_axis_off(axarr, num_row, num_col)
+    cmap = ['r', 'y', 'c', 'g', 'm']
+
+    for ii in xrange(num_ex):
+        for jj in xrange(num_items):
+            row, col = calc(ii, jj)
+            if jj == 1:
+                axarr[row, col].imshow(x[ii])
+            else:
+                axarr[row, col].imshow(x[ii])
+                kk = jj - offset
+                nz = y_gt[ii, kk].nonzero()
+                if nz[0].size > 0:
+                    top_left_x = nz[1].min()
+                    top_left_y = nz[0].min()
+                    bot_right_x = nz[1].max() + 1
+                    bot_right_y = nz[0].max() + 1
+                    axarr[row, col].add_patch(patches.Rectangle(
+                        (top_left_x, top_left_y),
+                        bot_right_x - top_left_x,
+                        bot_right_y - top_left_y,
+                        fill=False,
+                        color=cmap[kk % len(cmap)]))
+                    axarr[row, col].add_patch(patches.Rectangle(
+                        (top_left_x, top_left_y - 25),
+                        25, 25,
+                        fill=True,
+                        color=cmap[kk % len(cmap)]))
+                    axarr[row, col].text(
+                        top_left_x + 5, top_left_y - 5,
+                        '{}'.format(kk), size=5)
+
+    plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
+    plt.savefig(fname, dpi=150)
+    plt.close('all')
+
+    pass
+
+
+def plot_output(fname, y_out, s_out, match, attn=None):
     """Plot some test samples.
 
     Args:
         fname: str, image output filename.
-        x_orig: [B, H0, W0, D], original image, without input transformation.
         x: [B, H, W, D], image after input transformation.
         y_out: [B, T, H, W, D], segmentation output of the model.
         s_out: [B, T], confidence score output of the model.
-        y_gt: [B, T, H, W, D], segmentation groundtruth.
-        s_gt: [B, T], confidence score groudtruth.
         match: [B, T, T], matching matrix.
         attn: ([B, T, 2], [B, T, 2]), top left and bottom right coordinates of
         the attention box.
     """
     num_ex = y_out.shape[0]
-    offset = 2
-
-    # One orig image, one transformed image, T - 1 segmentations, one total image.
-    # T + 2 images.
-    num_items = y_out.shape[1] + offset
-    max_items_per_row = 9
-    num_rows_per_ex = int(np.ceil(num_items / max_items_per_row))
-    if num_items > max_items_per_row:
-        num_col = max_items_per_row
-        num_row = num_rows_per_ex * num_ex
-    else:
-        num_row = num_ex
-        num_col = num_items
+    num_items = y_out.shape[1]
+    num_row, num_col, calc = plot_utils.calc_row_col(num_ex, num_items)
 
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
     cmap = ['r', 'y', 'c', 'g', 'm']
-    cmap2 = np.array([[192, 57, 43],
-                      [243, 156, 18],
-                      [26, 188, 156],
-                      [41, 128, 185],
-                      [142, 68, 173],
-                      [44, 62, 80],
-                      [127, 140, 141],
-                      [17, 75, 95],
-                      [2, 128, 144],
-                      [228, 253, 225],
-                      [69, 105, 144],
-                      [244, 91, 105],
-                      [91, 192, 235],
-                      [253, 231, 76],
-                      [155, 197, 61],
-                      [229, 89, 52],
-                      [250, 121, 33]], dtype='uint8')
-    im_height = x.shape[1]
-    im_with = x.shape[2]
 
     if attn:
         attn_top_left_y = attn[0][:, :, 0]
@@ -146,67 +195,28 @@ def plot_samples(fname, x_orig, x, y_out, s_out, y_gt, s_gt, match, attn=None):
         attn_delta_y = attn[3][:, :, 0]
         attn_delta_x = attn[3][:, :, 1]
 
-    for row in xrange(num_row):
-        for col in xrange(num_col):
-            axarr[row, col].set_axis_off()
+    plot_utils.set_axis_off(axarr, num_row, num_col)
 
     for ii in xrange(num_ex):
-        mnz = match[ii].nonzero()
         for jj in xrange(num_items):
-            col = jj % max_items_per_row
-            row = num_rows_per_ex * ii + int(jj / max_items_per_row)
-            if jj == 0:
-                axarr[row, col].imshow(x_orig[ii])
-            elif jj == 1:
-                axarr[row, col].imshow(x[ii])
-                for kk in xrange(y_gt.shape[1]):
-                    nz = y_gt[ii, kk].nonzero()
-                    if nz[0].size > 0:
-                        top_left_x = nz[1].min()
-                        top_left_y = nz[0].min()
-                        bot_right_x = nz[1].max() + 1
-                        bot_right_y = nz[0].max() + 1
-                        axarr[row, col].add_patch(patches.Rectangle(
-                            (top_left_x, top_left_y),
-                            bot_right_x - top_left_x,
-                            bot_right_y - top_left_y,
-                            fill=False,
-                            color=cmap[kk % len(cmap)]))
-                        axarr[row, col].add_patch(patches.Rectangle(
-                            (top_left_x, top_left_y - 25),
-                            25, 25,
-                            fill=True,
-                            color=cmap[kk % len(cmap)]))
-                        axarr[row, col].text(
-                            top_left_x + 5, top_left_y - 5,
-                            '{}'.format(kk), size=5)
-            elif jj == num_items - 1:
-                total_img = np.zeros([x[ii].shape[0], x[ii].shape[1], 3])
-                for kk in xrange(y_gt.shape[1]):
-                    if s_out[ii][kk] > 0.5:
-                        total_img += np.expand_dims(
-                            (y_out[ii][kk] > 0.5).astype('uint8'), 2) * \
-                            cmap2[kk % cmap2.shape[0]]
-                axarr[row, col].imshow(total_img)
-            else:
-                axarr[row, col].imshow(y_out[ii, jj - offset])
-                matched = match[ii, jj - offset].nonzero()[0]
-                axarr[row, col].text(0, 0, '{:.2f} {}'.format(
-                    s_out[ii, jj - offset], matched),
-                    color=(0, 0, 0), size=8)
+            row, col = calc(ii, jj)
+            axarr[row, col].imshow(y_out[ii, jj])
+            matched = match[ii, jj].nonzero()[0]
+            axarr[row, col].text(0, 0, '{:.2f} {}'.format(
+                s_out[ii, jj], matched),
+                color=(0, 0, 0), size=8)
 
-                if attn:
-                    # Plot attention box.
-                    kk = jj - offset
-                    axarr[row, col].add_patch(patches.Rectangle(
-                        (attn_top_left_x[ii, kk], attn_top_left_y[ii, kk]),
-                        attn_bot_right_x[ii, kk] - attn_top_left_x[ii, kk],
-                        attn_bot_right_y[ii, kk] - attn_top_left_y[ii, kk],
-                        fill=False,
-                        color='g'))
+            if attn:
+                # Plot attention box.
+                axarr[row, col].add_patch(patches.Rectangle(
+                    (attn_top_left_x[ii, jj], attn_top_left_y[ii, jj]),
+                    attn_bot_right_x[ii, jj] - attn_top_left_x[ii, jj],
+                    attn_bot_right_y[ii, jj] - attn_top_left_y[ii, jj],
+                    fill=False,
+                    color='g'))
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
-    plt.savefig(fname, dpi=300)
+    plt.savefig(fname, dpi=150)
     plt.close('all')
 
     pass
@@ -828,7 +838,7 @@ if __name__ == '__main__':
 
         samples = {}
         for ss in ['train', 'valid']:
-            labels = ['output', 'box', 'patch']
+            labels = ['input', 'output', 'total', 'box', 'patch']
             for ii in xrange(num_ctrl_cnn):
                 labels.append('ccnn_{}'.format(ii))
             for ii in xrange(num_attn_cnn):
@@ -856,9 +866,9 @@ if __name__ == '__main__':
 
     def run_samples():
         """Samples"""
-        def _run_samples(x, y, s, phase_train, fname, fname_box=None,
-                         fname_patch=None, fname_ccnn=None, fname_acnn=None,
-                         fname_dcnn=None):
+        def _run_samples(x, y, s, phase_train, fname_input, fname_output,
+                         fname_total=None, fname_box=None, fname_patch=None,
+                         fname_ccnn=None, fname_acnn=None, fname_dcnn=None):
             results_list = [m['x_trans'], m['y_gt_trans'], m['y_out'],
                             m['s_out'], m['match'],
                             m['attn_top_left'], m['attn_bot_right'],
@@ -912,28 +922,34 @@ if __name__ == '__main__':
                     h_dcnn[ii] = results[offset]
                     offset += 1
 
-            plot_samples(fname, x_orig=x, x=x_trans, y_out=y_out, s_out=s_out,
-                         y_gt=y_gt_trans, s_gt=s, match=match,
-                         attn=(atl, abr, ac, ad))
+            plot_input(fname_input, x_orig=x, x=x_trans, y_gt=y_gt_trans,
+                       s_gt=s)
+
+            plot_output(fname_output, y_out=y_out, s_out=s_out, match=match,
+                        attn=(atl, abr, ac, ad))
+
+            if fname_total:
+                plot_total_instances(fname_total, y_out=y_out, s_out=s_out)
+
             if fname_box:
-                plot_samples(fname_box, x_orig=x, x=x_trans, y_out=abox,
-                             s_out=s_out, y_gt=y_gt_trans, s_gt=s,
-                             match=match_box, attn=(atl, abr, ac, ad))
+                plot_output(fname_box, x_orig=x, x=x_trans, y_out=abox,
+                            s_out=s_out, y_gt=y_gt_trans, s_gt=s,
+                            match=match_box, attn=(atl, abr, ac, ad))
 
             if fname_patch:
-                plot_activation(fname_patch, x_patch[:, :, :, :, : 3], axis=1)
+                plot_thumbnails(fname_patch, x_patch[:, :, :, :, : 3], axis=1)
 
             if fname_ccnn:
                 for ii in xrange(num_ctrl_cnn):
-                    plot_activation(fname_ccnn[ii], h_ccnn[ii][:, 0], axis=3)
+                    plot_thumbnails(fname_ccnn[ii], h_ccnn[ii][:, 0], axis=3)
 
             if fname_acnn:
                 for ii in xrange(num_attn_cnn):
-                    plot_activation(fname_acnn[ii], h_acnn[ii][:, 0], axis=3)
+                    plot_thumbnails(fname_acnn[ii], h_acnn[ii][:, 0], axis=3)
 
             if fname_dcnn:
                 for ii in xrange(num_dcnn):
-                    plot_activation(fname_dcnn[ii], h_dcnn[ii][:, 0], axis=3)
+                    plot_thumbnails(fname_dcnn[ii], h_dcnn[ii][:, 0], axis=3)
 
         if args.logs:
             # Plot some samples.
@@ -945,7 +961,9 @@ if __name__ == '__main__':
                 _x, _y, _s = _get_batch(np.arange(args.num_samples_plot))
                 _run_samples(
                     _x, _y, _s, _is_train,
-                    samples['output_{}'.format(ss)].get_fname(),
+                    fname_input=samples['input_{}'.format(ss)].get_fname(),
+                    fname_output=samples['output_{}'.format(ss)].get_fname(),
+                    fname_total=samples['total_{}'.format(ss)].get_fname(),
                     fname_box=samples['box_{}'.format(ss)].get_fname(),
                     fname_patch=samples['patch_{}'.format(ss)].get_fname(),
                     fname_ccnn=[samples['ccnn_{}_{}'.format(
@@ -957,6 +975,7 @@ if __name__ == '__main__':
 
                 if not samples['output_{}'.format(ss)].is_registered():
                     samples['output_{}'.format(ss)].register()
+                    samples['total_{}'.format(ss)].register()
                     samples['box_{}'.format(ss)].register()
                     samples['patch_{}'.format(ss)].register()
                     [samples['ccnn_{}_{}'.format(ii, ss)].register()

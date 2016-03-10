@@ -1287,6 +1287,14 @@ def get_attn_model_2(opt, device='/cpu:0'):
                                 for tt in xrange(timespan)])
                   for ii in xrange(len(ccnn_filters))]
         model['h_ccnn'] = h_ccnn
+
+        for layer in ['ctrl_cnn', 'attn_cnn', 'dcnn']:
+            for ii in xrange(len(opt['{}_filter_size'.format(layer)])):
+                for stat in ['bm', 'bv', 'em', 'ev']:
+                    model['{}_{}_{}'.format(layer, ii, stat)] = tf.add_n(
+                        [model['{}_{}_{}_{}'.format(layer, ii, stat, tt)]
+                         for tt in xrange(timespan)]) / timespan
+
         model['x_patch'] = x_patch
         h_acnn = [tf.concat(1, [tf.expand_dims(h_acnn[tt][ii], 1)
                                 for tt in xrange(timespan)])
