@@ -66,7 +66,7 @@ def plot_total_instances(fname, y_out, s_out):
                       [229, 89, 52],
                       [250, 121, 33]], dtype='uint8')
 
-    total_img = np.zeros([y_out[ii].shape[1], y_out[ii].shape[2], 3])
+    total_img = np.zeros([y_out.shape[2], y_out.shape[3], 3])
     for ii in xrange(num_ex):
         for jj in xrange(num_items):
             row, col = calc(ii, jj)
