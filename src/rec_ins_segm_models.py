@@ -973,7 +973,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
                              tf.pack([num_ex, timespan, 2]),
                              -0.05, 0.05))
         attn_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
-        attn_box_lg_gamma_gt = tf.ones(tf.pack([num_ex, timespan, 1]))
+        attn_box_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
         y_out_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
         gtbox_top_left = [None] * timespan
         gtbox_bot_right = [None] * timespan
@@ -1050,8 +1050,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # attn_box_const = 10.0
         const_ones = tf.ones(
             tf.pack([num_ex, attn_size, attn_size, 1]))
-        # attn_box_beta = -5.0
-        attn_box_beta = nn.weight_variable([1])
+        attn_box_beta = -5.0
+        # attn_box_beta = nn.weight_variable([1])
 
         # Knob
         # Cumulative greedy match
@@ -1098,8 +1098,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # Y out
         y_out = [None] * timespan
         y_out_lg_gamma = [None] * timespan
-        # y_out_beta = -5.0
-        y_out_beta = nn.weight_variable([1])
+        y_out_beta = -5.0
+        # y_out_beta = nn.weight_variable([1])
 
         for tt in xrange(timespan):
             # Controller CNN [B, H, W, D] => [B, RH1, RW1, RD1]
@@ -1134,8 +1134,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 _lg_delta = tf.slice(ctrl_out, [0, 2], [-1, 2])
                 attn_ctr[tt], attn_delta[tt] = _unnormalize_attn(
                     _ctr, _lg_delta, inp_height, inp_width, attn_size)
-                # attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
-                attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
+                attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
+                # attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
                 attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
                 attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
                 y_out_lg_gamma[tt] = tf.slice(ctrl_out, [0, 8], [-1, 1])
