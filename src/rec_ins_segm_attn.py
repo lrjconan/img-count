@@ -74,7 +74,7 @@ def plot_activation(fname, img, axis):
             else:
                 ax = axarr[row]
             ax.imshow(x)
-            ax.text(0, 0, '[{:.2e}, {:.2e}]'.format(
+            ax.text(0, -1, '[{:.2g}, {:.2g}]'.format(
                 np.min(x), np.max(x)), color=(0, 0, 0), size=8)
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
@@ -951,6 +951,7 @@ if __name__ == '__main__':
                 if not samples['output_{}'.format(ss)].is_registered():
                     samples['output_{}'.format(ss)].register()
                     samples['box_{}'.format(ss)].register()
+                    samples['patch_{}'.format(ss)].register()
                     [samples['ccnn_{}_{}'.format(ii, ss)].register()
                      for ii in xrange(num_ctrl_cnn)]
                     [samples['acnn_{}_{}'.format(ii, ss)].register()
