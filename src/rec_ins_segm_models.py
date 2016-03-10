@@ -1050,7 +1050,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # attn_box_const = 10.0
         const_ones = tf.ones(
             tf.pack([num_ex, attn_size, attn_size, 1]))
-        attn_box_beta = -5.0
+        attn_box_beta = tf.constant([-5.0])
         # attn_box_beta = nn.weight_variable([1])
 
         # Knob
@@ -1098,7 +1098,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # Y out
         y_out = [None] * timespan
         y_out_lg_gamma = [None] * timespan
-        y_out_beta = -5.0
+        y_out_beta = tf.constant([-5.0])
         # y_out_beta = nn.weight_variable([1])
 
         for tt in xrange(timespan):
