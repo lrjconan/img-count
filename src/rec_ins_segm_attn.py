@@ -57,8 +57,8 @@ def plot_activation(fname, img, axis):
         for col in xrange(num_col):
             axarr[row, col].set_axis_off()
 
-    for ii in xrange(num_row):
-        for jj in xrange(num_col):
+    for ii in xrange(num_ex):
+        for jj in xrange(num_items):
             col = jj % max_items_per_row
             row = num_rows_per_ex * ii + int(jj / max_items_per_row)
             if axis == 3:
