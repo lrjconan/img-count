@@ -1142,6 +1142,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
             attn_gamma[tt] = tf.reshape(
                 tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
+            attn_box_lg_gamma[tt] = tf.reshape(tf.exp(
+                attn_box_lg_gamma[tt]), [-1, 1, 1, 1])
+            y_out_lg_gamma[tt] = tf.reshape(y_out_lg_gamma[tt], [-1, 1, 1, 1])
 
             # Initial filters (predicted)
             filters_y = _get_attn_filter(
@@ -1154,10 +1157,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
             filters_x_inv = tf.transpose(filters_x, [0, 2, 1])
 
             # Attention box
-            attn_box[tt] = _extract_patch(
-                const_ones *
-                tf.reshape(tf.exp(attn_box_lg_gamma[tt]), [-1, 1, 1, 1]),
-                filters_y_inv, filters_x_inv, 1)
+            attn_box[tt] = _extract_patch(const_ones * attn_box_lg_gamma[tt],
+                                          filters_y_inv, filters_x_inv, 1)
             attn_box[tt] = tf.sigmoid(attn_box[tt] - attn_box_bias)
             attn_box[tt] = tf.reshape(
                 attn_box[tt], [-1, 1, inp_height, inp_width])
@@ -1418,9 +1419,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
         attn_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
                                       for tmp in attn_lg_gamma])
         attn_box_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                      for tmp in attn_box_lg_gamma])
+                                          for tmp in attn_box_lg_gamma])
         y_out_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                      for tmp in y_out_lg_gamma])
+                                       for tmp in y_out_lg_gamma])
         model['attn_ctr'] = attn_ctr
         model['attn_delta'] = attn_delta
         model['attn_top_left'] = attn_top_left
