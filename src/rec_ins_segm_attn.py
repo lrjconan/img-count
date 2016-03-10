@@ -43,7 +43,7 @@ def plot_total_instances(fname, y_out, s_out):
     """
     num_ex = y_out.shape[0]
     num_items = y_out.shape[1]
-    num_row, num_col, clac = plot_utils.calc_row_col(num_ex, num_items)
+    num_row, num_col, calc = plot_utils.calc_row_col(num_ex, num_items)
 
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
     plot_utils.set_axis_off(axarr, num_row, num_col)
