@@ -745,7 +745,7 @@ if __name__ == '__main__':
             buffer_size=1)
         attn_params_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'attn_params.csv'),
-            ['log gamma'],
+            ['attn log gamma', 'box log gamma', 'out log gamma'],
             name='Attn params',
             buffer_size=1)
 
@@ -1169,7 +1169,8 @@ if __name__ == '__main__':
                         m['crnn_g_i_avg'], m['crnn_g_f_avg'], m['crnn_g_o_avg'],
                         m['box_loss_coeff'], m['count_acc'],
                         m['gt_knob_prob_box'], m['gt_knob_prob_segm'],
-                        m['dice'], m['dic'], m['dic_abs'], m['attn_lg_gamma']]
+                        m['dice'], m['dic'], m['dic_abs'], m['attn_lg_gamma'],
+                        m['attn_box_lg_gamma'], m['y_out_lg_gamma']]
 
         offset = len(results_list)
 
@@ -1225,6 +1226,8 @@ if __name__ == '__main__':
             dic = results[15]
             dic_abs = results[16]
             attn_lg_gamma = results[17]
+            attn_box_lg_gamma = results[17]
+            y_out_lg_gamma = results[17]
 
             for ii in xrange(num_ctrl_cnn):
                 ctrl_cnn_bm[ii] = results[offset]
@@ -1310,7 +1313,9 @@ if __name__ == '__main__':
                         step, [dcnn_bm[ii], '', dcnn_bv[ii], '', dcnn_em[ii],
                                dcnn_ev[ii]])
 
-                attn_params_logger.add(step, attn_lg_gamma.mean())
+                attn_params_logger.add(
+                    step, [attn_lg_gamma.mean(), attn_box_lg_gamma.mean(),
+                           y_out_lg_gamma.mean()])
                 acnn_weights_stats = []
                 for ii in xrange(num_attn_cnn):
                     acnn_weights_stats.append(attn_cnn_weights_m[ii])
