@@ -67,7 +67,7 @@ def plot_total_instances(fname, y_out, s_out):
                       [250, 121, 33]], dtype='uint8')
 
     for ii in xrange(num_ex):
-        total_img = np.zeros([y_out[ii].shape[2], y_out[ii].shape[3], 3])
+        total_img = np.zeros([y_out[ii].shape[1], y_out[ii].shape[2], 3])
         for jj in xrange(num_items):
             row, col = calc(ii, jj)
             if s_out[ii, jj] > 0.5:
