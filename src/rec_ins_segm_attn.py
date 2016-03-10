@@ -59,12 +59,14 @@ def plot_activation(fname, img, axis):
 
     for ii in xrange(num_row):
         for jj in xrange(num_col):
+            col = jj % max_items_per_row
+            row = num_rows_per_ex * ii + int(jj / max_items_per_row)
             if axis == 3:
                 x = img[ii, :, :, jj]
             elif axis == 1:
                 x = img[ii, jj]
-            axarr[ii, jj].imshow(x)
-            axarr[ii, jj].text(0, 0, 'max {:.2f} min {:.2f}'.format(
+            axarr[row, col].imshow(x)
+            axarr[row, col].text(0, 0, 'max {:.2f} min {:.2f}'.format(
                 np.max(x), np.min(x)), color=(0, 0, 0), size=8)
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
@@ -909,8 +911,6 @@ if __name__ == '__main__':
 
             if fname_ccnn:
                 for ii in xrange(num_ctrl_cnn):
-                    print h_ccnn[ii].shape
-                    print h_ccnn[ii][:, 0].shape
                     plot_activation(fname_ccnn[ii], h_ccnn[ii][:, 0], axis=3)
 
             if fname_acnn:
