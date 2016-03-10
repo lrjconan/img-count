@@ -74,10 +74,10 @@ def plot_activation(fname, img, axis):
             else:
                 ax = axarr[row]
             ax.imshow(x)
-            ax.text(0, -1, '[{:.2g}, {:.2g}]'.format(
+            ax.text(0, -0.5, '[{:.2g}, {:.2g}]'.format(
                 np.min(x), np.max(x)), color=(0, 0, 0), size=8)
 
-    plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=2.0)
+    plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=150)
     plt.close('all')
 
