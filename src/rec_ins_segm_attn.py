@@ -837,7 +837,7 @@ if __name__ == '__main__':
         log_manager.register(model_opt_fname, 'plain', 'Model hyperparameters')
 
         samples = {}
-        for ss in ['train', 'valid']:
+        for _set in ['train', 'valid']:
             labels = ['input', 'output', 'total', 'box', 'patch']
             for ii in xrange(num_ctrl_cnn):
                 labels.append('ccnn_{}'.format(ii))
@@ -846,10 +846,10 @@ if __name__ == '__main__':
             for ii in xrange(num_dcnn):
                 labels.append('dcnn_{}'.format(ii))
             for name in labels:
-                key = '{}_{}'.format(name, ss)
+                key = '{}_{}'.format(name, _set)
                 samples[key] = LazyRegisterer(
                     os.path.join(logs_folder, '{}.png'.format(key)),
-                    'image', 'Samples {} {}'.format(name, ss))
+                    'image', 'Samples {} {}'.format(name, _set))
         log.info(
             ('Visualization can be viewed at: '
              'http://{}/deep-dashboard?id={}').format(
@@ -951,38 +951,34 @@ if __name__ == '__main__':
 
         if args.logs:
             # Plot some samples.
-            for ss in ['valid', 'train']:
-                _is_train = ss == 'train'
+            for _set in ['valid', 'train']:
+                _is_train = _set == 'train'
                 _get_batch = get_batch_train if _is_train else get_batch_valid
-                log.info('Plotting {} samples'.format(ss))
+                log.info('Plotting {} samples'.format(_set))
                 _x, _y, _s = _get_batch(np.arange(args.num_samples_plot))
                 _x, _y, _s = _get_batch(np.arange(args.num_samples_plot))
                 _run_samples(
                     _x, _y, _s, _is_train,
-                    fname_input=samples['input_{}'.format(ss)].get_fname(),
-                    fname_output=samples['output_{}'.format(ss)].get_fname(),
-                    fname_total=samples['total_{}'.format(ss)].get_fname(),
-                    fname_box=samples['box_{}'.format(ss)].get_fname(),
-                    fname_patch=samples['patch_{}'.format(ss)].get_fname(),
+                    fname_input=samples['input_{}'.format(_set)].get_fname(),
+                    fname_output=samples['output_{}'.format(_set)].get_fname(),
+                    fname_total=samples['total_{}'.format(_set)].get_fname(),
+                    fname_box=samples['box_{}'.format(_set)].get_fname(),
+                    fname_patch=samples['patch_{}'.format(_set)].get_fname(),
                     fname_ccnn=[samples['ccnn_{}_{}'.format(
-                        ii, ss)].get_fname() for ii in xrange(num_ctrl_cnn)],
+                        ii, _set)].get_fname() for ii in xrange(num_ctrl_cnn)],
                     fname_acnn=[samples['acnn_{}_{}'.format(
-                        ii, ss)].get_fname() for ii in xrange(num_attn_cnn)],
+                        ii, _set)].get_fname() for ii in xrange(num_attn_cnn)],
                     fname_dcnn=[samples['dcnn_{}_{}'.format(
-                        ii, ss)].get_fname() for ii in xrange(num_dcnn)])
+                        ii, _set)].get_fname() for ii in xrange(num_dcnn)])
 
-                if not samples['output_{}'.format(ss)].is_registered():
-                    samples['output_{}'.format(ss)].register()
-                    samples['total_{}'.format(ss)].register()
-                    samples['box_{}'.format(ss)].register()
-                    samples['patch_{}'.format(ss)].register()
-                    [samples['ccnn_{}_{}'.format(ii, ss)].register()
-                     for ii in xrange(num_ctrl_cnn)]
-                    [samples['acnn_{}_{}'.format(ii, ss)].register()
-                     for ii in xrange(num_attn_cnn)]
-                    [samples['dcnn_{}_{}'.format(ii, ss)].register()
-                     for ii in xrange(num_dcnn)]
-            pass
+                if not samples['output_{}'.format(_set)].is_registered():
+                    for _name in ['input', 'output', 'total', 'box', 'patch']:
+                        samples['{}_{}'.format(_name, _set)].register()
+                    for _name, _num in zip(
+                            ['ccnn', 'acnn', 'dcnn'],
+                            [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                        [samples['{}_{}_{}'.format(_name, ii, _set)].register()
+                         for ii in xrange(_num)]
         pass
 
     def run_validation(step):
