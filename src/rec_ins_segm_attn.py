@@ -1226,8 +1226,8 @@ if __name__ == '__main__':
             dic = results[15]
             dic_abs = results[16]
             attn_lg_gamma = results[17]
-            attn_box_lg_gamma = results[17]
-            y_out_lg_gamma = results[17]
+            attn_box_lg_gamma = results[18]
+            y_out_lg_gamma = results[19]
 
             for ii in xrange(num_ctrl_cnn):
                 ctrl_cnn_bm[ii] = results[offset]
