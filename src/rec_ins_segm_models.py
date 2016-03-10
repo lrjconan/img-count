@@ -974,6 +974,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
                              -0.05, 0.05))
         attn_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
         attn_box_lg_gamma_gt = tf.ones(tf.pack([num_ex, timespan, 1]))
+        y_out_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
         gtbox_top_left = [None] * timespan
         gtbox_bot_right = [None] * timespan
 
@@ -1095,7 +1096,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
         # Y out
         y_out = [None] * timespan
-        y_out_bias = 5.0
+        # y_out_bias = 5.0
 
         for tt in xrange(timespan):
             # Controller CNN [B, H, W, D] => [B, RH1, RW1, RD1]
@@ -1123,6 +1124,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 attn_lg_var[tt] = attn_lg_var_gt[:, tt, :]
                 attn_lg_gamma[tt] = attn_lg_gamma_gt[:, tt, :]
                 attn_box_lg_gamma[tt] = attn_box_lg_gamma_gt[:, tt, :]
+                y_out_lg_gamma[tt] = y_out_lg_gamma_gt[:, tt, :]
             else:
                 ctrl_out = cmlp(h_crnn[tt])[-1]
                 _ctr = tf.slice(ctrl_out, [0, 0], [-1, 2])
@@ -1133,6 +1135,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 # attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
                 attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
                 attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
+                y_out_lg_gamma[tt] = tf.slice(ctrl_out, [0, 8], [-1, 1])
+                y_out_bias[tt] = tf.slice(ctrl_out, [0, 9], [-1, 1])
 
             attn_gamma[tt] = tf.reshape(
                 tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
@@ -1239,10 +1243,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
             # Output
             y_out[tt] = _extract_patch(
                 h_dcnn[tt][-1], filters_y_inv, filters_x_inv, 1)
-            y_out[tt] = 1.0 / attn_gamma[tt] * y_out[tt]
-            y_out[tt] = tf.sigmoid(y_out[tt] - y_out_bias)
-            y_out[tt] = tf.reshape(
-                y_out[tt], [-1, 1, inp_height, inp_width])
+            y_out[tt] = tf.exp(y_out_lg_gamma[tt]) * y_out[tt] + y_out_bias[tt]
+            y_out[tt] = tf.sigmoid(y_out[tt])
+            y_out[tt] = tf.reshape(y_out[tt], [-1, 1, inp_height, inp_width])
 
             # Here is the knob kick in GT segmentations at this timestep.
             # [B, N, 1, 1]
@@ -1411,12 +1414,18 @@ def get_attn_model_2(opt, device='/cpu:0'):
                                    for tmp in attn_delta])
         attn_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
                                       for tmp in attn_lg_gamma])
+        attn_box_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                      for tmp in attn_box_lg_gamma])
+        y_out_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                      for tmp in y_out_lg_gamma])
         model['attn_ctr'] = attn_ctr
         model['attn_delta'] = attn_delta
         model['attn_top_left'] = attn_top_left
         model['attn_bot_right'] = attn_bot_right
         model['attn_lg_var'] = attn_lg_var
         model['attn_lg_gamma'] = attn_lg_gamma
+        model['attn_box_lg_gamma'] = attn_lg_gamma
+        model['y_out_lg_gamma'] = attn_lg_gamma
 
         # Prob
         crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
