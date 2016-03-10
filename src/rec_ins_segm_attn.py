@@ -1309,8 +1309,8 @@ if __name__ == '__main__':
                     dcnn_bn_loggers[ii].add(
                         step, [dcnn_bm[ii], '', dcnn_bv[ii], '', dcnn_em[ii],
                                dcnn_ev[ii]])
-                    
-                attn_params_logger.add(step, attn_lg_gamma)
+
+                attn_params_logger.add(step, attn_lg_gamma.mean())
                 acnn_weights_stats = []
                 for ii in xrange(num_attn_cnn):
                     acnn_weights_stats.append(attn_cnn_weights_m[ii])
