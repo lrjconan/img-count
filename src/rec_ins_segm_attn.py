@@ -133,7 +133,7 @@ def plot_input(fname, x, y_gt, s_gt):
     for ii in xrange(num_ex):
         for jj in xrange(num_items):
             row, col = calc(ii, jj)
-            if jj == 1:
+            if jj == 0:
                 axarr[row, col].imshow(x[ii])
             else:
                 axarr[row, col].imshow(x[ii])
