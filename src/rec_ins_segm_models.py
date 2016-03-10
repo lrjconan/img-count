@@ -1289,12 +1289,12 @@ def get_attn_model_2(opt, device='/cpu:0'):
                   for ii in xrange(len(acnn_filters))]
         model['acnn_w'] = acnn_w
         model['acnn_w_mean'] = [tf.reduce_sum(
-            acnn_w[ii]) / acnn_filters[ii] / acnn_filters[ii]
+            tf.sqrt(acnn_w[ii] * acnn_w[ii])) / acnn_filters[ii] / acnn_filters[ii]
             / acnn_channels[ii] / acnn_channels[ii + 1]
             for ii in xrange(len(acnn_filters))]
         model['acnn_b'] = acnn_b
         model['acnn_b_mean'] = [tf.reduce_sum(
-            acnn_b[ii]) / acnn_channels[ii + 1]
+            tf.sqrt(acnn_b[ii] * acnn_b[ii])) / acnn_channels[ii + 1]
             for ii in xrange(len(acnn_filters))]
         h_dcnn = [tf.concat(1, [tf.expand_dims(h_dcnn[tt][ii], 1)
                                 for tt in xrange(timespan)])
@@ -1407,11 +1407,12 @@ def get_attn_model_2(opt, device='/cpu:0'):
                                    for tmp in attn_delta])
         attn_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
                                       for tmp in attn_lg_gamma])
-        attn_lg_gamma = tf.reshape(attn_lg_gamma, [-1, 1, 1, 1])
         model['attn_ctr'] = attn_ctr
         model['attn_delta'] = attn_delta
         model['attn_top_left'] = attn_top_left
         model['attn_bot_right'] = attn_bot_right
+        # model['attn_lg_var'] = attn_lg_var
+        model['attn_lg_gamma'] = attn_lg_gamma
 
         # Prob
         crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])

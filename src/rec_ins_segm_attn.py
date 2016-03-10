@@ -743,6 +743,11 @@ if __name__ == '__main__':
             ['box', 'segmentation'],
             name='GT mix',
             buffer_size=1)
+        attn_params_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'attn_params.csv'),
+            ['log \gamma'],
+            name='Attn params',
+            buffer_size=1)
 
         num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
         num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
@@ -769,8 +774,8 @@ if __name__ == '__main__':
 
         acnn_weights_labels = []
         for ii in xrange(num_attn_cnn):
-            acnn_weights_labels.append('w_{}'.format(ii))
-            acnn_weights_labels.append('b_{}'.format(ii))
+            acnn_weights_labels.append('|w| {}'.format(ii))
+            acnn_weights_labels.append('|b| {}'.format(ii))
         acnn_weights_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'acnn_weights.csv'),
             acnn_weights_labels,
@@ -1164,7 +1169,9 @@ if __name__ == '__main__':
                         m['crnn_g_i_avg'], m['crnn_g_f_avg'], m['crnn_g_o_avg'],
                         m['box_loss_coeff'], m['count_acc'],
                         m['gt_knob_prob_box'], m['gt_knob_prob_segm'],
-                        m['dice'], m['dic'], m['dic_abs']]
+                        m['dice'], m['dic'], m['dic_abs'], m['attn_lg_gamma']]
+
+        offset = len(results_list)
 
         for ii in xrange(num_ctrl_cnn):
             results_list.append(m['ctrl_cnn_{}_bm'.format(ii)])
@@ -1217,8 +1224,7 @@ if __name__ == '__main__':
             dice = results[14]
             dic = results[15]
             dic_abs = results[16]
-
-            offset = 17
+            attn_lg_gamma = results[17]
 
             for ii in xrange(num_ctrl_cnn):
                 ctrl_cnn_bm[ii] = results[offset]
@@ -1303,6 +1309,8 @@ if __name__ == '__main__':
                     dcnn_bn_loggers[ii].add(
                         step, [dcnn_bm[ii], '', dcnn_bv[ii], '', dcnn_em[ii],
                                dcnn_ev[ii]])
+                    
+                attn_params_logger.add(step, attn_lg_gamma)
                 acnn_weights_stats = []
                 for ii in xrange(num_attn_cnn):
                     acnn_weights_stats.append(attn_cnn_weights_m[ii])
