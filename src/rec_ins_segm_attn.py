@@ -76,7 +76,7 @@ def plot_total_instances(fname, y_out, s_out):
                     cmap2[jj % cmap2.shape[0]]
             axarr[row, col].imshow(total_img)
 
-    plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
+    plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=150)
     plt.close('all')
 
@@ -159,7 +159,7 @@ def plot_input(fname, x, y_gt, s_gt):
                         top_left_x + 5, top_left_y - 5,
                         '{}'.format(kk), size=5)
 
-    plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
+    plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=150)
     plt.close('all')
 
@@ -215,7 +215,7 @@ def plot_output(fname, y_out, s_out, match, attn=None):
                     fill=False,
                     color='g'))
 
-    plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
+    plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=150)
     plt.close('all')
 
