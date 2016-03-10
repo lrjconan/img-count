@@ -41,8 +41,8 @@ def plot_total_instances(fname, y_out, s_out):
     Args:
         y_out: [B, T, H, W]
     """
-    num_ex = img.shape[0]
-    num_items = img.shape[1]
+    num_ex = y_out.shape[0]
+    num_items = y_out.shape[1]
     num_row, num_col, clac = plot_utils.calc_row_col(num_ex, num_items)
 
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
