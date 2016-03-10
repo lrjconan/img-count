@@ -910,6 +910,7 @@ if __name__ == '__main__':
             if fname_ccnn:
                 for ii in xrange(num_ctrl_cnn):
                     print h_ccnn[ii].shape
+                    print h_ccnn[ii][:, 0].shape
                     plot_activation(fname_ccnn[ii], h_ccnn[ii][:, 0], axis=3)
 
             if fname_acnn:
