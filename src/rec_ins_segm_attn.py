@@ -54,11 +54,12 @@ def plot_activation(fname, img, axis):
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
 
     for row in xrange(num_row):
-        if num_col > 1:
-            ax = axarr[row, col]
-        else:
-            ax = axarr[row]
-        ax.set_axis_off()
+        for col in xrange(num_col):
+            if num_col > 1:
+                ax = axarr[row, col]
+            else:
+                ax = axarr[row]
+            ax.set_axis_off()
 
     for ii in xrange(num_ex):
         for jj in xrange(num_items):
