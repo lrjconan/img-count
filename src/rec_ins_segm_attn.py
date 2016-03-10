@@ -34,10 +34,14 @@ import rec_ins_segm_models as models
 log = logger.get()
 
 
-def plot_activation(fname, img):
-    """Plot activation map."""
+def plot_activation(fname, img, axis):
+    """Plot activation map.
+
+    Args:
+        img: [B, T, H, W, 3] or [B, H, W, D]
+    """
     num_ex = img.shape[0]
-    num_items = img.shape[-1]
+    num_items = img.shape[axis]
     max_items_per_row = 9
     num_rows_per_ex = int(np.ceil(num_items / max_items_per_row))
     if num_items > max_items_per_row:
@@ -55,7 +59,10 @@ def plot_activation(fname, img):
 
     for ii in xrange(num_row):
         for jj in xrange(num_col):
-            x = img[ii, :, :, jj]
+            if axis == 3:
+                x = img[ii, :, :, jj]
+            elif axis == 1:
+                x = img[ii, jj]
             axarr[ii, jj].imshow(x)
             axarr[ii, jj].text(0, 0, 'max {:.2f} min {:.2f}'.format(
                 np.max(x), np.min(x)), color=(0, 0, 0), size=8)
@@ -766,7 +773,8 @@ if __name__ == '__main__':
         ccnn_sparsity_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'ccnn_sparsity.csv'),
             ccnn_sparsity_labels,
-            name='Ctrl CNN sparsity')
+            name='Ctrl CNN sparsity',
+            buffer_size=1)
 
         acnn_sparsity_labels = []
         for ii in xrange(num_attn_cnn):
@@ -774,7 +782,8 @@ if __name__ == '__main__':
         acnn_sparsity_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'acnn_sparsity.csv'),
             acnn_sparsity_labels,
-            name='Attn CNN sparsity')
+            name='Attn CNN sparsity',
+            buffer_size=1)
 
         dcnn_sparsity_labels = []
         for ii in xrange(num_dcnn):
@@ -782,7 +791,8 @@ if __name__ == '__main__':
         dcnn_sparsity_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'dcnn_sparsity.csv'),
             dcnn_sparsity_labels,
-            name='D-CNN sparsity')
+            name='D-CNN sparsity',
+            buffer_size=1)
 
         dcnn_bn_loggers = []
         for ii in xrange(num_dcnn):
@@ -800,24 +810,20 @@ if __name__ == '__main__':
         saver.save_opt(model_opt_fname, model_opt)
         log_manager.register(model_opt_fname, 'plain', 'Model hyperparameters')
 
-        valid_sample_img = LazyRegisterer(os.path.join(
-            logs_folder, 'valid_sample_img.png'),
-            'image', 'Validation samples')
-        valid_sample_patch_img = LazyRegisterer(os.path.join(
-            logs_folder, 'valid_sample_patch_img.png'),
-            'image', 'Validation samples (patch)')
-        valid_sample_box_img = LazyRegisterer(os.path.join(
-            logs_folder, 'valid_sample_box_img.png'),
-            'image', 'Validation samples (box)')
-        train_sample_img = LazyRegisterer(os.path.join(
-            logs_folder, 'train_sample_img.png'),
-            'image', 'Training samples')
-        train_sample_patch_img = LazyRegisterer(os.path.join(
-            logs_folder, 'train_sample_path_img.png'),
-            'image', 'Training samples (patch)')
-        train_sample_box_img = LazyRegisterer(os.path.join(
-            logs_folder, 'train_sample_box_img.png'),
-            'image', 'Training samples (box)')
+        samples = {}
+        for ss in ['train', 'valid']:
+            labels = ['output', 'box', 'patch']
+            for ii in xrange(num_ctrl_cnn):
+                labels.append('ccnn_{}'.format(ii))
+            for ii in xrange(num_attn_cnn):
+                labels.append('acnn_{}'.format(ii))
+            for ii in xrange(num_dcnn):
+                labels.append('dcnn_{}'.format(ii))
+            for name in labels:
+                key = '{}_{}'.format(name, ss)
+                samples[key] = LazyRegisterer(
+                    os.path.join(logs_folder, '{}.png'.format(key)),
+                    'image', 'Samples {} {}'.format(name, ss))
         log.info(
             ('Visualization can be viewed at: '
              'http://{}/deep-dashboard?id={}').format(
@@ -834,44 +840,114 @@ if __name__ == '__main__':
 
     def run_samples():
         """Samples"""
-        def _run_samples(x, y, s, phase_train, fname, fname_box=None):
-            x2, y2, y_out, s_out, match, atl, abr, ac, ad, abox, abox_gt, match_box = sess.run(
-                [m['x_trans'], m['y_gt_trans'], m['y_out'], m['s_out'], m['match'],
-                 m['attn_top_left'], m['attn_bot_right'],
-                 m['attn_ctr'], m['attn_delta'],
-                 m['attn_box'], m['attn_box_gt'], m['match_box']],
-                feed_dict={
-                    m['x']: x,
-                    m['phase_train']: phase_train,
-                    m['y_gt']: y,
-                    m['s_gt']: s
-                })
+        def _run_samples(x, y, s, phase_train, fname, fname_box=None,
+                         fname_patch=None, fname_ccnn=None, fname_acnn=None,
+                         fname_dcnn=None):
+            results_list = [m['x_trans'], m['y_gt_trans'], m['y_out'],
+                            m['s_out'], m['match'],
+                            m['attn_top_left'], m['attn_bot_right'],
+                            m['attn_ctr'], m['attn_delta'],
+                            m['attn_box'], m['attn_box_gt'], m['match_box']]
+            offset = len(results_list)
+            if fname_patch:
+                results_list.append(m['x_patch'])
+            if fname_ccnn:
+                results_list.extend(m['h_ccnn'])
+            if fname_acnn:
+                results_list.extend(m['h_acnn'])
+            if fname_dcnn:
+                results_list.extend(m['h_dcnn'])
+            results = sess.run(results_list,
+                               feed_dict={
+                                   m['x']: x,
+                                   m['phase_train']: phase_train,
+                                   m['y_gt']: y,
+                                   m['s_gt']: s
+                               })
+            x_trans = results[0]
+            y_gt_trans = results[1]
+            y_out = results[2]
+            s_out = results[3]
+            match = results[4]
+            atl = results[5]
+            abr = results[6]
+            ac = results[7]
+            ad = results[8]
+            abox = results[9]
+            abox_gt = results[10]
+            match_box = results[11]
+            h_ccnn = [None] * num_ctrl_cnn
+            h_acnn = [None] * num_attn_cnn
+            h_dcnn = [None] * num_dcnn
 
-            plot_samples(fname, x_orig=x, x=x2, y_out=y_out, s_out=s_out, y_gt=y2,
-                         s_gt=s, match=match, attn=(atl, abr, ac, ad))
+            if fname_patch:
+                x_patch = results[offset]
+                offset += 1
+            if fname_ccnn:
+                for ii in xrange(num_ctrl_cnn):
+                    h_ccnn[ii] = results[offset]
+                    offset += 1
+            if fname_acnn:
+                for ii in xrange(num_attn_cnn):
+                    h_acnn[ii] = results[offset]
+                    offset += 1
+            if fname_dcnn:
+                for ii in xrange(num_dcnn):
+                    h_dcnn[ii] = results[offset]
+                    offset += 1
+
+            plot_samples(fname, x_orig=x, x=x_trans, y_out=y_out, s_out=s_out,
+                         y_gt=y_gt_trans, s_gt=s, match=match,
+                         attn=(atl, abr, ac, ad))
             if fname_box:
-                plot_samples(fname_box, x_orig=x, x=x2, y_out=abox, s_out=s_out, y_gt=y2,
-                             s_gt=s, match=match_box, attn=(atl, abr, ac, ad))
+                plot_samples(fname_box, x_orig=x, x=x_trans, y_out=abox,
+                             s_out=s_out, y_gt=y_gt_trans, s_gt=s, 
+                             match=match_box, attn=(atl, abr, ac, ad))
+
+            if fname_patch:
+                plot_activation(fname_patch, x_patch, axis=1)
+
+            if fname_ccnn:
+                for ii in xrange(num_ctrl_cnn):
+                    plot_activation(fname_ccnn[ii], h_ccnn[ii][:, 0], axis=3)
+
+            if fname_acnn:
+                for ii in xrange(num_attn_cnn):
+                    plot_activation(fname_acnn[ii], h_acnn[ii][:, 0], axis=3)
+
+            if fname_dcnn:
+                for ii in xrange(num_dcnn):
+                    plot_activation(fname_dcnn[ii], h_dcnn[ii][:, 0], axis=3)
 
         if args.logs:
             # Plot some samples.
-            log.info('Plotting validation samples')
-            _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
-            _x, _y, _s = get_batch_valid(np.arange(args.num_samples_plot))
-            _run_samples(_x, _y, _s, False, valid_sample_img.get_fname(),
-                         fname_box=valid_sample_box_img.get_fname())
-            if not valid_sample_img.is_registered():
-                valid_sample_img.register()
-                valid_sample_box_img.register()
+            for ss in ['valid', 'train']:
+                _is_train = ss == 'train'
+                _get_batch = get_batch_train if _is_train else get_batch_valid
+                log.info('Plotting {} samples'.format(ss))
+                _x, _y, _s = _get_batch(np.arange(args.num_samples_plot))
+                _x, _y, _s = _get_batch(np.arange(args.num_samples_plot))
+                _run_samples(
+                    _x, _y, _s, _is_train,
+                    samples['output_{}'.format(ss)].get_fname(),
+                    fname_box=samples['box_{}'.format(ss)].get_fname(),
+                    fname_ccnn=[samples['ccnn_{}_{}'.format(
+                        ii, ss)].get_fname() for ii in xrange(num_ctrl_cnn)],
+                    fname_acnn=[samples['acnn_{}_{}'.format(
+                        ii, ss)].get_fname() for ii in xrange(num_attn_cnn)],
+                    fname_dcnn=[samples['dcnn_{}_{}'.format(
+                        ii, ss)].get_fname() for ii in xrange(num_dcnn)])
 
-            log.info('Plotting training samples')
-            _x, _y, _s = get_batch_train(np.arange(args.num_samples_plot))
-            _run_samples(_x, _y, _s, True, train_sample_img.get_fname(),
-                         fname_box=train_sample_box_img.get_fname())
-            if not train_sample_img.is_registered():
-                train_sample_img.register()
-                train_sample_box_img.register()
-
+                if not samples['output_{}'.format(ss)].is_registered():
+                    samples['output_{}'.format(ss)].register()
+                    samples['box_{}'.format(ss)].register()
+                    [samples['ccnn_{}_{}'.format(ii, ss)].register()
+                     for ii in xrange(num_ctrl_cnn)]
+                    [samples['acnn_{}_{}'.format(ii, ss)].register()
+                     for ii in xrange(num_attn_cnn)]
+                    [samples['dcnn_{}_{}'.format(ii, ss)].register()
+                     for ii in xrange(num_dcnn)]
+            pass
         pass
 
     def run_validation(step):
