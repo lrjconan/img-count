@@ -1245,7 +1245,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
             # Output
             y_out[tt] = _extract_patch(
                 h_dcnn[tt][-1], filters_y_inv, filters_x_inv, 1)
-            y_out[tt] = tf.exp(y_out_lg_gamma[tt]) * y_out[tt] + y_out_bias[tt]
+            # y_out[tt] = tf.exp(y_out_lg_gamma[tt]) * y_out[tt] + y_out_bias[tt]
+            y_out[tt] = tf.exp(y_out_lg_gamma[tt]) * y_out[tt] + y_out_bias
             y_out[tt] = tf.sigmoid(y_out[tt])
             y_out[tt] = tf.reshape(y_out[tt], [-1, 1, inp_height, inp_width])
 
