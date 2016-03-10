@@ -922,8 +922,7 @@ if __name__ == '__main__':
                     h_dcnn[ii] = results[offset]
                     offset += 1
 
-            plot_input(fname_input, x_orig=x, x=x_trans, y_gt=y_gt_trans,
-                       s_gt=s)
+            plot_input(fname_input, x=x_trans, y_gt=y_gt_trans, s_gt=s)
 
             plot_output(fname_output, y_out=y_out, s_out=s_out, match=match,
                         attn=(atl, abr, ac, ad))
@@ -932,8 +931,7 @@ if __name__ == '__main__':
                 plot_total_instances(fname_total, y_out=y_out, s_out=s_out)
 
             if fname_box:
-                plot_output(fname_box, x_orig=x, x=x_trans, y_out=abox,
-                            s_out=s_out, y_gt=y_gt_trans, s_gt=s,
+                plot_output(fname_box, y_out=abox, s_out=s_out,
                             match=match_box, attn=(atl, abr, ac, ad))
 
             if fname_patch:
