@@ -920,7 +920,7 @@ if __name__ == '__main__':
                              match=match_box, attn=(atl, abr, ac, ad))
 
             if fname_patch:
-                plot_activation(fname_patch, x_patch, axis=1)
+                plot_activation(fname_patch, x_patch[:, :, :, :, : 3], axis=1)
 
             if fname_ccnn:
                 for ii in xrange(num_ctrl_cnn):
