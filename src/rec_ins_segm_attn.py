@@ -66,8 +66,8 @@ def plot_total_instances(fname, y_out, s_out):
                       [229, 89, 52],
                       [250, 121, 33]], dtype='uint8')
 
+    total_img = np.zeros([y_out[ii].shape[1], y_out[ii].shape[2], 3])
     for ii in xrange(num_ex):
-        total_img = np.zeros([y_out[ii].shape[1], y_out[ii].shape[2], 3])
         for jj in xrange(num_items):
             row, col = calc(ii, jj)
             if s_out[ii, jj] > 0.5:
@@ -75,6 +75,7 @@ def plot_total_instances(fname, y_out, s_out):
                     (y_out[ii, jj] > 0.5).astype('uint8'), 2) * \
                     cmap2[jj % cmap2.shape[0]]
             axarr[row, col].imshow(total_img)
+            total_img = np.copy(total_img)
 
     plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=150)
