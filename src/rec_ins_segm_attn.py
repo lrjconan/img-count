@@ -54,8 +54,11 @@ def plot_activation(fname, img, axis):
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
 
     for row in xrange(num_row):
-        for col in xrange(num_col):
-            axarr[row, col].set_axis_off()
+        if num_col > 1:
+            ax = axarr[row, col]
+        else:
+            ax = axarr[row]
+        ax.set_axis_off()
 
     for ii in xrange(num_ex):
         for jj in xrange(num_items):
@@ -65,8 +68,12 @@ def plot_activation(fname, img, axis):
                 x = img[ii, :, :, jj]
             elif axis == 1:
                 x = img[ii, jj]
-            axarr[row, col].imshow(x)
-            axarr[row, col].text(0, 0, 'max {:.2f} min {:.2f}'.format(
+            if num_col > 1:
+                ax = axarr[row, col]
+            else:
+                ax = axarr[row]
+            ax.imshow(x)
+            ax.text(0, 0, 'max {:.2f} min {:.2f}'.format(
                 np.max(x), np.min(x)), color=(0, 0, 0), size=8)
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
@@ -903,7 +910,7 @@ if __name__ == '__main__':
                          attn=(atl, abr, ac, ad))
             if fname_box:
                 plot_samples(fname_box, x_orig=x, x=x_trans, y_out=abox,
-                             s_out=s_out, y_gt=y_gt_trans, s_gt=s, 
+                             s_out=s_out, y_gt=y_gt_trans, s_gt=s,
                              match=match_box, attn=(atl, abr, ac, ad))
 
             if fname_patch:
