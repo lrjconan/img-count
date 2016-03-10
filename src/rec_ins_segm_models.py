@@ -945,7 +945,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
         # Controller MLP definition
         cmlp_dims = [crnn_dim] + [ctrl_mlp_dim] * \
-            (num_ctrl_mlp_layers - 1) + [10]
+            (num_ctrl_mlp_layers - 1) + [9]
         cmlp_act = [tf.nn.relu] * (num_ctrl_mlp_layers - 1) + [None]
         cmlp_dropout = None
         # cmlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
@@ -984,8 +984,6 @@ def get_attn_model_2(opt, device='/cpu:0'):
         attn_lg_gamma = [None] * timespan
         attn_gamma = [None] * timespan
         attn_box_lg_gamma = [None] * timespan
-        y_out_lg_gamma = [None] * timespan
-        y_out_bias = -5
         attn_top_left = [None] * timespan
         attn_bot_right = [None] * timespan
 
@@ -1052,7 +1050,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # attn_box_const = 10.0
         const_ones = tf.ones(
             tf.pack([num_ex, attn_size, attn_size, 1]))
-        attn_box_bias = 5.0
+        # attn_box_beta = -5.0
+        attn_box_beta = nn.weight_variable([1])
 
         # Knob
         # Cumulative greedy match
@@ -1098,7 +1097,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
         # Y out
         y_out = [None] * timespan
-        # y_out_bias = 5.0
+        y_out_lg_gamma = [None] * timespan
+        # y_out_beta = -5.0
+        y_out_beta = nn.weight_variable([1])
 
         for tt in xrange(timespan):
             # Controller CNN [B, H, W, D] => [B, RH1, RW1, RD1]
@@ -1133,12 +1134,11 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 _lg_delta = tf.slice(ctrl_out, [0, 2], [-1, 2])
                 attn_ctr[tt], attn_delta[tt] = _unnormalize_attn(
                     _ctr, _lg_delta, inp_height, inp_width, attn_size)
-                attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
-                # attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
+                # attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
+                attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
                 attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
                 attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
                 y_out_lg_gamma[tt] = tf.slice(ctrl_out, [0, 8], [-1, 1])
-                # y_out_bias[tt] = tf.slice(ctrl_out, [0, 9], [-1, 1])
 
             attn_gamma[tt] = tf.reshape(
                 tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
@@ -1159,7 +1159,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
             # Attention box
             attn_box[tt] = _extract_patch(const_ones * attn_box_lg_gamma[tt],
                                           filters_y_inv, filters_x_inv, 1)
-            attn_box[tt] = tf.sigmoid(attn_box[tt] - attn_box_bias)
+            attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
+            # attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta[tt])
             attn_box[tt] = tf.reshape(
                 attn_box[tt], [-1, 1, inp_height, inp_width])
 
@@ -1246,8 +1247,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
             # Output
             y_out[tt] = _extract_patch(
                 h_dcnn[tt][-1], filters_y_inv, filters_x_inv, 1)
-            # y_out[tt] = tf.exp(y_out_lg_gamma[tt]) * y_out[tt] + y_out_bias[tt]
-            y_out[tt] = tf.exp(y_out_lg_gamma[tt]) * y_out[tt] + y_out_bias
+            y_out[tt] = tf.exp(y_out_lg_gamma[tt]) * y_out[tt] + y_out_beta
             y_out[tt] = tf.sigmoid(y_out[tt])
             y_out[tt] = tf.reshape(y_out[tt], [-1, 1, inp_height, inp_width])
 
@@ -1429,7 +1429,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
         model['attn_lg_var'] = attn_lg_var
         model['attn_lg_gamma'] = attn_lg_gamma
         model['attn_box_lg_gamma'] = attn_box_lg_gamma
+        model['attn_box_beta'] = attn_box_beta
         model['y_out_lg_gamma'] = y_out_lg_gamma
+        model['y_out_beta'] = y_out_beta
 
         # Prob
         crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
