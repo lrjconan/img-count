@@ -745,8 +745,8 @@ if __name__ == '__main__':
             buffer_size=1)
         attn_params_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'attn_params.csv'),
-            ['attn log gamma', 'box log gamma', 'out log gamma', 'box beta',
-             'out beta'],
+            ['attn log gamma', 'attn log var', 'box log gamma',
+             'out log gamma', 'box beta', 'out beta'],
             name='Attn params',
             buffer_size=1)
 
@@ -1171,8 +1171,9 @@ if __name__ == '__main__':
                         m['box_loss_coeff'], m['count_acc'],
                         m['gt_knob_prob_box'], m['gt_knob_prob_segm'],
                         m['dice'], m['dic'], m['dic_abs'], m['attn_lg_gamma'],
-                        m['attn_box_lg_gamma'], m['y_out_lg_gamma'],
-                        m['attn_box_beta'], m['y_out_beta']]
+                        m['attn_lg_var'], m['attn_box_lg_gamma'],
+                        m['y_out_lg_gamma'], m['attn_box_beta'],
+                        m['y_out_beta']]
 
         offset = len(results_list)
 
@@ -1228,10 +1229,11 @@ if __name__ == '__main__':
             dic = results[15]
             dic_abs = results[16]
             attn_lg_gamma = results[17]
-            attn_box_lg_gamma = results[18]
-            y_out_lg_gamma = results[19]
-            attn_box_beta = results[20]
-            y_out_beta = results[21]
+            attn_lg_var = results[18]
+            attn_box_lg_gamma = results[19]
+            y_out_lg_gamma = results[20]
+            attn_box_beta = results[21]
+            y_out_beta = results[22]
 
             for ii in xrange(num_ctrl_cnn):
                 ctrl_cnn_bm[ii] = results[offset]
@@ -1284,8 +1286,7 @@ if __name__ == '__main__':
             log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                       'ious {:.4f} iouh {:.4f} dice {:.4f} t {:.2f}ms').format(
                 step, loss, conf_loss, segm_loss, box_loss, iou_soft, iou_hard,
-                dice,
-                step_time))
+                dice, step_time))
 
             if args.logs:
                 loss_logger.add(step, [loss, ''])
@@ -1318,7 +1319,8 @@ if __name__ == '__main__':
                                dcnn_ev[ii]])
 
                 attn_params_logger.add(
-                    step, [attn_lg_gamma.mean(), attn_box_lg_gamma.mean(),
+                    step, [attn_lg_gamma.mean(), attn_lg_var.mean(),
+                           attn_box_lg_gamma.mean(),
                            y_out_lg_gamma.mean(), attn_box_beta.mean(),
                            y_out_beta.mean()])
                 acnn_weights_stats = []
