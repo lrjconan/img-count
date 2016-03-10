@@ -74,11 +74,11 @@ def plot_activation(fname, img, axis):
             else:
                 ax = axarr[row]
             ax.imshow(x)
-            ax.text(0, 0, 'max {:.2f} min {:.2f}'.format(
-                np.max(x), np.min(x)), color=(0, 0, 0), size=8)
+            ax.text(0, 0, '[{:.2e}, {:.2e}]'.format(
+                np.min(x), np.max(x)), color=(0, 0, 0), size=8)
 
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
-    plt.savefig(fname, dpi=72)
+    plt.savefig(fname, dpi=150)
     plt.close('all')
 
     pass
@@ -927,7 +927,6 @@ if __name__ == '__main__':
 
             if fname_dcnn:
                 for ii in xrange(num_dcnn):
-                    print h_dcnn[ii][:, 0].shape
                     plot_activation(fname_dcnn[ii], h_dcnn[ii][:, 0], axis=3)
 
         if args.logs:
