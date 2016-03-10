@@ -77,7 +77,7 @@ def plot_activation(fname, img, axis):
             ax.text(0, -1, '[{:.2g}, {:.2g}]'.format(
                 np.min(x), np.max(x)), color=(0, 0, 0), size=8)
 
-    plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
+    plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=1.0)
     plt.savefig(fname, dpi=150)
     plt.close('all')
 
@@ -941,6 +941,7 @@ if __name__ == '__main__':
                     _x, _y, _s, _is_train,
                     samples['output_{}'.format(ss)].get_fname(),
                     fname_box=samples['box_{}'.format(ss)].get_fname(),
+                    fname_patch=samples['patch_{}'.format(ss)].get_fname(),
                     fname_ccnn=[samples['ccnn_{}_{}'.format(
                         ii, ss)].get_fname() for ii in xrange(num_ctrl_cnn)],
                     fname_acnn=[samples['acnn_{}_{}'.format(
