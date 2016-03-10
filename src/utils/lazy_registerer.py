@@ -1,5 +1,7 @@
 import log_manager
+import logger
 
+log = logger.get()
 
 class LazyRegisterer():
 
@@ -8,6 +10,7 @@ class LazyRegisterer():
         self._typ = typ
         self._name = name
         self._registered = False
+        log.info('{} type data "{}" log to "{}"'.format(typ, name, fname))
 
         pass
 
