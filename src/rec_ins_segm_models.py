@@ -1428,8 +1428,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
         model['attn_bot_right'] = attn_bot_right
         model['attn_lg_var'] = attn_lg_var
         model['attn_lg_gamma'] = attn_lg_gamma
-        model['attn_box_lg_gamma'] = attn_lg_gamma
-        model['y_out_lg_gamma'] = attn_lg_gamma
+        model['attn_box_lg_gamma'] = attn_box_lg_gamma
+        model['y_out_lg_gamma'] = y_out_lg_gamma
 
         # Prob
         crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
