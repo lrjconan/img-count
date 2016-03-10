@@ -745,7 +745,7 @@ if __name__ == '__main__':
             buffer_size=1)
         attn_params_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'attn_params.csv'),
-            ['log \gamma'],
+            ['log gamma', 'log var'],
             name='Attn params',
             buffer_size=1)
 

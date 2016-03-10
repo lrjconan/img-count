@@ -972,7 +972,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
                          center_shift_ratio=tf.random_uniform(
                              tf.pack([num_ex, timespan, 2]),
                              -0.05, 0.05))
-        attn_lg_gamma_gt = tf.ones(tf.pack([num_ex, timespan, 1]))
+        attn_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
         attn_box_lg_gamma_gt = tf.ones(tf.pack([num_ex, timespan, 1]))
         gtbox_top_left = [None] * timespan
         gtbox_bot_right = [None] * timespan
@@ -981,6 +981,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         attn_delta = [None] * timespan
         attn_lg_var = [None] * timespan
         attn_lg_gamma = [None] * timespan
+        attn_gamma = [None] * timespan
         attn_box_lg_gamma = [None] * timespan
         attn_top_left = [None] * timespan
         attn_bot_right = [None] * timespan
@@ -1128,12 +1129,13 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 _lg_delta = tf.slice(ctrl_out, [0, 2], [-1, 2])
                 attn_ctr[tt], attn_delta[tt] = _unnormalize_attn(
                     _ctr, _lg_delta, inp_height, inp_width, attn_size)
-                attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
-                # attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
+                # attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
+                attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
                 attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
                 attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
-                attn_lg_gamma[tt] = tf.reshape(
-                    tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
+
+            attn_gamma[tt] = tf.reshape(
+                tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
 
             # Initial filters (predicted)
             filters_y = _get_attn_filter(
@@ -1203,7 +1205,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
             filters_x_inv = tf.transpose(filters_x, [0, 2, 1])
 
             # Attended patch [B, A, A, D]
-            x_patch[tt] = attn_lg_gamma[tt] * _extract_patch(
+            x_patch[tt] = attn_gamma[tt] * _extract_patch(
                 acnn_inp, filters_y, filters_x, acnn_inp_depth)
 
             # CNN [B, A, A, D] => [B, RH2, RW2, RD2]
@@ -1237,7 +1239,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
             # Output
             y_out[tt] = _extract_patch(
                 h_dcnn[tt][-1], filters_y_inv, filters_x_inv, 1)
-            y_out[tt] = 1.0 / attn_lg_gamma[tt] * y_out[tt]
+            y_out[tt] = 1.0 / attn_gamma[tt] * y_out[tt]
             y_out[tt] = tf.sigmoid(y_out[tt] - y_out_bias)
             y_out[tt] = tf.reshape(
                 y_out[tt], [-1, 1, inp_height, inp_width])
@@ -1403,6 +1405,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
                                        for tmp in attn_bot_right])
         attn_ctr = tf.concat(1, [tf.expand_dims(tmp, 1)
                                  for tmp in attn_ctr])
+        attn_lg_var = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                    for tmp in attn_lg_var])
         attn_delta = tf.concat(1, [tf.expand_dims(tmp, 1)
                                    for tmp in attn_delta])
         attn_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
@@ -1411,7 +1415,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         model['attn_delta'] = attn_delta
         model['attn_top_left'] = attn_top_left
         model['attn_bot_right'] = attn_bot_right
-        # model['attn_lg_var'] = attn_lg_var
+        model['attn_lg_var'] = attn_lg_var
         model['attn_lg_gamma'] = attn_lg_gamma
 
         # Prob
@@ -1554,13 +1558,15 @@ def get_attn_model(opt, device='/cpu:0'):
                           for tmp in tf.split(1, timespan, attn_delta)]
             attn_lg_var = [tf.reshape(tmp, [-1, 2])
                            for tmp in tf.split(1, timespan, attn_lg_var)]
-            attn_lg_gamma = [tf.ones(tf.pack([num_ex, 1, 1, 1]))
+            attn_lg_gamma = [tf.zeros(tf.pack([num_ex, 1, 1, 1]))
                              for tt in xrange(timespan)]
+            attn_gamma = [None] * timespan
         else:
             attn_ctr = [None] * timespan
             attn_delta = [None] * timespan
             attn_lg_var = [None] * timespan
             attn_lg_gamma = [None] * timespan
+            attn_gamma = [None] * timespan
 
         gtbox_top_left = [None] * timespan
         gtbox_bot_right = [None] * timespan
@@ -1633,9 +1639,9 @@ def get_attn_model(opt, device='/cpu:0'):
                 attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
                 # attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
                 attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
-                attn_lg_gamma[tt] = tf.reshape(
-                    tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
 
+            attn_gamma[tt] = tf.reshape(tf.exp(attn_gamma[tt]),
+                                        [-1, 1, 1, 1])
             attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
                 attn_ctr[tt], attn_delta[tt], attn_size)
 
@@ -1649,7 +1655,7 @@ def get_attn_model(opt, device='/cpu:0'):
                 attn_lg_var[tt][:, 1], inp_width, attn_size)
 
             # Attended patch [B, A, A, D]
-            x_patch[tt] = attn_lg_gamma[tt] * _extract_patch(
+            x_patch[tt] = attn_gamma[tt] * _extract_patch(
                 x, filters_y[tt], filters_x[tt], inp_depth)
 
             # CNN [B, A, A, D] => [B, RH2, RW2, RD2]
@@ -1710,9 +1716,9 @@ def get_attn_model(opt, device='/cpu:0'):
                                  for tmp in attn_ctr])
         attn_delta = tf.concat(1, [tf.expand_dims(tmp, 1)
                                    for tmp in attn_delta])
-        attn_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                      for tmp in attn_lg_gamma])
-        attn_lg_gamma = tf.reshape(attn_lg_gamma, [-1, 1, 1, 1])
+        attn_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                   for tmp in attn_gamma])
+        attn_gamma = tf.reshape(attn_gamma, [-1, 1, 1, 1])
         model['attn_ctr'] = attn_ctr
         model['attn_delta'] = attn_delta
         model['attn_top_left'] = attn_top_left
@@ -1744,7 +1750,7 @@ def get_attn_model(opt, device='/cpu:0'):
         filters_x_all_inv = tf.transpose(filters_x_all, [0, 2, 1])
         y_out = _extract_patch(
             h_dcnn[-1] + 5.0, filters_y_all_inv, filters_x_all_inv, 1)
-        y_out = 1.0 / attn_lg_gamma * y_out
+        y_out = 1.0 / attn_gamma * y_out
         # y_out_b = nn.weight_variable([1])
         y_out = tf.sigmoid(y_out - 5.0)
         # y_out = tf.sigmoid(y_out - tf.exp(y_out_b))
