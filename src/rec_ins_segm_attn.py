@@ -66,8 +66,8 @@ def plot_total_instances(fname, y_out, s_out):
                       [229, 89, 52],
                       [250, 121, 33]], dtype='uint8')
 
-    total_img = np.zeros([y_out.shape[2], y_out.shape[3], 3])
     for ii in xrange(num_ex):
+        total_img = np.zeros([y_out.shape[2], y_out.shape[3], 3])
         for jj in xrange(num_items):
             row, col = calc(ii, jj)
             if s_out[ii, jj] > 0.5:
@@ -773,8 +773,8 @@ if __name__ == '__main__':
             for ii in xrange(num_layers):
                 for tt in xrange(model_opt['timespan']):
                     _bn_logger = TimeSeriesLogger(
-                        os.path.join(
-                            logs_folder, '{}_bn_{}.csv'.format(sname, ii, tt)),
+                        os.path.join(logs_folder,
+                                     '{}_{}_bn_{}.csv'.format(sname, ii, tt)),
                         ['train batch mean', 'valid batch mean',
                          'train batch var', 'valid batch var', 'ema mean',
                          'ema var'],
@@ -944,7 +944,8 @@ if __name__ == '__main__':
                 _get_batch = get_batch_train if _is_train else get_batch_valid
                 _num_ex = num_ex_train if _is_train else num_ex_valid
                 log.info('Plotting {} samples'.format(_set))
-                _x, _y, _s = _get_batch(np.arange(min(_num_ex, args.num_samples_plot)))
+                _x, _y, _s = _get_batch(
+                    np.arange(min(_num_ex, args.num_samples_plot)))
                 _run_samples(
                     _x, _y, _s, _is_train,
                     fname_input=samples['input_{}'.format(_set)].get_fname(),
