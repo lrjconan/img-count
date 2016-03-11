@@ -1291,134 +1291,138 @@ def get_attn_model_2(opt, device='/cpu:0'):
         for layer in ['ctrl_cnn', 'attn_cnn', 'dcnn']:
             for ii in xrange(len(opt['{}_filter_size'.format(layer)])):
                 for stat in ['bm', 'bv', 'em', 'ev']:
+                    # [log.info('{}_{}_{}_{}'.format(layer, ii, stat, tt))
+                    # for tt in xrange(timespan)]
+                    # [log.info(model['{}_{}_{}_{}'.format(layer, ii, stat, tt)])
+                    # for tt in xrange(timespan)]
                     model['{}_{}_{}'.format(layer, ii, stat)] = tf.add_n(
                         [model['{}_{}_{}_{}'.format(layer, ii, stat, tt)]
                          for tt in xrange(timespan)]) / timespan
 
-        model['x_patch'] = x_patch
-        h_acnn = [tf.concat(1, [tf.expand_dims(h_acnn[tt][ii], 1)
+        model['x_patch']=x_patch
+        h_acnn=[tf.concat(1, [tf.expand_dims(h_acnn[tt][ii], 1)
                                 for tt in xrange(timespan)])
                   for ii in xrange(len(acnn_filters))]
-        model['h_acnn'] = h_acnn
-        acnn_w = [model['attn_cnn_w_{}'.format(ii)]
+        model['h_acnn']=h_acnn
+        acnn_w=[model['attn_cnn_w_{}'.format(ii)]
                   for ii in xrange(len(acnn_filters))]
-        acnn_b = [model['attn_cnn_b_{}'.format(ii)]
+        acnn_b=[model['attn_cnn_b_{}'.format(ii)]
                   for ii in xrange(len(acnn_filters))]
-        model['acnn_w'] = acnn_w
-        model['acnn_w_mean'] = [tf.reduce_sum(
+        model['acnn_w']=acnn_w
+        model['acnn_w_mean']=[tf.reduce_sum(
             tf.sqrt(acnn_w[ii] * acnn_w[ii])) / acnn_filters[ii] / acnn_filters[ii]
             / acnn_channels[ii] / acnn_channels[ii + 1]
             for ii in xrange(len(acnn_filters))]
-        model['acnn_b'] = acnn_b
-        model['acnn_b_mean'] = [tf.reduce_sum(
+        model['acnn_b']=acnn_b
+        model['acnn_b_mean']=[tf.reduce_sum(
             tf.sqrt(acnn_b[ii] * acnn_b[ii])) / acnn_channels[ii + 1]
             for ii in xrange(len(acnn_filters))]
-        h_dcnn = [tf.concat(1, [tf.expand_dims(h_dcnn[tt][ii], 1)
+        h_dcnn=[tf.concat(1, [tf.expand_dims(h_dcnn[tt][ii], 1)
                                 for tt in xrange(timespan)])
                   for ii in xrange(len(dcnn_filters))]
-        model['h_dcnn'] = h_dcnn
+        model['h_dcnn']=h_dcnn
 
         # Loss function
-        learn_rate = tf.train.exponential_decay(
+        learn_rate=tf.train.exponential_decay(
             base_learn_rate, global_step, steps_per_learn_rate_decay,
-            learn_rate_decay, staircase=True)
-        model['learn_rate'] = learn_rate
-        eps = 1e-7
+            learn_rate_decay, staircase = True)
+        model['learn_rate']=learn_rate
+        eps=1e-7
 
-        y_gt_shape = tf.shape(y_gt)
-        num_ex = tf.to_float(y_gt_shape[0])
-        max_num_obj = tf.to_float(y_gt_shape[1])
+        y_gt_shape=tf.shape(y_gt)
+        num_ex=tf.to_float(y_gt_shape[0])
+        max_num_obj=tf.to_float(y_gt_shape[1])
 
         # Loss for attnention box
-        iou_soft_box = _f_iou(attn_box, attn_box_gt, timespan, pairwise=True)
-        model['attn_box_gt'] = attn_box_gt
-        match_box = _segm_match(iou_soft_box, s_gt)
-        model['match_box'] = match_box
-        match_sum_box = tf.reduce_sum(match_box, reduction_indices=[2])
-        match_count_box = tf.reduce_sum(
-            match_sum_box, reduction_indices=[1])
+        iou_soft_box=_f_iou(attn_box, attn_box_gt, timespan, pairwise = True)
+        model['attn_box_gt']=attn_box_gt
+        match_box=_segm_match(iou_soft_box, s_gt)
+        model['match_box']=match_box
+        match_sum_box=tf.reduce_sum(match_box, reduction_indices = [2])
+        match_count_box=tf.reduce_sum(
+            match_sum_box, reduction_indices = [1])
         if box_loss_fn == 'iou':
-            iou_soft_box = tf.reduce_sum(tf.reduce_sum(
-                iou_soft_box * match_box, reduction_indices=[1, 2])
+            iou_soft_box=tf.reduce_sum(tf.reduce_sum(
+                iou_soft_box * match_box, reduction_indices = [1, 2])
                 / match_count_box) / num_ex
-            box_loss = -iou_soft_box
+            box_loss=-iou_soft_box
         elif box_loss_fn == 'bce':
-            box_loss = _match_bce(attn_box, attn_box_gt, match_box, timespan)
+            box_loss=_match_bce(attn_box, attn_box_gt, match_box, timespan)
         else:
             raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
-        model['box_loss'] = box_loss
+        model['box_loss']=box_loss
 
         # box_loss_coeff = tf.train.exponential_decay(
         #     1.0, global_step, steps_per_box_loss_coeff_decay,
         #     box_loss_coeff_decay, staircase=True)
-        box_loss_coeff = tf.constant(1.0)
-        model['box_loss_coeff'] = box_loss_coeff
+        box_loss_coeff=tf.constant(1.0)
+        model['box_loss_coeff']=box_loss_coeff
         tf.add_to_collection('losses', box_loss_coeff * box_loss)
 
         # Loss for fine segmentation
-        iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
+        iou_soft=_f_iou(y_out, y_gt, timespan, pairwise=True)
 
-        match = _segm_match(iou_soft, s_gt)
-        model['match'] = match
-        match_sum = tf.reduce_sum(match, reduction_indices=[2])
-        match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
+        match=_segm_match(iou_soft, s_gt)
+        model['match']=match
+        match_sum=tf.reduce_sum(match, reduction_indices=[2])
+        match_count=tf.reduce_sum(match_sum, reduction_indices=[1])
 
         # match = match_box
         # model['match'] = match
         # match_sum = match_sum_box
         # match_count = match_count_box
 
-        iou_soft = tf.reduce_sum(tf.reduce_sum(
-            iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
-        model['iou_soft'] = iou_soft
+        iou_soft=tf.reduce_sum(tf.reduce_sum(
+            iou_soft * match, reduction_indices = [1, 2]) / match_count) / num_ex
+        model['iou_soft']=iou_soft
         if segm_loss_fn == 'iou':
-            segm_loss = -iou_soft
+            segm_loss=-iou_soft
         elif segm_loss_fn == 'bce':
-            segm_loss = _match_bce(y_out, y_gt, match, timespan)
+            segm_loss=_match_bce(y_out, y_gt, match, timespan)
         else:
             raise Exception('Unknown segm_loss_fn: {}'.format(segm_loss_fn))
-        model['segm_loss'] = segm_loss
+        model['segm_loss']=segm_loss
         # segm_loss_coeff = 1.0 - box_loss_coeff
-        segm_loss_coeff = 1.0
+        segm_loss_coeff=1.0
         tf.add_to_collection('losses', segm_loss_coeff * segm_loss)
 
         # Score loss
-        conf_loss = _conf_loss(s_out, match, timespan, use_cum_min=True)
-        model['conf_loss'] = conf_loss
+        conf_loss=_conf_loss(s_out, match, timespan, use_cum_min=True)
+        model['conf_loss']=conf_loss
         tf.add_to_collection('losses', loss_mix_ratio * conf_loss)
 
-        total_loss = tf.add_n(tf.get_collection(
+        total_loss=tf.add_n(tf.get_collection(
             'losses'), name='total_loss')
-        model['loss'] = total_loss
+        model['loss']=total_loss
 
-        train_step = GradientClipOptimizer(
-            tf.train.AdamOptimizer(learn_rate, epsilon=eps),
+        train_step=GradientClipOptimizer(
+            tf.train.AdamOptimizer(learn_rate, epsilon = eps),
             clip=1.0).minimize(total_loss, global_step=global_step)
-        model['train_step'] = train_step
+        model['train_step']=train_step
 
         # Statistics
         # [B, M, N] * [B, M, N] => [B] * [B] => [1]
-        y_out_hard = tf.to_float(y_out > 0.5)
-        iou_hard = _f_iou(y_out_hard, y_gt, timespan, pairwise=True)
-        iou_hard = tf.reduce_sum(tf.reduce_sum(
-            iou_hard * match, reduction_indices=[1, 2]) / match_count) / num_ex
-        model['iou_hard'] = iou_hard
+        y_out_hard=tf.to_float(y_out > 0.5)
+        iou_hard=_f_iou(y_out_hard, y_gt, timespan, pairwise=True)
+        iou_hard=tf.reduce_sum(tf.reduce_sum(
+            iou_hard * match, reduction_indices = [1, 2]) / match_count) / num_ex
+        model['iou_hard']=iou_hard
 
-        dice = _f_dice(y_out_hard, y_gt, timespan, pairwise=True)
-        dice = tf.reduce_sum(tf.reduce_sum(
-            dice * match, reduction_indices=[1, 2]) / match_count) / num_ex
-        model['dice'] = dice
+        dice=_f_dice(y_out_hard, y_gt, timespan, pairwise=True)
+        dice=tf.reduce_sum(tf.reduce_sum(
+            dice * match, reduction_indices = [1, 2]) / match_count) / num_ex
+        model['dice']=dice
 
-        model['count_acc'] = _count_acc(s_out, s_gt)
-        model['dic'] = _dic(s_out, s_gt, abs=False)
-        model['dic_abs'] = _dic(s_out, s_gt, abs=True)
+        model['count_acc']=_count_acc(s_out, s_gt)
+        model['dic']=_dic(s_out, s_gt, abs=False)
+        model['dic_abs']=_dic(s_out, s_gt, abs=True)
 
         # Attention coordinate for debugging [B, T, 2]
-        attn_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
+        attn_top_left=tf.concat(1, [tf.expand_dims(tmp, 1)
                                       for tmp in attn_top_left])
-        attn_bot_right = tf.concat(1, [tf.expand_dims(tmp, 1)
+        attn_bot_right=tf.concat(1, [tf.expand_dims(tmp, 1)
                                        for tmp in attn_bot_right])
-        attn_ctr = tf.concat(1, [tf.expand_dims(tmp, 1)
+        attn_ctr=tf.concat(1, [tf.expand_dims(tmp, 1)
                                  for tmp in attn_ctr])
         attn_lg_var = tf.concat(1, [tf.expand_dims(tmp, 1)
                                     for tmp in attn_lg_var])

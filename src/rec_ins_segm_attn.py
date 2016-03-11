@@ -764,25 +764,24 @@ if __name__ == '__main__':
         num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
         num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
         num_dcnn = len(model_opt['dcnn_filter_size'])
-        ccnn_bn_loggers = []
-        for ii in xrange(num_ctrl_cnn):
-            _ccnn_bn_logger = TimeSeriesLogger(
-                os.path.join(logs_folder, 'ccnn_{}_bn.csv'.format(ii)),
-                ['train batch mean', 'valid batch mean', 'train batch var',
-                    'valid batch var', 'ema mean', 'ema var'],
-                name='Ctrl CNN {} batch norm stats'.format(ii),
-                buffer_size=1)
-            ccnn_bn_loggers.append(_ccnn_bn_logger)
 
-        acnn_bn_loggers = []
-        for ii in xrange(num_attn_cnn):
-            _acnn_bn_logger = TimeSeriesLogger(
-                os.path.join(logs_folder, 'acnn_{}_bn.csv'.format(ii)),
-                ['train batch mean', 'valid batch mean', 'train batch var',
-                    'valid batch var', 'ema mean', 'ema var'],
-                name='Attn CNN {} batch norm stats'.format(ii),
-                buffer_size=1)
-            acnn_bn_loggers.append(_acnn_bn_logger)
+        bn_loggers = {}
+        for sname, fname, num_layers in zip(
+                ['ccnn', 'acnn', 'dcnn'],
+                ['Ctrl CNN', 'Attn CNN', 'D-CNN'],
+                [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+            for ii in xrange(num_layers):
+                for tt in xrange(model_opt['timespan']):
+                    _bn_logger = TimeSeriesLogger(
+                        os.path.join(
+                            logs_folder, '{}_bn_{}.csv'.format(sname, ii, tt)),
+                        ['train batch mean', 'valid batch mean',
+                         'train batch var', 'valid batch var', 'ema mean',
+                         'ema var'],
+                        name='{} {} time {} batch norm stats'.format(
+                            fname, ii, tt),
+                        buffer_size=1)
+                    bn_loggers['{}_{}_{}'.format(sname, ii, tt)] = _bn_logger
 
         acnn_weights_labels = []
         for ii in xrange(num_attn_cnn):
@@ -821,16 +820,6 @@ if __name__ == '__main__':
             name='D-CNN sparsity',
             buffer_size=1)
 
-        dcnn_bn_loggers = []
-        for ii in xrange(num_dcnn):
-            _dcnn_bn_logger = TimeSeriesLogger(
-                os.path.join(logs_folder, 'dcnn_{}_bn.csv'.format(ii)),
-                ['train batch mean', 'valid batch mean', 'train batch var',
-                    'valid batch var', 'ema mean', 'ema var'],
-                name='D-CNN {} batch norm stats'.format(ii),
-                buffer_size=1)
-            dcnn_bn_loggers.append(_dcnn_bn_logger)
-
         log_manager.register(log.filename, 'plain', 'Raw logs')
 
         model_opt_fname = os.path.join(logs_folder, 'model_opt.yaml')
@@ -840,12 +829,10 @@ if __name__ == '__main__':
         samples = {}
         for _set in ['train', 'valid']:
             labels = ['input', 'output', 'total', 'box', 'patch']
-            for ii in xrange(num_ctrl_cnn):
-                labels.append('ccnn_{}'.format(ii))
-            for ii in xrange(num_attn_cnn):
-                labels.append('acnn_{}'.format(ii))
-            for ii in xrange(num_dcnn):
-                labels.append('dcnn_{}'.format(ii))
+            for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
+                                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                for ii in xrange(_num):
+                    labels.append('{}_{}'.format(_layer, ii))
             for name in labels:
                 key = '{}_{}'.format(name, _set)
                 samples[key] = LazyRegisterer(
@@ -955,9 +942,9 @@ if __name__ == '__main__':
             for _set in ['valid', 'train']:
                 _is_train = _set == 'train'
                 _get_batch = get_batch_train if _is_train else get_batch_valid
+                _num_ex = num_ex_train if _is_train else num_ex_valid
                 log.info('Plotting {} samples'.format(_set))
-                _x, _y, _s = _get_batch(np.arange(args.num_samples_plot))
-                _x, _y, _s = _get_batch(np.arange(args.num_samples_plot))
+                _x, _y, _s = _get_batch(np.arange(min(_num_ex, args.num_samples_plot)))
                 _run_samples(
                     _x, _y, _s, _is_train,
                     fname_input=samples['input_{}'.format(_set)].get_fname(),
@@ -997,18 +984,7 @@ if __name__ == '__main__':
         num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
         num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
         num_dcnn = len(model_opt['dcnn_filter_size'])
-        ctrl_cnn_bm = [0.0] * num_ctrl_cnn
-        ctrl_cnn_bv = [0.0] * num_ctrl_cnn
-        ctrl_cnn_em = [0.0] * num_ctrl_cnn
-        ctrl_cnn_ev = [0.0] * num_ctrl_cnn
-        attn_cnn_bm = [0.0] * num_attn_cnn
-        attn_cnn_bv = [0.0] * num_attn_cnn
-        attn_cnn_em = [0.0] * num_attn_cnn
-        attn_cnn_ev = [0.0] * num_attn_cnn
-        dcnn_bm = [0.0] * num_dcnn
-        dcnn_bv = [0.0] * num_dcnn
-        dcnn_em = [0.0] * num_dcnn
-        dcnn_ev = [0.0] * num_dcnn
+        bn = {}
 
         log.info('Running validation')
         for _x, _y, _s in BatchIterator(num_ex_valid,
@@ -1019,21 +995,16 @@ if __name__ == '__main__':
                             m['box_loss'], m['iou_soft'], m['iou_hard'],
                             m['count_acc'], m['dice'], m['dic'],
                             m['dic_abs']]
-            for ii in xrange(num_ctrl_cnn):
-                results_list.append(m['ctrl_cnn_{}_bm'.format(ii)])
-                results_list.append(m['ctrl_cnn_{}_bv'.format(ii)])
-                results_list.append(m['ctrl_cnn_{}_em'.format(ii)])
-                results_list.append(m['ctrl_cnn_{}_ev'.format(ii)])
-            for ii in xrange(num_attn_cnn):
-                results_list.append(m['attn_cnn_{}_bm'.format(ii)])
-                results_list.append(m['attn_cnn_{}_bv'.format(ii)])
-                results_list.append(m['attn_cnn_{}_em'.format(ii)])
-                results_list.append(m['attn_cnn_{}_ev'.format(ii)])
-            for ii in xrange(num_dcnn):
-                results_list.append(m['dcnn_{}_bm'.format(ii)])
-                results_list.append(m['dcnn_{}_bv'.format(ii)])
-                results_list.append(m['dcnn_{}_em'.format(ii)])
-                results_list.append(m['dcnn_{}_ev'.format(ii)])
+
+            offset = len(results_list)
+
+            for _layer, _num in zip(['ctrl_cnn', 'attn_cnn', 'dcnn'],
+                                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                for ii in xrange(_num):
+                    for tt in xrange(timespan):
+                        for _stat in ['bm', 'bv', 'em', 'ev']:
+                            results_list.append(
+                                m['{}_{}_{}_{}'.format(_layer, ii, _stat, tt)])
 
             results = sess.run(results_list,
                                feed_dict={
@@ -1052,42 +1023,24 @@ if __name__ == '__main__':
             _dice = results[7]
             _dic = results[8]
             _dic_abs = results[9]
-            _ctrl_cnn_bm = []
-            _ctrl_cnn_bv = []
-            _ctrl_cnn_em = []
-            _ctrl_cnn_ev = []
-            _attn_cnn_bm = []
-            _attn_cnn_bv = []
-            _attn_cnn_em = []
-            _attn_cnn_ev = []
-            _dcnn_bm = []
-            _dcnn_bv = []
-            _dcnn_em = []
-            _dcnn_ev = []
-
-            offset = 10
-            for ii in xrange(num_ctrl_cnn):
-                _ctrl_cnn_bm.append(results[offset])
-                _ctrl_cnn_bv.append(results[offset + 1])
-                _ctrl_cnn_em.append(results[offset + 2])
-                _ctrl_cnn_ev.append(results[offset + 3])
-                offset += 4
-
-            for ii in xrange(num_attn_cnn):
-                _attn_cnn_bm.append(results[offset])
-                _attn_cnn_bv.append(results[offset + 1])
-                _attn_cnn_em.append(results[offset + 2])
-                _attn_cnn_ev.append(results[offset + 3])
-                offset += 4
-
-            for ii in xrange(num_dcnn):
-                _dcnn_bm.append(results[offset])
-                _dcnn_bv.append(results[offset + 1])
-                _dcnn_em.append(results[offset + 2])
-                _dcnn_ev.append(results[offset + 3])
-                offset += 4
+            _bn = {}
 
             num_ex_batch = _x.shape[0]
+
+            for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
+                                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                for ii in xrange(_num):
+                    for tt in xrange(timespan):
+                        for _stat in ['bm', 'bv', 'em', 'ev']:
+                            key = '{}_{}_{}_{}'.format(_layer, ii, _stat, tt)
+                            delta = results[offset] * num_ex_batch / \
+                                num_ex_valid
+                            if key in bn:
+                                bn[key] += delta
+                            else:
+                                bn[key] = delta
+                            offset += 1
+
             loss += _loss * num_ex_batch / num_ex_valid
             conf_loss += _conf_loss * num_ex_batch / num_ex_valid
             segm_loss += _segm_loss * num_ex_batch / num_ex_valid
@@ -1098,32 +1051,6 @@ if __name__ == '__main__':
             dice += _dice * num_ex_batch / num_ex_valid
             dic += _dic * num_ex_batch / num_ex_valid
             dic_abs += _dic_abs * num_ex_batch / num_ex_valid
-
-            for ii in xrange(num_ctrl_cnn):
-                ctrl_cnn_bm[ii] += _ctrl_cnn_bm[ii] * \
-                    num_ex_batch / num_ex_valid
-                ctrl_cnn_bv[ii] += _ctrl_cnn_bv[ii] * \
-                    num_ex_batch / num_ex_valid
-                ctrl_cnn_em[ii] += _ctrl_cnn_em[ii] * \
-                    num_ex_batch / num_ex_valid
-                ctrl_cnn_ev[ii] += _ctrl_cnn_ev[ii] * \
-                    num_ex_batch / num_ex_valid
-
-            for ii in xrange(num_attn_cnn):
-                attn_cnn_bm[ii] += _ctrl_cnn_bm[ii] * \
-                    num_ex_batch / num_ex_valid
-                attn_cnn_bv[ii] += _ctrl_cnn_bv[ii] * \
-                    num_ex_batch / num_ex_valid
-                attn_cnn_em[ii] += _ctrl_cnn_em[ii] * \
-                    num_ex_batch / num_ex_valid
-                attn_cnn_ev[ii] += _ctrl_cnn_ev[ii] * \
-                    num_ex_batch / num_ex_valid
-
-            for ii in xrange(num_dcnn):
-                dcnn_bm[ii] += _dcnn_bm[ii] * num_ex_batch / num_ex_valid
-                dcnn_bv[ii] += _dcnn_bv[ii] * num_ex_batch / num_ex_valid
-                dcnn_em[ii] += _dcnn_em[ii] * num_ex_batch / num_ex_valid
-                dcnn_ev[ii] += _dcnn_ev[ii] * num_ex_batch / num_ex_valid
 
         log.info(('{:d} vtl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                   'ious {:.4f} iouh {:.4f} dice {:.4f}').format(
@@ -1139,15 +1066,16 @@ if __name__ == '__main__':
             count_acc_logger.add(step, ['', count_acc])
             dic_logger.add(step, ['', dic])
             dic_abs_logger.add(step, ['', dic_abs])
-            for ii in xrange(num_ctrl_cnn):
-                ccnn_bn_loggers[ii].add(
-                    step, ['', ctrl_cnn_bm[ii], '', ctrl_cnn_bv[ii], '', ''])
-            for ii in xrange(num_attn_cnn):
-                acnn_bn_loggers[ii].add(
-                    step, ['', attn_cnn_bm[ii], '', attn_cnn_bv[ii], '', ''])
-            for ii in xrange(num_dcnn):
-                dcnn_bn_loggers[ii].add(
-                    step, ['', dcnn_bm[ii], '', dcnn_bv[ii], '', ''])
+
+            for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
+                                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                for ii in xrange(_num):
+                    for tt in xrange(timespan):
+                        _prefix = '{}_{}_{{}}_{}'.format(_layer, ii, tt)
+                        _output = ['', bn[_prefix.format('bm')],
+                                   '', bn[_prefix.format('bv')], '', '']
+                        bn_loggers['{}_{}_{}'.format(
+                            _layer, ii, tt)].add(step, _output)
 
         pass
 
@@ -1191,21 +1119,13 @@ if __name__ == '__main__':
 
         offset = len(results_list)
 
-        for ii in xrange(num_ctrl_cnn):
-            results_list.append(m['ctrl_cnn_{}_bm'.format(ii)])
-            results_list.append(m['ctrl_cnn_{}_bv'.format(ii)])
-            results_list.append(m['ctrl_cnn_{}_em'.format(ii)])
-            results_list.append(m['ctrl_cnn_{}_ev'.format(ii)])
-        for ii in xrange(num_attn_cnn):
-            results_list.append(m['attn_cnn_{}_bm'.format(ii)])
-            results_list.append(m['attn_cnn_{}_bv'.format(ii)])
-            results_list.append(m['attn_cnn_{}_em'.format(ii)])
-            results_list.append(m['attn_cnn_{}_ev'.format(ii)])
-        for ii in xrange(num_dcnn):
-            results_list.append(m['dcnn_{}_bm'.format(ii)])
-            results_list.append(m['dcnn_{}_bv'.format(ii)])
-            results_list.append(m['dcnn_{}_em'.format(ii)])
-            results_list.append(m['dcnn_{}_ev'.format(ii)])
+        for _layer, _num in zip(['ctrl_cnn', 'attn_cnn', 'dcnn'],
+                                [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+            for ii in xrange(_num):
+                for tt in xrange(timespan):
+                    for _stat in ['bm', 'bv', 'em', 'ev']:
+                        results_list.append(
+                            m['{}_{}_{}_{}'.format(_layer, ii, _stat, tt)])
 
         results_list.extend(m['acnn_w_mean'])
         results_list.extend(m['acnn_b_mean'])
@@ -1249,26 +1169,15 @@ if __name__ == '__main__':
             attn_box_beta = results[21]
             y_out_beta = results[22]
 
-            for ii in xrange(num_ctrl_cnn):
-                ctrl_cnn_bm[ii] = results[offset]
-                ctrl_cnn_bv[ii] = results[offset + 1]
-                ctrl_cnn_em[ii] = results[offset + 2]
-                ctrl_cnn_ev[ii] = results[offset + 3]
-                offset += 4
-
-            for ii in xrange(num_attn_cnn):
-                attn_cnn_bm[ii] = results[offset]
-                attn_cnn_bv[ii] = results[offset + 1]
-                attn_cnn_em[ii] = results[offset + 2]
-                attn_cnn_ev[ii] = results[offset + 3]
-                offset += 4
-
-            for ii in xrange(num_dcnn):
-                dcnn_bm[ii] = results[offset]
-                dcnn_bv[ii] = results[offset + 1]
-                dcnn_em[ii] = results[offset + 2]
-                dcnn_ev[ii] = results[offset + 3]
-                offset += 4
+            bn = {}
+            for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
+                                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                for ii in xrange(_num):
+                    for tt in xrange(timespan):
+                        for _stat in ['bm', 'bv', 'em', 'ev']:
+                            bn['{}_{}_{}_{}'.format(_layer, ii, _stat, tt)] = \
+                                results[offset]
+                            offset += 1
 
             for ii in xrange(num_attn_cnn):
                 attn_cnn_weights_m[ii] = results[offset]
@@ -1319,18 +1228,17 @@ if __name__ == '__main__':
                     step, [crnn_g_i_avg, crnn_g_f_avg, crnn_g_o_avg])
                 gt_knob_logger.add(step, [gt_knob_box, gt_knob_segm])
 
-                for ii in xrange(num_ctrl_cnn):
-                    ccnn_bn_loggers[ii].add(
-                        step, [ctrl_cnn_bm[ii], '', ctrl_cnn_bv[ii], '',
-                               ctrl_cnn_em[ii], ctrl_cnn_ev[ii]])
-                for ii in xrange(num_attn_cnn):
-                    acnn_bn_loggers[ii].add(
-                        step, [ctrl_cnn_bm[ii], '', attn_cnn_bv[ii], '',
-                               attn_cnn_em[ii], attn_cnn_ev[ii]])
-                for ii in xrange(num_dcnn):
-                    dcnn_bn_loggers[ii].add(
-                        step, [dcnn_bm[ii], '', dcnn_bv[ii], '', dcnn_em[ii],
-                               dcnn_ev[ii]])
+                for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
+                                        [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                    for ii in xrange(_num):
+                        for tt in xrange(timespan):
+                            _prefix = '{}_{}_{{}}_{}'.format(_layer, ii, tt)
+                            _output = [bn[_prefix.format('bm')], '',
+                                       bn[_prefix.format('bv')], '',
+                                       bn[_prefix.format('em')],
+                                       bn[_prefix.format('ev')]]
+                            bn_loggers['{}_{}_{}'.format(
+                                _layer, ii, tt)].add(step, _output)
 
                 attn_params_logger.add(
                     step, [attn_lg_gamma.mean(), attn_lg_var.mean(),
