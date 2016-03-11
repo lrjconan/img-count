@@ -24,11 +24,7 @@ def get_dataset(folder, opt):
     """
     inp_height = opt['height']
     inp_width = opt['width']
-    padding = opt['padding']
     inp_shape = (inp_height, inp_width)
-    full_height = inp_height + 2 * padding
-    full_width = inp_width + 2 * padding
-    full_shape = (full_height, full_width)
     log.info('Reading images from {}'.format(folder))
     file_list = os.listdir(folder)
     image_dict = {}
@@ -82,19 +78,9 @@ def get_dataset(folder, opt):
             label_segm[ii, jj] = label_dict[imgid][jj]
         label_score[ii, :num_obj] = 1
 
-    # Apply padding
-    if padding > 0:
-        inp_full = np.zeros([num_ex, full_height, full_width, 3], dtype='uint8')
-        inp_full[:, padding: inp_height + padding, padding: inp_width + padding, :] = inp
-        label_segm_full = np.zeros([num_ex, max_num_obj, full_height, full_width], dtype='uint8')
-        label_segm_full[:, :, padding: inp_height + padding, padding: inp_width + padding] = label_segm
-    else:
-        inp_full = inp
-        label_segm_full = label_segm
-
     return {
-        'input': inp_full,
-        'label_segmentation': label_segm_full,
+        'input': inp,
+        'label_segmentation': label_segm,
         'label_score': label_score
     }
 

@@ -35,7 +35,7 @@ import rec_ins_segm_models as models
 log = logger.get()
 
 
-def plot_total_instances(fname, y_out, s_out):
+def plot_total_instances(fname, y_out, s_out, max_items_per_row=9):
     """Plot cumulative image with different colour at each timestep.
 
     Args:
@@ -43,7 +43,8 @@ def plot_total_instances(fname, y_out, s_out):
     """
     num_ex = y_out.shape[0]
     num_items = y_out.shape[1]
-    num_row, num_col, calc = plot_utils.calc_row_col(num_ex, num_items)
+    num_row, num_col, calc = plot_utils.calc_row_col(
+        num_ex, num_items, max_items_per_row=max_items_per_row)
 
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
     plot_utils.set_axis_off(axarr, num_row, num_col)
@@ -84,7 +85,7 @@ def plot_total_instances(fname, y_out, s_out):
     pass
 
 
-def plot_thumbnails(fname, img, axis):
+def plot_thumbnails(fname, img, axis, max_items_per_row=9):
     """Plot activation map.
 
     Args:
@@ -92,7 +93,8 @@ def plot_thumbnails(fname, img, axis):
     """
     num_ex = img.shape[0]
     num_items = img.shape[axis]
-    num_row, num_col, calc = plot_utils.calc_row_col(num_ex, num_items)
+    num_row, num_col, calc = plot_utils.calc_row_col(
+        num_ex, num_items, max_items_per_row=max_items_per_row)
 
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
     plot_utils.set_axis_off(axarr, num_row, num_col)
@@ -119,13 +121,13 @@ def plot_thumbnails(fname, img, axis):
     pass
 
 
-def plot_input(fname, x, y_gt, s_gt):
+def plot_input(fname, x, y_gt, s_gt, max_items_per_row=9):
     """Plot input, transformed input and output groundtruth sequence.
     """
-    num_ex = x.shape[0]
-    offset = 1
-    num_items = offset + y_gt.shape[1]
-    num_row, num_col, calc = plot_utils.calc_row_col(num_ex, num_items)
+    num_ex = y_gt.shape[0]
+    num_items = y_gt.shape[1]
+    num_row, num_col, calc = plot_utils.calc_row_col(
+        num_ex, num_items, max_items_per_row=max_items_per_row)
 
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
     plot_utils.set_axis_off(axarr, num_row, num_col)
@@ -134,31 +136,27 @@ def plot_input(fname, x, y_gt, s_gt):
     for ii in xrange(num_ex):
         for jj in xrange(num_items):
             row, col = calc(ii, jj)
-            if jj == 0:
-                axarr[row, col].imshow(x[ii])
-            else:
-                axarr[row, col].imshow(x[ii])
-                kk = jj - offset
-                nz = y_gt[ii, kk].nonzero()
-                if nz[0].size > 0:
-                    top_left_x = nz[1].min()
-                    top_left_y = nz[0].min()
-                    bot_right_x = nz[1].max() + 1
-                    bot_right_y = nz[0].max() + 1
-                    axarr[row, col].add_patch(patches.Rectangle(
-                        (top_left_x, top_left_y),
-                        bot_right_x - top_left_x,
-                        bot_right_y - top_left_y,
-                        fill=False,
-                        color=cmap[kk % len(cmap)]))
-                    axarr[row, col].add_patch(patches.Rectangle(
-                        (top_left_x, top_left_y - 25),
-                        25, 25,
-                        fill=True,
-                        color=cmap[kk % len(cmap)]))
-                    axarr[row, col].text(
-                        top_left_x + 5, top_left_y - 5,
-                        '{}'.format(kk), size=5)
+            axarr[row, col].imshow(x[ii])
+            nz = y_gt[ii, jj].nonzero()
+            if nz[0].size > 0:
+                top_left_x = nz[1].min()
+                top_left_y = nz[0].min()
+                bot_right_x = nz[1].max() + 1
+                bot_right_y = nz[0].max() + 1
+                axarr[row, col].add_patch(patches.Rectangle(
+                    (top_left_x, top_left_y),
+                    bot_right_x - top_left_x,
+                    bot_right_y - top_left_y,
+                    fill=False,
+                    color=cmap[jj % len(cmap)]))
+                axarr[row, col].add_patch(patches.Rectangle(
+                    (top_left_x, top_left_y - 25),
+                    25, 25,
+                    fill=True,
+                    color=cmap[jj % len(cmap)]))
+                axarr[row, col].text(
+                    top_left_x + 5, top_left_y - 5,
+                    '{}'.format(jj), size=5)
 
     plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=150)
@@ -167,7 +165,7 @@ def plot_input(fname, x, y_gt, s_gt):
     pass
 
 
-def plot_output(fname, y_out, s_out, match, attn=None):
+def plot_output(fname, y_out, s_out, match, attn=None, max_items_per_row=9):
     """Plot some test samples.
 
     Args:
@@ -181,7 +179,8 @@ def plot_output(fname, y_out, s_out, match, attn=None):
     """
     num_ex = y_out.shape[0]
     num_items = y_out.shape[1]
-    num_row, num_col, calc = plot_utils.calc_row_col(num_ex, num_items)
+    num_row, num_col, calc = plot_utils.calc_row_col(
+        num_ex, num_items, max_items_per_row=max_items_per_row)
 
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
     cmap = ['r', 'y', 'c', 'g', 'm']
@@ -1043,7 +1042,7 @@ if __name__ == '__main__':
 
         log.info(('{:d} vtl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                   'ious {:.4f} iouh {:.4f} dice {:.4f}').format(
-            step, loss, conf_loss, segm_loss, box_loss, iou_soft, iou_hard, 
+            step, loss, conf_loss, segm_loss, box_loss, iou_soft, iou_hard,
             dice))
 
         if args.logs:

@@ -309,31 +309,39 @@ def _dic(s_out, s_gt, abs=False):
     return count_diff
 
 
-def _rnd_img_transformation(x, y_gt, padding, phase_train):
+def _rnd_img_transformation(x, y, padding, phase_train, rnd_colour=False):
     """
     Perform random crop, flip, transpose, hue, saturation, brightness, contrast.
+
+    Args:
+        x: [B, H, W, 3]
+        y: [B, T, H, W]
+        padding: int
+        phase_train: bool
     """
     # Random image transformation layers.
     phase_train_f = tf.to_float(phase_train)
     x_shape = tf.shape(x)
     num_ex = x_shape[0]
-    full_height = x_shape[1]
-    full_width = x_shape[2]
-    inp_height = full_height - 2 * padding
-    inp_width = full_width - 2 * padding
+    inp_height = x_shape[1]
+    inp_width = x_shape[2]
     inp_depth = x_shape[3]
+
+    # Add padding
+    x_pad = tf.pad(x, [[0, 0], [padding, padding], [padding, padding], [0, 0]])
+    y_pad = tf.pad(y, [[0, 0], [0, 0], [padding, padding], [padding, padding]])
 
     # Random crop
     offset = tf.random_uniform([2], dtype='int32', maxval=padding * 2)
-    x_rand = tf.slice(x, tf.pack([0, offset[0], offset[1], 0]),
+    x_rand = tf.slice(x_pad, tf.pack([0, offset[0], offset[1], 0]),
                       tf.pack([-1, inp_height, inp_width, inp_depth]))
-    y_rand = tf.slice(y_gt, tf.pack([0, 0, offset[0], offset[1]]),
+    y_rand = tf.slice(y_pad, tf.pack([0, 0, offset[0], offset[1]]),
                       tf.pack([-1, -1, inp_height, inp_width]))
 
     # Center slices (for inference)
-    x_ctr = tf.slice(x, [0, padding, padding, 0],
+    x_ctr = tf.slice(x_pad, [0, padding, padding, 0],
                      tf.pack([-1, inp_height, inp_width, -1]))
-    y_ctr = tf.slice(y_gt, [0, 0, padding, padding],
+    y_ctr = tf.slice(y_pad, [0, 0, padding, padding],
                      tf.pack([-1, -1, inp_height, inp_width]))
 
     # Random horizontal & vertical flip & transpose
@@ -347,15 +355,16 @@ def _rnd_img_transformation(x, y_gt, padding, phase_train):
     y_rand = tf.transpose(y_rand, tf.pack([0, 1, 2 + do_tr, 3 - do_tr]))
 
     # Random hue, saturation, brightness, contrast
-    # x_rand = img.random_hue(x_rand, 0.5)
-    # x_rand = img.random_saturation(x_rand, 0.5, 2.0)
-    # x_rand = tf.image.random_brightness(x_rand, 0.5)
-    # x_rand = tf.image.random_contrast(x_rand, 0.5, 2.0)
+    if rnd_colour:
+        x_rand = img.random_hue(x_rand, 0.1)
+        x_rand = img.random_saturation(x_rand, 0.9, 1.1)
+        x_rand = tf.image.random_brightness(x_rand, 0.1)
+        x_rand = tf.image.random_contrast(x_rand, 0.9, 1.1)
 
     x = (1.0 - phase_train_f) * x_ctr + phase_train_f * x_rand
-    y_gt = (1.0 - phase_train_f) * y_ctr + phase_train_f * y_rand
+    y = (1.0 - phase_train_f) * y_ctr + phase_train_f * y_rand
 
-    return x, y_gt
+    return x, y
 
 
 def _build_skip_conn_inner(cnn_channels, h_cnn, x):
@@ -410,6 +419,11 @@ def _build_skip_conn_attn(cnn_channels, h_cnn_time, x_time, timespan):
     return skip, skip_ch
 
 
+# Use region of interest instread of Gaussian filters.
+# def _roi(x, top_left, bot_right, max_height, max_width):
+#     top_left = tf.minimum(max_height, tf.maximum(0, tf.cast(tf.round(top_left), 'int'))
+
+
 def get_orig_model(opt, device='/cpu:0'):
     """CNN -> -> RNN -> DCNN -> Instances"""
     model = {}
@@ -418,8 +432,6 @@ def get_orig_model(opt, device='/cpu:0'):
     inp_width = opt['inp_width']
     inp_depth = opt['inp_depth']
     padding = opt['padding']
-    full_height = inp_height + 2 * padding
-    full_width = inp_width + 2 * padding
 
     rnn_type = opt['rnn_type']
     cnn_filter_size = opt['cnn_filter_size']
@@ -446,14 +458,14 @@ def get_orig_model(opt, device='/cpu:0'):
 
     with tf.device(_get_device_fn(device)):
         # Input image, [B, H, W, D]
-        x = tf.placeholder('float', [None, full_height, full_width, inp_depth])
+        x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
 
         # Whether in training stage, required for batch norm.
         phase_train = tf.placeholder('bool')
 
         # Groundtruth segmentation maps, [B, T, H, W]
         y_gt = tf.placeholder(
-            'float', [None, timespan, full_height, full_width])
+            'float', [None, timespan, inp_height, inp_width])
 
         # Groundtruth confidence score, [B, T]
         s_gt = tf.placeholder('float', [None, timespan])
@@ -837,8 +849,6 @@ def get_attn_model_2(opt, device='/cpu:0'):
     inp_width = opt['inp_width']
     inp_depth = opt['inp_depth']
     padding = opt['padding']
-    full_height = inp_height + 2 * padding
-    full_width = inp_width + 2 * padding
     attn_size = opt['attn_size']
 
     ctrl_cnn_filter_size = opt['ctrl_cnn_filter_size']
@@ -884,11 +894,10 @@ def get_attn_model_2(opt, device='/cpu:0'):
     with tf.device(_get_device_fn(device)):
         # Input definition
         # Input image, [B, H, W, D]
-        x = tf.placeholder('float', [None, full_height, full_width, inp_depth])
+        x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
         x_shape = tf.shape(x)
         num_ex = x_shape[0]
-        y_gt = tf.placeholder(
-            'float', [None, timespan, full_height, full_width])
+        y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
         # Groundtruth confidence score, [B, T]
         s_gt = tf.placeholder('float', [None, timespan])
         # Whether in training stage.
@@ -1299,130 +1308,130 @@ def get_attn_model_2(opt, device='/cpu:0'):
                         [model['{}_{}_{}_{}'.format(layer, ii, stat, tt)]
                          for tt in xrange(timespan)]) / timespan
 
-        model['x_patch']=x_patch
-        h_acnn=[tf.concat(1, [tf.expand_dims(h_acnn[tt][ii], 1)
+        model['x_patch'] = x_patch
+        h_acnn = [tf.concat(1, [tf.expand_dims(h_acnn[tt][ii], 1)
                                 for tt in xrange(timespan)])
                   for ii in xrange(len(acnn_filters))]
-        model['h_acnn']=h_acnn
-        acnn_w=[model['attn_cnn_w_{}'.format(ii)]
+        model['h_acnn'] = h_acnn
+        acnn_w = [model['attn_cnn_w_{}'.format(ii)]
                   for ii in xrange(len(acnn_filters))]
-        acnn_b=[model['attn_cnn_b_{}'.format(ii)]
+        acnn_b = [model['attn_cnn_b_{}'.format(ii)]
                   for ii in xrange(len(acnn_filters))]
-        model['acnn_w']=acnn_w
-        model['acnn_w_mean']=[tf.reduce_sum(
+        model['acnn_w'] = acnn_w
+        model['acnn_w_mean'] = [tf.reduce_sum(
             tf.sqrt(acnn_w[ii] * acnn_w[ii])) / acnn_filters[ii] / acnn_filters[ii]
             / acnn_channels[ii] / acnn_channels[ii + 1]
             for ii in xrange(len(acnn_filters))]
-        model['acnn_b']=acnn_b
-        model['acnn_b_mean']=[tf.reduce_sum(
+        model['acnn_b'] = acnn_b
+        model['acnn_b_mean'] = [tf.reduce_sum(
             tf.sqrt(acnn_b[ii] * acnn_b[ii])) / acnn_channels[ii + 1]
             for ii in xrange(len(acnn_filters))]
-        h_dcnn=[tf.concat(1, [tf.expand_dims(h_dcnn[tt][ii], 1)
+        h_dcnn = [tf.concat(1, [tf.expand_dims(h_dcnn[tt][ii], 1)
                                 for tt in xrange(timespan)])
                   for ii in xrange(len(dcnn_filters))]
-        model['h_dcnn']=h_dcnn
+        model['h_dcnn'] = h_dcnn
 
         # Loss function
-        learn_rate=tf.train.exponential_decay(
+        learn_rate = tf.train.exponential_decay(
             base_learn_rate, global_step, steps_per_learn_rate_decay,
-            learn_rate_decay, staircase = True)
-        model['learn_rate']=learn_rate
-        eps=1e-7
+            learn_rate_decay, staircase=True)
+        model['learn_rate'] = learn_rate
+        eps = 1e-7
 
-        y_gt_shape=tf.shape(y_gt)
-        num_ex=tf.to_float(y_gt_shape[0])
-        max_num_obj=tf.to_float(y_gt_shape[1])
+        y_gt_shape = tf.shape(y_gt)
+        num_ex = tf.to_float(y_gt_shape[0])
+        max_num_obj = tf.to_float(y_gt_shape[1])
 
         # Loss for attnention box
-        iou_soft_box=_f_iou(attn_box, attn_box_gt, timespan, pairwise = True)
-        model['attn_box_gt']=attn_box_gt
-        match_box=_segm_match(iou_soft_box, s_gt)
-        model['match_box']=match_box
-        match_sum_box=tf.reduce_sum(match_box, reduction_indices = [2])
-        match_count_box=tf.reduce_sum(
-            match_sum_box, reduction_indices = [1])
+        iou_soft_box = _f_iou(attn_box, attn_box_gt, timespan, pairwise=True)
+        model['attn_box_gt'] = attn_box_gt
+        match_box = _segm_match(iou_soft_box, s_gt)
+        model['match_box'] = match_box
+        match_sum_box = tf.reduce_sum(match_box, reduction_indices=[2])
+        match_count_box = tf.reduce_sum(
+            match_sum_box, reduction_indices=[1])
         if box_loss_fn == 'iou':
-            iou_soft_box=tf.reduce_sum(tf.reduce_sum(
-                iou_soft_box * match_box, reduction_indices = [1, 2])
+            iou_soft_box = tf.reduce_sum(tf.reduce_sum(
+                iou_soft_box * match_box, reduction_indices=[1, 2])
                 / match_count_box) / num_ex
-            box_loss=-iou_soft_box
+            box_loss = -iou_soft_box
         elif box_loss_fn == 'bce':
-            box_loss=_match_bce(attn_box, attn_box_gt, match_box, timespan)
+            box_loss = _match_bce(attn_box, attn_box_gt, match_box, timespan)
         else:
             raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
-        model['box_loss']=box_loss
+        model['box_loss'] = box_loss
 
         # box_loss_coeff = tf.train.exponential_decay(
         #     1.0, global_step, steps_per_box_loss_coeff_decay,
         #     box_loss_coeff_decay, staircase=True)
-        box_loss_coeff=tf.constant(1.0)
-        model['box_loss_coeff']=box_loss_coeff
+        box_loss_coeff = tf.constant(1.0)
+        model['box_loss_coeff'] = box_loss_coeff
         tf.add_to_collection('losses', box_loss_coeff * box_loss)
 
         # Loss for fine segmentation
-        iou_soft=_f_iou(y_out, y_gt, timespan, pairwise=True)
+        iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
 
-        match=_segm_match(iou_soft, s_gt)
-        model['match']=match
-        match_sum=tf.reduce_sum(match, reduction_indices=[2])
-        match_count=tf.reduce_sum(match_sum, reduction_indices=[1])
+        match = _segm_match(iou_soft, s_gt)
+        model['match'] = match
+        match_sum = tf.reduce_sum(match, reduction_indices=[2])
+        match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
 
         # match = match_box
         # model['match'] = match
         # match_sum = match_sum_box
         # match_count = match_count_box
 
-        iou_soft=tf.reduce_sum(tf.reduce_sum(
-            iou_soft * match, reduction_indices = [1, 2]) / match_count) / num_ex
-        model['iou_soft']=iou_soft
+        iou_soft = tf.reduce_sum(tf.reduce_sum(
+            iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
+        model['iou_soft'] = iou_soft
         if segm_loss_fn == 'iou':
-            segm_loss=-iou_soft
+            segm_loss = -iou_soft
         elif segm_loss_fn == 'bce':
-            segm_loss=_match_bce(y_out, y_gt, match, timespan)
+            segm_loss = _match_bce(y_out, y_gt, match, timespan)
         else:
             raise Exception('Unknown segm_loss_fn: {}'.format(segm_loss_fn))
-        model['segm_loss']=segm_loss
+        model['segm_loss'] = segm_loss
         # segm_loss_coeff = 1.0 - box_loss_coeff
-        segm_loss_coeff=1.0
+        segm_loss_coeff = 1.0
         tf.add_to_collection('losses', segm_loss_coeff * segm_loss)
 
         # Score loss
-        conf_loss=_conf_loss(s_out, match, timespan, use_cum_min=True)
-        model['conf_loss']=conf_loss
+        conf_loss = _conf_loss(s_out, match, timespan, use_cum_min=True)
+        model['conf_loss'] = conf_loss
         tf.add_to_collection('losses', loss_mix_ratio * conf_loss)
 
-        total_loss=tf.add_n(tf.get_collection(
+        total_loss = tf.add_n(tf.get_collection(
             'losses'), name='total_loss')
-        model['loss']=total_loss
+        model['loss'] = total_loss
 
-        train_step=GradientClipOptimizer(
-            tf.train.AdamOptimizer(learn_rate, epsilon = eps),
+        train_step = GradientClipOptimizer(
+            tf.train.AdamOptimizer(learn_rate, epsilon=eps),
             clip=1.0).minimize(total_loss, global_step=global_step)
-        model['train_step']=train_step
+        model['train_step'] = train_step
 
         # Statistics
         # [B, M, N] * [B, M, N] => [B] * [B] => [1]
-        y_out_hard=tf.to_float(y_out > 0.5)
-        iou_hard=_f_iou(y_out_hard, y_gt, timespan, pairwise=True)
-        iou_hard=tf.reduce_sum(tf.reduce_sum(
-            iou_hard * match, reduction_indices = [1, 2]) / match_count) / num_ex
-        model['iou_hard']=iou_hard
+        y_out_hard = tf.to_float(y_out > 0.5)
+        iou_hard = _f_iou(y_out_hard, y_gt, timespan, pairwise=True)
+        iou_hard = tf.reduce_sum(tf.reduce_sum(
+            iou_hard * match, reduction_indices=[1, 2]) / match_count) / num_ex
+        model['iou_hard'] = iou_hard
 
-        dice=_f_dice(y_out_hard, y_gt, timespan, pairwise=True)
-        dice=tf.reduce_sum(tf.reduce_sum(
-            dice * match, reduction_indices = [1, 2]) / match_count) / num_ex
-        model['dice']=dice
+        dice = _f_dice(y_out_hard, y_gt, timespan, pairwise=True)
+        dice = tf.reduce_sum(tf.reduce_sum(
+            dice * match, reduction_indices=[1, 2]) / match_count) / num_ex
+        model['dice'] = dice
 
-        model['count_acc']=_count_acc(s_out, s_gt)
-        model['dic']=_dic(s_out, s_gt, abs=False)
-        model['dic_abs']=_dic(s_out, s_gt, abs=True)
+        model['count_acc'] = _count_acc(s_out, s_gt)
+        model['dic'] = _dic(s_out, s_gt, abs=False)
+        model['dic_abs'] = _dic(s_out, s_gt, abs=True)
 
         # Attention coordinate for debugging [B, T, 2]
-        attn_top_left=tf.concat(1, [tf.expand_dims(tmp, 1)
+        attn_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
                                       for tmp in attn_top_left])
-        attn_bot_right=tf.concat(1, [tf.expand_dims(tmp, 1)
+        attn_bot_right = tf.concat(1, [tf.expand_dims(tmp, 1)
                                        for tmp in attn_bot_right])
-        attn_ctr=tf.concat(1, [tf.expand_dims(tmp, 1)
+        attn_ctr = tf.concat(1, [tf.expand_dims(tmp, 1)
                                  for tmp in attn_ctr])
         attn_lg_var = tf.concat(1, [tf.expand_dims(tmp, 1)
                                     for tmp in attn_lg_var])
@@ -1471,8 +1480,6 @@ def get_attn_model(opt, device='/cpu:0'):
     inp_width = opt['inp_width']
     inp_depth = opt['inp_depth']
     padding = opt['padding']
-    full_height = inp_height + 2 * padding
-    full_width = inp_width + 2 * padding
     attn_size = opt['attn_size']
 
     ctrl_cnn_filter_size = opt['ctrl_cnn_filter_size']
@@ -1510,11 +1517,10 @@ def get_attn_model(opt, device='/cpu:0'):
     with tf.device(_get_device_fn(device)):
         # Input definition
         # Input image, [B, H, W, D]
-        x = tf.placeholder('float', [None, full_height, full_width, inp_depth])
+        x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
         x_shape = tf.shape(x)
         num_ex = x_shape[0]
-        y_gt = tf.placeholder(
-            'float', [None, timespan, full_height, full_width])
+        y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
         # Groundtruth confidence score, [B, T]
         s_gt = tf.placeholder('float', [None, timespan])
         # Whether in training stage.
@@ -1573,7 +1579,8 @@ def get_attn_model(opt, device='/cpu:0'):
         filters_x = [None] * timespan
 
         # Groundtruth bounding box, [B, T, 2]
-        attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, attn_top_left_gt, attn_bot_right_gt, idx_map = \
+        attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, \
+            attn_top_left_gt, attn_bot_right_gt, idx_map = \
             _get_gt_attn(y_gt, attn_size, padding_ratio=attn_box_padding_ratio)
         if use_gt_attn:
             attn_ctr = attn_ctr_gt
