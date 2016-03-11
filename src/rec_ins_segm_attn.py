@@ -593,7 +593,7 @@ if __name__ == '__main__':
             max_items_per_row = 8
         elif args.dataset == 'kitti':
             timespan = 18
-            inp_height = 136
+            inp_height = 128
             inp_width = 448
             max_items_per_row = 5
         else:

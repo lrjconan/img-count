@@ -12,11 +12,11 @@ log = logger.get()
 """
 Image size are around 375 x 1240.
 We may want to resize it first to 
-168 x 480 (32 padding)
-136 x 448
-68 x 224
-34 x 112
-17 x 56
+160 x 480 (32 padding)
+128 x 448
+64 x 224
+32 x 112
+16 x 56
 8 x 28
 4 x 14
 """
@@ -24,7 +24,7 @@ We may want to resize it first to
 
 def get_dataset(folder, opt, split='train'):
     """
-    Recommended settings: 136 x 448.
+    Recommended settings: 128 x 448.
     """
     inp_height = opt['height']
     inp_width = opt['width']
