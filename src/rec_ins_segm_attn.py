@@ -793,32 +793,19 @@ if __name__ == '__main__':
             name='Attn CNN weights mean',
             buffer_size=1)
 
-        ccnn_sparsity_labels = []
-        for ii in xrange(num_ctrl_cnn):
-            ccnn_sparsity_labels.append('layer {}'.format(ii))
-        ccnn_sparsity_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'ccnn_sparsity.csv'),
-            ccnn_sparsity_labels,
-            name='Ctrl CNN sparsity',
-            buffer_size=1)
-
-        acnn_sparsity_labels = []
-        for ii in xrange(num_attn_cnn):
-            acnn_sparsity_labels.append('layer {}'.format(ii))
-        acnn_sparsity_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'acnn_sparsity.csv'),
-            acnn_sparsity_labels,
-            name='Attn CNN sparsity',
-            buffer_size=1)
-
-        dcnn_sparsity_labels = []
-        for ii in xrange(num_dcnn):
-            dcnn_sparsity_labels.append('layer {}'.format(ii))
-        dcnn_sparsity_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'dcnn_sparsity.csv'),
-            dcnn_sparsity_labels,
-            name='D-CNN sparsity',
-            buffer_size=1)
+        sparsity_loggers = {}
+        for sname, fname, num_layers in zip(
+                ['ccnn', 'acnn', 'dcnn'],
+                ['Ctrl CNN', 'Attn CNN', 'D-CNN'],
+                [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+            sparsity_labels = []
+            for ii in xrange(num_layers):
+                sparsity_labels.append('layer {}'.format(ii))
+            sparsity_loggers[sname] = TimeSeriesLogger(
+                os.path.join(logs_folder, '{}_sparsity.csv'.format(sname)),
+                sparsity_labels,
+                name='{} sparsity'.format(fname),
+                buffer_size=1)
 
         log_manager.register(log.filename, 'plain', 'Raw logs')
 
@@ -1028,6 +1015,7 @@ if __name__ == '__main__':
 
             num_ex_batch = _x.shape[0]
 
+            # Batch normalization stats.
             for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
                                     [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
                 for ii in xrange(_num):
@@ -1055,7 +1043,8 @@ if __name__ == '__main__':
 
         log.info(('{:d} vtl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                   'ious {:.4f} iouh {:.4f} dice {:.4f}').format(
-            step, loss, conf_loss, segm_loss, box_loss, iou_soft, iou_hard, dice))
+            step, loss, conf_loss, segm_loss, box_loss, iou_soft, iou_hard, 
+            dice))
 
         if args.logs:
             loss_logger.add(step, ['', loss])
@@ -1068,6 +1057,7 @@ if __name__ == '__main__':
             dic_logger.add(step, ['', dic])
             dic_abs_logger.add(step, ['', dic_abs])
 
+            # Batch normalization stats.
             for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
                                     [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
                 for ii in xrange(_num):
@@ -1087,26 +1077,9 @@ if __name__ == '__main__':
         num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
         num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
         num_dcnn = len(model_opt['dcnn_filter_size'])
-        ctrl_cnn_bm = [0.0] * num_ctrl_cnn
-        ctrl_cnn_bv = [0.0] * num_ctrl_cnn
-        ctrl_cnn_em = [0.0] * num_ctrl_cnn
-        ctrl_cnn_ev = [0.0] * num_ctrl_cnn
-        attn_cnn_bm = [0.0] * num_attn_cnn
-        attn_cnn_bv = [0.0] * num_attn_cnn
-        attn_cnn_em = [0.0] * num_attn_cnn
-        attn_cnn_ev = [0.0] * num_attn_cnn
-        dcnn_bm = [0.0] * num_dcnn
-        dcnn_bv = [0.0] * num_dcnn
-        dcnn_em = [0.0] * num_dcnn
-        dcnn_ev = [0.0] * num_dcnn
         attn_cnn_weights_m = [0.0] * num_attn_cnn
         attn_cnn_bias_m = [0.0] * num_attn_cnn
-        ctrl_cnn_act = [0.0] * num_ctrl_cnn
-        attn_cnn_act = [0.0] * num_ctrl_cnn
-        dcnn_act = [0.0] * num_dcnn
-        ctrl_cnn_sparsity = [0.0] * num_ctrl_cnn
-        attn_cnn_sparsity = [0.0] * num_ctrl_cnn
-        dcnn_sparsity = [0.0] * num_dcnn
+        sparsity = {}
 
         results_list = [m['loss'], m['conf_loss'], m['segm_loss'], m['box_loss'],
                         m['iou_soft'], m['iou_hard'], m['learn_rate'],
@@ -1120,6 +1093,7 @@ if __name__ == '__main__':
 
         offset = len(results_list)
 
+        # Batch normalization
         for _layer, _num in zip(['ctrl_cnn', 'attn_cnn', 'dcnn'],
                                 [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
             for ii in xrange(_num):
@@ -1170,6 +1144,7 @@ if __name__ == '__main__':
             attn_box_beta = results[21]
             y_out_beta = results[22]
 
+            # Batch normalization stats.
             bn = {}
             for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
                                     [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
@@ -1188,23 +1163,14 @@ if __name__ == '__main__':
                 attn_cnn_bias_m[ii] = results[offset]
                 offset += 1
 
-            for ii in xrange(num_ctrl_cnn):
-                ctrl_cnn_act[ii] = results[offset]
-                ctrl_cnn_sparsity[ii] = (
-                    ctrl_cnn_act[ii] == 0).astype('float').mean()
-                offset += 1
-
-            for ii in xrange(num_attn_cnn):
-                attn_cnn_act[ii] = results[offset]
-                attn_cnn_sparsity[ii] = (
-                    attn_cnn_act[ii] == 0).astype('float').mean()
-                offset += 1
-
-            for ii in xrange(num_dcnn):
-                dcnn_act[ii] = results[offset]
-                dcnn_sparsity[ii] = (
-                    dcnn_act[ii] == 0).astype('float').mean()
-                offset += 1
+            # Layer sparsity
+            for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
+                                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                sparsity[_layer] = []
+                for ii in xrange(_num):
+                    sparsity[_layer].append(
+                        (results[offset] == 0).astype('float').mean())
+                    offset += 1
 
             step_time = (time.time() - start_time) * 1000
             log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
@@ -1229,6 +1195,7 @@ if __name__ == '__main__':
                     step, [crnn_g_i_avg, crnn_g_f_avg, crnn_g_o_avg])
                 gt_knob_logger.add(step, [gt_knob_box, gt_knob_segm])
 
+                # Batch normalization stats.
                 for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
                                         [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
                     for ii in xrange(_num):
@@ -1241,19 +1208,23 @@ if __name__ == '__main__':
                             bn_loggers['{}_{}_{}'.format(
                                 _layer, ii, tt)].add(step, _output)
 
+                # Attn parameters
                 attn_params_logger.add(
                     step, [attn_lg_gamma.mean(), attn_lg_var.mean(),
                            attn_box_lg_gamma.mean(),
                            y_out_lg_gamma.mean(), attn_box_beta.mean(),
                            y_out_beta.mean()])
+
+                # Weights
                 acnn_weights_stats = []
                 for ii in xrange(num_attn_cnn):
                     acnn_weights_stats.append(attn_cnn_weights_m[ii])
                     acnn_weights_stats.append(attn_cnn_bias_m[ii])
                 acnn_weights_logger.add(step, acnn_weights_stats)
-                ccnn_sparsity_logger.add(step, ctrl_cnn_sparsity)
-                acnn_sparsity_logger.add(step, attn_cnn_sparsity)
-                dcnn_sparsity_logger.add(step, dcnn_sparsity)
+
+                # Layer sparsity
+                for _layer in ['ccnn', 'acnn', 'dcnn']:
+                    sparsity_loggers[_layer].add(step, sparsity[_layer])
 
         pass
 
