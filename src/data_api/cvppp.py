@@ -24,7 +24,7 @@ def get_dataset(folder, opt):
     """
     inp_height = opt['height']
     inp_width = opt['width']
-    inp_shape = (inp_height, inp_width)
+    inp_shape = (inp_width, inp_height)
     log.info('Reading images from {}'.format(folder))
     file_list = os.listdir(folder)
     image_dict = {}

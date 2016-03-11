@@ -21,6 +21,7 @@ import time
 
 from data_api import synth_shape
 from data_api import cvppp
+from data_api import kitti
 
 from utils import log_manager
 from utils import logger
@@ -222,7 +223,7 @@ def plot_output(fname, y_out, s_out, match, attn=None, max_items_per_row=9):
     pass
 
 
-def get_dataset(dataset_name, opt, num_train, num_valid):
+def get_dataset(dataset_name, opt, num_train=-1, num_valid=-1):
     """Get train-valid split dataset for instance segmentation.
 
     Args:
@@ -265,6 +266,18 @@ def get_dataset(dataset_name, opt, num_train, num_valid):
             'label_segmentation': _all_data['label_segmentation'][valid_idx],
             'label_score': _all_data['label_score'][valid_idx]
         }
+    elif dataset_name == 'kitti':
+        if os.path.exists('/u/mren'):
+            dataset_folder = '/ais/gobi3/u/mren/data/kitti'
+        else:
+            dataset_folder = '/home/mren/data/kitti'
+        opt['timespan'] = 18
+        opt['num_examples'] = num_train
+        dataset['train'] = kitti.get_dataset(dataset_folder, opt, split='train')
+        opt['num_examples'] = num_valid
+        dataset['valid'] = kitti.get_dataset(dataset_folder, opt, split='valid')
+    else:
+        raise Exception('Unknown dataset "{}"'.format(dataset_name))
 
     return dataset
 
@@ -570,14 +583,25 @@ if __name__ == '__main__':
 
         if args.dataset == 'synth_shape':
             timespan = args.max_num_objects + 1
+            inp_height = 224
+            inp_width = 224
+            max_items_per_row = 8
         elif args.dataset == 'cvppp':
             timespan = 21
+            inp_height = 224
+            inp_width = 224
+            max_items_per_row = 8
+        elif args.dataset == 'kitti':
+            timespan = 18
+            inp_height = 136
+            inp_width = 448
+            max_items_per_row = 5
         else:
             raise Exception('Unknown dataset name')
 
         model_opt = {
-            'inp_height': args.height,
-            'inp_width': args.width,
+            'inp_height': inp_height,
+            'inp_width': inp_width,
             'inp_depth': 3,
             'padding': args.padding,
             'attn_size': args.attn_size,
@@ -627,9 +651,9 @@ if __name__ == '__main__':
             'knob_use_timescale': args.knob_use_timescale
         }
         data_opt = {
-            'height': args.height,
-            'width': args.width,
-            'padding': args.padding,
+            'height': inp_height,
+            'width': inp_width,
+            'timespan': timespan,
             'radius_upper': args.radius_upper,
             'radius_lower': args.radius_lower,
             'border_thickness': args.border_thickness,
@@ -676,8 +700,13 @@ if __name__ == '__main__':
     m = models.get_model('attention', model_opt, device=device)
 
     log.info('Loading dataset')
-    dataset = get_dataset(args.dataset, data_opt,
-                          args.num_ex, int(args.num_ex / 10))
+    if args.dataset == 'synth_shape':
+        dataset = get_dataset(args.dataset, data_opt,
+                              args.num_ex, int(args.num_ex / 10))
+    elif args.dataset == 'cvppp':
+        dataset = get_dataset(args.dataset, data_opt)
+    elif args.dataset == 'kitti':
+        dataset = get_dataset(args.dataset, data_opt, args.num_ex, args.num_ex)
 
     sess = tf.Session()
 
@@ -896,32 +925,40 @@ if __name__ == '__main__':
                     h_dcnn[ii] = results[offset]
                     offset += 1
 
-            plot_input(fname_input, x=x_trans, y_gt=y_gt_trans, s_gt=s)
+            plot_input(fname_input, x=x_trans, y_gt=y_gt_trans, s_gt=s,
+                       max_items_per_row=max_items_per_row)
 
             plot_output(fname_output, y_out=y_out, s_out=s_out, match=match,
-                        attn=(atl, abr, ac, ad))
+                        attn=(atl, abr, ac, ad),
+                        max_items_per_row=max_items_per_row)
 
             if fname_total:
-                plot_total_instances(fname_total, y_out=y_out, s_out=s_out)
+                plot_total_instances(fname_total, y_out=y_out, s_out=s_out,
+                                     max_items_per_row=max_items_per_row)
 
             if fname_box:
                 plot_output(fname_box, y_out=abox, s_out=s_out,
-                            match=match_box, attn=(atl, abr, ac, ad))
+                            match=match_box, attn=(atl, abr, ac, ad),
+                            max_items_per_row=max_items_per_row)
 
             if fname_patch:
-                plot_thumbnails(fname_patch, x_patch[:, :, :, :, : 3], axis=1)
+                plot_thumbnails(fname_patch, x_patch[:, :, :, :, : 3], axis=1,
+                                max_items_per_row=8)
 
             if fname_ccnn:
                 for ii in xrange(num_ctrl_cnn):
-                    plot_thumbnails(fname_ccnn[ii], h_ccnn[ii][:, 0], axis=3)
+                    plot_thumbnails(fname_ccnn[ii], h_ccnn[ii][:, 0], axis=3,
+                                    max_items_per_row=max_items_per_row)
 
             if fname_acnn:
                 for ii in xrange(num_attn_cnn):
-                    plot_thumbnails(fname_acnn[ii], h_acnn[ii][:, 0], axis=3)
+                    plot_thumbnails(fname_acnn[ii], h_acnn[ii][:, 0], axis=3,
+                                    max_items_per_row=8)
 
             if fname_dcnn:
                 for ii in xrange(num_dcnn):
-                    plot_thumbnails(fname_dcnn[ii], h_dcnn[ii][:, 0], axis=3)
+                    plot_thumbnails(fname_dcnn[ii], h_dcnn[ii][:, 0], axis=3,
+                                    max_items_per_row=8)
 
         if args.logs:
             # Plot some samples.
