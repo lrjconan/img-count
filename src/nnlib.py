@@ -212,7 +212,6 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
             if pool[ii] > 1:
                 h[ii] = max_pool(h[ii], pool[ii])
 
-            log.info('Layer {}: {}'.format(ii, h[ii].get_shape()))
         copy[0] += 1
 
         return h

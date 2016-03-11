@@ -309,7 +309,8 @@ def _dic(s_out, s_gt, abs=False):
     return count_diff
 
 
-def _rnd_img_transformation(x, y, padding, phase_train, rnd_colour=False):
+def _rnd_img_transformation(x, y, padding, phase_train, 
+        rnd_vflip=True, rnd_hflip=True, rnd_transpose=True, rnd_colour=False):
     """
     Perform random crop, flip, transpose, hue, saturation, brightness, contrast.
 
@@ -345,12 +346,14 @@ def _rnd_img_transformation(x, y, padding, phase_train, rnd_colour=False):
                      tf.pack([-1, -1, inp_height, inp_width]))
 
     # Random horizontal & vertical flip & transpose
-    rand = tf.random_uniform([3], 0, 1.0)
-    mirror_x = tf.pack([1.0, rand[0], rand[1], 1.0]) < 0.5
-    mirror_y = tf.pack([1.0, 1.0, rand[0], rand[1]]) < 0.5
+    rand_h = tf.random_uniform([1], 1.0 - float(rnd_hflip), 1.0)
+    rand_v = tf.random_uniform([1], 1.0 - float(rnd_vflip), 1.0)
+    mirror_x = tf.pack([1.0, rand_v[0], rand_h[0], 1.0]) < 0.5
+    mirror_y = tf.pack([1.0, 1.0, rand_v[0], rand_h[0]]) < 0.5
     x_rand = tf.reverse(x_rand, mirror_x)
     y_rand = tf.reverse(y_rand, mirror_y)
-    do_tr = tf.cast(rand[2] > 0.5, 'int32')
+    rand_t = tf.random_uniform([1], 1.0 - float(rnd_transpose), 1.0)
+    do_tr = tf.cast(rand_t[0] < 0.5, 'int32')
     x_rand = tf.transpose(x_rand, tf.pack([0, 1 + do_tr, 2 - do_tr, 3]))
     y_rand = tf.transpose(y_rand, tf.pack([0, 1, 2 + do_tr, 3 - do_tr]))
 
@@ -455,6 +458,11 @@ def get_orig_model(opt, device='/cpu:0'):
     num_mlp_layers = opt['num_mlp_layers']
     mlp_dropout_ratio = opt['mlp_dropout']
     segm_loss_fn = opt['segm_loss_fn']
+    
+    rnd_hflip = opt['rnd_hflip']
+    rnd_vflip = opt['rnd_vflip']
+    rnd_transpose = opt['rnd_transpose']
+    rnd_colour = opt['rnd_colour']
 
     with tf.device(_get_device_fn(device)):
         # Input image, [B, H, W, D]
@@ -479,7 +487,10 @@ def get_orig_model(opt, device='/cpu:0'):
         num_ex = x_shape[0]
 
         # Random image transformation
-        x, y_gt = _rnd_img_transformation(x, y_gt, padding, phase_train)
+        x, y_gt = _rnd_img_transformation(
+            x, y_gt, padding, phase_train,  
+            rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip, 
+            rnd_transpose=rnd_transpose, rnd_colour=rnd_colour)
         model['x_trans'] = x
         model['y_gt_trans'] = y_gt
 
@@ -725,15 +736,16 @@ def _extract_patch(x, f_y, f_x, nchannels):
     """
     Args:
         x: [B, H, W, D]
-        f_y: [B, H, F]
-        f_x: [B, W, F]
+        f_y: [B, H, FH]
+        f_x: [B, W, FH]
         nchannels: D
 
     Returns:
-        patch: [B, F, F]
+        patch: [B, FH, FW]
     """
     patch = [None] * nchannels
-    fsize = tf.shape(f_x)[2]
+    fsize_h = tf.shape(f_x)[2]
+    fsize_w = tf.shape(f_y)[2]
     hh = tf.shape(x)[1]
     ww = tf.shape(x)[2]
 
@@ -743,7 +755,7 @@ def _extract_patch(x, f_y, f_x, nchannels):
             tf.pack([-1, hh, ww]))
         patch[dd] = tf.reshape(tf.batch_matmul(
             tf.batch_matmul(f_y, x_ch, adj_x=True),
-            f_x), tf.pack([-1, fsize, fsize, 1]))
+            f_x), tf.pack([-1, fsize_h, fsize_w, 1]))
 
     return tf.concat(3, patch)
 
@@ -890,6 +902,11 @@ def get_attn_model_2(opt, device='/cpu:0'):
     knob_box_offset = opt['knob_box_offset']
     knob_segm_offset = opt['knob_segm_offset']
     knob_use_timescale = opt['knob_use_timescale']
+    
+    rnd_hflip = opt['rnd_hflip']
+    rnd_vflip = opt['rnd_vflip']
+    rnd_transpose = opt['rnd_transpose']
+    rnd_colour = opt['rnd_colour']
 
     with tf.device(_get_device_fn(device)):
         # Input definition
@@ -912,7 +929,10 @@ def get_attn_model_2(opt, device='/cpu:0'):
         global_step = tf.Variable(0.0)
 
         # Random image transformation
-        x, y_gt = _rnd_img_transformation(x, y_gt, padding, phase_train)
+        x, y_gt = _rnd_img_transformation(
+            x, y_gt, padding, phase_train,  
+            rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip, 
+            rnd_transpose=rnd_transpose, rnd_colour=rnd_colour)
         model['x_trans'] = x
         model['y_gt_trans'] = y_gt
 
@@ -1156,18 +1176,20 @@ def get_attn_model_2(opt, device='/cpu:0'):
             y_out_lg_gamma[tt] = tf.reshape(y_out_lg_gamma[tt], [-1, 1, 1, 1])
 
             # Initial filters (predicted)
-            filters_y = _get_attn_filter(
+            filter_y = _get_attn_filter(
                 attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
                 attn_lg_var[tt][:, 0], inp_height, attn_size)
-            filters_x = _get_attn_filter(
+            filter_x = _get_attn_filter(
                 attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
                 attn_lg_var[tt][:, 1], inp_width, attn_size)
-            filters_y_inv = tf.transpose(filters_y, [0, 2, 1])
-            filters_x_inv = tf.transpose(filters_x, [0, 2, 1])
+            if tt == 0:
+                model['filter_y'] = filter_y
+            filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
+            filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
             # Attention box
             attn_box[tt] = _extract_patch(const_ones * attn_box_lg_gamma[tt],
-                                          filters_y_inv, filters_x_inv, 1)
+                                          filter_y_inv, filter_x_inv, 1)
             attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
             # attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta[tt])
             attn_box[tt] = tf.reshape(
@@ -1206,24 +1228,24 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 attn_ctr[tt], attn_delta[tt], attn_size)
 
             # [B, H, A]
-            filters_y = _get_attn_filter(
+            filter_y = _get_attn_filter(
                 attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
                 attn_lg_var[tt][:, 0], inp_height, attn_size)
 
             # [B, W, A]
-            filters_x = _get_attn_filter(
+            filter_x = _get_attn_filter(
                 attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
                 attn_lg_var[tt][:, 1], inp_width, attn_size)
 
             # [B, A, H]
-            filters_y_inv = tf.transpose(filters_y, [0, 2, 1])
+            filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
 
             # [B, A, W]
-            filters_x_inv = tf.transpose(filters_x, [0, 2, 1])
+            filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
             # Attended patch [B, A, A, D]
             x_patch[tt] = attn_gamma[tt] * _extract_patch(
-                acnn_inp, filters_y, filters_x, acnn_inp_depth)
+                acnn_inp, filter_y, filter_x, acnn_inp_depth)
 
             # CNN [B, A, A, D] => [B, RH2, RW2, RD2]
             h_acnn[tt] = acnn(x_patch[tt])
@@ -1255,7 +1277,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
             # Output
             y_out[tt] = _extract_patch(
-                h_dcnn[tt][-1], filters_y_inv, filters_x_inv, 1)
+                h_dcnn[tt][-1], filter_y_inv, filter_x_inv, 1)
             y_out[tt] = tf.exp(y_out_lg_gamma[tt]) * y_out[tt] + y_out_beta
             y_out[tt] = tf.sigmoid(y_out[tt])
             y_out[tt] = tf.reshape(y_out[tt], [-1, 1, inp_height, inp_width])
@@ -1300,10 +1322,6 @@ def get_attn_model_2(opt, device='/cpu:0'):
         for layer in ['ctrl_cnn', 'attn_cnn', 'dcnn']:
             for ii in xrange(len(opt['{}_filter_size'.format(layer)])):
                 for stat in ['bm', 'bv', 'em', 'ev']:
-                    # [log.info('{}_{}_{}_{}'.format(layer, ii, stat, tt))
-                    # for tt in xrange(timespan)]
-                    # [log.info(model['{}_{}_{}_{}'.format(layer, ii, stat, tt)])
-                    # for tt in xrange(timespan)]
                     model['{}_{}_{}'.format(layer, ii, stat)] = tf.add_n(
                         [model['{}_{}_{}_{}'.format(layer, ii, stat, tt)]
                          for tt in xrange(timespan)]) / timespan
@@ -1514,6 +1532,11 @@ def get_attn_model(opt, device='/cpu:0'):
     box_loss_coeff_decay = opt['box_loss_coeff_decay']
     use_attn_rnn = opt['use_attn_rnn']
 
+    rnd_hflip = opt['rnd_hflip']
+    rnd_vflip = opt['rnd_vflip']
+    rnd_transpose = opt['rnd_transpose']
+    rnd_colour = opt['rnd_colour']
+
     with tf.device(_get_device_fn(device)):
         # Input definition
         # Input image, [B, H, W, D]
@@ -1531,7 +1554,10 @@ def get_attn_model(opt, device='/cpu:0'):
         model['phase_train'] = phase_train
 
         # Random image transformation
-        x, y_gt = _rnd_img_transformation(x, y_gt, padding, phase_train)
+        x, y_gt = _rnd_img_transformation(
+            x, y_gt, padding, phase_train,  
+            rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip, 
+            rnd_transpose=rnd_transpose, rnd_colour=rnd_colour)
         model['x_trans'] = x
         model['y_gt_trans'] = y_gt
 

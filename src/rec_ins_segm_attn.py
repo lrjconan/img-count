@@ -586,16 +586,28 @@ if __name__ == '__main__':
             inp_height = 224
             inp_width = 224
             max_items_per_row = 8
+            rnd_hflip = True
+            rnd_vflip = True
+            rnd_transpose = True
+            rnd_colour = False
         elif args.dataset == 'cvppp':
             timespan = 21
             inp_height = 224
             inp_width = 224
             max_items_per_row = 8
+            rnd_hflip = True
+            rnd_vflip = True
+            rnd_transpose = True
+            rnd_colour = False
         elif args.dataset == 'kitti':
             timespan = 18
             inp_height = 128
             inp_width = 448
             max_items_per_row = 5
+            rnd_hflip = True
+            rnd_vflip = False
+            rnd_transpose = False
+            rnd_colour = True
         else:
             raise Exception('Unknown dataset name')
 
@@ -648,7 +660,12 @@ if __name__ == '__main__':
             'steps_per_knob_decay': args.steps_per_knob_decay,
             'knob_box_offset': args.knob_box_offset,
             'knob_segm_offset': args.knob_segm_offset,
-            'knob_use_timescale': args.knob_use_timescale
+            'knob_use_timescale': args.knob_use_timescale,
+
+            'rnd_hflip': rnd_hflip,
+            'rnd_vflip': rnd_vflip,
+            'rnd_transpose': rnd_transpose,
+            'rnd_colour': rnd_colour
         }
         data_opt = {
             'height': inp_height,
@@ -1019,7 +1036,7 @@ if __name__ == '__main__':
                             m['box_loss'], m['iou_soft'], m['iou_hard'],
                             m['count_acc'], m['dice'], m['dic'],
                             m['dic_abs']]
-
+    
             offset = len(results_list)
 
             for _layer, _num in zip(['ctrl_cnn', 'attn_cnn', 'dcnn'],
