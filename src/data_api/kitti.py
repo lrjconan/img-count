@@ -49,7 +49,8 @@ def get_dataset(folder, opt, split='train'):
 
     # Shuffle sequence.
     random = np.random.RandomState(2)
-    shuffle = random.shuffle(np.arange(len(img_ids)))
+    shuffle = np.arange(len(img_ids))
+    random.shuffle(shuffle)
 
     # Read images.
     log.info('Reading {} images'.format(num_ex))

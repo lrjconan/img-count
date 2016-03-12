@@ -1366,15 +1366,17 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # iou_soft_box = _f_iou(attn_box, attn_box_gt, timespan, pairwise=True)
         iou_soft_box = tf.concat(1, [tf.expand_dims(attn_iou_soft[tt], 1)
                                      for tt in xrange(timespan)])
+        model['iou_soft_box'] = iou_soft_box
         model['attn_box_gt'] = attn_box_gt
         match_box = _segm_match(iou_soft_box, s_gt)
         model['match_box'] = match_box
         match_sum_box = tf.reduce_sum(match_box, reduction_indices=[2])
         match_count_box = tf.reduce_sum(
             match_sum_box, reduction_indices=[1])
+        match_count_box = tf.maximum(1.0, match_count_box)
         if box_loss_fn == 'iou':
             iou_soft_box = tf.reduce_sum(tf.reduce_sum(
-                iou_soft_box * match_box, reduction_indices=[1, 2])
+                iou_soft_box * match_box, reduction_indices=[1, 2]) 
                 / match_count_box) / num_ex
             box_loss = -iou_soft_box
         elif box_loss_fn == 'bce':
@@ -1397,6 +1399,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         model['match'] = match
         match_sum = tf.reduce_sum(match, reduction_indices=[2])
         match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
+        match_count = tf.maximum(1.0, match_count)
 
         # match = match_box
         # model['match'] = match

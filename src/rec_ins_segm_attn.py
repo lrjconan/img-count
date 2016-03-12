@@ -1028,6 +1028,7 @@ if __name__ == '__main__':
         bn = {}
 
         log.info('Running validation')
+        batch = 0
         for _x, _y, _s in BatchIterator(num_ex_valid,
                                         batch_size=batch_size,
                                         get_fn=get_batch_valid,
@@ -1054,6 +1055,7 @@ if __name__ == '__main__':
                                    m['y_gt']: _y,
                                    m['s_gt']: _s
                                })
+            
             _loss = results[0]
             _conf_loss = results[1]
             _segm_loss = results[2]
@@ -1170,7 +1172,7 @@ if __name__ == '__main__':
                                m['y_gt']: y,
                                m['s_gt']: s
                            })
-
+      
         # Print statistics
         if step % train_opt['steps_per_log'] == 0:
             loss = results[0]
@@ -1291,9 +1293,11 @@ if __name__ == '__main__':
             # Run validation
             if step % train_opt['steps_per_valid'] == 0:
                 run_validation(step)
+                pass
 
             if step % train_opt['steps_per_plot'] == 0:
                 run_samples()
+                pass
 
             # Train step
             train_step(step, x_bat, y_bat, s_bat)
@@ -1301,10 +1305,12 @@ if __name__ == '__main__':
             # Model ID reminder
             if step % (10 * train_opt['steps_per_log']) == 0:
                 log.info('model id {}'.format(model_id))
+                pass
 
             # Save model
             if args.save_ckpt and step % train_opt['steps_per_ckpt'] == 0:
                 saver.save(sess, global_step=step)
+                pass
 
             step += 1
 
