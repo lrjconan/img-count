@@ -273,9 +273,11 @@ def get_dataset(dataset_name, opt, num_train=-1, num_valid=-1):
             dataset_folder = '/home/mren/data/kitti'
         opt['timespan'] = 20
         opt['num_examples'] = num_train
-        dataset['train'] = kitti.get_dataset(dataset_folder, opt, split='train')
+        dataset['train'] = kitti.get_dataset(
+            dataset_folder, opt, split='train')
         opt['num_examples'] = num_valid
-        dataset['valid'] = kitti.get_dataset(dataset_folder, opt, split='valid')
+        dataset['valid'] = kitti.get_dataset(
+            dataset_folder, opt, split='valid')
     else:
         raise Exception('Unknown dataset "{}"'.format(dataset_name))
 
@@ -590,6 +592,7 @@ if __name__ == '__main__':
             rnd_vflip = True
             rnd_transpose = True
             rnd_colour = False
+            num_valid_batch = 5
         elif args.dataset == 'cvppp':
             timespan = 21
             inp_height = 224
@@ -599,8 +602,9 @@ if __name__ == '__main__':
             rnd_vflip = True
             rnd_transpose = True
             rnd_colour = False
+            num_valid_batch = 2
         elif args.dataset == 'kitti':
-            timespan = 20 
+            timespan = 20
             inp_height = 128
             inp_width = 448
             max_items_per_row = 5
@@ -608,6 +612,7 @@ if __name__ == '__main__':
             rnd_vflip = False
             rnd_transpose = False
             rnd_colour = True
+            num_valid_batch = 10
         else:
             raise Exception('Unknown dataset name')
 
@@ -1010,7 +1015,7 @@ if __name__ == '__main__':
                          for ii in xrange(_num)]
         pass
 
-    def run_validation(step):
+    def run_validation(step, num_batch, batch_iter):
         """Validation"""
         loss = 0.0
         conf_loss = 0.0
@@ -1025,19 +1030,18 @@ if __name__ == '__main__':
         num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
         num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
         num_dcnn = len(model_opt['dcnn_filter_size'])
+        num_ex_valid = num_batch * batch_size
         bn = {}
 
         log.info('Running validation')
-        batch = 0
-        for _x, _y, _s in BatchIterator(num_ex_valid,
-                                        batch_size=batch_size,
-                                        get_fn=get_batch_valid,
-                                        progress_bar=False):
+
+        for bb in xrange(num_batch):
+            _x, _y, _s = batch_iter.next()
             results_list = [m['loss'], m['conf_loss'], m['segm_loss'],
                             m['box_loss'], m['iou_soft'], m['iou_hard'],
                             m['count_acc'], m['dice'], m['dic'],
                             m['dic_abs']]
-    
+
             offset = len(results_list)
 
             for _layer, _num in zip(['ctrl_cnn', 'attn_cnn', 'dcnn'],
@@ -1055,7 +1059,7 @@ if __name__ == '__main__':
                                    m['y_gt']: _y,
                                    m['s_gt']: _s
                                })
-            
+
             _loss = results[0]
             _conf_loss = results[1]
             _segm_loss = results[2]
@@ -1172,7 +1176,7 @@ if __name__ == '__main__':
                                m['y_gt']: y,
                                m['s_gt']: s
                            })
-      
+
         # Print statistics
         if step % train_opt['steps_per_log'] == 0:
             loss = results[0]
@@ -1285,6 +1289,12 @@ if __name__ == '__main__':
 
     def train_loop(step=0):
         """Train loop"""
+        valid_batch_iter = BatchIterator(num_ex_valid,
+                                         batch_size=batch_size,
+                                         get_fn=get_batch_valid,
+                                         cycle=True,
+                                         progress_bar=False)
+
         for x_bat, y_bat, s_bat in BatchIterator(num_ex_train,
                                                  batch_size=batch_size,
                                                  get_fn=get_batch_train,
@@ -1292,7 +1302,7 @@ if __name__ == '__main__':
                                                  progress_bar=False):
             # Run validation
             if step % train_opt['steps_per_valid'] == 0:
-                run_validation(step)
+                run_validation(step, num_valid_batch, valid_batch_iter)
                 pass
 
             if step % train_opt['steps_per_plot'] == 0:
