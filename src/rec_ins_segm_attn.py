@@ -343,10 +343,12 @@ def _parse_args():
 
     kAttnSize = 48
 
-    kCtrlCnnFilterSize = [3, 3, 3, 3, 3]
-    kCtrlCnnDepth = [4, 8, 8, 12, 16]
-    kAttnCnnFilterSize = [3, 3, 3]
-    kAttnCnnDepth = [4, 8, 16]
+    kCtrlCnnFilterSize = '3,3,3,3,3'
+    kCtrlCnnDepth = '4,8,8,12,16'
+    kCtrlCnnPool = '2,2,2,2,2'
+    kAttnCnnFilterSize = '3,3,3'
+    kAttnCnnDepth = '4,8,16'
+    kAttnCnnPool = '2,2,2'
 
     kCtrlMlpDim = 256
     kNumCtrlMlpLayers = 1
@@ -358,8 +360,9 @@ def _parse_args():
     kAttnMlpDepth = 6
 
     kMlpDropout = 0.5
-    kDcnnFilterSize = [3, 3, 3, 3]
-    kDcnnDepth = [1, 4, 8, 16]
+    kDcnnFilterSize = '3,3,3,3'
+    kDcnnDepth = '16,8,4,1'
+    kDcnnPool = '2,2,2,1'
 
     kAttnBoxPaddingRatio = 0.2
 
@@ -412,36 +415,28 @@ def _parse_args():
                         help='Steps every learning rate decay')
     parser.add_argument('-loss_mix_ratio', default=kLossMixRatio, type=float,
                         help='Mix ratio between segmentation and score loss')
-    parser.add_argument('-num_ctrl_conv', default=kNumCtrlConv, type=int,
-                        help='Number of controller convolutional layers')
-    parser.add_argument('-num_attn_conv', default=kNumAttnConv, type=int,
-                        help='Number of attention convolutional layers')
+
     parser.add_argument('-attn_size', default=kAttnSize, type=int,
                         help='Attention size')
 
-    for ii in xrange(len(kCtrlCnnFilterSize)):
-        parser.add_argument('-ctrl_cnn_{}_filter_size'.format(ii + 1),
-                            default=kCtrlCnnFilterSize[ii], type=int,
-                            help='Controller CNN layer {} filter size'.format(ii + 1))
-        parser.add_argument('-ctrl_cnn_{}_depth'.format(ii + 1),
-                            default=kCtrlCnnDepth[ii], type=int,
-                            help='Controller CNN layer {} depth'.format(ii + 1))
-
-    for ii in xrange(len(kAttnCnnFilterSize)):
-        parser.add_argument('-attn_cnn_{}_filter_size'.format(ii + 1),
-                            default=kAttnCnnFilterSize[ii], type=int,
-                            help='Attention CNN layer {} filter size'.format(ii + 1))
-        parser.add_argument('-attn_cnn_{}_depth'.format(ii + 1),
-                            default=kAttnCnnDepth[ii], type=int,
-                            help='Attention CNN layer {} depth'.format(ii + 1))
-
-    for ii in xrange(len(kDcnnFilterSize)):
-        parser.add_argument('-dcnn_{}_filter_size'.format(ii),
-                            default=kDcnnFilterSize[ii], type=int,
-                            help='DCNN layer {} filter size'.format(ii))
-        parser.add_argument('-dcnn_{}_depth'.format(ii),
-                            default=kDcnnDepth[ii], type=int,
-                            help='DCNN layer {} depth'.format(ii))
+    parser.add_argument('-ctrl_cnn_filter_size', default=kCtrlCnnFilterSize,
+                        help='Comma delimited integers')
+    parser.add_argument('-ctrl_cnn_depth', default=kCtrlCnnDepth,
+                        help='Comma delimited integers')
+    parser.add_argument('-ctrl_cnn_pool', default=kCtrlCnnPool,
+                        help='Comma delimited integers')
+    parser.add_argument('-attn_cnn_filter_size', default=kAttnCnnFilterSize,
+                        help='Comma delimited integers')
+    parser.add_argument('-attn_cnn_depth', default=kAttnCnnDepth,
+                        help='Comma delimited integers')
+    parser.add_argument('-attn_cnn_pool', default=kAttnCnnPool,
+                        help='Comma delimited integers')
+    parser.add_argument('-dcnn_filter_size', default=kDcnnFilterSize,
+                        help='Comma delimited integers')
+    parser.add_argument('-dcnn_depth', default=kDcnnDepth,
+                        help='Comma delimited integers')
+    parser.add_argument('-dcnn_pool', default=kDcnnPool,
+                        help='Comma delimited integers')
 
     parser.add_argument('-ctrl_rnn_hid_dim', default=kCtrlRnnHiddenDim,
                         type=int, help='RNN hidden dimension')
@@ -472,11 +467,6 @@ def _parse_args():
     parser.add_argument('-attn_box_padding_ratio',
                         default=kAttnBoxPaddingRatio, type=float,
                         help='Padding ratio of attention box')
-    parser.add_argument('-steps_per_box_loss_coeff_decay',
-                        default=kStepsPerBoxLossCoeffDecay, type=int,
-                        help='Number of steps to decay box loss coefficient.')
-    parser.add_argument('-box_loss_coeff_decay', default=kBoxLossCoeffDecay,
-                        type=float, help='Box loss coefficient decay factor.')
     parser.add_argument('-use_attn_rnn', action='store_true',
                         help='Whether to use an inner RNN.')
     parser.add_argument('-use_canvas', action='store_true',
@@ -523,6 +513,10 @@ def _parse_args():
                         help='Number of samples to plot')
     parser.add_argument('-save_ckpt', action='store_true',
                         help='Whether to store checkpoints')
+    parser.add_argument('-debug_bn', action='store_true',
+                        help='Write out logs on batch normalization')
+    parser.add_argument('-debug_act', action='store_true',
+                        help='Write out logs on conv layer activation')
 
     args = parser.parse_args()
 
@@ -556,32 +550,26 @@ if __name__ == '__main__':
     else:
         model_id = get_model_id('rec_ins_segm')
 
-        ctrl_cnn_filter_size_all = [args.ctrl_cnn_1_filter_size,
-                                    args.ctrl_cnn_2_filter_size,
-                                    args.ctrl_cnn_3_filter_size,
-                                    args.ctrl_cnn_4_filter_size,
-                                    args.ctrl_cnn_5_filter_size]
-        ctrl_cnn_depth_all = [args.ctrl_cnn_1_depth,
-                              args.ctrl_cnn_2_depth,
-                              args.ctrl_cnn_3_depth,
-                              args.ctrl_cnn_4_depth,
-                              args.ctrl_cnn_5_depth]
+        ccnn_fsize_list = args.ctrl_cnn_filter_size.split(',')
+        ccnn_fsize_list = [int(fsize) for fsize in ccnn_fsize_list]
+        ccnn_depth_list = args.ctrl_cnn_depth.split(',')
+        ccnn_depth_list = [int(depth) for depth in ccnn_depth_list]
+        ccnn_pool_list = args.ctrl_cnn_pool.split(',')
+        ccnn_pool_list = [int(pool) for pool in ccnn_pool_list]
 
-        attn_cnn_filter_size_all = [args.attn_cnn_1_filter_size,
-                                    args.attn_cnn_2_filter_size,
-                                    args.attn_cnn_3_filter_size]
-        attn_cnn_depth_all = [args.attn_cnn_1_depth,
-                              args.attn_cnn_2_depth,
-                              args.attn_cnn_3_depth]
+        acnn_fsize_list = args.attn_cnn_filter_size.split(',')
+        acnn_fsize_list = [int(fsize) for fsize in acnn_fsize_list]
+        acnn_depth_list = args.attn_cnn_depth.split(',')
+        acnn_depth_list = [int(depth) for depth in acnn_depth_list]
+        acnn_pool_list = args.attn_cnn_pool.split(',')
+        acnn_pool_list = [int(pool) for pool in acnn_pool_list]
 
-        dcnn_filter_size_all = [args.dcnn_0_filter_size,
-                                args.dcnn_1_filter_size,
-                                args.dcnn_2_filter_size,
-                                args.dcnn_3_filter_size]
-        dcnn_depth_all = [args.dcnn_0_depth,
-                          args.dcnn_1_depth,
-                          args.dcnn_2_depth,
-                          args.dcnn_3_depth]
+        dcnn_fsize_list = args.dcnn_filter_size.split(',')
+        dcnn_fsize_list = [int(fsize) for fsize in dcnn_fsize_list]
+        dcnn_depth_list = args.dcnn_depth.split(',')
+        dcnn_depth_list = [int(depth) for depth in dcnn_depth_list]
+        dcnn_pool_list = args.dcnn_pool.split(',')
+        dcnn_pool_list = [int(pool) for pool in dcnn_pool_list]
 
         if args.dataset == 'synth_shape':
             timespan = args.max_num_objects + 1
@@ -624,17 +612,21 @@ if __name__ == '__main__':
             'attn_size': args.attn_size,
             'timespan': timespan,
 
-            'ctrl_cnn_filter_size': ctrl_cnn_filter_size_all[: args.num_ctrl_conv],
-            'ctrl_cnn_depth': ctrl_cnn_depth_all[: args.num_ctrl_conv],
+            'ctrl_cnn_filter_size': ccnn_fsize_list,
+            'ctrl_cnn_depth': ccnn_depth_list,
+            'ctrl_cnn_pool': ccnn_pool_list,
+
             'ctrl_rnn_hid_dim': args.ctrl_rnn_hid_dim,
 
-            'attn_cnn_filter_size': attn_cnn_filter_size_all[: args.num_attn_conv],
-            'attn_cnn_depth': attn_cnn_depth_all[: args.num_attn_conv],
+            'attn_cnn_filter_size': acnn_fsize_list,
+            'attn_cnn_depth': acnn_depth_list,
+            'attn_cnn_pool': acnn_pool_list,
 
             'attn_rnn_hid_dim': args.attn_rnn_hid_dim,
 
-            'dcnn_filter_size': dcnn_filter_size_all[: args.num_attn_conv + 1][::-1],
-            'dcnn_depth': dcnn_depth_all[: args.num_attn_conv + 1][::-1],
+            'dcnn_filter_size': dcnn_fsize_list,
+            'dcnn_depth': dcnn_depth_list,
+            'dcnn_pool': dcnn_pool_list,
 
             'num_ctrl_mlp_layers': args.num_ctrl_mlp_layers,
             'ctrl_mlp_dim': args.ctrl_mlp_dim,
@@ -655,8 +647,6 @@ if __name__ == '__main__':
             'use_bn': args.use_bn,
             'use_gt_attn': args.use_gt_attn,
             'attn_box_padding_ratio': args.attn_box_padding_ratio,
-            'box_loss_coeff_decay': args.box_loss_coeff_decay,
-            'steps_per_box_loss_coeff_decay': args.steps_per_box_loss_coeff_decay,
             'use_attn_rnn': args.use_attn_rnn,
             'use_canvas': args.use_canvas,
             'use_knob': args.use_knob,
@@ -715,7 +705,9 @@ if __name__ == '__main__':
         'steps_per_ckpt': args.steps_per_ckpt,
         'steps_per_valid': args.steps_per_valid,
         'steps_per_plot': args.steps_per_plot,
-        'steps_per_log': args.steps_per_log
+        'steps_per_log': args.steps_per_log,
+        'debug_bn': args.debug_bn,
+        'debug_act': args.debug_act
     }
 
     log.info('Building model')
@@ -785,11 +777,6 @@ if __name__ == '__main__':
             ['train', 'valid'],
             name='Count acc',
             buffer_size=1)
-        box_loss_coeff_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'box_loss_coeff.csv'),
-            'box loss coeff',
-            name='Box Loss Coeff',
-            buffer_size=1)
         step_time_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
             name='Step time',
@@ -815,23 +802,26 @@ if __name__ == '__main__':
         num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
         num_dcnn = len(model_opt['dcnn_filter_size'])
 
-        bn_loggers = {}
-        for sname, fname, num_layers in zip(
-                ['ccnn', 'acnn', 'dcnn'],
-                ['Ctrl CNN', 'Attn CNN', 'D-CNN'],
-                [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-            for ii in xrange(num_layers):
-                for tt in xrange(model_opt['timespan']):
-                    _bn_logger = TimeSeriesLogger(
-                        os.path.join(logs_folder,
-                                     '{}_{}_bn_{}.csv'.format(sname, ii, tt)),
-                        ['train batch mean', 'valid batch mean',
-                         'train batch var', 'valid batch var', 'ema mean',
-                         'ema var'],
-                        name='{} {} time {} batch norm stats'.format(
-                            fname, ii, tt),
-                        buffer_size=1)
-                    bn_loggers['{}_{}_{}'.format(sname, ii, tt)] = _bn_logger
+        if args.debug_bn:
+            bn_loggers = {}
+            for sname, fname, num_layers in zip(
+                    ['ccnn', 'acnn', 'dcnn'],
+                    ['Ctrl CNN', 'Attn CNN', 'D-CNN'],
+                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                for ii in xrange(num_layers):
+                    for tt in xrange(model_opt['timespan']):
+                        _bn_logger = TimeSeriesLogger(
+                            os.path.join(
+                                logs_folder,
+                                '{}_{}_bn_{}.csv'.format(sname, ii, tt)),
+                            ['train batch mean', 'valid batch mean',
+                             'train batch var', 'valid batch var', 'ema mean',
+                             'ema var'],
+                            name='{} {} time {} batch norm stats'.format(
+                                fname, ii, tt),
+                            buffer_size=1)
+                        bn_loggers[
+                            '{}_{}_{}'.format(sname, ii, tt)] = _bn_logger
 
         acnn_weights_labels = []
         for ii in xrange(num_attn_cnn):
@@ -866,10 +856,12 @@ if __name__ == '__main__':
         samples = {}
         for _set in ['train', 'valid']:
             labels = ['input', 'output', 'total', 'box', 'patch']
-            for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
-                                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-                for ii in xrange(_num):
-                    labels.append('{}_{}'.format(_layer, ii))
+            if args.debug_act:
+                for _layer, _num in zip(
+                        ['ccnn', 'acnn', 'dcnn'],
+                        [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                    for ii in xrange(_num):
+                        labels.append('{}_{}'.format(_layer, ii))
             for name in labels:
                 key = '{}_{}'.format(name, _set)
                 samples[key] = LazyRegisterer(
@@ -982,6 +974,8 @@ if __name__ == '__main__':
                     plot_thumbnails(fname_dcnn[ii], h_dcnn[ii][:, 0], axis=3,
                                     max_items_per_row=8)
 
+            pass
+
         if args.logs:
             # Plot some samples.
             for _set in ['valid', 'train']:
@@ -991,6 +985,18 @@ if __name__ == '__main__':
                 log.info('Plotting {} samples'.format(_set))
                 _x, _y, _s = _get_batch(
                     np.arange(min(_num_ex, args.num_samples_plot)))
+
+                if args.debug_act:
+                    fname_ccnn = [samples['ccnn_{}_{}'.format(
+                        ii, _set)].get_fname() for ii in xrange(num_ctrl_cnn)]
+                    fname_acnn = [samples['acnn_{}_{}'.format(
+                        ii, _set)].get_fname() for ii in xrange(num_attn_cnn)]
+                    fname_dcnn = [samples['dcnn_{}_{}'.format(
+                        ii, _set)].get_fname() for ii in xrange(num_dcnn)]
+                else:
+                    fname_ccnn = None
+                    fname_acnn = None
+                    fname_dcnn = None
                 _run_samples(
                     _x, _y, _s, _is_train,
                     fname_input=samples['input_{}'.format(_set)].get_fname(),
@@ -998,21 +1004,21 @@ if __name__ == '__main__':
                     fname_total=samples['total_{}'.format(_set)].get_fname(),
                     fname_box=samples['box_{}'.format(_set)].get_fname(),
                     fname_patch=samples['patch_{}'.format(_set)].get_fname(),
-                    fname_ccnn=[samples['ccnn_{}_{}'.format(
-                        ii, _set)].get_fname() for ii in xrange(num_ctrl_cnn)],
-                    fname_acnn=[samples['acnn_{}_{}'.format(
-                        ii, _set)].get_fname() for ii in xrange(num_attn_cnn)],
-                    fname_dcnn=[samples['dcnn_{}_{}'.format(
-                        ii, _set)].get_fname() for ii in xrange(num_dcnn)])
+                    fname_ccnn=fname_ccnn,
+                    fname_acnn=fname_acnn,
+                    fname_dcnn=fname_dcnn)
 
                 if not samples['output_{}'.format(_set)].is_registered():
                     for _name in ['input', 'output', 'total', 'box', 'patch']:
                         samples['{}_{}'.format(_name, _set)].register()
-                    for _name, _num in zip(
-                            ['ccnn', 'acnn', 'dcnn'],
-                            [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-                        [samples['{}_{}_{}'.format(_name, ii, _set)].register()
-                         for ii in xrange(_num)]
+
+                    if args.debug_act:
+                        for _name, _num in zip(
+                                ['ccnn', 'acnn', 'dcnn'],
+                                [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                            [samples[
+                                '{}_{}_{}'.format(_name, ii, _set)].register()
+                                for ii in xrange(_num)]
         pass
 
     def run_validation(step, num_batch, batch_iter):
@@ -1044,13 +1050,16 @@ if __name__ == '__main__':
 
             offset = len(results_list)
 
-            for _layer, _num in zip(['ctrl_cnn', 'attn_cnn', 'dcnn'],
-                                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-                for ii in xrange(_num):
-                    for tt in xrange(timespan):
-                        for _stat in ['bm', 'bv', 'em', 'ev']:
-                            results_list.append(
-                                m['{}_{}_{}_{}'.format(_layer, ii, _stat, tt)])
+            if train_opt['debug_bn']:
+                for _layer, _num in zip(
+                        ['ctrl_cnn', 'attn_cnn', 'dcnn'],
+                        [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                    for ii in xrange(_num):
+                        for tt in xrange(timespan):
+                            for _stat in ['bm', 'bv', 'em', 'ev']:
+                                results_list.append(
+                                    m['{}_{}_{}_{}'.format(
+                                        _layer, ii, _stat, tt)])
 
             results = sess.run(results_list,
                                feed_dict={
@@ -1059,7 +1068,7 @@ if __name__ == '__main__':
                                    m['y_gt']: _y,
                                    m['s_gt']: _s
                                })
-
+            
             _loss = results[0]
             _conf_loss = results[1]
             _segm_loss = results[2]
@@ -1074,20 +1083,23 @@ if __name__ == '__main__':
 
             num_ex_batch = _x.shape[0]
 
-            # Batch normalization stats.
-            for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
-                                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-                for ii in xrange(_num):
-                    for tt in xrange(timespan):
-                        for _stat in ['bm', 'bv', 'em', 'ev']:
-                            key = '{}_{}_{}_{}'.format(_layer, ii, _stat, tt)
-                            delta = results[offset] * num_ex_batch / \
-                                num_ex_valid
-                            if key in bn:
-                                bn[key] += delta
-                            else:
-                                bn[key] = delta
-                            offset += 1
+            if train_opt['debug_bn']:
+                # Batch normalization stats.
+                for _layer, _num in zip(
+                        ['ccnn', 'acnn', 'dcnn'],
+                        [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                    for ii in xrange(_num):
+                        for tt in xrange(timespan):
+                            for _stat in ['bm', 'bv', 'em', 'ev']:
+                                key = '{}_{}_{}_{}'.format(
+                                    _layer, ii, _stat, tt)
+                                delta = results[offset] * num_ex_batch / \
+                                    num_ex_valid
+                                if key in bn:
+                                    bn[key] += delta
+                                else:
+                                    bn[key] = delta
+                                offset += 1
 
             loss += _loss * num_ex_batch / num_ex_valid
             conf_loss += _conf_loss * num_ex_batch / num_ex_valid
@@ -1117,15 +1129,17 @@ if __name__ == '__main__':
             dic_abs_logger.add(step, ['', dic_abs])
 
             # Batch normalization stats.
-            for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
-                                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-                for ii in xrange(_num):
-                    for tt in xrange(timespan):
-                        _prefix = '{}_{}_{{}}_{}'.format(_layer, ii, tt)
-                        _output = ['', bn[_prefix.format('bm')],
-                                   '', bn[_prefix.format('bv')], '', '']
-                        bn_loggers['{}_{}_{}'.format(
-                            _layer, ii, tt)].add(step, _output)
+            if train_opt['debug_bn']:
+                for _layer, _num in zip(
+                        ['ccnn', 'acnn', 'dcnn'],
+                        [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                    for ii in xrange(_num):
+                        for tt in xrange(timespan):
+                            _prefix = '{}_{}_{{}}_{}'.format(_layer, ii, tt)
+                            _output = ['', bn[_prefix.format('bm')],
+                                       '', bn[_prefix.format('bv')], '', '']
+                            bn_loggers['{}_{}_{}'.format(
+                                _layer, ii, tt)].add(step, _output)
 
         pass
 
@@ -1143,9 +1157,9 @@ if __name__ == '__main__':
         results_list = [m['loss'], m['conf_loss'], m['segm_loss'], m['box_loss'],
                         m['iou_soft'], m['iou_hard'], m['learn_rate'],
                         m['crnn_g_i_avg'], m['crnn_g_f_avg'], m['crnn_g_o_avg'],
-                        m['box_loss_coeff'], m['count_acc'],
-                        m['gt_knob_prob_box'], m['gt_knob_prob_segm'],
-                        m['dice'], m['dic'], m['dic_abs'], m['attn_lg_gamma'],
+                        m['count_acc'], m['gt_knob_prob_box'], 
+                        m['gt_knob_prob_segm'], m['dice'], m['dic'], 
+                        m['dic_abs'], m['attn_lg_gamma'],
                         m['attn_lg_var'], m['attn_box_lg_gamma'],
                         m['y_out_lg_gamma'], m['attn_box_beta'],
                         m['y_out_beta']]
@@ -1189,30 +1203,31 @@ if __name__ == '__main__':
             crnn_g_i_avg = results[7]
             crnn_g_f_avg = results[8]
             crnn_g_o_avg = results[9]
-            box_loss_coeff = results[10]
-            count_acc = results[11]
-            gt_knob_box = results[12]
-            gt_knob_segm = results[13]
-            dice = results[14]
-            dic = results[15]
-            dic_abs = results[16]
-            attn_lg_gamma = results[17]
-            attn_lg_var = results[18]
-            attn_box_lg_gamma = results[19]
-            y_out_lg_gamma = results[20]
-            attn_box_beta = results[21]
-            y_out_beta = results[22]
+            count_acc = results[10]
+            gt_knob_box = results[11]
+            gt_knob_segm = results[12]
+            dice = results[13]
+            dic = results[14]
+            dic_abs = results[15]
+            attn_lg_gamma = results[16]
+            attn_lg_var = results[17]
+            attn_box_lg_gamma = results[18]
+            y_out_lg_gamma = results[19]
+            attn_box_beta = results[20]
+            y_out_beta = results[21]
 
             # Batch normalization stats.
-            bn = {}
-            for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
-                                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-                for ii in xrange(_num):
-                    for tt in xrange(timespan):
-                        for _stat in ['bm', 'bv', 'em', 'ev']:
-                            bn['{}_{}_{}_{}'.format(_layer, ii, _stat, tt)] = \
-                                results[offset]
-                            offset += 1
+            if train_opt['debug_bn']:
+                bn = {}
+                for _layer, _num in zip(
+                        ['ccnn', 'acnn', 'dcnn'],
+                        [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                    for ii in xrange(_num):
+                        for tt in xrange(timespan):
+                            for _stat in ['bm', 'bv', 'em', 'ev']:
+                                bn['{}_{}_{}_{}'.format(
+                                    _layer, ii, _stat, tt)] = results[offset]
+                                offset += 1
 
             for ii in xrange(num_attn_cnn):
                 attn_cnn_weights_m[ii] = results[offset]
@@ -1248,24 +1263,26 @@ if __name__ == '__main__':
                 dic_logger.add(step, [dic, ''])
                 dic_abs_logger.add(step, [dic_abs, ''])
                 learn_rate_logger.add(step, learn_rate)
-                box_loss_coeff_logger.add(step, box_loss_coeff)
                 step_time_logger.add(step, step_time)
                 crnn_logger.add(
                     step, [crnn_g_i_avg, crnn_g_f_avg, crnn_g_o_avg])
                 gt_knob_logger.add(step, [gt_knob_box, gt_knob_segm])
 
                 # Batch normalization stats.
-                for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
-                                        [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-                    for ii in xrange(_num):
-                        for tt in xrange(timespan):
-                            _prefix = '{}_{}_{{}}_{}'.format(_layer, ii, tt)
-                            _output = [bn[_prefix.format('bm')], '',
-                                       bn[_prefix.format('bv')], '',
-                                       bn[_prefix.format('em')],
-                                       bn[_prefix.format('ev')]]
-                            bn_loggers['{}_{}_{}'.format(
-                                _layer, ii, tt)].add(step, _output)
+                if train_opt['debug_bn']:
+                    for _layer, _num in zip(
+                            ['ccnn', 'acnn', 'dcnn'],
+                            [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                        for ii in xrange(_num):
+                            for tt in xrange(timespan):
+                                _prefix = '{}_{}_{{}}_{}'.format(
+                                    _layer, ii, tt)
+                                _output = [bn[_prefix.format('bm')], '',
+                                           bn[_prefix.format('bv')], '',
+                                           bn[_prefix.format('em')],
+                                           bn[_prefix.format('ev')]]
+                                bn_loggers['{}_{}_{}'.format(
+                                    _layer, ii, tt)].add(step, _output)
 
                 # Attn parameters
                 attn_params_logger.add(

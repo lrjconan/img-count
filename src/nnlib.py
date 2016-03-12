@@ -162,6 +162,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
     log.info('CNN: {}'.format(scope))
     log.info('Channels: {}'.format(ch))
     log.info('Activation: {}'.format(act))
+    log.info('Pool: {}'.format(pool))
     log.info('BN: {}'.format(use_bn))
 
     with tf.variable_scope(scope):
@@ -243,9 +244,9 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
     log.info('DCNN: {}'.format(scope))
     log.info('Channels: {}'.format(ch))
     log.info('Activation: {}'.format(act))
+    log.info('Unpool: {}'.format(pool))
     log.info('Skip channels: {}'.format(skip_ch))
     log.info('BN: {}'.format(use_bn))
-    # phase_train = tf.constant(True)
 
     in_ch = ch[0]
 
@@ -260,8 +261,6 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
             log.info('Filter: {}'.format([f[ii], f[ii], out_ch, in_ch]))
             w[ii] = weight_variable([f[ii], f[ii], out_ch, in_ch], wd=wd)
             b[ii] = weight_variable([out_ch])
-            # if use_bn[ii]:
-            # bn[ii] = batch_norm(out_ch)
             in_ch = out_ch
 
     copy = [0]
@@ -303,7 +302,6 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
                 strides=[1, pool[ii], pool[ii], 1]) + b[ii]
 
             if use_bn[ii]:
-                # h[ii], bm, bv, em, ev = bn[ii](h[ii], phase_train)
                 h[ii], bm, bv, em, ev = batch_norm(h[ii], out_ch, phase_train)
 
                 if model:

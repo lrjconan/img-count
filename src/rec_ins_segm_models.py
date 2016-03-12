@@ -866,6 +866,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
     ctrl_cnn_filter_size = opt['ctrl_cnn_filter_size']
     ctrl_cnn_depth = opt['ctrl_cnn_depth']
+    ctrl_cnn_pool = opt['ctrl_cnn_pool']
     ctrl_rnn_hid_dim = opt['ctrl_rnn_hid_dim']
 
     num_ctrl_mlp_layers = opt['num_ctrl_mlp_layers']
@@ -873,8 +874,10 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
     attn_cnn_filter_size = opt['attn_cnn_filter_size']
     attn_cnn_depth = opt['attn_cnn_depth']
+    attn_cnn_pool = opt['attn_cnn_pool']
     dcnn_filter_size = opt['dcnn_filter_size']
     dcnn_depth = opt['dcnn_depth']
+    dcnn_pool = opt['dcnn_pool']
     attn_rnn_hid_dim = opt['attn_rnn_hid_dim']
 
     mlp_dropout_ratio = opt['mlp_dropout']
@@ -892,8 +895,6 @@ def get_attn_model_2(opt, device='/cpu:0'):
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
     steps_per_learn_rate_decay = opt['steps_per_learn_rate_decay']
-    steps_per_box_loss_coeff_decay = opt['steps_per_box_loss_coeff_decay']
-    box_loss_coeff_decay = opt['box_loss_coeff_decay']
     use_attn_rnn = opt['use_attn_rnn']
     use_knob = opt['use_knob']
     knob_base = opt['knob_base']
@@ -941,7 +942,6 @@ def get_attn_model_2(opt, device='/cpu:0'):
         if use_canvas:
             canvas = tf.zeros(tf.pack([num_ex, inp_height, inp_width, 1]))
             ccnn_inp_depth = inp_depth + 1
-            # ccnn_inp_depth = inp_depth
             acnn_inp_depth = inp_depth + 1
         else:
             ccnn_inp_depth = inp_depth
@@ -951,7 +951,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         ccnn_filters = ctrl_cnn_filter_size
         ccnn_nlayers = len(ccnn_filters)
         ccnn_channels = [ccnn_inp_depth] + ctrl_cnn_depth
-        ccnn_pool = [2] * ccnn_nlayers
+        ccnn_pool = ctrl_cnn_pool
         ccnn_act = [tf.nn.relu] * ccnn_nlayers
         ccnn_use_bn = [use_bn] * ccnn_nlayers
         ccnn = nn.cnn(ccnn_filters, ccnn_channels, ccnn_pool, ccnn_act,
@@ -977,8 +977,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
         cmlp_dims = [crnn_dim] + [ctrl_mlp_dim] * \
             (num_ctrl_mlp_layers - 1) + [9]
         cmlp_act = [tf.nn.relu] * (num_ctrl_mlp_layers - 1) + [None]
-        cmlp_dropout = None
-        # cmlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
+        # cmlp_dropout = None
+        cmlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
         cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=False,
                       dropout_keep=cmlp_dropout,
                       phase_train=phase_train, wd=wd, scope='ctrl_mlp')
@@ -1021,7 +1021,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         acnn_filters = attn_cnn_filter_size
         acnn_nlayers = len(acnn_filters)
         acnn_channels = [acnn_inp_depth] + attn_cnn_depth
-        acnn_pool = [2] * acnn_nlayers
+        acnn_pool = attn_cnn_pool
         acnn_act = [tf.nn.relu] * acnn_nlayers
         acnn_use_bn = [use_bn] * acnn_nlayers
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
@@ -1064,7 +1064,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # DCNN [B, RH, RW, MD] => [B, A, A, 1]
         dcnn_filters = dcnn_filter_size
         dcnn_nlayers = len(dcnn_filters)
-        dcnn_unpool = [2] * (dcnn_nlayers - 1) + [1]
+        dcnn_unpool = dcnn_pool
         dcnn_act = [tf.nn.relu] * dcnn_nlayers
         dcnn_channels = [attn_mlp_depth] + dcnn_depth
         dcnn_use_bn = [use_bn] * dcnn_nlayers
@@ -1084,7 +1084,6 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # attn_box_beta = nn.weight_variable([1])
 
         # Knob
-        # Cumulative greedy match
         # [B, N]
         grd_match_cum = tf.zeros(tf.pack([num_ex, timespan]))
         # Add a bias on every entry so there is no duplicate match
@@ -1101,8 +1100,6 @@ def get_attn_model_2(opt, device='/cpu:0'):
         else:
             gt_knob_time_scale = tf.ones([1, timespan, 1])
         global_step_box = tf.maximum(0.0, global_step - knob_box_offset)
-        # gt_knob_prob_box = tf.maximum(
-        # 0.0, 1 - (1 - knob_decay) / steps_per_knob_decay * global_step_box)
         gt_knob_prob_box = tf.train.exponential_decay(
             knob_base, global_step_box, steps_per_knob_decay, knob_decay,
             staircase=False)
@@ -1114,8 +1111,6 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
         # Knob for mix in groundtruth segmentation.
         global_step_segm = tf.maximum(0.0, global_step - knob_segm_offset)
-        # gt_knob_prob_segm = tf.maximum(
-        # 0.0, 1 - (1 - knob_decay) / steps_per_knob_decay * global_step_segm)
         gt_knob_prob_segm = tf.train.exponential_decay(
             knob_base, global_step_segm, steps_per_knob_decay, knob_decay,
             staircase=False)
@@ -1192,7 +1187,6 @@ def get_attn_model_2(opt, device='/cpu:0'):
             attn_box[tt] = _extract_patch(const_ones * attn_box_lg_gamma[tt],
                                           filter_y_inv, filter_x_inv, 1)
             attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
-            # attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta[tt])
             attn_box[tt] = tf.reshape(
                 attn_box[tt], [-1, 1, inp_height, inp_width])
 
@@ -1289,8 +1283,6 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 if use_knob:
                     _gt_knob_segm = tf.expand_dims(
                         tf.expand_dims(gt_knob_segm[:, tt, 0: 1], 2), 3)
-                    # _gt_knob_segm = tf.expand_dims(
-                    #     tf.expand_dims(gt_knob_prob_segm[:, tt, 0: 1], 2), 3)
                     # [B, N, 1, 1]
                     grd_match = tf.expand_dims(grd_match, 3)
                     _y_out = tf.expand_dims(tf.reduce_sum(
@@ -1363,9 +1355,13 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
         # Loss for attnention box
 
-        # iou_soft_box = _f_iou(attn_box, attn_box_gt, timespan, pairwise=True)
-        iou_soft_box = tf.concat(1, [tf.expand_dims(attn_iou_soft[tt], 1)
-                                     for tt in xrange(timespan)])
+        if use_knob:
+            iou_soft_box = tf.concat(1, [tf.expand_dims(attn_iou_soft[tt], 1)
+                                         for tt in xrange(timespan)])
+        else:
+            iou_soft_box = _f_iou(attn_box, attn_box_gt,
+                                  timespan, pairwise=True)
+            
         model['iou_soft_box'] = iou_soft_box
         model['attn_box_gt'] = attn_box_gt
         match_box = _segm_match(iou_soft_box, s_gt)
@@ -1376,7 +1372,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         match_count_box = tf.maximum(1.0, match_count_box)
         if box_loss_fn == 'iou':
             iou_soft_box = tf.reduce_sum(tf.reduce_sum(
-                iou_soft_box * match_box, reduction_indices=[1, 2]) 
+                iou_soft_box * match_box, reduction_indices=[1, 2])
                 / match_count_box) / num_ex
             box_loss = -iou_soft_box
         elif box_loss_fn == 'bce':
@@ -1385,11 +1381,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
             raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
         model['box_loss'] = box_loss
 
-        # box_loss_coeff = tf.train.exponential_decay(
-        #     1.0, global_step, steps_per_box_loss_coeff_decay,
-        #     box_loss_coeff_decay, staircase=True)
         box_loss_coeff = tf.constant(1.0)
-        model['box_loss_coeff'] = box_loss_coeff
         tf.add_to_collection('losses', box_loss_coeff * box_loss)
 
         # Loss for fine segmentation
@@ -1416,8 +1408,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         else:
             raise Exception('Unknown segm_loss_fn: {}'.format(segm_loss_fn))
         model['segm_loss'] = segm_loss
-        # segm_loss_coeff = 1.0 - box_loss_coeff
-        segm_loss_coeff = 1.0
+        segm_loss_coeff = tf.constant(1.0)
         tf.add_to_collection('losses', segm_loss_coeff * segm_loss)
 
         # Score loss
@@ -1535,8 +1526,6 @@ def get_attn_model(opt, device='/cpu:0'):
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
     steps_per_learn_rate_decay = opt['steps_per_learn_rate_decay']
-    steps_per_box_loss_coeff_decay = opt['steps_per_box_loss_coeff_decay']
-    box_loss_coeff_decay = opt['box_loss_coeff_decay']
     use_attn_rnn = opt['use_attn_rnn']
 
     rnd_hflip = opt['rnd_hflip']
@@ -1882,11 +1871,7 @@ def get_attn_model(opt, device='/cpu:0'):
             raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
         model['box_loss'] = box_loss
 
-        # box_loss_coeff = tf.train.exponential_decay(
-        #     1.0, global_step, steps_per_box_loss_coeff_decay,
-        #     box_loss_coeff_decay, staircase=True)
         box_loss_coeff = tf.constant(1.0)
-        model['box_loss_coeff'] = box_loss_coeff
         tf.add_to_collection('losses', box_loss_coeff * box_loss)
 
         # Loss for fine segmentation
@@ -1912,8 +1897,7 @@ def get_attn_model(opt, device='/cpu:0'):
         else:
             raise Exception('Unknown segm_loss_fn: {}'.format(segm_loss_fn))
         model['segm_loss'] = segm_loss
-        # segm_loss_coeff = 1.0 - box_loss_coeff
-        segm_loss_coeff = 1.0
+        segm_loss_coeff = tf.constant(1.0)
         tf.add_to_collection('losses', segm_loss_coeff * segm_loss)
 
         # Score loss
