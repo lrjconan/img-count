@@ -1364,7 +1364,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # Loss for attnention box
 
         # iou_soft_box = _f_iou(attn_box, attn_box_gt, timespan, pairwise=True)
-        iou_soft_box = tf.concat(1, [tf.expand(attn_iou_soft[tt], 1)
+        iou_soft_box = tf.concat(1, [tf.expand_dims(attn_iou_soft[tt], 1)
                                      for tt in xrange(timespan)])
         model['attn_box_gt'] = attn_box_gt
         match_box = _segm_match(iou_soft_box, s_gt)
