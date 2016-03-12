@@ -47,9 +47,14 @@ def get_dataset(folder, opt, split='train'):
     if num_ex == -1:
         num_ex = len(img_ids)
 
+    # Shuffle sequence.
+    random = np.random.RandomState(2)
+    shuffle = random.shuffle(np.arange(len(img_ids)))
+
     # Read images.
     log.info('Reading {} images'.format(num_ex))
-    for img_id in pb.get_iter(img_ids[: num_ex]):
+    for idx in pb.get(num_ex):
+        img_id = img_ids[shuffle[idx]]
         fname = '{}.png'.format(img_id)
         img_fname = os.path.join(image_folder, fname)
         gt_fname = os.path.join(gt_folder, fname)

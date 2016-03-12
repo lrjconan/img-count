@@ -1201,7 +1201,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 # IOU [B, 1, T]
                 # [B, 1, H, W] * [B, T, H, W] = [B, T]
                 attn_iou_soft[tt] = _inter(attn_box[tt], attn_box_gt) / \
-                    _union(attn_box[tt], attn_box_gt, eps=0)
+                    _union(attn_box[tt], attn_box_gt, eps=1e-5)
                 attn_iou_soft[tt] += iou_bias
                 grd_match = _greedy_match(attn_iou_soft[tt], grd_match_cum)
                 # Let's try not using cumulative match.
