@@ -271,7 +271,7 @@ def get_dataset(dataset_name, opt, num_train=-1, num_valid=-1):
             dataset_folder = '/ais/gobi3/u/mren/data/kitti'
         else:
             dataset_folder = '/home/mren/data/kitti'
-        opt['timespan'] = 18
+        opt['timespan'] = 20
         opt['num_examples'] = num_train
         dataset['train'] = kitti.get_dataset(dataset_folder, opt, split='train')
         opt['num_examples'] = num_valid
@@ -600,7 +600,7 @@ if __name__ == '__main__':
             rnd_transpose = True
             rnd_colour = False
         elif args.dataset == 'kitti':
-            timespan = 18
+            timespan = 20 
             inp_height = 128
             inp_width = 448
             max_items_per_row = 5

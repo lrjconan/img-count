@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 import os
 import re
+import h5py
 
 log = logger.get()
 
@@ -26,6 +27,17 @@ def get_dataset(folder, opt, split='train'):
     """
     Recommended settings: 128 x 448.
     """
+    h5_fname = os.path.join(folder, split + '.h5')
+    if os.path.exists(h5_fname):
+        log.info('Reading dataset from {}'.format(h5_fname))
+        h5f = h5py.File(h5_fname, 'r')
+        dataset = {}
+        for key in h5f.keys():
+            dataset[key] = h5f[key][:]
+            pass
+        
+        return dataset
+
     inp_height = opt['height']
     inp_width = opt['width']
     num_ex = opt['num_examples'] if 'num_examples' in opt else -1
@@ -129,4 +141,19 @@ def get_separate_labels(label_img):
 
 if __name__ == '__main__':
     folder = '/ais/gobi3/u/mren/data/kitti'
-    get_dataset(folder, {'height': 136, 'width': 448, 'num_ex': 100})
+    for split in ['train', 'valid']:
+        dataset = get_dataset(
+                folder, 
+                opt={
+                    'height': 128, 
+                    'width': 448, 
+                    'num_ex': -1, 
+                    'timespan': 20
+                },
+                split=split)
+        h5f = h5py.File(os.path.join(folder, split + '.h5'), 'w')
+        for key in dataset.iterkeys():
+            h5f[key] = dataset[key]
+            pass
+    pass
+
