@@ -309,8 +309,8 @@ def _dic(s_out, s_gt, abs=False):
     return count_diff
 
 
-def _rnd_img_transformation(x, y, padding, phase_train, 
-        rnd_vflip=True, rnd_hflip=True, rnd_transpose=True, rnd_colour=False):
+def _rnd_img_transformation(x, y, padding, phase_train,
+                            rnd_vflip=True, rnd_hflip=True, rnd_transpose=True, rnd_colour=False):
     """
     Perform random crop, flip, transpose, hue, saturation, brightness, contrast.
 
@@ -424,7 +424,8 @@ def _build_skip_conn_attn(cnn_channels, h_cnn_time, x_time, timespan):
 
 # Use region of interest instread of Gaussian filters.
 # def _roi(x, top_left, bot_right, max_height, max_width):
-#     top_left = tf.minimum(max_height, tf.maximum(0, tf.cast(tf.round(top_left), 'int'))
+# top_left = tf.minimum(max_height, tf.maximum(0,
+# tf.cast(tf.round(top_left), 'int'))
 
 
 def get_orig_model(opt, device='/cpu:0'):
@@ -458,7 +459,7 @@ def get_orig_model(opt, device='/cpu:0'):
     num_mlp_layers = opt['num_mlp_layers']
     mlp_dropout_ratio = opt['mlp_dropout']
     segm_loss_fn = opt['segm_loss_fn']
-    
+
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
     rnd_transpose = opt['rnd_transpose']
@@ -488,8 +489,8 @@ def get_orig_model(opt, device='/cpu:0'):
 
         # Random image transformation
         x, y_gt = _rnd_img_transformation(
-            x, y_gt, padding, phase_train,  
-            rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip, 
+            x, y_gt, padding, phase_train,
+            rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip,
             rnd_transpose=rnd_transpose, rnd_colour=rnd_colour)
         model['x_trans'] = x
         model['y_gt_trans'] = y_gt
@@ -902,7 +903,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
     knob_box_offset = opt['knob_box_offset']
     knob_segm_offset = opt['knob_segm_offset']
     knob_use_timescale = opt['knob_use_timescale']
-    
+
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
     rnd_transpose = opt['rnd_transpose']
@@ -930,8 +931,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
         # Random image transformation
         x, y_gt = _rnd_img_transformation(
-            x, y_gt, padding, phase_train,  
-            rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip, 
+            x, y_gt, padding, phase_train,
+            rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip,
             rnd_transpose=rnd_transpose, rnd_colour=rnd_colour)
         model['x_trans'] = x
         model['y_gt_trans'] = y_gt
@@ -1361,7 +1362,10 @@ def get_attn_model_2(opt, device='/cpu:0'):
         max_num_obj = tf.to_float(y_gt_shape[1])
 
         # Loss for attnention box
-        iou_soft_box = _f_iou(attn_box, attn_box_gt, timespan, pairwise=True)
+
+        # iou_soft_box = _f_iou(attn_box, attn_box_gt, timespan, pairwise=True)
+        iou_soft_box = tf.concat(1, [tf.expand(attn_iou_soft[tt], 1)
+                                     for tt in xrange(timespan)])
         model['attn_box_gt'] = attn_box_gt
         match_box = _segm_match(iou_soft_box, s_gt)
         model['match_box'] = match_box
@@ -1555,8 +1559,8 @@ def get_attn_model(opt, device='/cpu:0'):
 
         # Random image transformation
         x, y_gt = _rnd_img_transformation(
-            x, y_gt, padding, phase_train,  
-            rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip, 
+            x, y_gt, padding, phase_train,
+            rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip,
             rnd_transpose=rnd_transpose, rnd_colour=rnd_colour)
         model['x_trans'] = x
         model['y_gt_trans'] = y_gt
