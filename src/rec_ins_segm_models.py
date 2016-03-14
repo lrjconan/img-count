@@ -153,6 +153,58 @@ def _f_iou(a, b, timespan, pairwise=False):
         return _inter(a, b) / _union(a, b)
 
 
+def _f_coverage(iou):
+    """
+    Coverage function proposed in [1]
+
+    [1] N. Silberman, D. Sontag, R. Fergus. Instance segmentation of indoor
+    scenes using a coverage loss. ECCV 2015.
+
+    Args:
+        iou: [B, N, N]. Pairwise IoU.
+    """
+    return tf.reduce_max(iou, [1])
+
+
+def _coverage_weight(y_gt):
+    """
+    Compute the normalized weight for each groundtruth instance.
+    """
+    y_gt_sum = tf.reduce_sum(y_gt, [2, 3])
+    # Plus one to avoid dividing by zero.
+    # The resulting weight will be zero for any zero cardinality instance.
+    y_gt_sum_sum = tf.reduce_sum(
+        y_gt_sum, [1], keep_dims=True) + tf.to_float(tf.equal(y_gt_sum, 0))
+
+    return y_gt_sum / y_gt_sum_sum
+
+
+def _weighted_coverage_score(iou, y_gt):
+    """
+    Args:
+        iou: [B, N, N]. Pairwise IoU.
+        y_gt: [B, N, H, W]. Groundtruth segmentations.
+    """
+    cov = _f_coverage(iou)
+    wt = _coverage_weight(y_gt)
+    num_ex = tf.to_float(tf.shape(y_gt)[0])
+
+    return tf.reduce_sum(cov * wt) / num_ex
+
+
+def _weighted_coverage_loss(iou, y_gt):
+    """
+    Args:
+        iou: [B, N, N]. Pairwise IoU.
+        y_gt: [B, N, H, W]. Groundtruth segmentations.
+    """
+    cov = _f_coverage(iou)
+    wt = _coverage_weight(y_gt)
+    num_ex = tf.to_float(tf.shape(y_gt)[0])
+
+    return (1 - cov) * wt / num_ex
+
+
 def _conf_loss(s_out, match, timespan, use_cum_min=True):
     """Loss function for confidence score sequence.
 
@@ -1363,7 +1415,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         else:
             iou_soft_box = _f_iou(attn_box, attn_box_gt,
                                   timespan, pairwise=True)
-            
+
         model['iou_soft_box'] = iou_soft_box
         model['attn_box_gt'] = attn_box_gt
         match_box = _segm_match(iou_soft_box, s_gt)
@@ -1377,6 +1429,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 iou_soft_box * match_box, reduction_indices=[1, 2])
                 / match_count_box) / num_ex
             box_loss = -iou_soft_box
+        elif box_loss_fn == 'wt_cov':
+            box_loss = -_weighted_coverage_score(iou_soft_box, attn_box_gt)
         elif box_loss_fn == 'bce':
             box_loss = _match_bce(attn_box, attn_box_gt, match_box, timespan)
         else:
@@ -1388,23 +1442,23 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
         # Loss for fine segmentation
         iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
-
         match = _segm_match(iou_soft, s_gt)
         model['match'] = match
         match_sum = tf.reduce_sum(match, reduction_indices=[2])
         match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
         match_count = tf.maximum(1.0, match_count)
 
-        # match = match_box
-        # model['match'] = match
-        # match_sum = match_sum_box
-        # match_count = match_count_box
+        wt_cov_soft = _weighted_coverage_score(iou_soft, y_gt)
+        model['wt_cov_soft'] = wt_cov_soft
 
         iou_soft = tf.reduce_sum(tf.reduce_sum(
             iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
         model['iou_soft'] = iou_soft
+
         if segm_loss_fn == 'iou':
             segm_loss = -iou_soft
+        elif segm_loss_fn == 'wt_cov':
+            segm_loss = -wt_cov_soft
         elif segm_loss_fn == 'bce':
             segm_loss = _match_bce(y_out, y_gt, match, timespan)
         else:
@@ -1431,6 +1485,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # [B, M, N] * [B, M, N] => [B] * [B] => [1]
         y_out_hard = tf.to_float(y_out > 0.5)
         iou_hard = _f_iou(y_out_hard, y_gt, timespan, pairwise=True)
+        wt_cov_hard = _weighted_coverage_score(iou_hard, y_gt)
+        model['wt_cov_hard'] = wt_cov_hard
+
         iou_hard = tf.reduce_sum(tf.reduce_sum(
             iou_hard * match, reduction_indices=[1, 2]) / match_count) / num_ex
         model['iou_hard'] = iou_hard
@@ -1506,7 +1563,7 @@ def get_attn_model(opt, device='/cpu:0'):
 
     num_ctrl_mlp_layers = opt['num_ctrl_mlp_layers']
     ctrl_mlp_dim = opt['ctrl_mlp_dim']
- 
+
     attn_cnn_filter_size = opt['attn_cnn_filter_size']
     attn_cnn_depth = opt['attn_cnn_depth']
     dcnn_filter_size = opt['dcnn_filter_size']
