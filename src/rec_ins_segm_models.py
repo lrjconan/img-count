@@ -143,7 +143,9 @@ def _f_iou(a, b, timespan, pairwise=False):
 
         for ii in xrange(timespan):
             # [B, 1, M]
+            # _a = tf.slice(a, [0, ii, 0, 0, 0], [-1, 1, -1, -1, -1])
             y_list[ii] = _inter(a_list[ii], b) / _union(a_list[ii], b)
+            # y_list[ii] = _inter(_a, b) / _union(_a, b)
 
         # N * [B, 1, M] => [B, N, M]
         return tf.concat(1, y_list)
@@ -1504,7 +1506,7 @@ def get_attn_model(opt, device='/cpu:0'):
 
     num_ctrl_mlp_layers = opt['num_ctrl_mlp_layers']
     ctrl_mlp_dim = opt['ctrl_mlp_dim']
-
+ 
     attn_cnn_filter_size = opt['attn_cnn_filter_size']
     attn_cnn_depth = opt['attn_cnn_depth']
     dcnn_filter_size = opt['dcnn_filter_size']
