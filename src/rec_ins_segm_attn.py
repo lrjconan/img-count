@@ -1337,11 +1337,11 @@ if __name__ == '__main__':
                                                  progress_bar=False):
             # Run validation
             if step % train_opt['steps_per_valid'] == 0:
-                # run_validation(step, num_valid_batch, valid_batch_iter)
+                run_validation(step, num_valid_batch, valid_batch_iter)
                 pass
 
             if step % train_opt['steps_per_plot'] == 0:
-                # run_samples()
+                run_samples()
                 pass
 
             # Train step
