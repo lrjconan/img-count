@@ -1220,9 +1220,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
                 y_out_lg_gamma[tt] = tf.slice(ctrl_out, [0, 8], [-1, 1])
 
-            attn_box_gamma[tt] = tf.reshape(
+            attn_gamma[tt] = tf.reshape(
                 tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
-            attn_box_lg_gamma[tt] = tf.reshape(tf.exp(
+            attn_box_gamma[tt] = tf.reshape(tf.exp(
                 attn_box_lg_gamma[tt]), [-1, 1, 1, 1])
             y_out_lg_gamma[tt] = tf.reshape(y_out_lg_gamma[tt], [-1, 1, 1, 1])
 
@@ -1239,8 +1239,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
             filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
             # Attention box
-            attn_box_gamma = tf.exp(attn_box_lg_gamma[tt])
-            attn_box[tt] = _extract_patch(const_ones * attn_box_gamma,
+            attn_box[tt] = _extract_patch(const_ones * attn_box_gamma[tt],
                                           filter_y_inv, filter_x_inv, 1)
             attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
             attn_box[tt] = tf.reshape(
