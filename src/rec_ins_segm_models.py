@@ -1135,6 +1135,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         const_ones = tf.ones(
             tf.pack([num_ex, attn_size, attn_size, 1]))
         attn_box_beta = tf.constant([-5.0])
+        attn_box_gamma = [None] * timespan
         # attn_box_gamma = tf.constant([20.0])
         # attn_box_beta = nn.weight_variable([1])
 
