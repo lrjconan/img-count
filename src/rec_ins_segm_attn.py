@@ -487,7 +487,7 @@ def _parse_args():
                         help='Use time scale curriculum.')
     parser.add_argument('-use_coverage', action='store_true',
                         help=('Whether to use weighted coverage score as '
-                        'training objective or use matching + IoU'))
+                              'training objective or use matching + IoU'))
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -759,6 +759,11 @@ if __name__ == '__main__':
             os.path.join(logs_folder, 'wt_cov.csv'),
             ['train soft', 'valid soft', 'train hard', 'valid hard'],
             name='Weighted Coverage',
+            buffer_size=1)
+        unwt_cov_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'unwt_cov.csv'),
+            ['train soft', 'valid soft', 'train hard', 'valid hard'],
+            name='Unweighted Coverage',
             buffer_size=1)
         dice_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'dice.csv'),
@@ -1043,6 +1048,8 @@ if __name__ == '__main__':
         dic_abs = 0.0
         wt_cov_soft = 0.0
         wt_cov_hard = 0.0
+        unwt_cov_soft = 0.0
+        unwt_cov_hard = 0.0
         num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
         num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
         num_dcnn = len(model_opt['dcnn_filter_size'])
@@ -1056,7 +1063,8 @@ if __name__ == '__main__':
             results_list = [m['loss'], m['conf_loss'], m['segm_loss'],
                             m['box_loss'], m['iou_soft'], m['iou_hard'],
                             m['count_acc'], m['dice'], m['dic'],
-                            m['dic_abs'], m['wt_cov_soft'], m['wt_cov_hard']]
+                            m['dic_abs'], m['wt_cov_soft'], m['wt_cov_hard'],
+                            m['unwt_cov_soft'], m['unwt_cov_hard']]
 
             offset = len(results_list)
 
@@ -1078,7 +1086,7 @@ if __name__ == '__main__':
                                    m['y_gt']: _y,
                                    m['s_gt']: _s
                                })
-            
+
             _loss = results[0]
             _conf_loss = results[1]
             _segm_loss = results[2]
@@ -1091,6 +1099,8 @@ if __name__ == '__main__':
             _dic_abs = results[9]
             _wt_cov_soft = results[10]
             _wt_cov_hard = results[11]
+            _unwt_cov_soft = results[12]
+            _unwt_cov_hard = results[13]
             _bn = {}
 
             num_ex_batch = _x.shape[0]
@@ -1121,6 +1131,8 @@ if __name__ == '__main__':
             iou_hard += _iou_hard * num_ex_batch / num_ex_valid
             wt_cov_soft += _wt_cov_soft * num_ex_batch / num_ex_valid
             wt_cov_hard += _wt_cov_hard * num_ex_batch / num_ex_valid
+            unwt_cov_soft += _unwt_cov_soft * num_ex_batch / num_ex_valid
+            unwt_cov_hard += _unwt_cov_hard * num_ex_batch / num_ex_valid
             count_acc += _count_acc * num_ex_batch / num_ex_valid
             dice += _dice * num_ex_batch / num_ex_valid
             dic += _dic * num_ex_batch / num_ex_valid
@@ -1137,11 +1149,12 @@ if __name__ == '__main__':
             segm_loss_logger.add(step, ['', segm_loss])
             box_loss_logger.add(step, ['', box_loss])
             iou_logger.add(step, ['', iou_soft, '', iou_hard])
+            wt_cov_logger.add(step, ['', wt_cov_soft, '', wt_cov_hard])
+            unwt_cov_logger.add(step, ['', unwt_cov_soft, '', unwt_cov_hard])
             dice_logger.add(step, ['', dice])
             count_acc_logger.add(step, ['', count_acc])
             dic_logger.add(step, ['', dic])
             dic_abs_logger.add(step, ['', dic_abs])
-            wt_cov_logger.add(step, ['', wt_cov_soft, '', wt_cov_hard])
 
             # Batch normalization stats.
             if train_opt['debug_bn']:
@@ -1172,8 +1185,8 @@ if __name__ == '__main__':
         results_list = [m['loss'], m['conf_loss'], m['segm_loss'], m['box_loss'],
                         m['iou_soft'], m['iou_hard'], m['learn_rate'],
                         m['crnn_g_i_avg'], m['crnn_g_f_avg'], m['crnn_g_o_avg'],
-                        m['count_acc'], m['gt_knob_prob_box'], 
-                        m['gt_knob_prob_segm'], m['dice'], m['dic'], 
+                        m['count_acc'], m['gt_knob_prob_box'],
+                        m['gt_knob_prob_segm'], m['dice'], m['dic'],
                         m['dic_abs'], m['attn_lg_gamma'],
                         m['attn_lg_var'], m['attn_box_lg_gamma'],
                         m['y_out_lg_gamma'], m['attn_box_beta'],
@@ -1275,6 +1288,9 @@ if __name__ == '__main__':
                 segm_loss_logger.add(step, [segm_loss, ''])
                 box_loss_logger.add(step, [box_loss, ''])
                 iou_logger.add(step, [iou_soft, '', iou_hard, ''])
+                wt_cov_logger.add(step, [wt_cov_soft, '', wt_cov_hard, ''])
+                unwt_cov_logger.add(
+                    step, [unwt_cov_soft, '', unwt_cov_hard, ''])
                 dice_logger.add(step, [dice, ''])
                 count_acc_logger.add(step, [count_acc, ''])
                 dic_logger.add(step, [dic, ''])
@@ -1284,7 +1300,6 @@ if __name__ == '__main__':
                 crnn_logger.add(
                     step, [crnn_g_i_avg, crnn_g_f_avg, crnn_g_o_avg])
                 gt_knob_logger.add(step, [gt_knob_box, gt_knob_segm])
-                wt_cov_logger.add(step, [wt_cov_soft, '', wt_cov_hard, ''])
 
                 # Batch normalization stats.
                 if train_opt['debug_bn']:

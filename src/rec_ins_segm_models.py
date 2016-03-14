@@ -181,6 +181,8 @@ def _coverage_weight(y_gt):
 
 def _weighted_coverage_score(iou, y_gt):
     """
+    Weighted coverage score.
+
     Args:
         iou: [B, N, N]. Pairwise IoU.
         y_gt: [B, N, H, W]. Groundtruth segmentations.
@@ -190,6 +192,17 @@ def _weighted_coverage_score(iou, y_gt):
     num_ex = tf.to_float(tf.shape(y_gt)[0])
 
     return tf.reduce_sum(cov * wt) / num_ex
+
+
+def _unweighted_coverage_score(iou):
+    """
+    Unweighted coverage score.
+
+    Args:
+        iou: [B, N, N]. Pairwise IoU.
+    """
+    num_ex = tf.to_float(tf.shape(iou)[0])
+    return tf.reduce_sum(cov) / num_ex
 
 
 def _weighted_coverage_loss(iou, y_gt):
@@ -1450,8 +1463,11 @@ def get_attn_model_2(opt, device='/cpu:0'):
         match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
         match_count = tf.maximum(1.0, match_count)
 
+        # Weighted coverage (soft)
         wt_cov_soft = _weighted_coverage_score(iou_soft, y_gt)
         model['wt_cov_soft'] = wt_cov_soft
+        unwt_cov_soft = _unweighted_coverage_score(iou_soft)
+        model['unwt_cov_soft'] = unwt_cov_soft
 
         iou_soft = tf.reduce_sum(tf.reduce_sum(
             iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
@@ -1489,6 +1505,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
         iou_hard = _f_iou(y_out_hard, y_gt, timespan, pairwise=True)
         wt_cov_hard = _weighted_coverage_score(iou_hard, y_gt)
         model['wt_cov_hard'] = wt_cov_hard
+        unwt_cov_hard = _unweighted_coverage_score(iou_hard)
+        model['unwt_cov_hard'] = unwt_cov_hard
 
         iou_hard = tf.reduce_sum(tf.reduce_sum(
             iou_hard * match, reduction_indices=[1, 2]) / match_count) / num_ex
