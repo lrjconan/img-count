@@ -1190,7 +1190,8 @@ if __name__ == '__main__':
                         m['dic_abs'], m['attn_lg_gamma'],
                         m['attn_lg_var'], m['attn_box_lg_gamma'],
                         m['y_out_lg_gamma'], m['attn_box_beta'],
-                        m['y_out_beta'], m['wt_cov_soft'], m['wt_cov_hard']]
+                        m['y_out_beta'], m['wt_cov_soft'], m['wt_cov_hard'],
+                        m['unwt_cov_soft'], m['unwt_cov_hard']]
 
         offset = len(results_list)
 
@@ -1246,6 +1247,8 @@ if __name__ == '__main__':
             y_out_beta = results[21]
             wt_cov_soft = results[22]
             wt_cov_hard = results[23]
+            unwt_cov_soft = results[24]
+            unwt_cov_hard = results[25]
 
             # Batch normalization stats.
             if train_opt['debug_bn']:
