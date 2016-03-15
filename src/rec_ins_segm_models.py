@@ -1524,7 +1524,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         wt_cov_hard = _weighted_coverage_score(iou_hard, y_gt)
         model['wt_cov_hard'] = wt_cov_hard
         unwt_cov_hard = _unweighted_coverage_score(iou_hard)
-        model['unwt_cov_hard'] = unwt_cov_h
+        model['unwt_cov_hard'] = unwt_cov_hard
         # [B, T]
         iou_hard_mask = tf.reduce_sum(iou_hard * match, [1])
         iou_hard = tf.reduce_sum(tf.reduce_sum(iou_hard_mask, [1]) /
