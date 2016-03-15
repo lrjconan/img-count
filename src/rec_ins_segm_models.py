@@ -1666,8 +1666,8 @@ def get_attn_model(opt, device='/cpu:0'):
         cmlp_dims = [crnn_dim] + [ctrl_mlp_dim] * \
             (num_ctrl_mlp_layers - 1) + [7]
         cmlp_act = [tf.nn.relu] * (num_ctrl_mlp_layers - 1) + [None]
-        cmlp_dropout = None
-        # cmlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
+        # cmlp_dropout = None
+        cmlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
         cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=True,
                       dropout_keep=cmlp_dropout,
                       phase_train=phase_train, wd=wd, scope='ctrl_mlp')
