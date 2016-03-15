@@ -602,7 +602,7 @@ if __name__ == '__main__':
             rnd_hflip = True
             rnd_vflip = False
             rnd_transpose = False
-            rnd_colour = True
+            rnd_colour = False
             num_valid_batch = 10
         else:
             raise Exception('Unknown dataset name')
