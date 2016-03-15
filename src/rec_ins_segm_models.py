@@ -1047,7 +1047,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         cmlp_act = [tf.nn.relu] * (num_ctrl_mlp_layers - 1) + [None]
         # cmlp_dropout = None
         cmlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
-        cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=False,
+        cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=True,
                       dropout_keep=cmlp_dropout,
                       phase_train=phase_train, wd=wd, scope='ctrl_mlp')
 
@@ -1124,8 +1124,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
         core_dim = arnn_h * arnn_w * core_depth
         amlp_dims = [amlp_inp_dim] + [core_dim] * num_attn_mlp_layers
         amlp_act = [tf.nn.relu] * num_attn_mlp_layers
-        amlp_dropout = None
-        # amlp_dropout = [1.0 - mlp_dropout_ratio] * num_attn_mlp_layers
+        # amlp_dropout = None
+        amlp_dropout = [1.0 - mlp_dropout_ratio] * num_attn_mlp_layers
         amlp = nn.mlp(amlp_dims, amlp_act, dropout_keep=amlp_dropout,
                       phase_train=phase_train, wd=wd, scope='attn_mlp')
 
