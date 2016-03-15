@@ -1492,7 +1492,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         if segm_loss_fn == 'iou':
             segm_loss = -iou_soft
         elif segm_loss_fn == 'wt_iou':
-            segm_loss = -wt_iou
+            segm_loss = -wt_iou_soft
         elif segm_loss_fn == 'wt_cov':
             segm_loss = -wt_cov_soft
         elif segm_loss_fn == 'bce':
