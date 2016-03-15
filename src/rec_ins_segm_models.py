@@ -170,12 +170,15 @@ def _coverage_weight(y_gt):
     """
     Compute the normalized weight for each groundtruth instance.
     """
+    # [B, T]
     y_gt_sum = tf.reduce_sum(y_gt, [2, 3])
     # Plus one to avoid dividing by zero.
     # The resulting weight will be zero for any zero cardinality instance.
+    # [B, 1]
     y_gt_sum_sum = tf.reduce_sum(
         y_gt_sum, [1], keep_dims=True) + tf.to_float(tf.equal(y_gt_sum, 0))
 
+    # [B, T]
     return y_gt_sum / y_gt_sum_sum
 
 
@@ -1440,11 +1443,17 @@ def get_attn_model_2(opt, device='/cpu:0'):
         match_count_box = tf.reduce_sum(
             match_sum_box, reduction_indices=[1])
         match_count_box = tf.maximum(1.0, match_count_box)
+        iou_soft_box_mask = tf.reduce_sum(iou_soft_box * match_box, [1])
+        iou_soft_box = tf.reduce_sum(tf.reduce_sum(iou_soft_box_mask, [1])
+                                     / match_count_box) / num_ex
+        gt_wt_box = _coverage_weight(attn_box_gt)
+        wt_iou_soft_box = tf.reduce_sum(tf.reduce_sum(
+            iou_soft_box_mask * gt_wt_box, [1])
+            / match_count_box) / num_ex
         if box_loss_fn == 'iou':
-            iou_soft_box = tf.reduce_sum(tf.reduce_sum(
-                iou_soft_box * match_box, reduction_indices=[1, 2])
-                / match_count_box) / num_ex
             box_loss = -iou_soft_box
+        elif box_loss_fn == 'wt_iou':
+            box_loss = -wt_iou_soft_box
         elif box_loss_fn == 'wt_cov':
             box_loss = -_weighted_coverage_score(iou_soft_box, attn_box_gt)
         elif box_loss_fn == 'bce':
@@ -1470,12 +1479,20 @@ def get_attn_model_2(opt, device='/cpu:0'):
         unwt_cov_soft = _unweighted_coverage_score(iou_soft)
         model['unwt_cov_soft'] = unwt_cov_soft
 
-        iou_soft = tf.reduce_sum(tf.reduce_sum(
-            iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
+        # [B, T]
+        iou_soft_mask = tf.reduce_sum(iou_soft * match, [1])
+        iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask, [1]) /
+                                 match_count) / num_ex
         model['iou_soft'] = iou_soft
+        gt_wt = _coverage_weight(y_gt)
+        wt_iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask * gt_wt, [1]) /
+                                    match_count) / num_ex
+        model['wt_iou_soft'] = wt_iou_soft
 
         if segm_loss_fn == 'iou':
             segm_loss = -iou_soft
+        elif segm_loss_fn == 'wt_iou':
+            segm_loss = -wt_iou
         elif segm_loss_fn == 'wt_cov':
             segm_loss = -wt_cov_soft
         elif segm_loss_fn == 'bce':
@@ -1507,15 +1524,19 @@ def get_attn_model_2(opt, device='/cpu:0'):
         wt_cov_hard = _weighted_coverage_score(iou_hard, y_gt)
         model['wt_cov_hard'] = wt_cov_hard
         unwt_cov_hard = _unweighted_coverage_score(iou_hard)
-        model['unwt_cov_hard'] = unwt_cov_hard
-
-        iou_hard = tf.reduce_sum(tf.reduce_sum(
-            iou_hard * match, reduction_indices=[1, 2]) / match_count) / num_ex
+        model['unwt_cov_hard'] = unwt_cov_h
+        # [B, T]
+        iou_hard_mask = tf.reduce_sum(iou_hard * match, [1])
+        iou_hard = tf.reduce_sum(tf.reduce_sum(iou_hard_mask, [1]) /
+                                 match_count) / num_ex
         model['iou_hard'] = iou_hard
+        wt_iou_hard = tf.reduce_sum(tf.reduce_sum(iou_hard_mask * gt_wt, [1]) /
+                                    match_count) / num_ex
+        model['wt_iou_hard'] = wt_iou_hard
 
         dice = _f_dice(y_out_hard, y_gt, timespan, pairwise=True)
-        dice = tf.reduce_sum(tf.reduce_sum(
-            dice * match, reduction_indices=[1, 2]) / match_count) / num_ex
+        dice = tf.reduce_sum(tf.reduce_sum(dice * match, [1, 2]) /
+                             match_count) / num_ex
         model['dice'] = dice
 
         model['count_acc'] = _count_acc(s_out, s_gt)
