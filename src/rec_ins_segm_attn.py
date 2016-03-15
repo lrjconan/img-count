@@ -1195,13 +1195,14 @@ if __name__ == '__main__':
         offset = len(results_list)
 
         # Batch normalization
-        for _layer, _num in zip(['ctrl_cnn', 'attn_cnn', 'dcnn'],
-                                [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-            for ii in xrange(_num):
-                for tt in xrange(timespan):
-                    for _stat in ['bm', 'bv', 'em', 'ev']:
-                        results_list.append(
-                            m['{}_{}_{}_{}'.format(_layer, ii, _stat, tt)])
+        if train_opt['debug_bn']:
+            for _layer, _num in zip(['ctrl_cnn', 'attn_cnn', 'dcnn'],
+                                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                for ii in xrange(_num):
+                    for tt in xrange(timespan):
+                        for _stat in ['bm', 'bv', 'em', 'ev']:
+                            results_list.append(
+                                m['{}_{}_{}_{}'.format(_layer, ii, _stat, tt)])
 
         results_list.extend(m['acnn_w_mean'])
         results_list.extend(m['acnn_b_mean'])
