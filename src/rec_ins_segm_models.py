@@ -201,6 +201,7 @@ def _unweighted_coverage_score(iou):
     Args:
         iou: [B, N, N]. Pairwise IoU.
     """
+    cov = _f_coverage(iou)
     num_ex = tf.to_float(tf.shape(iou)[0])
     return tf.reduce_sum(cov) / num_ex
 
