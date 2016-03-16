@@ -673,6 +673,7 @@ if __name__ == '__main__':
             'knob_box_offset': args.knob_box_offset,
             'knob_segm_offset': args.knob_segm_offset,
             'knob_use_timescale': args.knob_use_timescale,
+            'gt_selector': args.gt_selector,
 
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,
