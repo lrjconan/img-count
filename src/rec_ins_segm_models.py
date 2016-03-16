@@ -207,7 +207,7 @@ def _unweighted_coverage_score(iou, count):
     # [B, N]
     cov = _f_coverage(iou)
     num_ex = tf.to_float(tf.shape(iou)[0])
-    return tf.reduce_sum(tf.reduce_sum(cov, [1]) / count, [2]) / num_ex
+    return tf.reduce_sum(tf.reduce_sum(cov, [1]) / count) / num_ex
 
 
 def _weighted_coverage_loss(iou, y_gt):
