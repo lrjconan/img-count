@@ -1120,7 +1120,7 @@ if __name__ == '__main__':
                                     _layer, ii, _stat, tt))
         else:
             _outputs = []
-            
+
         _outputs.append('train_step')
         _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
                       m['s_gt']: s}
@@ -1152,8 +1152,8 @@ if __name__ == '__main__':
             loggers['step_time'].add(step, _step_time)
             loggers['crnn'].add(step, [_r['crnn_g_i_avg'], _r['crnn_g_f_avg'],
                                        _r['crnn_g_o_avg']])
-            loggers['gt_knob'].add(step, [_r['gt_knob_box'],
-                                          _r['gt_knob_segm']])
+            loggers['gt_knob'].add(step, [_r['gt_knob_prob_box'],
+                                          _r['gt_knob_prob_segm']])
             loggers['attn_params'].add(step, [_r['attn_lg_gamma_mean'],
                                               _r['attn_box_lg_gamma_mean'],
                                               _r['y_out_lg_gamma_mean']])
