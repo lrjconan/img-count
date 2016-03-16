@@ -327,6 +327,7 @@ def _parse_args():
     kHeight = 224
     kWidth = 224
     kPadding = 16
+    
     # (Below are only valid options for synth_shape dataset)
     kRadiusLower = 15
     kRadiusUpper = 45
@@ -346,16 +347,9 @@ def _parse_args():
     kLossMixRatio = 1.0
     kBoxLossCoeffDecay = 0.7
     kStepsPerBoxLossCoeffDecay = 2000
-    kKnobDecay = 0.9
-    kStepsPerKnobDecay = 300
-    kKnobBase = 1.0
-    kKnobBoxOffset = 300
-    kKnobSegmOffset = 500
-
-    kNumCtrlConv = 5
-    kNumAttnConv = 3
 
     kAttnSize = 48
+    kAttnBoxPaddingRatio = 0.2
 
     kCtrlCnnFilterSize = '3,3,3,3,3'
     kCtrlCnnDepth = '4,8,8,12,16'
@@ -363,22 +357,25 @@ def _parse_args():
     kAttnCnnFilterSize = '3,3,3'
     kAttnCnnDepth = '4,8,16'
     kAttnCnnPool = '2,2,2'
-
-    kCtrlMlpDim = 256
-    kNumCtrlMlpLayers = 1
-
-    kCtrlRnnHiddenDim = 256
-    kAttnRnnHiddenDim = 256
-
-    kNumAttnMlpLayers = 2
-    kAttnMlpDepth = 6
-
-    kMlpDropout = 0.5
     kDcnnFilterSize = '3,3,3,3'
     kDcnnDepth = '16,8,4,1'
     kDcnnPool = '2,2,2,1'
 
-    kAttnBoxPaddingRatio = 0.2
+    kCtrlMlpDim = 256
+    kNumCtrlMlpLayers = 1
+    kCtrlRnnHiddenDim = 256
+    kAttnRnnHiddenDim = 256
+    kNumAttnMlpLayers = 2
+    kAttnMlpDepth = 6
+    kMlpDropout = 0.5
+
+    # Knob
+    kGtSelector = 'argmax'
+    kKnobDecay = 0.9
+    kStepsPerKnobDecay = 300
+    kKnobBase = 1.0
+    kKnobBoxOffset = 300
+    kKnobSegmOffset = 500
 
     # Default training options
     kNumSteps = 500000
@@ -500,9 +497,8 @@ def _parse_args():
                         help='Number of steps when it starts to decay.')
     parser.add_argument('-knob_use_timescale', action='store_true',
                         help='Use time scale curriculum.')
-    parser.add_argument('-use_coverage', action='store_true',
-                        help=('Whether to use weighted coverage score as '
-                              'training objective or use matching + IoU'))
+    parser.add_argument('-gt_selector', default=kGtSelector, 
+                        help='greedy_match or argmax')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -1194,6 +1190,7 @@ if __name__ == '__main__':
                 run_validation(step, num_valid_batch, valid_batch_iter)
                 pass
 
+            # Plot samples
             if step % train_opt['steps_per_plot'] == 0:
                 run_samples()
                 pass
