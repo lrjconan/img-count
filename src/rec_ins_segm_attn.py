@@ -1120,8 +1120,8 @@ if __name__ == '__main__':
                                     _layer, ii, _stat, tt))
         else:
             _outputs = []
-
-        _outputs.append(m['train_step'])
+            
+        _outputs.append('train_step')
         _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
                       m['s_gt']: s}
         _r = _run_model(m, _outputs, _feed_dict)
