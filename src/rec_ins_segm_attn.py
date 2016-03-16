@@ -457,7 +457,8 @@ def _parse_args():
 
     # Extra model options (beta)
     parser.add_argument('-segm_loss_fn', default='iou',
-                        help='Segmentation loss function, "iou", "wt_cov", or "bce"')
+                        help=('Segmentation loss function, "iou", "wt_iou", '
+                              '"wt_cov", or "bce"'))
     parser.add_argument('-box_loss_fn', default='iou',
                         help='Box loss function, "iou" or "bce"')
     parser.add_argument('-use_bn', action='store_true',

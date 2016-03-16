@@ -197,16 +197,18 @@ def _weighted_coverage_score(iou, y_gt):
     return tf.reduce_sum(cov * wt) / num_ex
 
 
-def _unweighted_coverage_score(iou):
+def _unweighted_coverage_score(iou, count):
     """
     Unweighted coverage score.
 
     Args:
         iou: [B, N, N]. Pairwise IoU.
     """
+    # [B, N]
     cov = _f_coverage(iou)
-    num_ex = tf.to_float(tf.shape(iou)[0])
-    return tf.reduce_sum(cov) / num_ex
+    ss = 
+    num_ex = tf.to_float(ss[0])
+    return tf.reduce_sum(tf.reduce_sum(cov, [1]) / count, [2]) / num_ex
 
 
 def _weighted_coverage_loss(iou, y_gt):
@@ -1476,7 +1478,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # Weighted coverage (soft)
         wt_cov_soft = _weighted_coverage_score(iou_soft, y_gt)
         model['wt_cov_soft'] = wt_cov_soft
-        unwt_cov_soft = _unweighted_coverage_score(iou_soft)
+        unwt_cov_soft = _unweighted_coverage_score(iou_soft, match_count)
         model['unwt_cov_soft'] = unwt_cov_soft
 
         # [B, T]
@@ -1523,7 +1525,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         iou_hard = _f_iou(y_out_hard, y_gt, timespan, pairwise=True)
         wt_cov_hard = _weighted_coverage_score(iou_hard, y_gt)
         model['wt_cov_hard'] = wt_cov_hard
-        unwt_cov_hard = _unweighted_coverage_score(iou_hard)
+        unwt_cov_hard = _unweighted_coverage_score(iou_hard, match_count)
         model['unwt_cov_hard'] = unwt_cov_hard
         # [B, T]
         iou_hard_mask = tf.reduce_sum(iou_hard * match, [1])
