@@ -1070,7 +1070,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
             _get_gt_attn(y_gt, attn_size,
                          padding_ratio=tf.random_uniform(
                              tf.pack([num_ex, timespan, 1]),
-                             0.0, 0.1),
+                             0.1, 0.3),
                          center_shift_ratio=tf.random_uniform(
                              tf.pack([num_ex, timespan, 2]),
                              -0.05, 0.05))
@@ -1149,13 +1149,10 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # Attention box
         attn_box = [None] * timespan
         attn_iou_soft = [None] * timespan
-        # attn_box_const = 10.0
         const_ones = tf.ones(
             tf.pack([num_ex, attn_size, attn_size, 1]))
         attn_box_beta = tf.constant([-5.0])
         attn_box_gamma = [None] * timespan
-        # attn_box_gamma = tf.constant([20.0])
-        # attn_box_beta = nn.weight_variable([1])
 
         # Knob
         # [B, N]
