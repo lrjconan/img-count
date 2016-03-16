@@ -327,7 +327,7 @@ def _parse_args():
     kHeight = 224
     kWidth = 224
     kPadding = 16
-    
+
     # (Below are only valid options for synth_shape dataset)
     kRadiusLower = 15
     kRadiusUpper = 45
@@ -362,6 +362,7 @@ def _parse_args():
     kDcnnPool = '2,2,2,1'
 
     kCtrlMlpDim = 256
+    # kCtrlMlpDim = '256'
     kNumCtrlMlpLayers = 1
     kCtrlRnnHiddenDim = 256
     kAttnRnnHiddenDim = 256

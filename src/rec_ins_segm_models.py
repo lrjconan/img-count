@@ -976,6 +976,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
     knob_box_offset = opt['knob_box_offset']
     knob_segm_offset = opt['knob_segm_offset']
     knob_use_timescale = opt['knob_use_timescale']
+    gt_selector = opt['gt_selector']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
