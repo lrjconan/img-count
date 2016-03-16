@@ -223,7 +223,7 @@ def plot_output(fname, y_out, s_out, match, attn=None, max_items_per_row=9):
     pass
 
 
-def get_dataset(dataset_name, opt, num_train=-1, num_valid=-1):
+def get_dataset(dataset_name, opt, num_train=-1, num_valid=-1, has_valid=True):
     """Get train-valid split dataset for instance segmentation.
 
     Args:
@@ -248,24 +248,28 @@ def get_dataset(dataset_name, opt, num_train=-1, num_valid=-1):
         else:
             dataset_folder = '/home/mren/data/LSCData/A1'
         _all_data = cvppp.get_dataset(dataset_folder, opt)
-        split = 103
-        random = np.random.RandomState(2)
-        idx = np.arange(_all_data['input'].shape[0])
-        random.shuffle(idx)
-        train_idx = idx[: split]
-        valid_idx = idx[split:]
-        log.info('Train index: {}'.format(train_idx))
-        log.info('Valid index: {}'.format(valid_idx))
-        dataset['train'] = {
-            'input': _all_data['input'][train_idx],
-            'label_segmentation': _all_data['label_segmentation'][train_idx],
-            'label_score': _all_data['label_score'][train_idx]
-        }
-        dataset['valid'] = {
-            'input': _all_data['input'][valid_idx],
-            'label_segmentation': _all_data['label_segmentation'][valid_idx],
-            'label_score': _all_data['label_score'][valid_idx]
-        }
+
+        if has_valid:
+            split = 103
+            random = np.random.RandomState(2)
+            idx = np.arange(_all_data['input'].shape[0])
+            random.shuffle(idx)
+            train_idx = idx[: split]
+            valid_idx = idx[split:]
+            log.info('Train index: {}'.format(train_idx))
+            log.info('Valid index: {}'.format(valid_idx))
+            dataset['train'] = {
+                'input': _all_data['input'][train_idx],
+                'label_segmentation': _all_data['label_segmentation'][train_idx],
+                'label_score': _all_data['label_score'][train_idx]
+            }
+            dataset['valid'] = {
+                'input': _all_data['input'][valid_idx],
+                'label_segmentation': _all_data['label_segmentation'][valid_idx],
+                'label_score': _all_data['label_score'][valid_idx]
+            }
+        else:
+            dataset = _all_data
     elif dataset_name == 'kitti':
         if os.path.exists('/u/mren'):
             dataset_folder = '/ais/gobi3/u/mren/data/kitti'
@@ -297,6 +301,16 @@ def _get_batch_fn(dataset):
         return x_bat, y_bat, s_bat
 
     return get_batch
+
+
+def _run_model(m, names, feed_dict):
+    symbol_list = [m[r] for r in names]
+    results = sess.run(symbol_list, feed_dict=feed_dict)
+    results_dict = {}
+    for rr, name in zip(results, names):
+        results_dict[name] = rr
+
+    return results_dict
 
 
 def preprocess(inp, label_segmentation, label_score):
@@ -521,6 +535,8 @@ def _parse_args():
                         help='Write out logs on batch normalization')
     parser.add_argument('-debug_act', action='store_true',
                         help='Write out logs on conv layer activation')
+    parser.add_argument('-no_valid', action='store_true',
+                        help='Use the whole training set.')
 
     args = parser.parse_args()
 
@@ -711,7 +727,8 @@ if __name__ == '__main__':
         'steps_per_plot': args.steps_per_plot,
         'steps_per_log': args.steps_per_log,
         'debug_bn': args.debug_bn,
-        'debug_act': args.debug_act
+        'debug_act': args.debug_act,
+        'has_valid': not args.no_valid
     }
 
     log.info('Building model')
@@ -722,7 +739,8 @@ if __name__ == '__main__':
         dataset = get_dataset(args.dataset, data_opt,
                               args.num_ex, int(args.num_ex / 10))
     elif args.dataset == 'cvppp':
-        dataset = get_dataset(args.dataset, data_opt)
+        dataset = get_dataset(args.dataset, data_opt,
+                              has_valid=train_opt['has_valid'])
     elif args.dataset == 'kitti':
         dataset = get_dataset(args.dataset, data_opt, args.num_ex, args.num_ex)
 
@@ -734,81 +752,81 @@ if __name__ == '__main__':
         sess.run(tf.initialize_all_variables())
 
     # Create time series logger
+    loggers = {}
     if args.logs:
-        loss_logger = TimeSeriesLogger(
+        loggers['loss'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'loss.csv'), ['train', 'valid'],
             name='Loss',
             buffer_size=1)
-        conf_loss_logger = TimeSeriesLogger(
+        loggers['conf_loss'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'conf_loss.csv'), ['train', 'valid'],
             name='Confidence Loss',
             buffer_size=1)
-        segm_loss_logger = TimeSeriesLogger(
+        loggers['segm_loss'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'segm_loss.csv'), ['train', 'valid'],
             name='Segmentation Loss',
             buffer_size=1)
-        box_loss_logger = TimeSeriesLogger(
+        loggers['box_loss'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'box_loss.csv'), ['train', 'valid'],
             name='Box Loss',
             buffer_size=1)
-        iou_logger = TimeSeriesLogger(
+        loggers['iou'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'iou.csv'),
             ['train soft', 'valid soft', 'train hard', 'valid hard'],
             name='IoU',
             buffer_size=1)
-        wt_cov_logger = TimeSeriesLogger(
+        loggers['wt_cov'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'wt_cov.csv'),
             ['train soft', 'valid soft', 'train hard', 'valid hard'],
             name='Weighted Coverage',
             buffer_size=1)
-        unwt_cov_logger = TimeSeriesLogger(
+        loggers['unwt_cov'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'unwt_cov.csv'),
             ['train soft', 'valid soft', 'train hard', 'valid hard'],
             name='Unweighted Coverage',
             buffer_size=1)
-        dice_logger = TimeSeriesLogger(
+        loggers['dice'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'dice.csv'),
             ['train', 'valid'],
             name='Dice',
             buffer_size=1)
-        dic_logger = TimeSeriesLogger(
+        loggers['dic'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'dic.csv'),
             ['train', 'valid'],
             name='DiC',
             buffer_size=1)
-        dic_abs_logger = TimeSeriesLogger(
+        loggers['dic_abs'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'dic_abs.csv'),
             ['train', 'valid'],
             name='|DiC|',
             buffer_size=1)
-        learn_rate_logger = TimeSeriesLogger(
+        loggers['learn_rate'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'learn_rate.csv'),
             'learning rate',
             name='Learning rate',
             buffer_size=1)
-        count_acc_logger = TimeSeriesLogger(
+        loggers['count_acc'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'count_acc.csv'),
             ['train', 'valid'],
             name='Count acc',
             buffer_size=1)
-        step_time_logger = TimeSeriesLogger(
+        loggers['step_time'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
             name='Step time',
             buffer_size=1)
-        crnn_logger = TimeSeriesLogger(
+        loggers['crnn'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'crnn.csv'),
             ['input gate', 'forget gate', 'output gate'],
             name='Ctrl RNN',
             buffer_size=1)
-        gt_knob_logger = TimeSeriesLogger(
+        loggers['gt_knob'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'gt_knob.csv'),
             ['box', 'segmentation'],
             name='GT mix',
             buffer_size=1)
-        attn_params_logger = TimeSeriesLogger(
+        loggers['attn_params'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'attn_params.csv'),
-            ['attn log gamma', 'attn log var', 'box log gamma',
-             'out log gamma', 'box beta', 'out beta'],
+            ['attn log gamma', 'box log gamma', 'out log gamma'],
             name='Attn params',
             buffer_size=1)
 
@@ -817,7 +835,6 @@ if __name__ == '__main__':
         num_dcnn = len(model_opt['dcnn_filter_size'])
 
         if args.debug_bn:
-            bn_loggers = {}
             for sname, fname, num_layers in zip(
                     ['ccnn', 'acnn', 'dcnn'],
                     ['Ctrl CNN', 'Attn CNN', 'D-CNN'],
@@ -834,32 +851,8 @@ if __name__ == '__main__':
                             name='{} {} time {} batch norm stats'.format(
                                 fname, ii, tt),
                             buffer_size=1)
-                        bn_loggers[
-                            '{}_{}_{}'.format(sname, ii, tt)] = _bn_logger
-
-        acnn_weights_labels = []
-        for ii in xrange(num_attn_cnn):
-            acnn_weights_labels.append('|w| {}'.format(ii))
-            acnn_weights_labels.append('|b| {}'.format(ii))
-        acnn_weights_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'acnn_weights.csv'),
-            acnn_weights_labels,
-            name='Attn CNN weights mean',
-            buffer_size=1)
-
-        sparsity_loggers = {}
-        for sname, fname, num_layers in zip(
-                ['ccnn', 'acnn', 'dcnn'],
-                ['Ctrl CNN', 'Attn CNN', 'D-CNN'],
-                [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-            sparsity_labels = []
-            for ii in xrange(num_layers):
-                sparsity_labels.append('layer {}'.format(ii))
-            sparsity_loggers[sname] = TimeSeriesLogger(
-                os.path.join(logs_folder, '{}_sparsity.csv'.format(sname)),
-                sparsity_labels,
-                name='{} sparsity'.format(fname),
-                buffer_size=1)
+                        loggers['bn_{}_{}_{}'.format(sname, ii, tt)] = \
+                            _bn_logger
 
         log_manager.register(log.filename, 'plain', 'Raw logs')
 
@@ -868,7 +861,10 @@ if __name__ == '__main__':
         log_manager.register(model_opt_fname, 'plain', 'Model hyperparameters')
 
         samples = {}
-        for _set in ['train', 'valid']:
+        _ssets = ['train']
+        if train_opt['has_valid']:
+            _ssets.append('valid')
+        for _set in _ssets:
             labels = ['input', 'output', 'total', 'box', 'patch']
             if args.debug_act:
                 for _layer, _num in zip(
@@ -886,188 +882,158 @@ if __name__ == '__main__':
              'http://{}/deep-dashboard?id={}').format(
                 args.localhost, model_id))
 
-    num_ex_train = dataset['train']['input'].shape[0]
-    num_ex_valid = dataset['valid']['input'].shape[0]
-    get_batch_train = _get_batch_fn(dataset['train'])
-    get_batch_valid = _get_batch_fn(dataset['valid'])
     batch_size = args.batch_size
-    log.info('Number of validation examples: {}'.format(num_ex_valid))
-    log.info('Number of training examples: {}'.format(num_ex_train))
     log.info('Batch size: {}'.format(batch_size))
+    num_ex_train = dataset['train']['input'].shape[0]
+    get_batch_train = _get_batch_fn(dataset['train'])
+    log.info('Number of training examples: {}'.format(num_ex_train))
+
+    if train_opt['has_valid']:
+        num_ex_valid = dataset['valid']['input'].shape[0]
+        get_batch_valid = _get_batch_fn(dataset['valid'])
+        log.info('Number of validation examples: {}'.format(num_ex_valid))
 
     def run_samples():
         """Samples"""
         def _run_samples(x, y, s, phase_train, fname_input, fname_output,
                          fname_total=None, fname_box=None, fname_patch=None,
                          fname_ccnn=None, fname_acnn=None, fname_dcnn=None):
-            results_list = [m['x_trans'], m['y_gt_trans'], m['y_out'],
-                            m['s_out'], m['match'],
-                            m['attn_top_left'], m['attn_bot_right'],
-                            m['attn_ctr'], m['attn_delta'],
-                            m['attn_box'], m['attn_box_gt'], m['match_box']]
-            offset = len(results_list)
-            if fname_patch:
-                results_list.append(m['x_patch'])
-            if fname_ccnn:
-                results_list.extend(m['h_ccnn'])
-            if fname_acnn:
-                results_list.extend(m['h_acnn'])
-            if fname_dcnn:
-                results_list.extend(m['h_dcnn'])
-            results = sess.run(results_list,
-                               feed_dict={
-                                   m['x']: x,
-                                   m['phase_train']: phase_train,
-                                   m['y_gt']: y,
-                                   m['s_gt']: s
-                               })
-            x_trans = results[0]
-            y_gt_trans = results[1]
-            y_out = results[2]
-            s_out = results[3]
-            match = results[4]
-            atl = results[5]
-            abr = results[6]
-            ac = results[7]
-            ad = results[8]
-            abox = results[9]
-            abox_gt = results[10]
-            match_box = results[11]
-            h_ccnn = [None] * num_ctrl_cnn
-            h_acnn = [None] * num_attn_cnn
-            h_dcnn = [None] * num_dcnn
+
+            _outputs = ['x_trans', 'y_gt_trans', 'y_out',
+                        's_out', 'match',
+                        'attn_top_left', 'attn_bot_right',
+                        'attn_ctr', 'attn_delta',
+                        'attn_box', 'attn_box_gt', 'match_box']
 
             if fname_patch:
-                x_patch = results[offset]
-                offset += 1
+                _outputs.append('x_patch')
             if fname_ccnn:
-                for ii in xrange(num_ctrl_cnn):
-                    h_ccnn[ii] = results[offset]
-                    offset += 1
+                [_outputs.append('h_ccnn_{}'.format(ii))
+                 for ii in xrange(num_ctrl_cnn)]
+                h_ccnn = [None] * num_ctrl_cnn
             if fname_acnn:
-                for ii in xrange(num_attn_cnn):
-                    h_acnn[ii] = results[offset]
-                    offset += 1
+                [_outputs.append('h_acnn_{}'.format(ii))
+                 for ii in xrange(num_attn_cnn)]
+                h_acnn = [None] * num_attn_cnn
             if fname_dcnn:
-                for ii in xrange(num_dcnn):
-                    h_dcnn[ii] = results[offset]
-                    offset += 1
+                [_outputs.append('h_dcnn_{}'.format(ii))
+                 for ii in xrange(num_dcnn)]
+                h_dcnn = [None] * num_dcnn
 
-            plot_input(fname_input, x=x_trans, y_gt=y_gt_trans, s_gt=s,
-                       max_items_per_row=max_items_per_row)
+            _feed_dict = {m['x']: x, m['phase_train']: phase_train,
+                          m['y_gt']: y, m['s_gt']: s}
+            _r = _run_model(m, _outputs, _feed_dict)
 
-            plot_output(fname_output, y_out=y_out, s_out=s_out, match=match,
-                        attn=(atl, abr, ac, ad),
+            plot_input(fname_input, x=_r['x_trans'], y_gt=_r['y_gt_trans'],
+                       s_gt=s, max_items_per_row=max_items_per_row)
+
+            plot_output(fname_output, y_out=_r['y_out'], s_out=_r['s_out'],
+                        match=_r['match'],
+                        attn=(_r['attn_top_left'], _r['attn_bot_right'],
+                              _r['attn_ctr'], _r['attn_delta']),
                         max_items_per_row=max_items_per_row)
 
             if fname_total:
-                plot_total_instances(fname_total, y_out=y_out, s_out=s_out,
+                plot_total_instances(fname_total, y_out=_r['y_out'],
+                                     s_out=_r['s_out'],
                                      max_items_per_row=max_items_per_row)
 
             if fname_box:
-                plot_output(fname_box, y_out=abox, s_out=s_out,
-                            match=match_box, attn=(atl, abr, ac, ad),
+                plot_output(fname_box, y_out=_r['attn_box'], s_out=_r['s_out'],
+                            match=_r['match_box'],
+                            attn=(_r['attn_top_left'], _r['attn_bot_right'],
+                                  _r['attn_ctr'], _r['attn_delta']),
                             max_items_per_row=max_items_per_row)
 
             if fname_patch:
-                plot_thumbnails(fname_patch, x_patch[:, :, :, :, : 3], axis=1,
-                                max_items_per_row=8)
+                plot_thumbnails(fname_patch, _r['x_patch'][:, :, :, :, : 3],
+                                axis=1, max_items_per_row=8)
 
             if fname_ccnn:
                 for ii in xrange(num_ctrl_cnn):
-                    plot_thumbnails(fname_ccnn[ii], h_ccnn[ii][:, 0], axis=3,
+                    _h = _r['h_ccnn_{}'.format(ii)]
+                    plot_thumbnails(fname_ccnn[ii], _h[:, 0], axis=3,
                                     max_items_per_row=max_items_per_row)
 
             if fname_acnn:
                 for ii in xrange(num_attn_cnn):
-                    plot_thumbnails(fname_acnn[ii], h_acnn[ii][:, 0], axis=3,
+                    _h = _r['h_acnn_{}'.format(ii)]
+                    plot_thumbnails(fname_acnn[ii], _h[:, 0], axis=3,
                                     max_items_per_row=8)
 
             if fname_dcnn:
                 for ii in xrange(num_dcnn):
-                    plot_thumbnails(fname_dcnn[ii], h_dcnn[ii][:, 0], axis=3,
+                    _h = _r['h_dcnn_{}'.format(ii)]
+                    plot_thumbnails(fname_dcnn[ii], _h[ii][:, 0], axis=3,
                                     max_items_per_row=8)
 
             pass
 
-        if args.logs:
-            # Plot some samples.
-            for _set in ['valid', 'train']:
-                _is_train = _set == 'train'
-                _get_batch = get_batch_train if _is_train else get_batch_valid
-                _num_ex = num_ex_train if _is_train else num_ex_valid
-                log.info('Plotting {} samples'.format(_set))
-                _x, _y, _s = _get_batch(
-                    np.arange(min(_num_ex, args.num_samples_plot)))
+        # Plot some samples.
+        _ssets = ['train']
+        if train_opt['has_valid']:
+            _ssets.append('valid')
+
+        for _set in _ssets:
+            _is_train = _set == 'train'
+            _get_batch = get_batch_train if _is_train else get_batch_valid
+            _num_ex = num_ex_train if _is_train else num_ex_valid
+            log.info('Plotting {} samples'.format(_set))
+            _x, _y, _s = _get_batch(
+                np.arange(min(_num_ex, args.num_samples_plot)))
+
+            if args.debug_act:
+                fname_ccnn = [samples['ccnn_{}_{}'.format(
+                    ii, _set)].get_fname() for ii in xrange(num_ctrl_cnn)]
+                fname_acnn = [samples['acnn_{}_{}'.format(
+                    ii, _set)].get_fname() for ii in xrange(num_attn_cnn)]
+                fname_dcnn = [samples['dcnn_{}_{}'.format(
+                    ii, _set)].get_fname() for ii in xrange(num_dcnn)]
+            else:
+                fname_ccnn = None
+                fname_acnn = None
+                fname_dcnn = None
+            _run_samples(
+                _x, _y, _s, _is_train,
+                fname_input=samples['input_{}'.format(_set)].get_fname(),
+                fname_output=samples['output_{}'.format(_set)].get_fname(),
+                fname_total=samples['total_{}'.format(_set)].get_fname(),
+                fname_box=samples['box_{}'.format(_set)].get_fname(),
+                fname_patch=samples['patch_{}'.format(_set)].get_fname(),
+                fname_ccnn=fname_ccnn,
+                fname_acnn=fname_acnn,
+                fname_dcnn=fname_dcnn)
+
+            if not samples['output_{}'.format(_set)].is_registered():
+                for _name in ['input', 'output', 'total', 'box', 'patch']:
+                    samples['{}_{}'.format(_name, _set)].register()
 
                 if args.debug_act:
-                    fname_ccnn = [samples['ccnn_{}_{}'.format(
-                        ii, _set)].get_fname() for ii in xrange(num_ctrl_cnn)]
-                    fname_acnn = [samples['acnn_{}_{}'.format(
-                        ii, _set)].get_fname() for ii in xrange(num_attn_cnn)]
-                    fname_dcnn = [samples['dcnn_{}_{}'.format(
-                        ii, _set)].get_fname() for ii in xrange(num_dcnn)]
-                else:
-                    fname_ccnn = None
-                    fname_acnn = None
-                    fname_dcnn = None
-                _run_samples(
-                    _x, _y, _s, _is_train,
-                    fname_input=samples['input_{}'.format(_set)].get_fname(),
-                    fname_output=samples['output_{}'.format(_set)].get_fname(),
-                    fname_total=samples['total_{}'.format(_set)].get_fname(),
-                    fname_box=samples['box_{}'.format(_set)].get_fname(),
-                    fname_patch=samples['patch_{}'.format(_set)].get_fname(),
-                    fname_ccnn=fname_ccnn,
-                    fname_acnn=fname_acnn,
-                    fname_dcnn=fname_dcnn)
-
-                if not samples['output_{}'.format(_set)].is_registered():
-                    for _name in ['input', 'output', 'total', 'box', 'patch']:
-                        samples['{}_{}'.format(_name, _set)].register()
-
-                    if args.debug_act:
-                        for _name, _num in zip(
-                                ['ccnn', 'acnn', 'dcnn'],
-                                [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-                            [samples[
-                                '{}_{}_{}'.format(_name, ii, _set)].register()
-                                for ii in xrange(_num)]
+                    for _name, _num in zip(
+                            ['ccnn', 'acnn', 'dcnn'],
+                            [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                        [samples[
+                            '{}_{}_{}'.format(_name, ii, _set)].register()
+                            for ii in xrange(_num)]
         pass
 
     def run_validation(step, num_batch, batch_iter):
         """Validation"""
-        loss = 0.0
-        conf_loss = 0.0
-        segm_loss = 0.0
-        box_loss = 0.0
-        iou_soft = 0.0
-        iou_hard = 0.0
-        count_acc = 0.0
-        dice = 0.0
-        dic = 0.0
-        dic_abs = 0.0
-        wt_cov_soft = 0.0
-        wt_cov_hard = 0.0
-        unwt_cov_soft = 0.0
-        unwt_cov_hard = 0.0
         num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
         num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
         num_dcnn = len(model_opt['dcnn_filter_size'])
-        num_ex_valid = num_batch * batch_size
-        bn = {}
+        nvalid = num_batch * batch_size
+        r = {}
 
         log.info('Running validation')
 
         for bb in xrange(num_batch):
             _x, _y, _s = batch_iter.next()
-            results_list = [m['loss'], m['conf_loss'], m['segm_loss'],
-                            m['box_loss'], m['iou_soft'], m['iou_hard'],
-                            m['count_acc'], m['dice'], m['dic'],
-                            m['dic_abs'], m['wt_cov_soft'], m['wt_cov_hard'],
-                            m['unwt_cov_soft'], m['unwt_cov_hard']]
-
-            offset = len(results_list)
+            _outputs = ['loss', 'conf_loss', 'segm_loss',
+                        'box_loss', 'iou_soft', 'iou_hard',
+                        'count_acc', 'dice', 'dic',
+                        'dic_abs', 'wt_cov_soft', 'wt_cov_hard',
+                        'unwt_cov_soft', 'unwt_cov_hard']
 
             if train_opt['debug_bn']:
                 for _layer, _num in zip(
@@ -1076,269 +1042,137 @@ if __name__ == '__main__':
                     for ii in xrange(_num):
                         for tt in xrange(timespan):
                             for _stat in ['bm', 'bv', 'em', 'ev']:
-                                results_list.append(
-                                    m['{}_{}_{}_{}'.format(
-                                        _layer, ii, _stat, tt)])
+                                _outputs.append(
+                                    '{}_{}_{}_{}'.format(_layer, ii, _stat, tt))
 
-            results = sess.run(results_list,
-                               feed_dict={
-                                   m['x']: _x,
-                                   m['phase_train']: False,
-                                   m['y_gt']: _y,
-                                   m['s_gt']: _s
-                               })
+            _feed_dict = {m['x']: _x, m['phase_train']: False, m['y_gt']: _y,
+                          m['s_gt']: _s}
+            _r = _run_model(m, _outputs, _feed_dict)
 
-            _loss = results[0]
-            _conf_loss = results[1]
-            _segm_loss = results[2]
-            _box_loss = results[3]
-            _iou_soft = results[4]
-            _iou_hard = results[5]
-            _count_acc = results[6]
-            _dice = results[7]
-            _dic = results[8]
-            _dic_abs = results[9]
-            _wt_cov_soft = results[10]
-            _wt_cov_hard = results[11]
-            _unwt_cov_soft = results[12]
-            _unwt_cov_hard = results[13]
-            _bn = {}
+            bat_sz = _x.shape[0]
 
-            num_ex_batch = _x.shape[0]
-
-            if train_opt['debug_bn']:
-                # Batch normalization stats.
-                for _layer, _num in zip(
-                        ['ccnn', 'acnn', 'dcnn'],
-                        [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-                    for ii in xrange(_num):
-                        for tt in xrange(timespan):
-                            for _stat in ['bm', 'bv', 'em', 'ev']:
-                                key = '{}_{}_{}_{}'.format(
-                                    _layer, ii, _stat, tt)
-                                delta = results[offset] * num_ex_batch / \
-                                    num_ex_valid
-                                if key in bn:
-                                    bn[key] += delta
-                                else:
-                                    bn[key] = delta
-                                offset += 1
-
-            loss += _loss * num_ex_batch / num_ex_valid
-            conf_loss += _conf_loss * num_ex_batch / num_ex_valid
-            segm_loss += _segm_loss * num_ex_batch / num_ex_valid
-            box_loss += _box_loss * num_ex_batch / num_ex_valid
-            iou_soft += _iou_soft * num_ex_batch / num_ex_valid
-            iou_hard += _iou_hard * num_ex_batch / num_ex_valid
-            wt_cov_soft += _wt_cov_soft * num_ex_batch / num_ex_valid
-            wt_cov_hard += _wt_cov_hard * num_ex_batch / num_ex_valid
-            unwt_cov_soft += _unwt_cov_soft * num_ex_batch / num_ex_valid
-            unwt_cov_hard += _unwt_cov_hard * num_ex_batch / num_ex_valid
-            count_acc += _count_acc * num_ex_batch / num_ex_valid
-            dice += _dice * num_ex_batch / num_ex_valid
-            dic += _dic * num_ex_batch / num_ex_valid
-            dic_abs += _dic_abs * num_ex_batch / num_ex_valid
+            for key in _r.iterkeys():
+                if key in r:
+                    r[key] += _r[key] * bat_sz / nvalid
+                else:
+                    r[key] = _r[key] * bat_sz / nvalid
 
         log.info(('{:d} vtl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
                   'ious {:.4f} iouh {:.4f} dice {:.4f}').format(
-            step, loss, conf_loss, segm_loss, box_loss, iou_soft, iou_hard,
-            dice))
+            step, r['loss'], r['conf_loss'], r['segm_loss'], r['box_loss'],
+            r['iou_soft'], r['iou_hard'], r['dice']))
 
-        if args.logs:
-            loss_logger.add(step, ['', loss])
-            conf_loss_logger.add(step, ['', conf_loss])
-            segm_loss_logger.add(step, ['', segm_loss])
-            box_loss_logger.add(step, ['', box_loss])
-            iou_logger.add(step, ['', iou_soft, '', iou_hard])
-            wt_cov_logger.add(step, ['', wt_cov_soft, '', wt_cov_hard])
-            unwt_cov_logger.add(step, ['', unwt_cov_soft, '', unwt_cov_hard])
-            dice_logger.add(step, ['', dice])
-            count_acc_logger.add(step, ['', count_acc])
-            dic_logger.add(step, ['', dic])
-            dic_abs_logger.add(step, ['', dic_abs])
+        loggers['loss'].add(step, ['', r['loss']])
+        loggers['conf_loss'].add(step, ['', r['conf_loss']])
+        loggers['segm_loss'].add(step, ['', r['segm_loss']])
+        loggers['box_loss'].add(step, ['', r['box_loss']])
+        loggers['iou'].add(step, ['', r['iou_soft'], '', r['iou_hard']])
+        loggers['wt_cov'].add(step, ['', r['wt_cov_soft'], '',
+                                     r['wt_cov_hard']])
+        loggers['unwt_cov'].add(step, ['', r['unwt_cov_soft'], '',
+                                       r['unwt_cov_hard']])
+        loggers['dice'].add(step, ['', r['dice']])
+        loggers['count_acc'].add(step, ['', r['count_acc']])
+        loggers['dic'].add(step, ['', r['dic']])
+        loggers['dic_abs'].add(step, ['', r['dic_abs']])
 
-            # Batch normalization stats.
-            if train_opt['debug_bn']:
-                for _layer, _num in zip(
-                        ['ccnn', 'acnn', 'dcnn'],
-                        [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-                    for ii in xrange(_num):
-                        for tt in xrange(timespan):
-                            _prefix = '{}_{}_{{}}_{}'.format(_layer, ii, tt)
-                            _output = ['', bn[_prefix.format('bm')],
-                                       '', bn[_prefix.format('bv')], '', '']
-                            bn_loggers['{}_{}_{}'.format(
-                                _layer, ii, tt)].add(step, _output)
+        # Batch normalization stats.
+        if train_opt['debug_bn']:
+            for _layer, _num in zip(
+                    ['ccnn', 'acnn', 'dcnn'],
+                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                for ii in xrange(_num):
+                    for tt in xrange(timespan):
+                        _prefix = '{}_{}_{{}}_{}'.format(_layer, ii, tt)
+                        _output = ['', r[_prefix.format('bm')],
+                                   '', r[_prefix.format('bv')], '', '']
+                        loggers['bn_{}_{}_{}'.format(
+                            _layer, ii, tt)].add(step, _output)
 
         pass
 
     def train_step(step, x, y, s):
         """Train step"""
-        start_time = time.time()
 
         num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
         num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
         num_dcnn = len(model_opt['dcnn_filter_size'])
-        attn_cnn_weights_m = [0.0] * num_attn_cnn
-        attn_cnn_bias_m = [0.0] * num_attn_cnn
-        sparsity = {}
 
-        results_list = [m['loss'], m['conf_loss'], m['segm_loss'], m['box_loss'],
-                        m['iou_soft'], m['iou_hard'], m['learn_rate'],
-                        m['crnn_g_i_avg'], m['crnn_g_f_avg'], m['crnn_g_o_avg'],
-                        m['count_acc'], m['gt_knob_prob_box'],
-                        m['gt_knob_prob_segm'], m['dice'], m['dic'],
-                        m['dic_abs'], m['attn_lg_gamma'],
-                        m['attn_lg_var'], m['attn_box_lg_gamma'],
-                        m['y_out_lg_gamma'], m['attn_box_beta'],
-                        m['y_out_beta'], m['wt_cov_soft'], m['wt_cov_hard'],
-                        m['unwt_cov_soft'], m['unwt_cov_hard']]
+        if step % train_opt['steps_per_log'] == 0:
+            _start_time = time.time()
+            _outputs = ['loss', 'conf_loss', 'segm_loss', 'box_loss',
+                        'iou_soft', 'iou_hard', 'learn_rate', 'crnn_g_i_avg',
+                        'crnn_g_f_avg', 'crnn_g_o_avg', 'count_acc',
+                        'gt_knob_prob_box', 'gt_knob_prob_segm', 'dice', 'dic',
+                        'dic_abs', 'attn_lg_gamma_mean',
+                        'attn_box_lg_gamma_mean', 'y_out_lg_gamma_mean',
+                        'wt_cov_soft', 'wt_cov_hard', 'unwt_cov_soft',
+                        'unwt_cov_hard']
+            # Batch normalization
+            if train_opt['debug_bn']:
+                for _layer, _num in zip(
+                        ['ctrl_cnn', 'attn_cnn', 'dcnn'],
+                        [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                    for ii in xrange(_num):
+                        for tt in xrange(timespan):
+                            for _stat in ['bm', 'bv', 'em', 'ev']:
+                                _outputs.append('{}_{}_{}_{}'.format(
+                                    _layer, ii, _stat, tt))
+        else:
+            _outputs = []
 
-        offset = len(results_list)
-
-        # Batch normalization
-        if train_opt['debug_bn']:
-            for _layer, _num in zip(['ctrl_cnn', 'attn_cnn', 'dcnn'],
-                                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-                for ii in xrange(_num):
-                    for tt in xrange(timespan):
-                        for _stat in ['bm', 'bv', 'em', 'ev']:
-                            results_list.append(
-                                m['{}_{}_{}_{}'.format(_layer, ii, _stat, tt)])
-
-        results_list.extend(m['acnn_w_mean'])
-        results_list.extend(m['acnn_b_mean'])
-        results_list.extend(m['h_ccnn'])
-        results_list.extend(m['h_acnn'])
-        results_list.extend(m['h_dcnn'])
-
-        results_list.append(m['train_step'])
-
-        results = sess.run(results_list,
-                           feed_dict={
-                               m['x']: x,
-                               m['phase_train']: True,
-                               m['y_gt']: y,
-                               m['s_gt']: s
-                           })
+        _outputs.append(m['train_step'])
+        _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
+                      m['s_gt']: s}
+        _r = _run_model(m, _outputs, _feed_dict)
 
         # Print statistics
         if step % train_opt['steps_per_log'] == 0:
-            loss = results[0]
-            conf_loss = results[1]
-            segm_loss = results[2]
-            box_loss = results[3]
-            iou_soft = results[4]
-            iou_hard = results[5]
-            learn_rate = results[6]
-            crnn_g_i_avg = results[7]
-            crnn_g_f_avg = results[8]
-            crnn_g_o_avg = results[9]
-            count_acc = results[10]
-            gt_knob_box = results[11]
-            gt_knob_segm = results[12]
-            dice = results[13]
-            dic = results[14]
-            dic_abs = results[15]
-            attn_lg_gamma = results[16]
-            attn_lg_var = results[17]
-            attn_box_lg_gamma = results[18]
-            y_out_lg_gamma = results[19]
-            attn_box_beta = results[20]
-            y_out_beta = results[21]
-            wt_cov_soft = results[22]
-            wt_cov_hard = results[23]
-            unwt_cov_soft = results[24]
-            unwt_cov_hard = results[25]
+            _step_time = (time.time() - _start_time) * 1000
+            log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
+                      'ious {:.4f} iouh {:.4f} dice {:.4f} t {:.2f}ms').format(
+                step, _r['loss'], _r['conf_loss'], _r['segm_loss'],
+                _r['box_loss'], _r['iou_soft'], _r['iou_hard'], _r['dice'],
+                _step_time))
+
+            loggers['loss'].add(step, [_r['loss'], ''])
+            loggers['conf_loss'].add(step, [_r['conf_loss'], ''])
+            loggers['segm_loss'].add(step, [_r['segm_loss'], ''])
+            loggers['box_loss'].add(step, [_r['box_loss'], ''])
+            loggers['iou'].add(step, [_r['iou_soft'], '', _r['iou_hard'], ''])
+            loggers['wt_cov'].add(step, [_r['wt_cov_soft'], '',
+                                         _r['wt_cov_hard'], ''])
+            loggers['unwt_cov'].add(step, [_r['unwt_cov_soft'], '',
+                                           _r['unwt_cov_hard'], ''])
+            loggers['dice'].add(step, [_r['dice'], ''])
+            loggers['count_acc'].add(step, [_r['count_acc'], ''])
+            loggers['dic'].add(step, [_r['dic'], ''])
+            loggers['dic_abs'].add(step, [_r['dic_abs'], ''])
+            loggers['learn_rate'].add(step, _r['learn_rate'])
+            loggers['step_time'].add(step, _step_time)
+            loggers['crnn'].add(step, [_r['crnn_g_i_avg'], _r['crnn_g_f_avg'],
+                                       _r['crnn_g_o_avg']])
+            loggers['gt_knob'].add(step, [_r['gt_knob_box'],
+                                          _r['gt_knob_segm']])
+            loggers['attn_params'].add(step, [_r['attn_lg_gamma_mean'],
+                                              _r['attn_box_lg_gamma_mean'],
+                                              _r['y_out_lg_gamma_mean']])
 
             # Batch normalization stats.
             if train_opt['debug_bn']:
-                bn = {}
                 for _layer, _num in zip(
                         ['ccnn', 'acnn', 'dcnn'],
                         [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
                     for ii in xrange(_num):
                         for tt in xrange(timespan):
-                            for _stat in ['bm', 'bv', 'em', 'ev']:
-                                bn['{}_{}_{}_{}'.format(
-                                    _layer, ii, _stat, tt)] = results[offset]
-                                offset += 1
-
-            for ii in xrange(num_attn_cnn):
-                attn_cnn_weights_m[ii] = results[offset]
-                offset += 1
-
-            for ii in xrange(num_attn_cnn):
-                attn_cnn_bias_m[ii] = results[offset]
-                offset += 1
-
-            # Layer sparsity
-            for _layer, _num in zip(['ccnn', 'acnn', 'dcnn'],
-                                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-                sparsity[_layer] = []
-                for ii in xrange(_num):
-                    sparsity[_layer].append(
-                        (results[offset] == 0).astype('float').mean())
-                    offset += 1
-
-            step_time = (time.time() - start_time) * 1000
-            log.info(('{:d} tl {:.4f} cl {:.4f} sl {:.4f} bl {:.4f} '
-                      'ious {:.4f} iouh {:.4f} dice {:.4f} t {:.2f}ms').format(
-                step, loss, conf_loss, segm_loss, box_loss, iou_soft, iou_hard,
-                dice, step_time))
-
-            if args.logs:
-                loss_logger.add(step, [loss, ''])
-                conf_loss_logger.add(step, [conf_loss, ''])
-                segm_loss_logger.add(step, [segm_loss, ''])
-                box_loss_logger.add(step, [box_loss, ''])
-                iou_logger.add(step, [iou_soft, '', iou_hard, ''])
-                wt_cov_logger.add(step, [wt_cov_soft, '', wt_cov_hard, ''])
-                unwt_cov_logger.add(
-                    step, [unwt_cov_soft, '', unwt_cov_hard, ''])
-                dice_logger.add(step, [dice, ''])
-                count_acc_logger.add(step, [count_acc, ''])
-                dic_logger.add(step, [dic, ''])
-                dic_abs_logger.add(step, [dic_abs, ''])
-                learn_rate_logger.add(step, learn_rate)
-                step_time_logger.add(step, step_time)
-                crnn_logger.add(
-                    step, [crnn_g_i_avg, crnn_g_f_avg, crnn_g_o_avg])
-                gt_knob_logger.add(step, [gt_knob_box, gt_knob_segm])
-
-                # Batch normalization stats.
-                if train_opt['debug_bn']:
-                    for _layer, _num in zip(
-                            ['ccnn', 'acnn', 'dcnn'],
-                            [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-                        for ii in xrange(_num):
-                            for tt in xrange(timespan):
-                                _prefix = '{}_{}_{{}}_{}'.format(
-                                    _layer, ii, tt)
-                                _output = [bn[_prefix.format('bm')], '',
-                                           bn[_prefix.format('bv')], '',
-                                           bn[_prefix.format('em')],
-                                           bn[_prefix.format('ev')]]
-                                bn_loggers['{}_{}_{}'.format(
-                                    _layer, ii, tt)].add(step, _output)
-
-                # Attn parameters
-                attn_params_logger.add(
-                    step, [attn_lg_gamma.mean(), attn_lg_var.mean(),
-                           attn_box_lg_gamma.mean(),
-                           y_out_lg_gamma.mean(), attn_box_beta.mean(),
-                           y_out_beta.mean()])
-
-                # Weights
-                acnn_weights_stats = []
-                for ii in xrange(num_attn_cnn):
-                    acnn_weights_stats.append(attn_cnn_weights_m[ii])
-                    acnn_weights_stats.append(attn_cnn_bias_m[ii])
-                acnn_weights_logger.add(step, acnn_weights_stats)
-
-                # Layer sparsity
-                for _layer in ['ccnn', 'acnn', 'dcnn']:
-                    sparsity_loggers[_layer].add(step, sparsity[_layer])
+                            _prefix = '{}_{}_{{}}_{}'.format(
+                                _layer, ii, tt)
+                            _output = [_r[_prefix.format('bm')], '',
+                                       _r[_prefix.format('bv')], '',
+                                       _r[_prefix.format('em')],
+                                       _r[_prefix.format('ev')]]
+                            loggers['bn_{}_{}_{}'.format(
+                                _layer, ii, tt)].add(step, _output)
 
         pass
 
@@ -1388,9 +1222,7 @@ if __name__ == '__main__':
     train_loop(step=step)
 
     sess.close()
-    loss_logger.close()
-    iou_logger.close()
-    learn_rate_logger.close()
-    step_time_logger.close()
+    for logger in loggers.itervalues():
+        logger.close()
 
     pass

@@ -1561,16 +1561,17 @@ def get_attn_model_2(opt, device='/cpu:0'):
                                           for tmp in attn_box_lg_gamma])
         y_out_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
                                        for tmp in y_out_lg_gamma])
+        attn_lg_gamma_mean = tf.reduce_sum(attn_lg_gamma) / num_ex / timespan
+        attn_box_lg_gamma_mean = tf.reduce_sum(
+            attn_box_lg_gamma) / num_ex / timespan
+        y_out_lg_gamma_mean = tf.reduce_sum(y_out_lg_gamma) / num_ex / timespan
         model['attn_ctr'] = attn_ctr
         model['attn_delta'] = attn_delta
         model['attn_top_left'] = attn_top_left
         model['attn_bot_right'] = attn_bot_right
-        model['attn_lg_var'] = attn_lg_var
-        model['attn_lg_gamma'] = attn_lg_gamma
-        model['attn_box_lg_gamma'] = attn_box_lg_gamma
-        model['attn_box_beta'] = attn_box_beta
-        model['y_out_lg_gamma'] = y_out_lg_gamma
-        model['y_out_beta'] = y_out_beta
+        model['attn_lg_gamma_mean'] = attn_lg_gamma_mean
+        model['attn_box_lg_gamma_mean'] = attn_box_lg_gamma_mean
+        model['y_out_lg_gamma_mean'] = y_out_lg_gamma_mean
 
         # Prob
         crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
