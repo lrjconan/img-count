@@ -377,6 +377,9 @@ def _parse_args():
     kKnobBase = 1.0
     kKnobBoxOffset = 300
     kKnobSegmOffset = 500
+    kGtBoxCtrNoise = 0.05
+    kGtBoxPadNoise = 0.1
+    kGtSegmNoise = 0.3
 
     # Default training options
     kNumSteps = 500000
@@ -501,6 +504,12 @@ def _parse_args():
                         help='Use time scale curriculum.')
     parser.add_argument('-gt_selector', default=kGtSelector,
                         help='greedy_match or argmax')
+    parser.add_argument('-gt_box_ctr_noise', default=kGtBoxCtrNoise,
+                        type=float, help='Groundtruth box center noise')
+    parser.add_argument('-gt_box_pad_noise', default=kGtBoxPadNoise,
+                        type=float, help='Groundtruth box padding noise')
+    parser.add_argument('-gt_segm_noise', default=kGtSegmNoise,
+                        type=float, help='Groundtruth segmentation noise')
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -677,6 +686,9 @@ if __name__ == '__main__':
             'knob_segm_offset': args.knob_segm_offset,
             'knob_use_timescale': args.knob_use_timescale,
             'gt_selector': args.gt_selector,
+            'gt_box_ctr_noise': args.gt_box_ctr_noise,
+            'gt_box_pad_noise': args.gt_box_pad_noise,
+            'gt_segm_noise': args.gt_segm_noise,
 
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,

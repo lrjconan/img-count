@@ -977,6 +977,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
     knob_segm_offset = opt['knob_segm_offset']
     knob_use_timescale = opt['knob_use_timescale']
     gt_selector = opt['gt_selector']
+    gt_box_ctr_noise = opt['gt_box_ctr_noise']
+    gt_box_pad_noise = opt['gt_box_pad_noise']
+    gt_segm_noise = opt['gt_segm_noise']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -1071,10 +1074,11 @@ def get_attn_model_2(opt, device='/cpu:0'):
             _get_gt_attn(y_gt, attn_size,
                          padding_ratio=tf.random_uniform(
                              tf.pack([num_ex, timespan, 1]),
-                             0.1, 0.3),
+                             attn_box_padding_ratio - gt_box_pad_noise, 
+                             attn_box_padding_ratio + gt_box_pad_noise),
                          center_shift_ratio=tf.random_uniform(
                              tf.pack([num_ex, timespan, 2]),
-                             -0.05, 0.05))
+                             -gt_box_ctr_noise, gt_box_ctr_noise))
         attn_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
         attn_box_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
         y_out_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
@@ -1357,7 +1361,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
                         grd_match * y_gt, 1), 3)
                     # Add independent uniform noise to groundtruth.
                     _noise = tf.random_uniform(
-                        tf.pack([num_ex, inp_height, inp_width, 1]), 0, 0.3)
+                        tf.pack([num_ex, inp_height, inp_width, 1]),
+                        0, gt_segm_noise)
                     _y_out = _y_out - _y_out * _noise
                     _y_out = phase_train_f * _gt_knob_segm * _y_out + \
                         (1 - phase_train_f * _gt_knob_segm) * \
