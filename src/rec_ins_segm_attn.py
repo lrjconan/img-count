@@ -1055,7 +1055,6 @@ if __name__ == '__main__':
 
     def run_stats(step, num_batch, batch_iter, outputs, write_log, phase_train):
         """Validation"""
-        log.info('Running validation')
         nvalid = num_batch * batch_size
         r = {}
 
@@ -1072,7 +1071,7 @@ if __name__ == '__main__':
                 else:
                     r[key] = _r[key] * bat_sz / nvalid
 
-        log.info('{:d} valid loss {:.4f}'.format(step, r['loss']))
+        log.info('{:d} loss {:.4f}'.format(step, r['loss']))
         write_log(loggers, r)
 
         pass
@@ -1159,8 +1158,8 @@ if __name__ == '__main__':
 
         # Print statistics
         if step % train_opt['steps_per_log'] == 0:
-            log.info('{:d} tl {:.4f} t {:.2f}ms'.format(step, r['loss'],
-                                                        _step_time))
+            log.info('{:d} loss {:.4f} t {:.2f}ms'.format(step, r['loss'],
+                                                          _step_time))
             loggers['loss'].add(step, [r['loss'], ''])
             loggers['step_time'].add(step, _step_time)
 
@@ -1185,12 +1184,13 @@ if __name__ == '__main__':
             outputs_trainval.extend(get_outputs_bn())
 
         for _x, _y, _s in BatchIterator(num_ex_train,
-                                                 batch_size=batch_size,
-                                                 get_fn=get_batch_train,
-                                                 cycle=True,
-                                                 progress_bar=False):
+                                        batch_size=batch_size,
+                                        get_fn=get_batch_train,
+                                        cycle=True,
+                                        progress_bar=False):
             # Run validation stats
             if step % train_opt['steps_per_valid'] == 0:
+                log.info('Running validation')
                 run_stats(step, num_valid_batch, batch_iter_valid,
                           outputs_valid, write_log_valid, False)
                 pass
@@ -1205,6 +1205,7 @@ if __name__ == '__main__':
 
             # Train stats
             if step % train_opt['steps_per_trainval'] == 0:
+                log.info('Running train validation')
                 run_stats(step, num_valid_batch, batch_iter_trainval,
                           outputs_trainval, write_log_trainval, True)
                 pass
