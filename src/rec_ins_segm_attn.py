@@ -269,10 +269,13 @@ def get_dataset(dataset_name, opt, num_train=-1, num_valid=-1, has_valid=True):
                 'label_score': _all_data['label_score'][valid_idx]
             }
         else:
+            random = np.random.RandomState(2)
+            idx = np.arange(_all_data['input'].shape[0])
+            random.shuffle(idx)
             dataset['train'] = {
-                'input': _all_data['input'],
-                'label_segmentation': _all_data['label_segmentation'],
-                'label_score': _all_data['label_score']
+                'input': _all_data['input'][idx],
+                'label_segmentation': _all_data['label_segmentation'][idx],
+                'label_score': _all_data['label_score'][idx]
             }
     elif dataset_name == 'kitti':
         if os.path.exists('/u/mren'):
@@ -614,6 +617,8 @@ if __name__ == '__main__':
             rnd_transpose = True
             rnd_colour = False
             num_valid_batch = 5
+            knob_box_offset = 500
+            knob_segm_offset = 2500
         elif args.dataset == 'cvppp':
             timespan = 21
             inp_height = 224
@@ -624,6 +629,8 @@ if __name__ == '__main__':
             rnd_transpose = True
             rnd_colour = False
             num_valid_batch = 2
+            knob_box_offset = 1500
+            knob_segm_offset = 3000
         elif args.dataset == 'kitti':
             timespan = 20
             inp_height = 128
@@ -686,8 +693,10 @@ if __name__ == '__main__':
             'knob_decay': args.knob_decay,
             'knob_base': args.knob_base,
             'steps_per_knob_decay': args.steps_per_knob_decay,
-            'knob_box_offset': args.knob_box_offset,
-            'knob_segm_offset': args.knob_segm_offset,
+            # 'knob_box_offset': args.knob_box_offset,
+            # 'knob_segm_offset': args.knob_segm_offset,
+            'knob_box_offset': knob_box_offset,
+            'knob_segm_offset': knob_segm_offset,
             'knob_use_timescale': args.knob_use_timescale,
             'gt_selector': args.gt_selector,
             'gt_box_ctr_noise': args.gt_box_ctr_noise,
