@@ -51,12 +51,13 @@ class Saver():
     def get_latest_ckpt(self):
         """Get the latest checkpoint filename in a folder."""
 
-        ckpt_fname_pattern = os.path.join(self.folder, 'model.ckpt-{0-9}+')
+        ckpt_fname_pattern = os.path.join(self.folder, 'model.ckpt-*')
         ckpt_fname_list = []
         for fname in os.listdir(self.folder):
             fullname = os.path.join(self.folder, fname)
             if fnmatch.fnmatch(fullname, ckpt_fname_pattern):
-                ckpt_fname_list.append(fullname)
+                if not fullname.endswith('.meta'):
+                    ckpt_fname_list.append(fullname)
         if len(ckpt_fname_list) == 0:
             raise Exception('No checkpoint file found.')
         ckpt_fname_step = [int(fn.split('-')[-1]) for fn in ckpt_fname_list]
