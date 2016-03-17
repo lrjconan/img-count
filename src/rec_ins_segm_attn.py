@@ -269,7 +269,11 @@ def get_dataset(dataset_name, opt, num_train=-1, num_valid=-1, has_valid=True):
                 'label_score': _all_data['label_score'][valid_idx]
             }
         else:
-            dataset = _all_data
+            dataset['train'] = {
+                'input': _all_data['input'],
+                'label_segmentation': _all_data['label_segmentation'],
+                'label_score': _all_data['label_score']
+            }
     elif dataset_name == 'kitti':
         if os.path.exists('/u/mren'):
             dataset_folder = '/ais/gobi3/u/mren/data/kitti'
