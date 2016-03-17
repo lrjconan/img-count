@@ -390,7 +390,7 @@ def _parse_args():
     kBatchSize = 32
 
     parser = argparse.ArgumentParser(
-        description='Recurrent Instance Segmentation')
+        description='Recurrent Instance Segmentation + Attention')
 
     # Dataset options
     parser.add_argument('-dataset', default=kDataset,
@@ -456,7 +456,7 @@ def _parse_args():
 
     parser.add_argument('-ctrl_rnn_hid_dim', default=kCtrlRnnHiddenDim,
                         type=int, help='RNN hidden dimension')
-    parser.add_argument('-attn_rnn_hid_dim', default=kCtrlRnnHiddenDim,
+    parser.add_argument('-attn_rnn_hid_dim', default=kAttnRnnHiddenDim,
                         type=int, help='RNN hidden dimension')
 
     parser.add_argument('-num_ctrl_mlp_layers', default=kNumCtrlMlpLayers,
@@ -1179,12 +1179,13 @@ if __name__ == '__main__':
 
     def train_loop(step=0):
         """Train loop"""
-        batch_iter_valid = BatchIterator(num_ex_valid,
-                                         batch_size=batch_size,
-                                         get_fn=get_batch_valid,
-                                         cycle=True,
-                                         progress_bar=False)
-        outputs_valid = get_outputs_valid()
+        if train_opt['has_valid']:
+            batch_iter_valid = BatchIterator(num_ex_valid,
+                                             batch_size=batch_size,
+                                             get_fn=get_batch_valid,
+                                             cycle=True,
+                                             progress_bar=False)
+            outputs_valid = get_outputs_valid()
         batch_iter_trainval = BatchIterator(num_ex_train,
                                             batch_size=batch_size,
                                             get_fn=get_batch_train,
@@ -1192,7 +1193,8 @@ if __name__ == '__main__':
                                             progress_bar=False)
         outputs_trainval = get_outputs_trainval()
         if train_opt['debug_bn']:
-            outputs_valid.extend(get_outputs_bn())
+            if train_opt['has_valid']:
+                outputs_valid.extend(get_outputs_bn())
             outputs_trainval.extend(get_outputs_bn())
 
         for _x, _y, _s in BatchIterator(num_ex_train,
@@ -1201,10 +1203,18 @@ if __name__ == '__main__':
                                         cycle=True,
                                         progress_bar=False):
             # Run validation stats
-            if step % train_opt['steps_per_valid'] == 0:
-                log.info('Running validation')
-                run_stats(step, num_valid_batch, batch_iter_valid,
-                          outputs_valid, write_log_valid, False)
+            if train_opt['has_valid']:
+                if step % train_opt['steps_per_valid'] == 0:
+                    log.info('Running validation')
+                    run_stats(step, num_valid_batch, batch_iter_valid,
+                              outputs_valid, write_log_valid, False)
+                    pass
+                
+            # Train stats
+            if step % train_opt['steps_per_trainval'] == 0:
+                log.info('Running train validation')
+                run_stats(step, num_valid_batch, batch_iter_trainval,
+                          outputs_trainval, write_log_trainval, True)
                 pass
 
             # Plot samples
@@ -1215,12 +1225,6 @@ if __name__ == '__main__':
             # Train step
             train_step(step, _x, _y, _s)
 
-            # Train stats
-            if step % train_opt['steps_per_trainval'] == 0:
-                log.info('Running train validation')
-                run_stats(step, num_valid_batch, batch_iter_trainval,
-                          outputs_trainval, write_log_trainval, True)
-                pass
 
             # Model ID reminder
             if step % (10 * train_opt['steps_per_log']) == 0:
