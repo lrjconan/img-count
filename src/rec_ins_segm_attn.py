@@ -693,10 +693,10 @@ if __name__ == '__main__':
             'knob_decay': args.knob_decay,
             'knob_base': args.knob_base,
             'steps_per_knob_decay': args.steps_per_knob_decay,
-            # 'knob_box_offset': args.knob_box_offset,
-            # 'knob_segm_offset': args.knob_segm_offset,
-            'knob_box_offset': knob_box_offset,
-            'knob_segm_offset': knob_segm_offset,
+            'knob_box_offset': args.knob_box_offset,
+            'knob_segm_offset': args.knob_segm_offset,
+            # 'knob_box_offset': knob_box_offset,
+            # 'knob_segm_offset': knob_segm_offset,
             'knob_use_timescale': args.knob_use_timescale,
             'gt_selector': args.gt_selector,
             'gt_box_ctr_noise': args.gt_box_ctr_noise,
@@ -708,7 +708,6 @@ if __name__ == '__main__':
             'rnd_transpose': rnd_transpose,
             'rnd_colour': rnd_colour,
         }
-        log.fatal(model_opt['gt_box_ctr_noise'])
         data_opt = {
             'height': inp_height,
             'width': inp_width,
