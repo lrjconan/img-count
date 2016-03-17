@@ -1155,8 +1155,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         attn_box_beta = tf.constant([-5.0])
         attn_box_gamma = [None] * timespan
 
-        # Knob
-        # [B, N]
+        # Groundtruth mix.
         grd_match_cum = tf.zeros(tf.pack([num_ex, timespan]))
         # Add a bias on every entry so there is no duplicate match
         # [1, N]
@@ -1164,13 +1163,12 @@ def get_attn_model_2(opt, device='/cpu:0'):
         iou_bias = tf.expand_dims(tf.to_float(
             tf.reverse(tf.range(timespan), [True])) * iou_bias_eps, 0)
 
-        # Knob for mix in groundtruth box.
-        if knob_use_timescale:
-            gt_knob_time_scale = tf.reshape(
-                1.0 + tf.log(1.0 + tf.to_float(tf.range(timespan)) * 3.0),
-                [1, timespan, 1])
-        else:
-            gt_knob_time_scale = tf.ones([1, timespan, 1])
+        # Scale mix ratio on different timesteps.
+        gt_knob_time_scale = tf.reshape(
+            1.0 + tf.log(1.0 + tf.to_float(tf.range(timespan)) * 3.0 *
+                         float(knob_use_timescale)), [1, timespan, 1])
+
+        # Mix in groundtruth box.
         global_step_box = tf.maximum(0.0, global_step - knob_box_offset)
         gt_knob_prob_box = tf.train.exponential_decay(
             knob_base, global_step_box, steps_per_knob_decay, knob_decay,
@@ -1181,7 +1179,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
             tf.pack([num_ex, timespan, 1]), 0, 1.0) <= gt_knob_prob_box)
         model['gt_knob_prob_box'] = gt_knob_prob_box[0, 0, 0]
 
-        # Knob for mix in groundtruth segmentation.
+        # Mix in groundtruth segmentation.
         global_step_segm = tf.maximum(0.0, global_step - knob_segm_offset)
         gt_knob_prob_segm = tf.train.exponential_decay(
             knob_base, global_step_segm, steps_per_knob_decay, knob_decay,
@@ -1196,7 +1194,6 @@ def get_attn_model_2(opt, device='/cpu:0'):
         y_out = [None] * timespan
         y_out_lg_gamma = [None] * timespan
         y_out_beta = tf.constant([-5.0])
-        # y_out_beta = nn.weight_variable([1])
 
         for tt in xrange(timespan):
             # Controller CNN [B, H, W, D] => [B, RH1, RW1, RD1]
@@ -1216,24 +1213,24 @@ def get_attn_model_2(opt, device='/cpu:0'):
             h_crnn[tt] = tf.slice(
                 crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
 
-            if use_gt_attn:
-                attn_ctr[tt] = attn_ctr_gt[:, tt, :]
-                attn_delta[tt] = attn_delta_gt[:, tt, :]
-                attn_lg_var[tt] = attn_lg_var_gt[:, tt, :]
-                attn_lg_gamma[tt] = attn_lg_gamma_gt[:, tt, :]
-                attn_box_lg_gamma[tt] = attn_box_lg_gamma_gt[:, tt, :]
-                y_out_lg_gamma[tt] = y_out_lg_gamma_gt[:, tt, :]
-            else:
-                ctrl_out = cmlp(h_crnn[tt])[-1]
-                _ctr = tf.slice(ctrl_out, [0, 0], [-1, 2])
-                _lg_delta = tf.slice(ctrl_out, [0, 2], [-1, 2])
-                attn_ctr[tt], attn_delta[tt] = _unnormalize_attn(
-                    _ctr, _lg_delta, inp_height, inp_width, attn_size)
-                attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
-                # attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
-                attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
-                attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
-                y_out_lg_gamma[tt] = tf.slice(ctrl_out, [0, 8], [-1, 1])
+            # if use_gt_attn:
+            #     attn_ctr[tt] = attn_ctr_gt[:, tt, :]
+            #     attn_delta[tt] = attn_delta_gt[:, tt, :]
+            #     attn_lg_var[tt] = attn_lg_var_gt[:, tt, :]
+            #     attn_lg_gamma[tt] = attn_lg_gamma_gt[:, tt, :]
+            #     attn_box_lg_gamma[tt] = attn_box_lg_gamma_gt[:, tt, :]
+            #     y_out_lg_gamma[tt] = y_out_lg_gamma_gt[:, tt, :]
+            # else:
+            ctrl_out = cmlp(h_crnn[tt])[-1]
+            _ctr = tf.slice(ctrl_out, [0, 0], [-1, 2])
+            _lg_delta = tf.slice(ctrl_out, [0, 2], [-1, 2])
+            attn_ctr[tt], attn_delta[tt] = _unnormalize_attn(
+                _ctr, _lg_delta, inp_height, inp_width, attn_size)
+            attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
+            # attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
+            attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
+            attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
+            y_out_lg_gamma[tt] = tf.slice(ctrl_out, [0, 8], [-1, 1])
 
             attn_gamma[tt] = tf.reshape(
                 tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
@@ -1257,8 +1254,8 @@ def get_attn_model_2(opt, device='/cpu:0'):
             attn_box[tt] = _extract_patch(const_ones * attn_box_gamma[tt],
                                           filter_y_inv, filter_x_inv, 1)
             attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
-            attn_box[tt] = tf.reshape(
-                attn_box[tt], [-1, 1, inp_height, inp_width])
+            attn_box[tt] = tf.reshape(attn_box[tt],
+                                      [-1, 1, inp_height, inp_width])
 
             # Here is the knob kick in GT bbox.
             if use_knob:
@@ -1270,24 +1267,23 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 grd_match = _greedy_match(attn_iou_soft[tt], grd_match_cum)
 
                 if gt_selector == 'greedy_match':
-                    # Count in the cumulative matching results to not double
-                    # count.
+                    # Add in the cumulative matching to not double count.
                     grd_match_cum += grd_match
 
                 # [B, T, 1]
                 grd_match = tf.expand_dims(grd_match, 2)
-                attn_ctr_gtm = tf.reduce_sum(grd_match * attn_ctr_gt_noise, 1)
-                attn_delta_gtm = tf.reduce_sum(
+                attn_ctr_gt_match = tf.reduce_sum(
+                    grd_match * attn_ctr_gt_noise, 1)
+                attn_delta_gt_match = tf.reduce_sum(
                     grd_match * attn_delta_gt_noise, 1)
 
                 _gt_knob_box = gt_knob_box
-                # _gt_knob_box = gt_knob_prob_box
                 attn_ctr[tt] = phase_train_f * _gt_knob_box[:, tt, 0: 1] * \
-                    attn_ctr_gtm + \
+                    attn_ctr_gt_match + \
                     (1 - phase_train_f * _gt_knob_box[:, tt, 0: 1]) * \
                     attn_ctr[tt]
                 attn_delta[tt] = phase_train_f * _gt_knob_box[:, tt, 0: 1] * \
-                    attn_delta_gtm + \
+                    attn_delta_gt_match + \
                     (1 - phase_train_f * _gt_knob_box[:, tt, 0: 1]) * \
                     attn_delta[tt]
 
