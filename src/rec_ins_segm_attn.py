@@ -662,7 +662,7 @@ if __name__ == '__main__':
             'segm_loss_fn': args.segm_loss_fn,
             'box_loss_fn': args.box_loss_fn,
             'use_bn': args.use_bn,
-            'use_gt_attn': args.use_gt_attn,
+            'use_gt_attn': args.use_gt_attn,                      # DEPRECATED
             'attn_box_padding_ratio': args.attn_box_padding_ratio,
             'use_attn_rnn': args.use_attn_rnn,
             'use_canvas': args.use_canvas,
