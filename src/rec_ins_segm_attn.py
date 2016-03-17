@@ -708,6 +708,7 @@ if __name__ == '__main__':
             'rnd_transpose': rnd_transpose,
             'rnd_colour': rnd_colour,
         }
+        log.fatal(model_opt['gt_box_ctr_noise'])
         data_opt = {
             'height': inp_height,
             'width': inp_width,
