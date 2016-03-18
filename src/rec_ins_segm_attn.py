@@ -1001,7 +1001,7 @@ if __name__ == '__main__':
     data_opt = _make_data_opt(args)
 
     # Restore previously saved checkpoints.
-    if train_opt['save_ckpt']:
+    if train_opt['restore']:
         saver = Saver(train_opt['restore'])
         ckpt_info = saver.get_ckpt_info()
         model_opt = ckpt_info['model_opt']
