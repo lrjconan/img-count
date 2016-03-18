@@ -28,7 +28,7 @@ from utils.batch_iter import BatchIterator
 from utils.lazy_registerer import LazyRegisterer
 from utils.saver import Saver
 from utils.time_series_logger import TimeSeriesLogger
-from utils import plot_utils
+from utils import plot_utils as pu
 
 import fg_segm_models as models
 
@@ -136,7 +136,7 @@ def _get_model_id(task_name):
     return model_id
 
 
-def _get_ts_loggers(model_opt, debug_bn=False):
+def _get_ts_loggers(model_opt):
     loggers = {}
     loggers['loss'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'loss.csv'), ['train', 'valid'],
@@ -182,7 +182,7 @@ def _get_max_items_per_row(inp_height, inp_width):
     return 5
 
 
-def _get_num_batch_valid(dataset_name):
+def _get_num_batch_valid():
     return 10
 
 
@@ -231,7 +231,7 @@ if __name__ == '__main__':
         'cnn_filter_size': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
         'cnn_depth': [4, 4, 8, 8, 16, 16, 32, 32, 64, 64],
         'cnn_pool': [1, 2, 1, 2, 1, 2, 1, 2, 1, 2],
-        'dcnn_filter_size': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+        'dcnn_filter_size': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
         'dcnn_depth': [64, 64, 32, 32, 16, 16, 8, 8, 4, 4, 1],
         'dcnn_pool': [2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1],
         'weight_decay': 5e-5,
@@ -287,11 +287,11 @@ if __name__ == '__main__':
     dataset = get_dataset(data_opt)
 
     sess = tf.Session()
-
+    sess.run(tf.initialize_all_variables())
+    
     # Create time series loggers
-    loggers = {}
     if train_opt['logs']:
-        loggers = _get_ts_loggers(model_opt, debug_bn=train_opt['debug_bn'])
+        loggers = _get_ts_loggers(model_opt)
         _register_raw_logs(log_manager, log, model_opt, saver)
         samples = _get_plot_loggers(model_opt, train_opt)
         _log_url = 'http://{}/deep-dashboard?id={}'.format(
@@ -319,14 +319,39 @@ if __name__ == '__main__':
                           m['y_gt']: y}
             _r = _run_model(m, _outputs, _feed_dict)
 
-            pu.plot_thumbnails(fname_input, _r['x_trans'],
-                               max_items_per_row=_max_items)
+            pu.plot_thumbnails(fname_input, _r['x_trans'].reshape(
+                x.shape[0], 1, x.shape[1], x.shape[2], x.shape[3]), axis=1,
+                max_items_per_row=_max_items)
 
             pu.plot_thumbnails(fname_output, _r['y_out'].reshape(
                 y.shape[0], y.shape[1], y.shape[2], 1), axis=3,
                 max_items_per_row=_max_items)
 
             pass
+
+        # Plot some samples.
+        _ssets = ['train']
+        if train_opt['has_valid']:
+            _ssets.append('valid')
+
+        for _set in _ssets:
+            _is_train = _set == 'train'
+            _get_batch = get_batch_train if _is_train else get_batch_valid
+            _num_ex = num_ex_train if _is_train else num_ex_valid
+            log.info('Plotting {} samples'.format(_set))
+            _x, _y = _get_batch(
+                np.arange(min(_num_ex, args.num_samples_plot)))
+
+            _run_samples(
+                _x, _y, _is_train,
+                fname_input=samples['input_{}'.format(_set)].get_fname(),
+                fname_output=samples['output_{}'.format(_set)].get_fname())
+
+            if not samples['output_{}'.format(_set)].is_registered():
+                for _name in ['input', 'output']:
+                    samples['{}_{}'.format(_name, _set)].register()
+
+        pass
 
     def get_outputs_valid():
         _outputs = ['loss', 'iou_soft', 'iou_hard']
@@ -399,17 +424,13 @@ if __name__ == '__main__':
                                              cycle=True,
                                              progress_bar=False)
             outputs_valid = get_outputs_valid()
-        num_batch_valid = _get_num_batch_valid(args.dataset)
+        num_batch_valid = _get_num_batch_valid()
         batch_iter_trainval = BatchIterator(num_ex_train,
                                             batch_size=batch_size,
                                             get_fn=get_batch_train,
                                             cycle=True,
                                             progress_bar=False)
         outputs_trainval = get_outputs_trainval()
-        if train_opt['debug_bn']:
-            if train_opt['has_valid']:
-                outputs_valid.extend(get_outputs_bn())
-            outputs_trainval.extend(get_outputs_bn())
 
         for _x, _y in BatchIterator(num_ex_train,
                                         batch_size=batch_size,

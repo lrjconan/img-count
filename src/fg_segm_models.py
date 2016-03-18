@@ -89,7 +89,7 @@ def get_model(opt, device='/cpu:0'):
         x_shape = tf.shape(x)
         num_ex = x_shape[0]
 
-        x, y_gt = img.random_transformation(
+        x, y_gt = img.random_transformation2(
             x, y_gt, padding, phase_train,
             rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip,
             rnd_transpose=rnd_transpose, rnd_colour=rnd_colour)
@@ -120,10 +120,11 @@ def get_model(opt, device='/cpu:0'):
         model['y_out'] = y_out
 
         num_ex = tf.to_float(num_ex)
-        iou_soft = tf.reduce_sum(_f_iou(y_out, y_gt)) / num_ex
+        _y_gt = tf.reshape(y_gt, [-1, inp_height, inp_width])
+        iou_soft = tf.reduce_sum(_f_iou(y_out, _y_gt)) / num_ex
         model['iou_soft'] = iou_soft
         iou_hard = tf.reduce_sum(
-            _f_iou(tf.to_float(y_out > 0.5), y_gt)) / num_ex
+            _f_iou(tf.to_float(y_out > 0.5), _y_gt)) / num_ex
         model['iou_hard'] = iou_hard
         loss = -iou_soft
         model['loss'] = -iou_soft

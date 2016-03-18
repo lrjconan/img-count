@@ -1,5 +1,8 @@
 from __future__ import division
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import numpy as np
 
 def calc_row_col(num_ex, num_items, max_items_per_row=9):

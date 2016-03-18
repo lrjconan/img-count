@@ -23,6 +23,7 @@ def random_transformation2(x, y, padding, phase_train, rnd_vflip=True, rnd_hflip
     # Random image transformation layers.
     phase_train_f = tf.to_float(phase_train)
     x_shape = tf.shape(x)
+    y_shape = tf.shape(y)
     num_ex = x_shape[0]
     inp_height = x_shape[1]
     inp_width = x_shape[2]
