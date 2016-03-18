@@ -23,11 +23,8 @@ We may want to resize it first to
 """
 
 
-def get_dataset(folder, opt, split='train'):
-    """
-    Recommended settings: 128 x 448.
-    """
-    h5_fname = os.path.join(folder, split + '.h5')
+def read_h5_data(h5_fname):
+    """Read a dataset stored in H5."""
     if os.path.exists(h5_fname):
         log.info('Reading dataset from {}'.format(h5_fname))
         h5f = h5py.File(h5_fname, 'r')
@@ -35,8 +32,46 @@ def get_dataset(folder, opt, split='train'):
         for key in h5f.keys():
             dataset[key] = h5f[key][:]
             pass
-        
+
         return dataset
+
+    else:
+        return None
+
+
+def write_h5_data(h5_fname, dataset):
+    log.info('Writing dataset to {}'.format(h5_fname))
+    h5f = h5py.File(h5_fname, 'w')
+    for key in dataset.iterkeys():
+        h5f[key] = dataset[key]
+
+        pass
+
+
+def get_foreground_dataset(folder, opt, split='train'):
+    h5_fname = os.path.join(folder, 'fg_' + split + '.h5')
+    cache = read_h5_data(h5_fname)
+    if cache:
+        return cache
+
+    ins_segm_data = get_dataset(folder, opt, split)
+    dataset = {
+        'input': ins_segm_data['input'],
+        'label': np.sum(ins_segm_data['label_segmentation'], axis=1)
+    }
+    write_h5_data(h5_fname, dataset)
+
+    return dataset
+
+
+def get_dataset(folder, opt, split='train'):
+    """
+    Recommended settings: 128 x 448.
+    """
+    h5_fname = os.path.join(folder, split + '.h5')
+    cache = read_h5_data(h5_fname)
+    if cache:
+        return cache
 
     inp_height = opt['height']
     inp_width = opt['width']
@@ -55,7 +90,7 @@ def get_dataset(folder, opt, split='train'):
     with open(ids_fname) as f_ids:
         for ii in f_ids:
             img_ids.append(ii.strip('\n'))
-   
+
     if num_ex == -1:
         num_ex = len(img_ids)
 
@@ -116,11 +151,16 @@ def get_dataset(folder, opt, split='train'):
         label_score[ii, :num_obj] = 1
 
     cv2.waitKey()
-    return {
+    dataset = {
         'input': inp,
         'label_segmentation': label_segm,
         'label_score': label_score
     }
+
+    write_h5_data(h5_fname, dataset)
+
+    return dataset
+
 
 def get_separate_labels(label_img):
     # 64-bit encoding
@@ -143,17 +183,13 @@ if __name__ == '__main__':
     folder = '/ais/gobi3/u/mren/data/kitti'
     for split in ['train', 'valid']:
         dataset = get_dataset(
-                folder, 
-                opt={
-                    'height': 128, 
-                    'width': 448, 
-                    'num_ex': -1, 
-                    'timespan': 20
-                },
-                split=split)
-        h5f = h5py.File(os.path.join(folder, split + '.h5'), 'w')
-        for key in dataset.iterkeys():
-            h5f[key] = dataset[key]
-            pass
+            folder,
+            opt={
+                'height': 128,
+                'width': 448,
+                'num_ex': -1,
+                'timespan': 20
+            },
+            split=split)
+        h5_fname = os.path.join(folder, split + '.h5')
     pass
-

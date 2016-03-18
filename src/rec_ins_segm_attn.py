@@ -35,6 +35,15 @@ import rec_ins_segm_models as models
 
 log = logger.get()
 
+kSynthShapeInpHeight = 224
+kSynthShapeInpWidth = 224
+kCvpppInpHeight = 224
+kCvpppInpWidth = 224
+kCvpppNumObj = 20
+kKittiInpHeight = 128
+kKittiInpWidth = 448
+kKittiNumObj = 19
+
 
 def plot_total_instances(fname, y_out, s_out, max_items_per_row=9):
     """Plot cumulative image with different colour at each timestep.
@@ -223,7 +232,7 @@ def plot_output(fname, y_out, s_out, match, attn=None, max_items_per_row=9):
     pass
 
 
-def get_dataset(dataset_name, opt, num_train=-1, num_valid=-1, has_valid=True):
+def get_dataset(dataset_name, opt):
     """Get train-valid split dataset for instance segmentation.
 
     Args:
@@ -238,9 +247,9 @@ def get_dataset(dataset_name, opt, num_train=-1, num_valid=-1, has_valid=True):
 
     dataset = {}
     if dataset_name == 'synth_shape':
-        opt['num_examples'] = num_train
+        opt['num_examples'] = opt['num_train']
         dataset['train'] = synth_shape.get_dataset(opt, seed=2)
-        opt['num_examples'] = num_valid
+        opt['num_examples'] = opt['num_valid']
         dataset['valid'] = synth_shape.get_dataset(opt, seed=3)
     elif dataset_name == 'cvppp':
         if os.path.exists('/u/mren'):
@@ -249,7 +258,7 @@ def get_dataset(dataset_name, opt, num_train=-1, num_valid=-1, has_valid=True):
             dataset_folder = '/home/mren/data/LSCData/A1'
         _all_data = cvppp.get_dataset(dataset_folder, opt)
 
-        if has_valid:
+        if opt['has_valid']:
             split = 103
             random = np.random.RandomState(2)
             idx = np.arange(_all_data['input'].shape[0])
@@ -283,14 +292,14 @@ def get_dataset(dataset_name, opt, num_train=-1, num_valid=-1, has_valid=True):
         else:
             dataset_folder = '/home/mren/data/kitti'
         opt['timespan'] = 20
-        opt['num_examples'] = num_train
+        opt['num_examples'] = opt['num_train']
         dataset['train'] = kitti.get_dataset(
             dataset_folder, opt, split='train')
-        opt['num_examples'] = num_valid
+        opt['num_examples'] = opt['num_valid']
         dataset['valid'] = kitti.get_dataset(
             dataset_folder, opt, split='valid')
     else:
-        raise Exception('Unknown dataset "{}"'.format(dataset_name))
+        raise Exception('Unknown dataset name')
 
     return dataset
 
@@ -327,8 +336,7 @@ def preprocess(inp, label_segmentation, label_score):
             label_score.astype('float32'))
 
 
-def _parse_args():
-    """Parse input arguments."""
+def _add_dataset_args(parser):
     # Default dataset options
     kDataset = 'synth_shape'
     kHeight = 224
@@ -344,60 +352,6 @@ def _parse_args():
     kNumObjectTypes = 1
     kSizeVar = 20
     kCenterVar = 20
-
-    # Default model options
-    kWeightDecay = 5e-5
-    kBaseLearnRate = 1e-3
-    kLearnRateDecay = 0.96
-    kStepsPerLearnRateDecay = 5000
-    kStepsPerLog = 20
-    kLossMixRatio = 1.0
-    kBoxLossCoeffDecay = 0.7
-    kStepsPerBoxLossCoeffDecay = 2000
-
-    kAttnSize = 48
-    kAttnBoxPaddingRatio = 0.2
-
-    kCtrlCnnFilterSize = '3,3,3,3,3'
-    kCtrlCnnDepth = '4,8,8,12,16'
-    kCtrlCnnPool = '2,2,2,2,2'
-    kAttnCnnFilterSize = '3,3,3'
-    kAttnCnnDepth = '4,8,16'
-    kAttnCnnPool = '2,2,2'
-    kDcnnFilterSize = '3,3,3,3'
-    kDcnnDepth = '16,8,4,1'
-    kDcnnPool = '2,2,2,1'
-
-    kCtrlMlpDim = 256
-    # kCtrlMlpDim = '256'
-    kNumCtrlMlpLayers = 1
-    kCtrlRnnHiddenDim = 256
-    kAttnRnnHiddenDim = 256
-    kNumAttnMlpLayers = 2
-    kAttnMlpDepth = 6
-    kMlpDropout = 0.5
-
-    # Knob
-    kGtSelector = 'argmax'
-    kKnobDecay = 0.9
-    kStepsPerKnobDecay = 300
-    kKnobBase = 1.0
-    kKnobBoxOffset = 300
-    kKnobSegmOffset = 500
-    kGtBoxCtrNoise = 0.05
-    kGtBoxPadNoise = 0.1
-    kGtSegmNoise = 0.3
-
-    # Default training options
-    kNumSteps = 500000
-    kStepsPerCkpt = 1000
-    kStepsPerValid = 250
-    kStepsPerTrainval = 100
-    kStepsPerPlot = 50
-    kBatchSize = 32
-
-    parser = argparse.ArgumentParser(
-        description='Recurrent Instance Segmentation + Attention')
 
     # Dataset options
     parser.add_argument('-dataset', default=kDataset,
@@ -426,7 +380,97 @@ def _parse_args():
     parser.add_argument('-size_var', default=kSizeVar, type=float,
                         help='Image patch size variance')
 
-    # Model options
+    pass
+
+
+def _add_model_args(parser):
+    # Original model default options
+    kCnnFilterSize = '3,3,3,3,3'
+    kCnnDepth = '4,8,8,12,16'
+    kRnnType = 'lstm'
+    kConvLstmFilterSize = 3
+    kConvLstmHiddenDepth = 12
+    kRnnHiddenDim = 512
+
+    # Shared options
+    kWeightDecay = 5e-5
+    kBaseLearnRate = 1e-3
+    kLearnRateDecay = 0.96
+    kStepsPerLearnRateDecay = 5000
+    kLossMixRatio = 1.0
+    kMlpDropout = 0.5
+
+    kNumMlpLayers = 2
+    kMlpDepth = 6
+    kMlpDropout = 0.5
+    kDcnnFilterSize = [3, 3, 3, 3, 3, 3]
+    kDcnnDepth = [1, 2, 4, 4, 6, 8]
+    kScoreMaxpool = 1
+
+    # Attention-based model options
+    kAttnSize = 48
+    kAttnBoxPaddingRatio = 0.2
+
+    kCtrlCnnFilterSize = '3,3,3,3,3'
+    kCtrlCnnDepth = '4,8,8,12,16'
+    kCtrlCnnPool = '2,2,2,2,2'
+    kAttnCnnFilterSize = '3,3,3'
+    kAttnCnnDepth = '4,8,16'
+    kAttnCnnPool = '2,2,2'
+    kAttnDcnnFilterSize = '3,3,3,3'
+    kAttnDcnnDepth = '16,8,4,1'
+    kAttnDcnnPool = '2,2,2,1'
+
+    kCtrlMlpDim = 256
+    kNumCtrlMlpLayers = 1
+    kCtrlRnnHiddenDim = 256
+    kAttnRnnHiddenDim = 256
+    kNumAttnMlpLayers = 2
+    kAttnMlpDepth = 6
+    kGtSelector = 'argmax'
+    kKnobDecay = 0.9
+    kStepsPerKnobDecay = 300
+    kKnobBase = 1.0
+    kKnobBoxOffset = 300
+    kKnobSegmOffset = 500
+    kGtBoxCtrNoise = 0.05
+    kGtBoxPadNoise = 0.1
+    kGtSegmNoise = 0.3
+
+    # Model type
+    parser.add_argument('-model', default='attention',
+                        help='Which model to train')
+
+    # Original model options
+    parser.add_argument('-cnn_filter_size', default=kCnnFilterSize,
+                        help='Comma delimited integers')
+    parser.add_argument('-cnn_depth', default=kCnnDepth,
+                        help='Comma delimited integers')
+    # parser.add_argument('-cnn_pool', default=kCnnPool,
+    #                     help='Comma delimited integers')
+    parser.add_argument('-rnn_type', default=kRnnType, help='RNN type')
+    parser.add_argument('-conv_lstm_filter_size', default=kConvLstmFilterSize,
+                        type=int, help='Conv LSTM filter size')
+    parser.add_argument('-conv_lstm_hid_depth', default=kConvLstmHiddenDepth,
+                        type=int, help='Conv LSTM hidden depth')
+    parser.add_argument('-rnn_hid_dim', default=kRnnHiddenDim,
+                        type=int, help='RNN hidden dimension')
+    parser.add_argument('-score_maxpool', default=kScoreMaxpool, type=int,
+                        help='Max pooling ratio in the scoring function.')
+    parser.add_argument('-num_mlp_layers', default=kNumMlpLayers,
+                        type=int, help='Number of MLP layers')
+    parser.add_argument('-mlp_depth', default=kMlpDepth,
+                        type=int, help='MLP depth')
+    parser.add_argument('-use_deconv', action='store_true',
+                        help='Whether to use deconvolution layer to upsample.')
+    parser.add_argument('-segm_dense_conn', action='store_true',
+                        help='Whether to use dense connection to segment.')
+    parser.add_argument('-add_skip_conn', action='store_true',
+                        help='Whether to add skip connection in the DCNN.')
+    parser.add_argument('-score_use_core', action='store_true',
+                        help='Use core MLP network to predict score.')
+
+    # Shared options
     parser.add_argument('-weight_decay', default=kWeightDecay, type=float,
                         help='Weight L2 regularization')
     parser.add_argument('-base_learn_rate', default=kBaseLearnRate,
@@ -438,10 +482,19 @@ def _parse_args():
                         help='Steps every learning rate decay')
     parser.add_argument('-loss_mix_ratio', default=kLossMixRatio, type=float,
                         help='Mix ratio between segmentation and score loss')
+    parser.add_argument('-segm_loss_fn', default='iou',
+                        help=('Segmentation loss function, "iou", "wt_iou", '
+                              '"wt_cov", or "bce"'))
+    parser.add_argument('-mlp_dropout', default=kMlpDropout,
+                        type=float, help='MLP dropout')
+    parser.add_argument('-use_bn', action='store_true',
+                        help='Whether to use batch normalization.')
+    parser.add_argument('-no_cum_min', action='store_true',
+                        help='Whether cumulative minimum. Default yes.')
 
+    # Attention-based model options
     parser.add_argument('-attn_size', default=kAttnSize, type=int,
                         help='Attention size')
-
     parser.add_argument('-ctrl_cnn_filter_size', default=kCtrlCnnFilterSize,
                         help='Comma delimited integers')
     parser.add_argument('-ctrl_cnn_depth', default=kCtrlCnnDepth,
@@ -454,18 +507,16 @@ def _parse_args():
                         help='Comma delimited integers')
     parser.add_argument('-attn_cnn_pool', default=kAttnCnnPool,
                         help='Comma delimited integers')
-    parser.add_argument('-dcnn_filter_size', default=kDcnnFilterSize,
+    parser.add_argument('-attn_dcnn_filter_size', default=kAttnDcnnFilterSize,
                         help='Comma delimited integers')
-    parser.add_argument('-dcnn_depth', default=kDcnnDepth,
+    parser.add_argument('-attn_dcnn_depth', default=kAttnDcnnDepth,
                         help='Comma delimited integers')
-    parser.add_argument('-dcnn_pool', default=kDcnnPool,
+    parser.add_argument('-attn_dcnn_pool', default=kAttnDcnnPool,
                         help='Comma delimited integers')
-
     parser.add_argument('-ctrl_rnn_hid_dim', default=kCtrlRnnHiddenDim,
                         type=int, help='RNN hidden dimension')
     parser.add_argument('-attn_rnn_hid_dim', default=kAttnRnnHiddenDim,
                         type=int, help='RNN hidden dimension')
-
     parser.add_argument('-num_ctrl_mlp_layers', default=kNumCtrlMlpLayers,
                         type=int, help='Number of controller MLP layers')
     parser.add_argument('-ctrl_mlp_dim', default=kCtrlMlpDim,
@@ -474,18 +525,8 @@ def _parse_args():
                         type=int, help='Number of attention MLP layers')
     parser.add_argument('-attn_mlp_depth', default=kAttnMlpDepth,
                         type=int, help='Attntion MLP depth')
-
-    parser.add_argument('-mlp_dropout', default=kMlpDropout,
-                        type=float, help='MLP dropout')
-
-    # Extra model options (beta)
-    parser.add_argument('-segm_loss_fn', default='iou',
-                        help=('Segmentation loss function, "iou", "wt_iou", '
-                              '"wt_cov", or "bce"'))
     parser.add_argument('-box_loss_fn', default='iou',
                         help='Box loss function, "iou" or "bce"')
-    parser.add_argument('-use_bn', action='store_true',
-                        help='Whether to use batch normalization.')
     parser.add_argument('-use_gt_attn', action='store_true',
                         help='Whether to use ground truth attention.')
     parser.add_argument('-attn_box_padding_ratio',
@@ -517,6 +558,21 @@ def _parse_args():
                         type=float, help='Groundtruth box padding noise')
     parser.add_argument('-gt_segm_noise', default=kGtSegmNoise,
                         type=float, help='Groundtruth segmentation noise')
+    parser.add_argument('-downsample_canvas', action='store_true',
+                        help='Whether downsample canvas to feed to Ctrl RNN')
+
+    pass
+
+
+def _add_training_args(parser):
+    # Default training options
+    kNumSteps = 500000
+    kStepsPerCkpt = 1000
+    kStepsPerValid = 250
+    kStepsPerTrainval = 100
+    kStepsPerPlot = 50
+    kStepsPerLog = 20
+    kBatchSize = 32
 
     # Training options
     parser.add_argument('-num_steps', default=kNumSteps,
@@ -554,160 +610,145 @@ def _parse_args():
     parser.add_argument('-no_valid', action='store_true',
                         help='Use the whole training set.')
 
-    args = parser.parse_args()
-
-    return args
+    pass
 
 
-def get_model_id(task_name):
-    time_obj = datetime.datetime.now()
-    model_id = timestr = '{}-{:04d}{:02d}{:02d}{:02d}{:02d}{:02d}'.format(
-        task_name, time_obj.year, time_obj.month, time_obj.day,
-        time_obj.hour, time_obj.minute, time_obj.second)
+def _make_model_opt(args):
+    """Convert command-line arguments into model opt dict."""
+    ccnn_fsize_list = args.ctrl_cnn_filter_size.split(',')
+    ccnn_fsize_list = [int(fsize) for fsize in ccnn_fsize_list]
+    ccnn_depth_list = args.ctrl_cnn_depth.split(',')
+    ccnn_depth_list = [int(depth) for depth in ccnn_depth_list]
+    ccnn_pool_list = args.ctrl_cnn_pool.split(',')
+    ccnn_pool_list = [int(pool) for pool in ccnn_pool_list]
 
-    return model_id
+    acnn_fsize_list = args.attn_cnn_filter_size.split(',')
+    acnn_fsize_list = [int(fsize) for fsize in acnn_fsize_list]
+    acnn_depth_list = args.attn_cnn_depth.split(',')
+    acnn_depth_list = [int(depth) for depth in acnn_depth_list]
+    acnn_pool_list = args.attn_cnn_pool.split(',')
+    acnn_pool_list = [int(pool) for pool in acnn_pool_list]
 
-if __name__ == '__main__':
-    # Command-line arguments
-    args = _parse_args()
-    tf.set_random_seed(1234)
-    saver = None
+    attn_dcnn_fsize_list = args.attn_dcnn_filter_size.split(',')
+    attn_dcnn_fsize_list = [int(fsize) for fsize in attn_dcnn_fsize_list]
+    attn_dcnn_depth_list = args.attn_dcnn_depth.split(',')
+    attn_dcnn_depth_list = [int(depth) for depth in attn_dcnn_depth_list]
+    attn_dcnn_pool_list = args.attn_dcnn_pool.split(',')
+    attn_dcnn_pool_list = [int(pool) for pool in attn_dcnn_pool_list]
 
-    # Restore previously saved checkpoints.
-    if args.restore:
-        saver = Saver(args.restore)
-        ckpt_info = saver.get_ckpt_info()
-        model_opt = ckpt_info['model_opt']
-        data_opt = ckpt_info['data_opt']
-        ckpt_fname = ckpt_info['ckpt_fname']
-        step = ckpt_info['step']
-        model_id = ckpt_info['model_id']
-        exp_folder = args.restore
+    if args.dataset == 'synth_shape':
+        timespan = args.max_num_objects + 1
+        inp_height = kSynthShapeInpHeight
+        inp_width = kSynthShapeInpWidth
+        rnd_hflip = True
+        rnd_vflip = True
+        rnd_transpose = True
+        rnd_colour = False
+    elif args.dataset == 'cvppp':
+        timespan = kCvpppNumObj + 1
+        inp_height = kCvpppInpWidth
+        inp_width = kCvpppInpHeight
+        max_items_per_row = 8
+        rnd_hflip = True
+        rnd_vflip = True
+        rnd_transpose = True
+        rnd_colour = False
+    elif args.dataset == 'kitti':
+        timespan = kKittiNumObj + 1
+        inp_height = kKittiInpHeight
+        inp_width = kKittiInpWidth
+        rnd_hflip = True
+        rnd_vflip = False
+        rnd_transpose = False
+        rnd_colour = False
     else:
-        model_id = get_model_id('rec_ins_segm')
+        raise Exception('Unknown dataset name')
+    model_opt = {
+        'type': args.model,
+        'inp_height': inp_height,
+        'inp_width': inp_width,
+        'inp_depth': 3,
+        'padding': args.padding,
+        'attn_size': args.attn_size,
+        'timespan': timespan,
 
-        ccnn_fsize_list = args.ctrl_cnn_filter_size.split(',')
-        ccnn_fsize_list = [int(fsize) for fsize in ccnn_fsize_list]
-        ccnn_depth_list = args.ctrl_cnn_depth.split(',')
-        ccnn_depth_list = [int(depth) for depth in ccnn_depth_list]
-        ccnn_pool_list = args.ctrl_cnn_pool.split(',')
-        ccnn_pool_list = [int(pool) for pool in ccnn_pool_list]
+        'ctrl_cnn_filter_size': ccnn_fsize_list,
+        'ctrl_cnn_depth': ccnn_depth_list,
+        'ctrl_cnn_pool': ccnn_pool_list,
 
-        acnn_fsize_list = args.attn_cnn_filter_size.split(',')
-        acnn_fsize_list = [int(fsize) for fsize in acnn_fsize_list]
-        acnn_depth_list = args.attn_cnn_depth.split(',')
-        acnn_depth_list = [int(depth) for depth in acnn_depth_list]
-        acnn_pool_list = args.attn_cnn_pool.split(',')
-        acnn_pool_list = [int(pool) for pool in acnn_pool_list]
+        'ctrl_rnn_hid_dim': args.ctrl_rnn_hid_dim,
 
-        dcnn_fsize_list = args.dcnn_filter_size.split(',')
-        dcnn_fsize_list = [int(fsize) for fsize in dcnn_fsize_list]
-        dcnn_depth_list = args.dcnn_depth.split(',')
-        dcnn_depth_list = [int(depth) for depth in dcnn_depth_list]
-        dcnn_pool_list = args.dcnn_pool.split(',')
-        dcnn_pool_list = [int(pool) for pool in dcnn_pool_list]
+        'attn_cnn_filter_size': acnn_fsize_list,
+        'attn_cnn_depth': acnn_depth_list,
+        'attn_cnn_pool': acnn_pool_list,
 
-        if args.dataset == 'synth_shape':
-            timespan = args.max_num_objects + 1
-            inp_height = 224
-            inp_width = 224
-            max_items_per_row = 8
-            rnd_hflip = True
-            rnd_vflip = True
-            rnd_transpose = True
-            rnd_colour = False
-            num_valid_batch = 5
-            knob_box_offset = 500
-            knob_segm_offset = 2500
-        elif args.dataset == 'cvppp':
-            timespan = 21
-            inp_height = 224
-            inp_width = 224
-            max_items_per_row = 8
-            rnd_hflip = True
-            rnd_vflip = True
-            rnd_transpose = True
-            rnd_colour = False
-            num_valid_batch = 2
-            knob_box_offset = 1500
-            knob_segm_offset = 3000
-        elif args.dataset == 'kitti':
-            timespan = 20
-            inp_height = 128
-            inp_width = 448
-            max_items_per_row = 5
-            rnd_hflip = True
-            rnd_vflip = False
-            rnd_transpose = False
-            rnd_colour = False
-            num_valid_batch = 10
-        else:
-            raise Exception('Unknown dataset name')
+        'attn_rnn_hid_dim': args.attn_rnn_hid_dim,
 
-        model_opt = {
-            'inp_height': inp_height,
-            'inp_width': inp_width,
-            'inp_depth': 3,
-            'padding': args.padding,
-            'attn_size': args.attn_size,
-            'timespan': timespan,
+        'attn_dcnn_filter_size': attn_dcnn_fsize_list,
+        'attn_dcnn_depth': attn_dcnn_depth_list,
+        'attn_dcnn_pool': attn_dcnn_pool_list,
 
-            'ctrl_cnn_filter_size': ccnn_fsize_list,
-            'ctrl_cnn_depth': ccnn_depth_list,
-            'ctrl_cnn_pool': ccnn_pool_list,
+        'num_ctrl_mlp_layers': args.num_ctrl_mlp_layers,
+        'ctrl_mlp_dim': args.ctrl_mlp_dim,
 
-            'ctrl_rnn_hid_dim': args.ctrl_rnn_hid_dim,
+        'attn_mlp_depth': args.attn_mlp_depth,
+        'num_attn_mlp_layers': args.num_attn_mlp_layers,
+        'mlp_dropout': args.mlp_dropout,
 
-            'attn_cnn_filter_size': acnn_fsize_list,
-            'attn_cnn_depth': acnn_depth_list,
-            'attn_cnn_pool': acnn_pool_list,
+        'weight_decay': args.weight_decay,
+        'base_learn_rate': args.base_learn_rate,
+        'learn_rate_decay': args.learn_rate_decay,
+        'steps_per_learn_rate_decay': args.steps_per_learn_rate_decay,
+        'loss_mix_ratio': args.loss_mix_ratio,
 
-            'attn_rnn_hid_dim': args.attn_rnn_hid_dim,
+        # Test arguments
+        'segm_loss_fn': args.segm_loss_fn,
+        'box_loss_fn': args.box_loss_fn,
+        'use_bn': args.use_bn,
+        'use_gt_attn': args.use_gt_attn,                      # DEPRECATED
+        'attn_box_padding_ratio': args.attn_box_padding_ratio,
+        'use_attn_rnn': args.use_attn_rnn,
+        'use_canvas': args.use_canvas,
+        'use_knob': args.use_knob,
+        'knob_decay': args.knob_decay,
+        'knob_base': args.knob_base,
+        'steps_per_knob_decay': args.steps_per_knob_decay,
+        'knob_box_offset': args.knob_box_offset,
+        'knob_segm_offset': args.knob_segm_offset,
+        'knob_use_timescale': args.knob_use_timescale,
+        'gt_selector': args.gt_selector,
+        'gt_box_ctr_noise': args.gt_box_ctr_noise,
+        'gt_box_pad_noise': args.gt_box_pad_noise,
+        'gt_segm_noise': args.gt_segm_noise,
+        'downsample_canvas': args.downsample_canvas,
 
-            'dcnn_filter_size': dcnn_fsize_list,
-            'dcnn_depth': dcnn_depth_list,
-            'dcnn_pool': dcnn_pool_list,
+        'rnd_hflip': rnd_hflip,
+        'rnd_vflip': rnd_vflip,
+        'rnd_transpose': rnd_transpose,
+        'rnd_colour': rnd_colour,
+    }
 
-            'num_ctrl_mlp_layers': args.num_ctrl_mlp_layers,
-            'ctrl_mlp_dim': args.ctrl_mlp_dim,
+    return model_opt
 
-            'attn_mlp_depth': args.attn_mlp_depth,
-            'num_attn_mlp_layers': args.num_attn_mlp_layers,
-            'mlp_dropout': args.mlp_dropout,
 
-            'weight_decay': args.weight_decay,
-            'base_learn_rate': args.base_learn_rate,
-            'learn_rate_decay': args.learn_rate_decay,
-            'steps_per_learn_rate_decay': args.steps_per_learn_rate_decay,
-            'loss_mix_ratio': args.loss_mix_ratio,
+def _make_data_opt(args):
+    """Make command-line arguments into data opt dict."""
+    if args.dataset == 'synth_shape':
+        timespan = args.max_num_objects + 1
+        inp_height = kSynthShapeInpHeight
+        inp_width = kSynthShapeInpWidth
+    elif args.dataset == 'cvppp':
+        timespan = kCvpppNumObj + 1
+        inp_height = kCvpppInpHeight
+        inp_width = kCvpppInpWidth
+    elif args.dataset == 'kitti':
+        timespan = kKittiNumObj + 1
+        inp_height = kKittiInpHeight
+        inp_width = kKittiInpWidth
+    else:
+        raise Exception('Unknown dataset name')
 
-            # Test arguments
-            'segm_loss_fn': args.segm_loss_fn,
-            'box_loss_fn': args.box_loss_fn,
-            'use_bn': args.use_bn,
-            'use_gt_attn': args.use_gt_attn,                      # DEPRECATED
-            'attn_box_padding_ratio': args.attn_box_padding_ratio,
-            'use_attn_rnn': args.use_attn_rnn,
-            'use_canvas': args.use_canvas,
-            'use_knob': args.use_knob,
-            'knob_decay': args.knob_decay,
-            'knob_base': args.knob_base,
-            'steps_per_knob_decay': args.steps_per_knob_decay,
-            'knob_box_offset': args.knob_box_offset,
-            'knob_segm_offset': args.knob_segm_offset,
-            # 'knob_box_offset': knob_box_offset,
-            # 'knob_segm_offset': knob_segm_offset,
-            'knob_use_timescale': args.knob_use_timescale,
-            'gt_selector': args.gt_selector,
-            'gt_box_ctr_noise': args.gt_box_ctr_noise,
-            'gt_box_pad_noise': args.gt_box_pad_noise,
-            'gt_segm_noise': args.gt_segm_noise,
-
-            'rnd_hflip': rnd_hflip,
-            'rnd_vflip': rnd_vflip,
-            'rnd_transpose': rnd_transpose,
-            'rnd_colour': rnd_colour,
-        }
+    if args.dataset == 'synth_shape':
         data_opt = {
             'height': inp_height,
             'width': inp_width,
@@ -718,38 +759,35 @@ if __name__ == '__main__':
             'max_num_objects': args.max_num_objects,
             'num_object_types': args.num_object_types,
             'center_var': args.center_var,
-            'size_var': args.size_var
+            'size_var': args.size_var,
+            'num_train': args.num_ex,
+            'num_valid': int(args.num_ex / 10),
+            'has_valid': True
         }
-        step = 0
-        exp_folder = os.path.join(args.results, model_id)
-        saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
+    elif args.dataset == 'cvppp':
+        data_opt = {
+            'height': inp_height,
+            'width': inp_width,
+            'timespan': timespan,
+            'num_train': None,
+            'num_valid': None,
+            'has_valid': not args.no_valid
+        }
+    elif args.dataset == 'kitti':
+        data_opt = {
+            'height': inp_height,
+            'width': inp_width,
+            'timespan': timespan,
+            'num_train': args.num_ex,
+            'num_valid': args.num_ex,
+            'has_valid': True
+        }
 
-    num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
-    num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
-    num_dcnn = len(model_opt['dcnn_filter_size'])
+    return data_opt
 
-    if not args.save_ckpt:
-        log.warning(
-            'Checkpoints saving is turned off. Use -save_ckpt flag to save.')
 
-    # Logger
-    if args.logs:
-        logs_folder = args.logs
-        logs_folder = os.path.join(logs_folder, model_id)
-        log = logger.get(os.path.join(logs_folder, 'raw'))
-    else:
-        log = logger.get()
-
-    # Log arguments
-    log.log_args()
-
-    # Set device
-    if args.gpu >= 0:
-        device = '/gpu:{}'.format(args.gpu)
-    else:
-        device = '/cpu:0'
-
-    # Train loop options
+def _make_train_opt(args):
+    """Train opt"""
     train_opt = {
         'num_steps': args.num_steps,
         'steps_per_ckpt': args.steps_per_ckpt,
@@ -759,91 +797,105 @@ if __name__ == '__main__':
         'steps_per_log': args.steps_per_log,
         'debug_bn': args.debug_bn,
         'debug_act': args.debug_act,
-        'has_valid': not args.no_valid
+        'has_valid': not args.no_valid,
+        'results': args.results,
+        'restore': args.restore,
+        'save_ckpt': args.save_ckpt,
+        'logs': args.logs,
+        'gpu': args.gpu,
+        'localhost': args.localhost
     }
 
-    log.info('Building model')
-    m = models.get_model('attention', model_opt, device=device)
+    return train_opt
 
-    log.info('Loading dataset')
-    if args.dataset == 'synth_shape':
-        dataset = get_dataset(args.dataset, data_opt,
-                              args.num_ex, int(args.num_ex / 10))
-    elif args.dataset == 'cvppp':
-        dataset = get_dataset(args.dataset, data_opt,
-                              has_valid=train_opt['has_valid'])
-    elif args.dataset == 'kitti':
-        dataset = get_dataset(args.dataset, data_opt, args.num_ex, args.num_ex)
 
-    sess = tf.Session()
+def _parse_args():
+    """Parse input arguments."""
 
-    if args.restore:
-        saver.restore(sess, ckpt_fname)
-    else:
-        sess.run(tf.initialize_all_variables())
+    parser = argparse.ArgumentParser(
+        description='Recurrent Instance Segmentation + Attention')
 
-    # Create time series logger
+    _add_dataset_args(parser)
+    _add_model_args(parser)
+    _add_training_args(parser)
+
+    args = parser.parse_args()
+
+    return args
+
+
+def _get_model_id(task_name):
+    time_obj = datetime.datetime.now()
+    model_id = timestr = '{}-{:04d}{:02d}{:02d}{:02d}{:02d}{:02d}'.format(
+        task_name, time_obj.year, time_obj.month, time_obj.day,
+        time_obj.hour, time_obj.minute, time_obj.second)
+
+    return model_id
+
+
+def _get_ts_loggers(model_opt, debug_bn=False):
     loggers = {}
-    if args.logs:
-        loggers['loss'] = TimeSeriesLogger(
-            os.path.join(logs_folder, 'loss.csv'), ['train', 'valid'],
-            name='Loss',
-            buffer_size=1)
-        loggers['conf_loss'] = TimeSeriesLogger(
-            os.path.join(logs_folder, 'conf_loss.csv'), ['train', 'valid'],
-            name='Confidence Loss',
-            buffer_size=1)
-        loggers['segm_loss'] = TimeSeriesLogger(
-            os.path.join(logs_folder, 'segm_loss.csv'), ['train', 'valid'],
-            name='Segmentation Loss',
-            buffer_size=1)
+    loggers['loss'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'loss.csv'), ['train', 'valid'],
+        name='Loss',
+        buffer_size=1)
+    loggers['conf_loss'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'conf_loss.csv'), ['train', 'valid'],
+        name='Confidence Loss',
+        buffer_size=1)
+    loggers['segm_loss'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'segm_loss.csv'), ['train', 'valid'],
+        name='Segmentation Loss',
+        buffer_size=1)
+    loggers['iou'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'iou.csv'),
+        ['train soft', 'valid soft', 'train hard', 'valid hard'],
+        name='IoU',
+        buffer_size=1)
+    loggers['wt_cov'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'wt_cov.csv'),
+        ['train soft', 'valid soft', 'train hard', 'valid hard'],
+        name='Weighted Coverage',
+        buffer_size=1)
+    loggers['unwt_cov'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'unwt_cov.csv'),
+        ['train soft', 'valid soft', 'train hard', 'valid hard'],
+        name='Unweighted Coverage',
+        buffer_size=1)
+    loggers['dice'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'dice.csv'),
+        ['train', 'valid'],
+        name='Dice',
+        buffer_size=1)
+    loggers['dic'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'dic.csv'),
+        ['train', 'valid'],
+        name='DiC',
+        buffer_size=1)
+    loggers['dic_abs'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'dic_abs.csv'),
+        ['train', 'valid'],
+        name='|DiC|',
+        buffer_size=1)
+    loggers['learn_rate'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'learn_rate.csv'),
+        'learning rate',
+        name='Learning rate',
+        buffer_size=1)
+    loggers['count_acc'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'count_acc.csv'),
+        ['train', 'valid'],
+        name='Count acc',
+        buffer_size=1)
+    loggers['step_time'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
+        name='Step time',
+        buffer_size=1)
+
+    if model_opt['type'] == 'attention':
         loggers['box_loss'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'box_loss.csv'), ['train', 'valid'],
             name='Box Loss',
-            buffer_size=1)
-        loggers['iou'] = TimeSeriesLogger(
-            os.path.join(logs_folder, 'iou.csv'),
-            ['train soft', 'valid soft', 'train hard', 'valid hard'],
-            name='IoU',
-            buffer_size=1)
-        loggers['wt_cov'] = TimeSeriesLogger(
-            os.path.join(logs_folder, 'wt_cov.csv'),
-            ['train soft', 'valid soft', 'train hard', 'valid hard'],
-            name='Weighted Coverage',
-            buffer_size=1)
-        loggers['unwt_cov'] = TimeSeriesLogger(
-            os.path.join(logs_folder, 'unwt_cov.csv'),
-            ['train soft', 'valid soft', 'train hard', 'valid hard'],
-            name='Unweighted Coverage',
-            buffer_size=1)
-        loggers['dice'] = TimeSeriesLogger(
-            os.path.join(logs_folder, 'dice.csv'),
-            ['train', 'valid'],
-            name='Dice',
-            buffer_size=1)
-        loggers['dic'] = TimeSeriesLogger(
-            os.path.join(logs_folder, 'dic.csv'),
-            ['train', 'valid'],
-            name='DiC',
-            buffer_size=1)
-        loggers['dic_abs'] = TimeSeriesLogger(
-            os.path.join(logs_folder, 'dic_abs.csv'),
-            ['train', 'valid'],
-            name='|DiC|',
-            buffer_size=1)
-        loggers['learn_rate'] = TimeSeriesLogger(
-            os.path.join(logs_folder, 'learn_rate.csv'),
-            'learning rate',
-            name='Learning rate',
-            buffer_size=1)
-        loggers['count_acc'] = TimeSeriesLogger(
-            os.path.join(logs_folder, 'count_acc.csv'),
-            ['train', 'valid'],
-            name='Count acc',
-            buffer_size=1)
-        loggers['step_time'] = TimeSeriesLogger(
-            os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
-            name='Step time',
             buffer_size=1)
         loggers['crnn'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'crnn.csv'),
@@ -861,53 +913,157 @@ if __name__ == '__main__':
             name='Attn params',
             buffer_size=1)
 
-        if args.debug_bn:
-            for sname, fname, num_layers in zip(
-                    ['ccnn', 'acnn', 'dcnn'],
-                    ['Ctrl CNN', 'Attn CNN', 'D-CNN'],
-                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-                for ii in xrange(num_layers):
-                    for tt in xrange(model_opt['timespan']):
-                        _bn_logger = TimeSeriesLogger(
-                            os.path.join(
-                                logs_folder,
-                                '{}_{}_bn_{}.csv'.format(sname, ii, tt)),
-                            ['train batch mean', 'valid batch mean',
-                             'train batch var', 'valid batch var', 'ema mean',
-                             'ema var'],
-                            name='{} {} time {} batch norm stats'.format(
-                                fname, ii, tt),
-                            buffer_size=1)
-                        loggers['bn_{}_{}_{}'.format(sname, ii, tt)] = \
-                            _bn_logger
+    if debug_bn:
+        num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
+        num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
+        num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
+        for sname, fname, num_layers in zip(
+                ['ccnn', 'acnn', 'attn_dcnn'],
+                ['Ctrl CNN', 'Attn CNN', 'D-CNN'],
+                [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
+            for ii in xrange(num_layers):
+                for tt in xrange(model_opt['timespan']):
+                    _bn_logger = TimeSeriesLogger(
+                        os.path.join(
+                            logs_folder,
+                            '{}_{}_bn_{}.csv'.format(sname, ii, tt)),
+                        ['train batch mean', 'valid batch mean',
+                         'train batch var', 'valid batch var', 'ema mean',
+                         'ema var'],
+                        name='{} {} time {} batch norm stats'.format(
+                            fname, ii, tt),
+                        buffer_size=1)
+                    loggers['bn_{}_{}_{}'.format(sname, ii, tt)] = \
+                        _bn_logger
 
-        log_manager.register(log.filename, 'plain', 'Raw logs')
+    return loggers
 
-        model_opt_fname = os.path.join(logs_folder, 'model_opt.yaml')
-        saver.save_opt(model_opt_fname, model_opt)
-        log_manager.register(model_opt_fname, 'plain', 'Model hyperparameters')
 
-        samples = {}
-        _ssets = ['train']
-        if train_opt['has_valid']:
-            _ssets.append('valid')
-        for _set in _ssets:
-            labels = ['input', 'output', 'total', 'box', 'patch']
-            if args.debug_act:
-                for _layer, _num in zip(
-                        ['ccnn', 'acnn', 'dcnn'],
-                        [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
-                    for ii in xrange(_num):
-                        labels.append('{}_{}'.format(_layer, ii))
-            for name in labels:
-                key = '{}_{}'.format(name, _set)
-                samples[key] = LazyRegisterer(
-                    os.path.join(logs_folder, '{}.png'.format(key)),
-                    'image', 'Samples {} {}'.format(name, _set))
-        log.info(
-            ('Visualization can be viewed at: '
-             'http://{}/deep-dashboard?id={}').format(
-                args.localhost, model_id))
+def _get_plot_loggers(model_opt, train_opt):
+    samples = {}
+    num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
+    num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
+    num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
+    _ssets = ['train']
+    if train_opt['has_valid']:
+        _ssets.append('valid')
+    for _set in _ssets:
+        labels = ['input', 'output', 'total', 'box', 'patch']
+        if args.debug_act:
+            for _layer, _num in zip(
+                    ['ccnn', 'acnn', 'attn_dcnn'],
+                    [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
+                for ii in xrange(_num):
+                    labels.append('{}_{}'.format(_layer, ii))
+        for name in labels:
+            key = '{}_{}'.format(name, _set)
+            samples[key] = LazyRegisterer(
+                os.path.join(logs_folder, '{}.png'.format(key)),
+                'image', 'Samples {} {}'.format(name, _set))
+    return samples
+
+
+def _register_raw_logs(log_manager, log, model_opt, saver):
+    log_manager.register(log.filename, 'plain', 'Raw logs')
+    model_opt_fname = os.path.join(logs_folder, 'model_opt.yaml')
+    saver.save_opt(model_opt_fname, model_opt)
+    log_manager.register(model_opt_fname, 'plain', 'Model hyperparameters')
+
+    pass
+
+
+def _get_max_items_per_row(inp_height, inp_width):
+    ratio = int(inp_height / inp_width)
+    if ratio == 1:
+        return 8
+    else:
+        return 5
+
+
+def _get_num_batch_valid(dataset_name):
+    if dataset_name == 'synth_shape':
+        return 5
+    elif dataset_name == 'cvppp':
+        return 2
+    elif dataset_name == 'kitti':
+        return 10
+    else:
+        raise Exception('Unknown dataset name')
+
+
+if __name__ == '__main__':
+    # Command-line arguments
+    args = _parse_args()
+    tf.set_random_seed(1234)
+    saver = None
+    train_opt = _make_train_opt(args)
+    model_opt = _make_model_opt(args)
+    data_opt = _make_data_opt(args)
+
+    # Restore previously saved checkpoints.
+    if train_opt['save_ckpt']:
+        saver = Saver(train_opt['restore'])
+        ckpt_info = saver.get_ckpt_info()
+        model_opt = ckpt_info['model_opt']
+        data_opt = ckpt_info['data_opt']
+        ckpt_fname = ckpt_info['ckpt_fname']
+        step = ckpt_info['step']
+        model_id = ckpt_info['model_id']
+        exp_folder = train_opt['restore']
+    else:
+        model_id = _get_model_id('rec_ins_segm')
+        step = 0
+        exp_folder = os.path.join(train_opt['results'], model_id)
+        saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
+
+    num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
+    num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
+    num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
+
+    if not train_opt['save_ckpt']:
+        log.warning(
+            'Checkpoints saving is turned off. Use -save_ckpt flag to save.')
+
+    # Logger
+    if train_opt['logs']:
+        logs_folder = train_opt['logs']
+        logs_folder = os.path.join(logs_folder, model_id)
+        log = logger.get(os.path.join(logs_folder, 'raw'))
+    else:
+        log = logger.get()
+
+    # Log arguments
+    log.log_args()
+
+    # Set device
+    if train_opt['gpu'] >= 0:
+        device = '/gpu:{}'.format(train_opt['gpu'])
+    else:
+        device = '/cpu:0'
+
+    # Train loop options
+    log.info('Building model')
+    m = models.get_model('attention', model_opt, device=device)
+
+    log.info('Loading dataset')
+    dataset = get_dataset(args.dataset, data_opt)
+
+    sess = tf.Session()
+
+    if args.restore:
+        saver.restore(sess, ckpt_fname)
+    else:
+        sess.run(tf.initialize_all_variables())
+
+    # Create time series loggers
+    loggers = {}
+    if train_opt['logs']:
+        loggers = _get_ts_loggers(model_opt, debug_bn=train_opt['debug_bn'])
+        _register_raw_logs(log_manager, log, model_opt, saver)
+        samples = _get_plot_loggers(model_opt, train_opt)
+        _log_url = 'http://{}/deep-dashboard?id={}'.format(
+            train_opt['localhost'], model_id)
+        log.info('Visualization can be viewed at: {}'.format(_log_url))
 
     batch_size = args.batch_size
     log.info('Batch size: {}'.format(batch_size))
@@ -924,13 +1080,14 @@ if __name__ == '__main__':
         """Samples"""
         def _run_samples(x, y, s, phase_train, fname_input, fname_output,
                          fname_total=None, fname_box=None, fname_patch=None,
-                         fname_ccnn=None, fname_acnn=None, fname_dcnn=None):
+                         fname_ccnn=None, fname_acnn=None, fname_attn_dcnn=None):
 
             _outputs = ['x_trans', 'y_gt_trans', 'y_out',
                         's_out', 'match',
                         'attn_top_left', 'attn_bot_right',
                         'attn_ctr', 'attn_delta',
                         'attn_box', 'attn_box_gt', 'match_box']
+            _max_items = _get_max_items_per_row(x.shape[2], x.shape[3])
 
             if fname_patch:
                 _outputs.append('x_patch')
@@ -942,35 +1099,35 @@ if __name__ == '__main__':
                 [_outputs.append('h_acnn_{}'.format(ii))
                  for ii in xrange(num_attn_cnn)]
                 h_acnn = [None] * num_attn_cnn
-            if fname_dcnn:
-                [_outputs.append('h_dcnn_{}'.format(ii))
-                 for ii in xrange(num_dcnn)]
-                h_dcnn = [None] * num_dcnn
+            if fname_attn_dcnn:
+                [_outputs.append('h_attn_dcnn_{}'.format(ii))
+                 for ii in xrange(num_attn_dcnn)]
+                h_attn_dcnn = [None] * num_attn_dcnn
 
             _feed_dict = {m['x']: x, m['phase_train']: phase_train,
                           m['y_gt']: y, m['s_gt']: s}
             _r = _run_model(m, _outputs, _feed_dict)
 
             plot_input(fname_input, x=_r['x_trans'], y_gt=_r['y_gt_trans'],
-                       s_gt=s, max_items_per_row=max_items_per_row)
+                       s_gt=s, max_items_per_row=_max_items)
 
             plot_output(fname_output, y_out=_r['y_out'], s_out=_r['s_out'],
                         match=_r['match'],
                         attn=(_r['attn_top_left'], _r['attn_bot_right'],
                               _r['attn_ctr'], _r['attn_delta']),
-                        max_items_per_row=max_items_per_row)
+                        max_items_per_row=_max_items)
 
             if fname_total:
                 plot_total_instances(fname_total, y_out=_r['y_out'],
                                      s_out=_r['s_out'],
-                                     max_items_per_row=max_items_per_row)
+                                     max_items_per_row=_max_items)
 
             if fname_box:
                 plot_output(fname_box, y_out=_r['attn_box'], s_out=_r['s_out'],
                             match=_r['match_box'],
                             attn=(_r['attn_top_left'], _r['attn_bot_right'],
                                   _r['attn_ctr'], _r['attn_delta']),
-                            max_items_per_row=max_items_per_row)
+                            max_items_per_row=_max_items)
 
             if fname_patch:
                 plot_thumbnails(fname_patch, _r['x_patch'][:, :, :, :, : 3],
@@ -980,7 +1137,7 @@ if __name__ == '__main__':
                 for ii in xrange(num_ctrl_cnn):
                     _h = _r['h_ccnn_{}'.format(ii)]
                     plot_thumbnails(fname_ccnn[ii], _h[:, 0], axis=3,
-                                    max_items_per_row=max_items_per_row)
+                                    max_items_per_row=_max_items)
 
             if fname_acnn:
                 for ii in xrange(num_attn_cnn):
@@ -988,10 +1145,10 @@ if __name__ == '__main__':
                     plot_thumbnails(fname_acnn[ii], _h[:, 0], axis=3,
                                     max_items_per_row=8)
 
-            if fname_dcnn:
-                for ii in xrange(num_dcnn):
-                    _h = _r['h_dcnn_{}'.format(ii)]
-                    plot_thumbnails(fname_dcnn[ii], _h[ii][:, 0], axis=3,
+            if fname_attn_dcnn:
+                for ii in xrange(num_attn_dcnn):
+                    _h = _r['h_attn_dcnn_{}'.format(ii)]
+                    plot_thumbnails(fname_attn_dcnn[ii], _h[ii][:, 0], axis=3,
                                     max_items_per_row=8)
 
             pass
@@ -1014,12 +1171,12 @@ if __name__ == '__main__':
                     ii, _set)].get_fname() for ii in xrange(num_ctrl_cnn)]
                 fname_acnn = [samples['acnn_{}_{}'.format(
                     ii, _set)].get_fname() for ii in xrange(num_attn_cnn)]
-                fname_dcnn = [samples['dcnn_{}_{}'.format(
-                    ii, _set)].get_fname() for ii in xrange(num_dcnn)]
+                fname_attn_dcnn = [samples['attn_dcnn_{}_{}'.format(
+                    ii, _set)].get_fname() for ii in xrange(num_attn_dcnn)]
             else:
                 fname_ccnn = None
                 fname_acnn = None
-                fname_dcnn = None
+                fname_attn_dcnn = None
             _run_samples(
                 _x, _y, _s, _is_train,
                 fname_input=samples['input_{}'.format(_set)].get_fname(),
@@ -1029,7 +1186,7 @@ if __name__ == '__main__':
                 fname_patch=samples['patch_{}'.format(_set)].get_fname(),
                 fname_ccnn=fname_ccnn,
                 fname_acnn=fname_acnn,
-                fname_dcnn=fname_dcnn)
+                fname_attn_dcnn=fname_attn_dcnn)
 
             if not samples['output_{}'.format(_set)].is_registered():
                 for _name in ['input', 'output', 'total', 'box', 'patch']:
@@ -1037,39 +1194,42 @@ if __name__ == '__main__':
 
                 if args.debug_act:
                     for _name, _num in zip(
-                            ['ccnn', 'acnn', 'dcnn'],
-                            [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                            ['ccnn', 'acnn', 'attn_dcnn'],
+                            [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
                         [samples[
                             '{}_{}_{}'.format(_name, ii, _set)].register()
                             for ii in xrange(_num)]
         pass
 
     def get_outputs_valid():
-        _outputs = ['loss', 'conf_loss', 'segm_loss',
-                    'box_loss', 'iou_soft', 'iou_hard',
-                    'count_acc', 'dice', 'dic',
-                    'dic_abs', 'wt_cov_soft', 'wt_cov_hard',
-                    'unwt_cov_soft', 'unwt_cov_hard']
+        _outputs = ['loss', 'conf_loss', 'segm_loss', 'iou_soft', 'iou_hard',
+                    'count_acc', 'dice', 'dic', 'dic_abs', 'wt_cov_soft',
+                    'wt_cov_hard', 'unwt_cov_soft', 'unwt_cov_hard']
+
+        if model_opt['type'] == 'attention':
+            _outputs.extend(['box_loss'])
 
         return _outputs
 
     def get_outputs_trainval():
-        _outputs = ['loss', 'conf_loss', 'segm_loss', 'box_loss',
-                    'iou_soft', 'iou_hard', 'learn_rate', 'crnn_g_i_avg',
-                    'crnn_g_f_avg', 'crnn_g_o_avg', 'count_acc',
-                    'gt_knob_prob_box', 'gt_knob_prob_segm', 'dice', 'dic',
-                    'dic_abs', 'attn_lg_gamma_mean',
-                    'attn_box_lg_gamma_mean', 'y_out_lg_gamma_mean',
-                    'wt_cov_soft', 'wt_cov_hard', 'unwt_cov_soft',
-                    'unwt_cov_hard']
+        _outputs = ['loss', 'conf_loss', 'segm_loss', 'iou_soft', 'iou_hard',
+                    'count_acc', 'dice', 'dic', 'dic_abs', 'wt_cov_soft',
+                    'wt_cov_hard', 'unwt_cov_soft', 'unwt_cov_hard',
+                    'learn_rate']
+
+        if model_opt['type'] == 'attention':
+            _outputs.extend(['box_loss', 'crnn_g_i_avg', 'crnn_g_f_avg',
+                             'crnn_g_o_avg', 'gt_knob_prob_box',
+                             'gt_knob_prob_segm', 'attn_lg_gamma_mean',
+                             'attn_box_lg_gamma_mean', 'y_out_lg_gamma_mean'])
 
         return _outputs
 
     def get_outputs_bn():
         _outputs = []
         for _layer, _num in zip(
-                ['ctrl_cnn', 'attn_cnn', 'dcnn'],
-                [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                ['ctrl_cnn', 'attn_cnn', 'attn_dcnn'],
+                [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
             for ii in xrange(_num):
                 for tt in xrange(timespan):
                     for _stat in ['bm', 'bv', 'em', 'ev']:
@@ -1102,10 +1262,13 @@ if __name__ == '__main__':
         pass
 
     def write_log_valid(loggers, r):
+        attn = model_opt['type'] == 'attention'
+
         loggers['loss'].add(step, ['', r['loss']])
         loggers['conf_loss'].add(step, ['', r['conf_loss']])
         loggers['segm_loss'].add(step, ['', r['segm_loss']])
-        loggers['box_loss'].add(step, ['', r['box_loss']])
+        if attn:
+            loggers['box_loss'].add(step, ['', r['box_loss']])
         loggers['iou'].add(step, ['', r['iou_soft'], '', r['iou_hard']])
         loggers['wt_cov'].add(step, ['', r['wt_cov_soft'], '',
                                      r['wt_cov_hard']])
@@ -1119,8 +1282,8 @@ if __name__ == '__main__':
         # Batch normalization stats.
         if train_opt['debug_bn']:
             for _layer, _num in zip(
-                    ['ccnn', 'acnn', 'dcnn'],
-                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                    ['ccnn', 'acnn', 'attn_dcnn'],
+                    [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
                 for ii in xrange(_num):
                     for tt in xrange(timespan):
                         _prefix = '{}_{}_{{}}_{}'.format(_layer, ii, tt)
@@ -1132,10 +1295,13 @@ if __name__ == '__main__':
         pass
 
     def write_log_trainval(loggers, r, bn=False):
+        attn = model_opt['type'] == 'attention'
+
         loggers['loss'].add(step, [r['loss'], ''])
         loggers['conf_loss'].add(step, [r['conf_loss'], ''])
         loggers['segm_loss'].add(step, [r['segm_loss'], ''])
-        loggers['box_loss'].add(step, [r['box_loss'], ''])
+        if attn:
+            loggers['box_loss'].add(step, [r['box_loss'], ''])
         loggers['iou'].add(step, [r['iou_soft'], '', r['iou_hard'], ''])
         loggers['wt_cov'].add(step, [r['wt_cov_soft'], '',
                                      r['wt_cov_hard'], ''])
@@ -1147,18 +1313,19 @@ if __name__ == '__main__':
         loggers['dic_abs'].add(step, [r['dic_abs'], ''])
         loggers['crnn'].add(step, [r['crnn_g_i_avg'], r['crnn_g_f_avg'],
                                    r['crnn_g_o_avg']])
-        loggers['gt_knob'].add(step, [r['gt_knob_prob_box'],
-                                      r['gt_knob_prob_segm']])
-        loggers['attn_params'].add(step, [r['attn_lg_gamma_mean'],
-                                          r['attn_box_lg_gamma_mean'],
-                                          r['y_out_lg_gamma_mean']])
+        if attn:
+            loggers['gt_knob'].add(step, [r['gt_knob_prob_box'],
+                                          r['gt_knob_prob_segm']])
+            loggers['attn_params'].add(step, [r['attn_lg_gamma_mean'],
+                                              r['attn_box_lg_gamma_mean'],
+                                              r['y_out_lg_gamma_mean']])
         loggers['learn_rate'].add(step, r['learn_rate'])
 
         # Batch normalization stats.
         if bn:
             for _layer, _num in zip(
-                    ['ccnn', 'acnn', 'dcnn'],
-                    [num_ctrl_cnn, num_attn_cnn, num_dcnn]):
+                    ['ccnn', 'acnn', 'attn_dcnn'],
+                    [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
                 for ii in xrange(_num):
                     for tt in xrange(timespan):
                         _prefix = '{}_{}_{{}}_{}'.format(
@@ -1199,6 +1366,7 @@ if __name__ == '__main__':
                                              cycle=True,
                                              progress_bar=False)
             outputs_valid = get_outputs_valid()
+        num_batch_valid = _get_num_batch_valid(args.dataset)
         batch_iter_trainval = BatchIterator(num_ex_train,
                                             batch_size=batch_size,
                                             get_fn=get_batch_train,
@@ -1219,14 +1387,14 @@ if __name__ == '__main__':
             if train_opt['has_valid']:
                 if step % train_opt['steps_per_valid'] == 0:
                     log.info('Running validation')
-                    run_stats(step, num_valid_batch, batch_iter_valid,
+                    run_stats(step, num_batch_valid, batch_iter_valid,
                               outputs_valid, write_log_valid, False)
                     pass
-                
+
             # Train stats
             if step % train_opt['steps_per_trainval'] == 0:
                 log.info('Running train validation')
-                run_stats(step, num_valid_batch, batch_iter_trainval,
+                run_stats(step, num_batch_valid, batch_iter_trainval,
                           outputs_trainval, write_log_trainval, True)
                 pass
 
@@ -1237,7 +1405,6 @@ if __name__ == '__main__':
 
             # Train step
             train_step(step, _x, _y, _s)
-
 
             # Model ID reminder
             if step % (10 * train_opt['steps_per_log']) == 0:

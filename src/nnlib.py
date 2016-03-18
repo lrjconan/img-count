@@ -29,6 +29,17 @@ def max_pool(x, ratio):
                           strides=[1, ratio, ratio, 1], padding='SAME')
 
 
+def avg_pool(x, ratio):
+    """N x N max pooling.
+
+    Args:
+        x: input tensor, [B, H, W, D]
+        ratio: N by N pooling ratio
+    """
+    return tf.nn.avg_pool(x, ksize=[1, ratio, ratio, 1],
+                          strides=[1, ratio, ratio, 1], padding='SAME')
+
+
 def weight_variable(shape, init=None, wd=None, name=None):
     """Initialize weights.
 

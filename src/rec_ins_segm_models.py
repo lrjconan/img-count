@@ -38,8 +38,7 @@ def _get_device_fn(device):
         if op.type in OPS_ON_CPU:
             return "/cpu:0"
         else:
-            # Other ops will be placed on GPU if available, otherwise
-            # CPU.
+            # Other ops will be placed on GPU if available, otherwise CPU.
             return device
 
     return _device_fn
@@ -381,67 +380,6 @@ def _dic(s_out, s_gt, abs=False):
     return count_diff
 
 
-def _rnd_img_transformation(x, y, padding, phase_train,
-                            rnd_vflip=True, rnd_hflip=True, rnd_transpose=True, rnd_colour=False):
-    """
-    Perform random crop, flip, transpose, hue, saturation, brightness, contrast.
-
-    Args:
-        x: [B, H, W, 3]
-        y: [B, T, H, W]
-        padding: int
-        phase_train: bool
-    """
-    # Random image transformation layers.
-    phase_train_f = tf.to_float(phase_train)
-    x_shape = tf.shape(x)
-    num_ex = x_shape[0]
-    inp_height = x_shape[1]
-    inp_width = x_shape[2]
-    inp_depth = x_shape[3]
-
-    # Add padding
-    x_pad = tf.pad(x, [[0, 0], [padding, padding], [padding, padding], [0, 0]])
-    y_pad = tf.pad(y, [[0, 0], [0, 0], [padding, padding], [padding, padding]])
-
-    # Random crop
-    offset = tf.random_uniform([2], dtype='int32', maxval=padding * 2)
-    x_rand = tf.slice(x_pad, tf.pack([0, offset[0], offset[1], 0]),
-                      tf.pack([-1, inp_height, inp_width, inp_depth]))
-    y_rand = tf.slice(y_pad, tf.pack([0, 0, offset[0], offset[1]]),
-                      tf.pack([-1, -1, inp_height, inp_width]))
-
-    # Center slices (for inference)
-    x_ctr = tf.slice(x_pad, [0, padding, padding, 0],
-                     tf.pack([-1, inp_height, inp_width, -1]))
-    y_ctr = tf.slice(y_pad, [0, 0, padding, padding],
-                     tf.pack([-1, -1, inp_height, inp_width]))
-
-    # Random horizontal & vertical flip & transpose
-    rand_h = tf.random_uniform([1], 1.0 - float(rnd_hflip), 1.0)
-    rand_v = tf.random_uniform([1], 1.0 - float(rnd_vflip), 1.0)
-    mirror_x = tf.pack([1.0, rand_v[0], rand_h[0], 1.0]) < 0.5
-    mirror_y = tf.pack([1.0, 1.0, rand_v[0], rand_h[0]]) < 0.5
-    x_rand = tf.reverse(x_rand, mirror_x)
-    y_rand = tf.reverse(y_rand, mirror_y)
-    rand_t = tf.random_uniform([1], 1.0 - float(rnd_transpose), 1.0)
-    do_tr = tf.cast(rand_t[0] < 0.5, 'int32')
-    x_rand = tf.transpose(x_rand, tf.pack([0, 1 + do_tr, 2 - do_tr, 3]))
-    y_rand = tf.transpose(y_rand, tf.pack([0, 1, 2 + do_tr, 3 - do_tr]))
-
-    # Random hue, saturation, brightness, contrast
-    if rnd_colour:
-        x_rand = img.random_hue(x_rand, 0.1)
-        x_rand = img.random_saturation(x_rand, 0.9, 1.1)
-        x_rand = tf.image.random_brightness(x_rand, 0.1)
-        x_rand = tf.image.random_contrast(x_rand, 0.9, 1.1)
-
-    x = (1.0 - phase_train_f) * x_ctr + phase_train_f * x_rand
-    y = (1.0 - phase_train_f) * y_ctr + phase_train_f * y_rand
-
-    return x, y
-
-
 def _build_skip_conn_inner(cnn_channels, h_cnn, x):
     """Build skip connection."""
     skip = [None]
@@ -560,7 +498,7 @@ def get_orig_model(opt, device='/cpu:0'):
         num_ex = x_shape[0]
 
         # Random image transformation
-        x, y_gt = _rnd_img_transformation(
+        x, y_gt = image.random_transformation(
             x, y_gt, padding, phase_train,
             rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip,
             rnd_transpose=rnd_transpose, rnd_colour=rnd_colour)
@@ -947,9 +885,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
     attn_cnn_filter_size = opt['attn_cnn_filter_size']
     attn_cnn_depth = opt['attn_cnn_depth']
     attn_cnn_pool = opt['attn_cnn_pool']
-    dcnn_filter_size = opt['dcnn_filter_size']
-    dcnn_depth = opt['dcnn_depth']
-    dcnn_pool = opt['dcnn_pool']
+    attn_dcnn_filter_size = opt['attn_dcnn_filter_size']
+    attn_dcnn_depth = opt['attn_dcnn_depth']
+    attn_dcnn_pool = opt['attn_dcnn_pool']
     attn_rnn_hid_dim = opt['attn_rnn_hid_dim']
 
     mlp_dropout_ratio = opt['mlp_dropout']
@@ -980,6 +918,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
     gt_box_ctr_noise = opt['gt_box_ctr_noise']
     gt_box_pad_noise = opt['gt_box_pad_noise']
     gt_segm_noise = opt['gt_segm_noise']
+    downsample_canvas = opt['downsample_canvas']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -1007,7 +946,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
         global_step = tf.Variable(0.0)
 
         # Random image transformation
-        x, y_gt = _rnd_img_transformation(
+        x, y_gt = img.random_transformation(
             x, y_gt, padding, phase_train,
             rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip,
             rnd_transpose=rnd_transpose, rnd_colour=rnd_colour)
@@ -1017,7 +956,10 @@ def get_attn_model_2(opt, device='/cpu:0'):
         # Canvas
         if use_canvas:
             canvas = tf.zeros(tf.pack([num_ex, inp_height, inp_width, 1]))
-            ccnn_inp_depth = inp_depth + 1
+            if downsample_canvas:
+                ccnn_inp_depth = inp_depth
+            else:
+                ccnn_inp_depth = inp_depth + 1
             acnn_inp_depth = inp_depth + 1
         else:
             ccnn_inp_depth = inp_depth
@@ -1040,7 +982,10 @@ def get_attn_model_2(opt, device='/cpu:0'):
         crnn_h = inp_height / ccnn_subsample
         crnn_w = inp_width / ccnn_subsample
         crnn_dim = ctrl_rnn_hid_dim
+        canvas_dim = inp_height * inp_width / (ccnn_subsample ** 2)
         crnn_inp_dim = crnn_h * crnn_w * ccnn_channels[-1]
+        if downsample_canvas:
+            crnn_inp_dim += canvas_dim
         crnn_state = [None] * (timespan + 1)
         crnn_g_i = [None] * timespan
         crnn_g_f = [None] * timespan
@@ -1074,7 +1019,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
             _get_gt_attn(y_gt, attn_size,
                          padding_ratio=tf.random_uniform(
                              tf.pack([num_ex, timespan, 1]),
-                             attn_box_padding_ratio - gt_box_pad_noise, 
+                             attn_box_padding_ratio - gt_box_pad_noise,
                              attn_box_padding_ratio + gt_box_pad_noise),
                          center_shift_ratio=tf.random_uniform(
                              tf.pack([num_ex, timespan, 2]),
@@ -1139,17 +1084,18 @@ def get_attn_model_2(opt, device='/cpu:0'):
                       phase_train=phase_train, wd=wd, scope='attn_mlp')
 
         # DCNN [B, RH, RW, MD] => [B, A, A, 1]
-        dcnn_filters = dcnn_filter_size
-        dcnn_nlayers = len(dcnn_filters)
-        dcnn_unpool = dcnn_pool
-        dcnn_act = [tf.nn.relu] * dcnn_nlayers
-        dcnn_channels = [attn_mlp_depth] + dcnn_depth
-        dcnn_use_bn = [use_bn] * dcnn_nlayers
-        dcnn_skip_ch = [0] + acnn_channels[::-1][1:] + [ccnn_inp_depth]
-        dcnn = nn.dcnn(dcnn_filters, dcnn_channels, dcnn_unpool,
-                       dcnn_act, use_bn=dcnn_use_bn, skip_ch=dcnn_skip_ch,
-                       phase_train=phase_train, wd=wd, model=model)
-        h_dcnn = [None] * timespan
+        adcnn_filters = attn_dcnn_filter_size
+        adcnn_nlayers = len(adcnn_filters)
+        adcnn_unpool = attn_dcnn_pool
+        adcnn_act = [tf.nn.relu] * adcnn_nlayers
+        adcnn_channels = [attn_mlp_depth] + attn_dcnn_depth
+        adcnn_use_bn = [use_bn] * adcnn_nlayers
+        adcnn_skip_ch = [0] + acnn_channels[::-1][1:] + [ccnn_inp_depth]
+        adcnn = nn.dcnn(adcnn_filters, adcnn_channels, adcnn_unpool,
+                        adcnn_act, use_bn=adcnn_use_bn, skip_ch=adcnn_skip_ch,
+                        phase_train=phase_train, wd=wd, model=model,
+                        scope='attn_dcnn')
+        h_adcnn = [None] * timespan
 
         # Attention box
         attn_box = [None] * timespan
@@ -1199,17 +1145,38 @@ def get_attn_model_2(opt, device='/cpu:0'):
         y_out_lg_gamma = [None] * timespan
         y_out_beta = tf.constant([-5.0])
 
+        if use_canvas:
+            if downsample_canvas:
+                h_ccnn = ccnn(x)
+        else:
+            h_ccnn = ccnn(x)
+
         for tt in xrange(timespan):
             # Controller CNN [B, H, W, D] => [B, RH1, RW1, RD1]
             if use_canvas:
-                ccnn_inp = tf.concat(3, [x, canvas])
-                acnn_inp = ccnn_inp
+                if downsample_canvas:
+                    acnn_inp = tf.concat(3, [x, canvas])
+                    _h_ccnn = h_ccnn
+                else:
+                    ccnn_inp = tf.concat(3, [x, canvas])
+                    acnn_inp = ccnn_inp
+                    h_ccnn[tt] = ccnn(ccnn_inp)
+                    _h_ccnn = h_ccnn[tt]
             else:
                 ccnn_inp = x
                 acnn_inp = x
-            h_ccnn[tt] = ccnn(ccnn_inp)
-            h_ccnn_last = h_ccnn[tt][-1]
-            crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
+                _h_ccnn = h_ccnn
+            
+            h_ccnn_last = _h_ccnn[-1]
+            if downsample_canvas:
+                _canvas = nn.avg_pool(canvas, ccnn_subsample)
+                _canvas = tf.reshape(_canvas, [-1, canvas_dim])
+                _cnn_dim = inp_height * inp_width / \
+                    (ccnn_subsample ** 2) * ccnn_channels[-1]
+                crnn_inp = tf.reshape(h_ccnn_last, [-1, _cnn_dim])
+                crnn_inp = tf.concat(1, [crnn_inp, _canvas])
+            else:
+                crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
 
             # Controller RNN [B, R1]
             crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[tt] = \
@@ -1340,11 +1307,11 @@ def get_attn_model_2(opt, device='/cpu:0'):
 
             # DCNN
             skip = [None] + h_acnn[tt][::-1][1:] + [x_patch[tt]]
-            h_dcnn[tt] = dcnn(h_core, skip=skip)
+            h_adcnn[tt] = adcnn(h_core, skip=skip)
 
             # Output
             y_out[tt] = _extract_patch(
-                h_dcnn[tt][-1], filter_y_inv, filter_x_inv, 1)
+                h_adcnn[tt][-1], filter_y_inv, filter_x_inv, 1)
             y_out[tt] = tf.exp(y_out_lg_gamma[tt]) * y_out[tt] + y_out_beta
             y_out[tt] = tf.sigmoid(y_out[tt])
             y_out[tt] = tf.reshape(y_out[tt], [-1, 1, inp_height, inp_width])
@@ -1382,7 +1349,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
                                 for tt in xrange(timespan)])
         model['x_patch'] = x_patch
 
-        for layer in ['ctrl_cnn', 'attn_cnn', 'dcnn']:
+        for layer in ['ctrl_cnn', 'attn_cnn', 'attn_dcnn']:
             for ii in xrange(len(opt['{}_filter_size'.format(layer)])):
                 for stat in ['bm', 'bv', 'em', 'ev']:
                     model['{}_{}_{}'.format(layer, ii, stat)] = tf.add_n(
