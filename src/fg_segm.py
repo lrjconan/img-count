@@ -239,7 +239,7 @@ if __name__ == '__main__':
         'rnd_hflip': True,
         'rnd_vflip': False,
         'rnd_transpose': False,
-        'rnd_colour': True,
+        'rnd_colour': False,
         'base_learn_rate': 1e-3,
         'learn_rate_decay': 0.96,
         'steps_per_learn_rate_decay': 5000,
