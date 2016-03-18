@@ -1222,11 +1222,11 @@ if __name__ == '__main__':
                     r[key] = _r[key] * bat_sz / nvalid
 
         log.info('{:d} loss {:.4f}'.format(step, r['loss']))
-        write_log(loggers, r)
+        write_log(step, loggers, r)
 
         pass
 
-    def write_log_valid(loggers, r):
+    def write_log_valid(step, loggers, r):
         attn = model_opt['type'] == 'attention'
 
         loggers['loss'].add(step, ['', r['loss']])
@@ -1259,7 +1259,7 @@ if __name__ == '__main__':
 
         pass
 
-    def write_log_trainval(loggers, r, bn=False):
+    def write_log_trainval(step, loggers, r, bn=False):
         attn = model_opt['type'] == 'attention'
 
         loggers['loss'].add(step, [r['loss'], ''])
