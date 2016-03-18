@@ -10,6 +10,66 @@ from tensorflow.python.ops import random_ops
 import tensorflow as tf
 
 
+def random_transformation2(x, y, padding, phase_train, rnd_vflip=True, rnd_hflip=True, rnd_transpose=True, rnd_colour=False):
+    """
+    Perform random crop, flip, transpose, hue, saturation, brightness, contrast.
+
+    Args:
+        x: [B, H, W, 3]
+        y: [B, T, H, W]
+        padding: int
+        phase_train: bool
+    """
+    # Random image transformation layers.
+    phase_train_f = tf.to_float(phase_train)
+    x_shape = tf.shape(x)
+    num_ex = x_shape[0]
+    inp_height = x_shape[1]
+    inp_width = x_shape[2]
+    inp_depth_x = x_shape[3]
+    inp_depth_y = y_shape[3]
+
+    # Add padding
+    x_pad = tf.pad(x, [[0, 0], [padding, padding], [padding, padding], [0, 0]])
+    y_pad = tf.pad(y, [[0, 0], [padding, padding], [padding, padding], [0, 0]])
+
+    # Random crop
+    offset = tf.random_uniform([2], dtype='int32', maxval=padding * 2)
+    x_rand = tf.slice(x_pad, tf.pack([0, offset[0], offset[1], 0]),
+                      tf.pack([-1, inp_height, inp_width, inp_depth_x]))
+    y_rand = tf.slice(y_pad, tf.pack([0, offset[0], offset[1], 0]),
+                      tf.pack([-1, inp_height, inp_width, inp_depth_y]))
+
+    # Center slices (for inference)
+    x_ctr = tf.slice(x_pad, [0, padding, padding, 0],
+                     tf.pack([-1, inp_height, inp_width, -1]))
+    y_ctr = tf.slice(y_pad, [0, padding, padding, 0],
+                     tf.pack([-1, inp_height, inp_width, -1]))
+
+    # Random horizontal & vertical flip & transpose
+    rand_h = tf.random_uniform([1], 1.0 - float(rnd_hflip), 1.0)
+    rand_v = tf.random_uniform([1], 1.0 - float(rnd_vflip), 1.0)
+    mirror = tf.pack([1.0, rand_v[0], rand_h[0], 1.0]) < 0.5
+    x_rand = tf.reverse(x_rand, mirror)
+    y_rand = tf.reverse(y_rand, mirror)
+    rand_t = tf.random_uniform([1], 1.0 - float(rnd_transpose), 1.0)
+    do_tr = tf.cast(rand_t[0] < 0.5, 'int32')
+    x_rand = tf.transpose(x_rand, tf.pack([0, 1 + do_tr, 2 - do_tr, 3]))
+    y_rand = tf.transpose(y_rand, tf.pack([0, 1 + do_tr, 2 - do_tr, 3]))
+
+    # Random hue, saturation, brightness, contrast
+    if rnd_colour:
+        x_rand = img.random_hue(x_rand, 0.1)
+        x_rand = img.random_saturation(x_rand, 0.9, 1.1)
+        x_rand = tf.image.random_brightness(x_rand, 0.1)
+        x_rand = tf.image.random_contrast(x_rand, 0.9, 1.1)
+
+    x = (1.0 - phase_train_f) * x_ctr + phase_train_f * x_rand
+    y = (1.0 - phase_train_f) * y_ctr + phase_train_f * y_rand
+
+    return x, y
+
+
 def random_transformation(x, y, padding, phase_train, rnd_vflip=True, rnd_hflip=True, rnd_transpose=True, rnd_colour=False):
     """
     Perform random crop, flip, transpose, hue, saturation, brightness, contrast.

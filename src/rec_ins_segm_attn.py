@@ -29,7 +29,7 @@ from utils.batch_iter import BatchIterator
 from utils.lazy_registerer import LazyRegisterer
 from utils.saver import Saver
 from utils.time_series_logger import TimeSeriesLogger
-from utils import plot_utils
+from utils import plot_utils as pu
 
 import rec_ins_segm_models as models
 
@@ -53,11 +53,11 @@ def plot_total_instances(fname, y_out, s_out, max_items_per_row=9):
     """
     num_ex = y_out.shape[0]
     num_items = y_out.shape[1]
-    num_row, num_col, calc = plot_utils.calc_row_col(
+    num_row, num_col, calc = pu.calc_row_col(
         num_ex, num_items, max_items_per_row=max_items_per_row)
 
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
-    plot_utils.set_axis_off(axarr, num_row, num_col)
+    pu.set_axis_off(axarr, num_row, num_col)
 
     cmap2 = np.array([[192, 57, 43],
                       [243, 156, 18],
@@ -95,52 +95,16 @@ def plot_total_instances(fname, y_out, s_out, max_items_per_row=9):
     pass
 
 
-def plot_thumbnails(fname, img, axis, max_items_per_row=9):
-    """Plot activation map.
-
-    Args:
-        img: [B, T, H, W, 3] or [B, H, W, D]
-    """
-    num_ex = img.shape[0]
-    num_items = img.shape[axis]
-    num_row, num_col, calc = plot_utils.calc_row_col(
-        num_ex, num_items, max_items_per_row=max_items_per_row)
-
-    f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
-    plot_utils.set_axis_off(axarr, num_row, num_col)
-
-    for ii in xrange(num_ex):
-        for jj in xrange(num_items):
-            row, col = calc(ii, jj)
-            if axis == 3:
-                x = img[ii, :, :, jj]
-            elif axis == 1:
-                x = img[ii, jj]
-            if num_col > 1:
-                ax = axarr[row, col]
-            else:
-                ax = axarr[row]
-            ax.imshow(x)
-            ax.text(0, -0.5, '[{:.2g}, {:.2g}]'.format(
-                np.min(x), np.max(x)), color=(0, 0, 0), size=8)
-
-    plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
-    plt.savefig(fname, dpi=150)
-    plt.close('all')
-
-    pass
-
-
 def plot_input(fname, x, y_gt, s_gt, max_items_per_row=9):
     """Plot input, transformed input and output groundtruth sequence.
     """
     num_ex = y_gt.shape[0]
     num_items = y_gt.shape[1]
-    num_row, num_col, calc = plot_utils.calc_row_col(
+    num_row, num_col, calc = pu.calc_row_col(
         num_ex, num_items, max_items_per_row=max_items_per_row)
 
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
-    plot_utils.set_axis_off(axarr, num_row, num_col)
+    pu.set_axis_off(axarr, num_row, num_col)
     cmap = ['r', 'y', 'c', 'g', 'm']
 
     for ii in xrange(num_ex):
@@ -189,7 +153,7 @@ def plot_output(fname, y_out, s_out, match, attn=None, max_items_per_row=9):
     """
     num_ex = y_out.shape[0]
     num_items = y_out.shape[1]
-    num_row, num_col, calc = plot_utils.calc_row_col(
+    num_row, num_col, calc = pu.calc_row_col(
         num_ex, num_items, max_items_per_row=max_items_per_row)
 
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
@@ -205,7 +169,7 @@ def plot_output(fname, y_out, s_out, match, attn=None, max_items_per_row=9):
         attn_delta_y = attn[3][:, :, 0]
         attn_delta_x = attn[3][:, :, 1]
 
-    plot_utils.set_axis_off(axarr, num_row, num_col)
+    pu.set_axis_off(axarr, num_row, num_col)
 
     for ii in xrange(num_ex):
         for jj in xrange(num_items):
@@ -973,8 +937,7 @@ def _register_raw_logs(log_manager, log, model_opt, saver):
 
 
 def _get_max_items_per_row(inp_height, inp_width):
-    ratio = int(inp_height / inp_width)
-    if ratio == 1:
+    if inp_height == inp_width:
         return 8
     else:
         return 5
@@ -1087,7 +1050,7 @@ if __name__ == '__main__':
                         'attn_top_left', 'attn_bot_right',
                         'attn_ctr', 'attn_delta',
                         'attn_box', 'attn_box_gt', 'match_box']
-            _max_items = _get_max_items_per_row(x.shape[2], x.shape[3])
+            _max_items = _get_max_items_per_row(x.shape[1], x.shape[2])
 
             if fname_patch:
                 _outputs.append('x_patch')
@@ -1130,26 +1093,28 @@ if __name__ == '__main__':
                             max_items_per_row=_max_items)
 
             if fname_patch:
-                plot_thumbnails(fname_patch, _r['x_patch'][:, :, :, :, : 3],
-                                axis=1, max_items_per_row=8)
+                pu.plot_thumbnails(fname_patch,
+                                   _r['x_patch'][:, :, :, :, : 3],
+                                   axis=1, max_items_per_row=8)
 
             if fname_ccnn:
                 for ii in xrange(num_ctrl_cnn):
                     _h = _r['h_ccnn_{}'.format(ii)]
-                    plot_thumbnails(fname_ccnn[ii], _h[:, 0], axis=3,
-                                    max_items_per_row=_max_items)
+                    pu.plot_thumbnails(fname_ccnn[ii], _h[:, 0], axis=3,
+                                       max_items_per_row=_max_items)
 
             if fname_acnn:
                 for ii in xrange(num_attn_cnn):
                     _h = _r['h_acnn_{}'.format(ii)]
-                    plot_thumbnails(fname_acnn[ii], _h[:, 0], axis=3,
-                                    max_items_per_row=8)
+                    pu.plot_thumbnails(fname_acnn[ii], _h[:, 0], axis=3,
+                                       max_items_per_row=8)
 
             if fname_attn_dcnn:
                 for ii in xrange(num_attn_dcnn):
                     _h = _r['h_attn_dcnn_{}'.format(ii)]
-                    plot_thumbnails(fname_attn_dcnn[ii], _h[ii][:, 0], axis=3,
-                                    max_items_per_row=8)
+                    pu.plot_thumbnails(fname_attn_dcnn[ii], _h[ii][:, 0],
+                                       axis=3,
+                                       max_items_per_row=8)
 
             pass
 
