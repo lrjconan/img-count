@@ -1349,12 +1349,12 @@ def get_attn_model_2(opt, device='/cpu:0'):
                                 for tt in xrange(timespan)])
         model['x_patch'] = x_patch
 
-        for layer in ['ctrl_cnn', 'attn_cnn', 'attn_dcnn']:
-            for ii in xrange(len(opt['{}_filter_size'.format(layer)])):
-                for stat in ['bm', 'bv', 'em', 'ev']:
-                    model['{}_{}_{}'.format(layer, ii, stat)] = tf.add_n(
-                        [model['{}_{}_{}_{}'.format(layer, ii, stat, tt)]
-                         for tt in xrange(timespan)]) / timespan
+        # for layer in ['ctrl_cnn', 'attn_cnn', 'attn_dcnn']:
+        #     for ii in xrange(len(opt['{}_filter_size'.format(layer)])):
+        #         for stat in ['bm', 'bv', 'em', 'ev']:
+        #             model['{}_{}_{}'.format(layer, ii, stat)] = tf.add_n(
+        #                 [model['{}_{}_{}_{}'.format(layer, ii, stat, tt)]
+        #                  for tt in xrange(timespan)]) / timespan
 
         # Loss function
         learn_rate = tf.train.exponential_decay(
