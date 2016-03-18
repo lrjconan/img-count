@@ -60,8 +60,8 @@ def random_transformation2(x, y, padding, phase_train, rnd_vflip=True, rnd_hflip
 
     # Random hue, saturation, brightness, contrast
     if rnd_colour:
-        x_rand = img.random_hue(x_rand, 0.1)
-        x_rand = img.random_saturation(x_rand, 0.9, 1.1)
+        x_rand = random_hue(x_rand, 0.1)
+        x_rand = random_saturation(x_rand, 0.9, 1.1)
         x_rand = tf.image.random_brightness(x_rand, 0.1)
         x_rand = tf.image.random_contrast(x_rand, 0.9, 1.1)
 
