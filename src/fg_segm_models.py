@@ -1,0 +1,124 @@
+import cslab_environ
+
+import tensorflow as tf
+
+from utils import logger
+from utils.grad_clip_optim import GradientClipOptimizer
+import nnlib as nn
+import image_ops as img
+
+log = logger.get()
+
+
+def _get_device_fn(device):
+    """Choose device for different ops."""
+    OPS_ON_CPU = set(['ResizeBilinear', 'ResizeBilinearGrad',
+                      'Mod', 'Reverse', 'SparseToDense', 'BatchMatMul'])
+
+    def _device_fn(op):
+        if op.type in OPS_ON_CPU:
+            return "/cpu:0"
+        else:
+            # Other ops will be placed on GPU if available, otherwise CPU.
+            return device
+
+    return _device_fn
+
+
+def _f_iou(a, b):
+    """
+    Computes IOU score.
+
+    Args:
+        a: [B, N, H, W], or [N, H, W], or [H, W]
+        b: [B, N, H, W], or [N, H, W], or [H, W]
+    """
+
+    def _inter(a, b):
+        """Computes intersection."""
+        reduction_indices = _get_reduction_indices(a)
+        return tf.reduce_sum(a * b, reduction_indices=reduction_indices)
+
+    def _union(a, b, eps=1e-5):
+        """Computes union."""
+        reduction_indices = _get_reduction_indices(a)
+        return tf.reduce_sum(a + b - (a * b) + eps,
+                             reduction_indices=reduction_indices)
+
+    def _get_reduction_indices(a):
+        """Gets the list of axes to sum over."""
+        dim = len(a.get_shape())
+
+        return [dim - 2, dim - 1]
+
+    return _inter(a, b) / _union(a, b)
+
+
+def get_model(opt, device='/cpu:0'):
+    """A fully-convolutional neural network for foreground segmentation."""
+    model = {}
+    inp_height = opt['inp_height']
+    inp_width = opt['inp_width']
+    inp_depth = opt['inp_depth']
+    cnn_filter_size = opt['cnn_filter_size']
+    cnn_depth = opt['cnn_depth']
+    cnn_pool = opt['cnn_pool']
+    dcnn_filter_size = opt['dcnn_filter_size']
+    dcnn_depth = opt['dcnn_depth']
+    dcnn_pool = opt['dcnn_pool']
+    use_bn = opt['use_bn']
+    rnd_hflip = opt['rnd_hflip']
+    rnd_vflip = opt['rnd_vflip']
+    rnd_transpose = opt['rnd_transpose']
+    rnd_colour = opt['rnd_colour']
+
+    with tf.device(_get_device_fn(device)):
+        x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
+        y_gt = tf.placeholder('float', [None, inp_height, inp_width])
+        phase_train = tf.placeholder('bool')
+        model['x'] = x
+        model['y_gt'] = y_gt
+        model['phase_train'] = phase_train
+
+        global_step = tf.Variable(0.0)
+        x_shape = tf.shape(x)
+        num_ex = x_shape[0]
+
+        x, y_gt = image.random_transformation(
+            x, y_gt, padding, phase_train,
+            rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip,
+            rnd_transpose=rnd_transpose, rnd_colour=rnd_colour)
+
+        cnn_nlayers = len(cnn_filter_size)
+        cnn_channels = [inp_depth] + cnn_depth
+        cnn_act = [tf.nn.relu] * cnn_nlayers
+        cnn_use_bn = [use_bn] * cnn_nlayers
+        cnn = nn.cnn(cnn_filter_size, cnn_channels, cnn_pool, cnn_act,
+                     cnn_use_bn, phase_train=phase_train, wd=wd)
+        h_cnn = cnn(x)
+
+        dcnn_nlayers = len(dcnn_filter_size)
+        dcnn_act = [tf.nn.relu] * (dcnn_nlayers - 1) + [None]
+        dcnn_skip_ch = [0] + cnn_channels[::-1][1:] + [inp_depth]
+        dcnn_channels = [cnn_channels[-1]] + dcnn_depth
+        dcnn_use_bn = [use_bn] * dcnn_nlayers
+        dcnn = nn.dcnn(dcnn_filter_size, dcnn_channels, dcnn_pool, dcnn_act,
+                       dcnn_use_bn, skip_ch=skip_ch, phase_train=phase_train,
+                       wd=wd)
+        dcnn_skip = [None] + h_cnn[::-1][1:] + [x]
+        h_dcnn = dcnn(h_cnn[-1], skip=dcnn_skip)
+
+        y_out = tf.reshape(h_dcnn[-1], [-1, inp_height, inp_width])
+        y_out = tf.sigmoid(y_out)
+        model['y_out'] = y_out
+
+        num_ex = tf.to_float(num_ex)
+        iou = tf.reduce_sum(_f_iou(y_out, y_gt)) / num_ex
+        model['loss'] = -iou
+
+        train_step = GradientClipOptimizer(
+            tf.train.AdamOptimizer(learn_rate, epsilon=eps),
+            clip=1.0).minimize(total_loss, global_step=global_step)
+        model['train_step'] = train_step
+
+    return model
