@@ -525,7 +525,8 @@ def _add_model_args(parser):
                         type=float, help='Groundtruth segmentation noise')
     parser.add_argument('-downsample_canvas', action='store_true',
                         help='Whether downsample canvas to feed to Ctrl RNN')
-    parser.add_argument('-fg_cnn', default=None, help='Use pre-trained foreground CNN.')
+    parser.add_argument('-fg_cnn', default=None,
+                        help='Use pre-trained foreground segmentation CNN.')
 
     pass
 
@@ -577,7 +578,7 @@ def _add_training_args(parser):
                         help='Use the whole training set.')
 
     pass
-
+    
 
 def _make_model_opt(args):
     """Convert command-line arguments into model opt dict."""
@@ -629,6 +630,10 @@ def _make_model_opt(args):
         rnd_colour = False
     else:
         raise Exception('Unknown dataset name')
+
+    if args.fg_cnn:
+        pretrain_ccnn_w = _read_pretrain_fg(args.fg_cnn)
+
     model_opt = {
         'type': args.model,
         'inp_height': inp_height,
@@ -648,7 +653,6 @@ def _make_model_opt(args):
         'attn_cnn_depth': acnn_depth_list,
         'attn_cnn_pool': acnn_pool_list,
 
-        'attn_rnn_hid_dim': args.attn_rnn_hid_dim,
 
         'attn_dcnn_filter_size': attn_dcnn_fsize_list,
         'attn_dcnn_depth': attn_dcnn_depth_list,

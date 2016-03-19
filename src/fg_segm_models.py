@@ -101,7 +101,7 @@ def get_model(opt, device='/cpu:0'):
         cnn_act = [tf.nn.relu] * cnn_nlayers
         cnn_use_bn = [use_bn] * cnn_nlayers
         cnn = nn.cnn(cnn_filter_size, cnn_channels, cnn_pool, cnn_act,
-                     cnn_use_bn, phase_train=phase_train, wd=wd)
+                     cnn_use_bn, phase_train=phase_train, wd=wd, model=model)
         h_cnn = cnn(x)
 
         dcnn_nlayers = len(dcnn_filter_size)
