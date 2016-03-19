@@ -33,6 +33,7 @@ from utils.time_series_logger import TimeSeriesLogger
 from utils import plot_utils as pu
 
 import rec_ins_segm_models as models
+import fg_segm_reader
 
 log = logger.get()
 
@@ -578,7 +579,7 @@ def _add_training_args(parser):
                         help='Use the whole training set.')
 
     pass
-    
+
 
 def _make_model_opt(args):
     """Convert command-line arguments into model opt dict."""
@@ -630,9 +631,6 @@ def _make_model_opt(args):
         rnd_colour = False
     else:
         raise Exception('Unknown dataset name')
-
-    if args.fg_cnn:
-        pretrain_ccnn_w = _read_pretrain_fg(args.fg_cnn)
 
     model_opt = {
         'type': args.model,
@@ -691,6 +689,7 @@ def _make_model_opt(args):
         'gt_box_pad_noise': args.gt_box_pad_noise,
         'gt_segm_noise': args.gt_segm_noise,
         'downsample_canvas': args.downsample_canvas,
+        'pretrain_ccnn': args.fg_cnn,
 
         'rnd_hflip': rnd_hflip,
         'rnd_vflip': rnd_vflip,

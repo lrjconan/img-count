@@ -40,7 +40,7 @@ def avg_pool(x, ratio):
                           strides=[1, ratio, ratio, 1], padding='SAME')
 
 
-def weight_variable(shape, init=None, wd=None, name=None):
+def weight_variable(shape, initializer=None, init_val=None, wd=None, name=None):
     """Initialize weights.
 
     Args:
@@ -50,7 +50,10 @@ def weight_variable(shape, init=None, wd=None, name=None):
     if init is None:
         # init = tf.truncated_normal(shape, stddev=0.01)
         init = tf.truncated_normal_initializer(stddev=0.01)
-    var = tf.Variable(init(shape), name=name)
+    if init_val is not None:
+        var = tf.Variable(init(shape), name=name)
+    else:
+        var = tf.Variable(init_val, name=name)
     if wd:
         weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
         tf.add_to_collection('losses', weight_decay)
@@ -151,7 +154,7 @@ def batch_norm(x, n_out, phase_train, scope='bn', affine=True):
     return normed, batch_mean, batch_var, ema_mean, ema_var
 
 
-def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=None):
+def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=None, weights=None, frozen=False):
     """Add CNN. N = number of layers.
 
     Args:
@@ -178,8 +181,19 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
 
     with tf.variable_scope(scope):
         for ii in xrange(nlayers):
-            w[ii] = weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]], wd=wd)
-            b[ii] = weight_variable([ch[ii + 1]])
+            if weights:
+                init = tf.constant_initializer
+            else:
+                init = None
+            if weights:
+                init_val_w = weights[ii]['w']
+                init_val_b = weights[ii]['b']
+            else:
+                init_val_w = None
+                init_val_b = None
+            w[ii] = weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]],
+                                    init_val=init_val_w, wd=wd)
+            b[ii] = weight_variable([ch[ii + 1]], init_val=init_val_b)
             log.info('Filter: {}'.format([f[ii], f[ii], ch[ii], ch[ii + 1]]))
             # if use_bn[ii]:
             # bn[ii] = batch_norm(ch[ii + 1])
@@ -223,6 +237,9 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
 
             if pool[ii] > 1:
                 h[ii] = max_pool(h[ii], pool[ii])
+
+            if frozen:
+                h[ii] = tf.stop_gradient(h[ii])
 
         copy[0] += 1
 
@@ -471,25 +488,25 @@ def lstm(inp_dim, hid_dim, wd=None, scope='lstm'):
         # Input gate
         w_xi = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xi')
         w_hi = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hi')
-        b_i = weight_variable([hid_dim], init=tf.constant_initializer(0.0),
+        b_i = weight_variable([hid_dim], initializer=tf.constant_initializer(0.0),
                               name='b_i')
 
         # Forget gate
         w_xf = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xf')
         w_hf = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hf')
-        b_f = weight_variable([hid_dim], init=tf.constant_initializer(1.0),
+        b_f = weight_variable([hid_dim], initializer=tf.constant_initializer(1.0),
                               name='b_f')
 
         # Input activation
         w_xu = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xu')
         w_hu = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hu')
-        b_u = weight_variable([hid_dim], init=tf.constant_initializer(0.0),
+        b_u = weight_variable([hid_dim], initializer=tf.constant_initializer(0.0),
                               name='b_u')
 
         # Output gate
         w_xo = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xo')
         w_ho = weight_variable([hid_dim, hid_dim], wd=wd, name='w_ho')
-        b_o = weight_variable([hid_dim], init=tf.constant_initializer(0.0),
+        b_o = weight_variable([hid_dim], initializer=tf.constant_initializer(0.0),
                               name='b_o')
 
     def unroll(inp, state):

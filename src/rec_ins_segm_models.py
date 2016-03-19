@@ -919,6 +919,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
     gt_box_pad_noise = opt['gt_box_pad_noise']
     gt_segm_noise = opt['gt_segm_noise']
     downsample_canvas = opt['downsample_canvas']
+    pretrain_ccnn = opt['pretrain_ccnn']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -972,9 +973,20 @@ def get_attn_model_2(opt, device='/cpu:0'):
         ccnn_pool = ctrl_cnn_pool
         ccnn_act = [tf.nn.relu] * ccnn_nlayers
         ccnn_use_bn = [use_bn] * ccnn_nlayers
+        if pretrain_ccnn:
+            ccnn_init_w = fg_segm_reader.read(pretrain_ccnn)
+            ccnn_init_w = [{'w': ccnn_init_w['cnn_w_{}'.format(ii)],
+                            'b': ccnn_init_w['cnn_b_{}'.format(ii)]}
+                           for ii in xrange(ccnn_nlayers)]
+            ccnn_frozen = True
+        else:
+            ccnn_init_w = None
+            ccnn_frozen = False
+
         ccnn = nn.cnn(ccnn_filters, ccnn_channels, ccnn_pool, ccnn_act,
                       ccnn_use_bn, phase_train=phase_train, wd=wd,
-                      scope='ctrl_cnn', model=model)
+                      scope='ctrl_cnn', model=model, weights=ccnn_init_w,
+                      frozen=ccnn_frozen)
         h_ccnn = [None] * timespan
 
         # Controller RNN definition
@@ -1166,7 +1178,7 @@ def get_attn_model_2(opt, device='/cpu:0'):
                 ccnn_inp = x
                 acnn_inp = x
                 _h_ccnn = h_ccnn
-            
+
             h_ccnn_last = _h_ccnn[-1]
             if downsample_canvas:
                 _canvas = nn.avg_pool(canvas, ccnn_subsample)
