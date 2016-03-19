@@ -17,7 +17,7 @@ def read(folder):
     ckpt_fname = ckpt_info['ckpt_fname']
     model_id = ckpt_info['model_id']
     model = models.get_model(model_opt)
-    cnn_nlayers = model_opt['cnn_filter_size']
+    cnn_nlayers = len(model_opt['cnn_filter_size'])
     weights = {}
     sess = tf.Session()
     saver.restore(sess, ckpt_fname)
