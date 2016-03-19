@@ -5,6 +5,7 @@ import tensorflow as tf
 from utils import logger
 from utils.saver import Saver
 import fg_segm_models as models
+import h5py
 
 log = logger.get()
 
@@ -33,5 +34,16 @@ def read(folder):
 
     return weights
 
+
+def save(fname, folder):
+    weights = read(folder)
+    h5f = h5py.File(fname, 'w')
+    for key in weights:
+        h5f[key] = weights[key]
+    h5f.close()
+
+    pass
+
 if __name__ == '__main__':
-    read('/ais/gobi3/u/mren/results/img-count/fg_segm-20160318131751')
+    save('/ais/gobi3/u/mren/results/img-count/fg_segm-20160318131644/weights.h5',
+         '/ais/gobi3/u/mren/results/img-count/fg_segm-20160318131644')
