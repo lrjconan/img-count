@@ -111,6 +111,6 @@ class Saver():
         if self.tf_saver is None:
             self.tf_saver = tf.train.Saver(tf.all_variables())
 
-        tf_saver.restore(sess, ckpt_fname)
+       self.tf_saver.restore(sess, ckpt_fname)
 
         pass
