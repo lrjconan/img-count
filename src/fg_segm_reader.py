@@ -33,5 +33,5 @@ def read(folder):
 
     pass
 
-if name == '__main__':
+if __name__ == '__main__':
     read('/ais/gobi3/u/mren/results/img-count/fg_segm-20160318131751')
