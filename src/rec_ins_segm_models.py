@@ -6,8 +6,9 @@ import tensorflow as tf
 
 from utils import logger
 from utils.grad_clip_optim import GradientClipOptimizer
-import nnlib as nn
+import fg_segm_reader
 import image_ops as img
+import nnlib as nn
 
 log = logger.get()
 

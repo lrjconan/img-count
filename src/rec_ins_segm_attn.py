@@ -33,7 +33,6 @@ from utils.time_series_logger import TimeSeriesLogger
 from utils import plot_utils as pu
 
 import rec_ins_segm_models as models
-import fg_segm_reader
 
 log = logger.get()
 
