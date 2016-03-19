@@ -30,3 +30,6 @@ def read(folder):
         log.info(weights[b_name].shape)
 
     pass
+
+if name == '__main__':
+    read('/ais/gobi3/u/mren/results/img-count/fg_segm-20160318131751')
