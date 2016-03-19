@@ -975,9 +975,9 @@ def get_attn_model_2(opt, device='/cpu:0'):
         ccnn_act = [tf.nn.relu] * ccnn_nlayers
         ccnn_use_bn = [use_bn] * ccnn_nlayers
         if pretrain_ccnn:
-            ccnn_init_w = fg_segm_reader.read(pretrain_ccnn)
-            ccnn_init_w = [{'w': ccnn_init_w['cnn_w_{}'.format(ii)],
-                            'b': ccnn_init_w['cnn_b_{}'.format(ii)]}
+            h5f = h5py.File(pretrain_ccnn, 'r')
+            ccnn_init_w = [{'w': h5f['cnn_w_{}'.format(ii)][:],
+                            'b': h5f['cnn_b_{}'.format(ii)][:]}
                            for ii in xrange(ccnn_nlayers)]
             ccnn_frozen = True
         else:
