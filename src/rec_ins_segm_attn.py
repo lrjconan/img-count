@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pickle as pkl
+import sys
 import tensorflow as tf
 import time
 
@@ -524,6 +525,7 @@ def _add_model_args(parser):
                         type=float, help='Groundtruth segmentation noise')
     parser.add_argument('-downsample_canvas', action='store_true',
                         help='Whether downsample canvas to feed to Ctrl RNN')
+    parser.add_argument('-fg_cnn', default=None, help='Use pre-trained foreground CNN.')
 
     pass
 
@@ -929,6 +931,10 @@ def _get_plot_loggers(model_opt, train_opt):
 
 def _register_raw_logs(log_manager, log, model_opt, saver):
     log_manager.register(log.filename, 'plain', 'Raw logs')
+    cmd_fname = os.path.join(logs_folder, 'cmd.txt')
+    with open(cmd_fname, 'w') as f:
+        f.write(' '.join(sys.argv))
+    log_manager.register(cmd_fname, 'plain', 'Command-line arguments')
     model_opt_fname = os.path.join(logs_folder, 'model_opt.yaml')
     saver.save_opt(model_opt_fname, model_opt)
     log_manager.register(model_opt_fname, 'plain', 'Model hyperparameters')
