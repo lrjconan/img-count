@@ -646,6 +646,7 @@ def _make_model_opt(args):
         'ctrl_cnn_pool': ccnn_pool_list,
 
         'ctrl_rnn_hid_dim': args.ctrl_rnn_hid_dim,
+        'attn_rnn_hid_dim': args.attn_rnn_hid_dim,
 
         'attn_cnn_filter_size': acnn_fsize_list,
         'attn_cnn_depth': acnn_depth_list,
