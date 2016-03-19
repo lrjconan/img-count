@@ -50,7 +50,7 @@ def weight_variable(shape, initializer=None, init_val=None, wd=None, name=None):
     if init is None:
         # init = tf.truncated_normal(shape, stddev=0.01)
         init = tf.truncated_normal_initializer(stddev=0.01)
-    if init_val is not None:
+    if init_val is None:
         var = tf.Variable(init(shape), name=name)
     else:
         var = tf.Variable(init_val, name=name)
