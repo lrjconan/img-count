@@ -47,9 +47,9 @@ def weight_variable(shape, initializer=None, init_val=None, wd=None, name=None):
         shape: shape of the weights, list of int
         wd: weight decay
     """
-    if init is None:
-        # init = tf.truncated_normal(shape, stddev=0.01)
-        init = tf.truncated_normal_initializer(stddev=0.01)
+    if initializer is None:
+        # initializer = tf.truncated_normal(shape, stddev=0.01)
+        initializer = tf.truncated_normal_initializer(stddev=0.01)
     if init_val is None:
         var = tf.Variable(init(shape), name=name)
     else:
