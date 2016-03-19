@@ -1,3 +1,5 @@
+import cslab_environ
+
 import tensorflow as tf
 
 from utils import logger
