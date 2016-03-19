@@ -9,6 +9,7 @@ from utils.grad_clip_optim import GradientClipOptimizer
 import fg_segm_reader
 import image_ops as img
 import nnlib as nn
+import h5py
 
 log = logger.get()
 
