@@ -1,7 +1,7 @@
 """
 Foreground segmentation used to pre-train box proposal network.
 
-Usage: python rec_ins_segm_attn.py --help
+Usage: python fg_segm.py --help
 """
 from __future__ import division
 
@@ -168,7 +168,7 @@ def _make_model_opt(args):
         'rnd_vflip': False,
         'rnd_transpose': False,
         'rnd_colour': True,
-        'use_skip_conn': False,
+        'use_skip_conn': args.add_skip_conn,
         'base_learn_rate': 1e-3,
         'learn_rate_decay': 0.96,
         'steps_per_learn_rate_decay': 5000,
