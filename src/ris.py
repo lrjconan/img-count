@@ -1173,11 +1173,16 @@ if __name__ == '__main__':
             plot_input(fname_input, x=_r['x_trans'], y_gt=_r['y_gt_trans'],
                        s_gt=s, max_items_per_row=_max_items)
 
-            plot_output(fname_output, y_out=_r['y_out'], s_out=_r['s_out'],
-                        match=_r['match'],
-                        attn=(_r['attn_top_left'], _r['attn_bot_right'],
-                              _r['attn_ctr'], _r['attn_delta']),
-                        max_items_per_row=_max_items)
+            if attn:
+                plot_output(fname_output, y_out=_r['y_out'], s_out=_r['s_out'],
+                            match=_r['match'],
+                            attn=(_r['attn_top_left'], _r['attn_bot_right'],
+                                  _r['attn_ctr'], _r['attn_delta']),
+                            max_items_per_row=_max_items)
+            else:
+                plot_output(fname_output, y_out=_r['y_out'], s_out=_r['s_out'],
+                            match=_r['match'], max_items_per_row=_max_items)
+
 
             if fname_total:
                 plot_total_instances(fname_total, y_out=_r['y_out'],
