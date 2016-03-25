@@ -1139,11 +1139,15 @@ if __name__ == '__main__':
                          fname_total=None, fname_box=None, fname_patch=None,
                          fname_ccnn=None, fname_acnn=None, fname_attn_dcnn=None):
 
+            attn = model_opt['type'] == 'attention'
             _outputs = ['x_trans', 'y_gt_trans', 'y_out',
-                        's_out', 'match',
-                        'attn_top_left', 'attn_bot_right',
+                        's_out', 'match']
+
+            if attn:
+                _outputs.extend(['attn_top_left', 'attn_bot_right',
                         'attn_ctr', 'attn_delta',
-                        'attn_box', 'attn_box_gt', 'match_box']
+                        'attn_box', 'attn_box_gt', 'match_box'])
+                
             _max_items = _get_max_items_per_row(x.shape[1], x.shape[2])
 
             if fname_patch:
