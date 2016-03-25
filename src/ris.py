@@ -1250,9 +1250,11 @@ if __name__ == '__main__':
             if attn:
                 fname_box = samples['box_{}'.format(_set)].get_fname()
                 fname_patch = samples['patch_{}'.format(_set)].get_fname()
+                names = ['input', 'output', 'total', 'box', 'patch']
             else:
                 fname_box = None
                 fname_patch = None
+                names = ['input', 'output', 'total']
 
             _run_samples(
                 _x, _y, _s, _is_train,
@@ -1266,7 +1268,7 @@ if __name__ == '__main__':
                 fname_attn_dcnn=fname_attn_dcnn)
 
             if not samples['output_{}'.format(_set)].is_registered():
-                for _name in ['input', 'output', 'total', 'box', 'patch']:
+                for _name in names:
                     samples['{}_{}'.format(_name, _set)].register()
 
                 if args.debug_act:
