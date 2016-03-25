@@ -2,56 +2,13 @@ import cslab_environ
 
 import tensorflow as tf
 
+from ris_base import *
 from utils import logger
 from utils.grad_clip_optim import GradientClipOptimizer
 import nnlib as nn
 import image_ops as img
 
 log = logger.get()
-
-
-def _get_device_fn(device):
-    """Choose device for different ops."""
-    OPS_ON_CPU = set(['ResizeBilinear', 'ResizeBilinearGrad',
-                      'Mod', 'Reverse', 'SparseToDense', 'BatchMatMul'])
-
-    def _device_fn(op):
-        if op.type in OPS_ON_CPU:
-            return "/cpu:0"
-        else:
-            # Other ops will be placed on GPU if available, otherwise CPU.
-            return device
-
-    return _device_fn
-
-
-def _f_iou(a, b):
-    """
-    Computes IOU score.
-
-    Args:
-        a: [B, N, H, W], or [N, H, W], or [H, W]
-        b: [B, N, H, W], or [N, H, W], or [H, W]
-    """
-
-    def _inter(a, b):
-        """Computes intersection."""
-        reduction_indices = _get_reduction_indices(a)
-        return tf.reduce_sum(a * b, reduction_indices=reduction_indices)
-
-    def _union(a, b, eps=1e-5):
-        """Computes union."""
-        reduction_indices = _get_reduction_indices(a)
-        return tf.reduce_sum(a + b - (a * b) + eps,
-                             reduction_indices=reduction_indices)
-
-    def _get_reduction_indices(a):
-        """Gets the list of axes to sum over."""
-        dim = len(a.get_shape())
-
-        return [dim - 2, dim - 1]
-
-    return _inter(a, b) / _union(a, b)
 
 
 def get_model(opt, device='/cpu:0'):
@@ -76,9 +33,9 @@ def get_model(opt, device='/cpu:0'):
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
     steps_per_learn_rate_decay = opt['steps_per_learn_rate_decay']
-    use_skip_conn = opt['use_skip_conn']
+    add_skip_conn = opt['add_skip_conn']
 
-    with tf.device(_get_device_fn(device)):
+    with tf.device(get_device_fn(device)):
         x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
         y_gt = tf.placeholder('float', [None, inp_height, inp_width, 1])
         phase_train = tf.placeholder('bool')
@@ -107,7 +64,7 @@ def get_model(opt, device='/cpu:0'):
 
         dcnn_nlayers = len(dcnn_filter_size)
         dcnn_act = [tf.nn.relu] * (dcnn_nlayers - 1) + [None]
-        if use_skip_conn:
+        if add_skip_conn:
             dcnn_skip_ch = [0] + cnn_channels[::-1][1:] + [inp_depth]
             dcnn_skip = [None] + h_cnn[::-1][1:] + [x]
         else:
@@ -126,10 +83,10 @@ def get_model(opt, device='/cpu:0'):
 
         num_ex = tf.to_float(num_ex)
         _y_gt = tf.reshape(y_gt, [-1, inp_height, inp_width])
-        iou_soft = tf.reduce_sum(_f_iou(y_out, _y_gt)) / num_ex
+        iou_soft = tf.reduce_sum(f_iou(y_out, _y_gt)) / num_ex
         model['iou_soft'] = iou_soft
         iou_hard = tf.reduce_sum(
-            _f_iou(tf.to_float(y_out > 0.5), _y_gt)) / num_ex
+            f_iou(tf.to_float(y_out > 0.5), _y_gt)) / num_ex
         model['iou_hard'] = iou_hard
         loss = -iou_soft
         model['loss'] = -iou_soft

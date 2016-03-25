@@ -51,6 +51,34 @@ def get_dataset(opt):
     return dataset
 
 
+def _add_model_args(parser):
+    # Default model options
+    kCnnFilterSize = '3,3,3,3,3,3,3,3,3,3'
+    kCnnDepth = '4,4,8,8,16,16,32,32,64,64'
+    kCnnPool = '1,2,1,2,1,2,1,2,1,2'
+    kDcnnFilterSize = '3,3,3,3,3,3,3,3,3,3,3'
+    kDcnnDepth = '64,64,32,32,16,16,8,8,4,4,1'
+    kDcnnPool = '2,1,2,1,2,1,2,1,2,1,1'
+    kAddSkipConn = True
+
+    parser.add_argument('-cnn_filter_size', default=kCnnFilterSize,
+                        help='Comma delimited integers')
+    parser.add_argument('-cnn_depth', default=kCnnDepth,
+                        help='Comma delimited integers')
+    parser.add_argument('-cnn_pool', default=kCnnPool,
+                        help='Comma delimited integers')
+    parser.add_argument('-dcnn_filter_size', default=kDcnnFilterSize,
+                        help='Comma delimited integers')
+    parser.add_argument('-dcnn_depth', default=kDcnnDepth,
+                        help='Comma delimited integers')
+    parser.add_argument('-dcnn_pool', default=kDcnnPool,
+                        help='Comma delimited integers')
+    parser.add_argument('-add_skip_conn', action='store_true',
+                        help='Whether to add skip connection in the DCNN.')
+
+    pass
+
+
 def _add_training_args(parser):
     # Default training options
     kNumSteps = 500000
@@ -106,6 +134,60 @@ def _parse_args():
     args = parser.parse_args()
 
     return args
+
+
+def _make_model_opt(args):
+    cnn_fsize_list = args.cnn_filter_size.split(',')
+    cnn_fsize_list = [int(fsize) for fsize in cnn_fsize_list]
+    cnn_depth_list = args.cnn_depth.split(',')
+    cnn_depth_list = [int(depth) for depth in cnn_depth_list]
+    cnn_pool_list = args.cnn_pool.split(',')
+    cnn_pool_list = [int(pool) for pool in cnn_pool_list]
+
+    dcnn_fsize_list = args.dcnn_filter_size.split(',')
+    dcnn_fsize_list = [int(fsize) for fsize in dcnn_fsize_list]
+    dcnn_depth_list = args.dcnn_depth.split(',')
+    dcnn_depth_list = [int(depth) for depth in dcnn_depth_list]
+    dcnn_pool_list = args.dcnn_pool.split(',')
+    dcnn_pool_list = [int(pool) for pool in dcnn_pool_list]
+
+    model_opt = {
+        'inp_height': 128,
+        'inp_width': 448,
+        'inp_depth': 3,
+        'padding': 16,
+        'cnn_filter_size': cnn_fsize_list,
+        'cnn_depth': cnn_depth_list,
+        'cnn_pool': cnn_pool_list,
+        'dcnn_filter_size': dcnn_fsize_list,
+        'dcnn_depth': dcnn_depth_list,
+        'dcnn_pool': dcnn_pool_list,
+        'weight_decay': 5e-5,
+        'use_bn': True,
+        'rnd_hflip': True,
+        'rnd_vflip': False,
+        'rnd_transpose': False,
+        'rnd_colour': True,
+        'use_skip_conn': False,
+        'base_learn_rate': 1e-3,
+        'learn_rate_decay': 0.96,
+        'steps_per_learn_rate_decay': 5000,
+    }
+
+    return model_opt
+
+
+def _make_data_opt(args):
+    data_opt = {
+        'height': 128,
+        'width': 448,
+        'timespan': 20,
+        'num_train': -1,
+        'num_valid': -1,
+        'has_valid': True
+    }
+
+    return data_opt
 
 
 def _make_train_opt(args):
@@ -224,37 +306,8 @@ if __name__ == '__main__':
     tf.set_random_seed(1234)
     saver = None
     train_opt = _make_train_opt(args)
-
-    model_opt = {
-        'inp_height': 128,
-        'inp_width': 448,
-        'inp_depth': 3,
-        'padding': 16,
-        'cnn_filter_size': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
-        'cnn_depth': [4, 4, 8, 8, 16, 16, 32, 32, 64, 64],
-        'cnn_pool': [1, 2, 1, 2, 1, 2, 1, 2, 1, 2],
-        'dcnn_filter_size': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
-        'dcnn_depth': [64, 64, 32, 32, 16, 16, 8, 8, 4, 4, 1],
-        'dcnn_pool': [2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1],
-        'weight_decay': 5e-5,
-        'use_bn': True,
-        'rnd_hflip': True,
-        'rnd_vflip': False,
-        'rnd_transpose': False,
-        'rnd_colour': True,
-        'use_skip_conn': False,
-        'base_learn_rate': 1e-3,
-        'learn_rate_decay': 0.96,
-        'steps_per_learn_rate_decay': 5000,
-    }
-    data_opt = {
-        'height': model_opt['inp_height'],
-        'width': model_opt['inp_width'],
-        'timespan': 20,
-        'num_train': -1,
-        'num_valid': -1,
-        'has_valid': True
-    }
+    model_opt = _make_model_opt(args)
+    data_opt = _make_data_opt(args)
 
     model_id = _get_model_id('fg_segm')
     step = 0
