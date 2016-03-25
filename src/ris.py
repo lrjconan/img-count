@@ -1135,11 +1135,12 @@ if __name__ == '__main__':
 
     def run_samples():
         """Samples"""
+        attn = model_opt['type'] == 'attention'
+        
         def _run_samples(x, y, s, phase_train, fname_input, fname_output,
                          fname_total=None, fname_box=None, fname_patch=None,
                          fname_ccnn=None, fname_acnn=None, fname_attn_dcnn=None):
 
-            attn = model_opt['type'] == 'attention'
             _outputs = ['x_trans', 'y_gt_trans', 'y_out',
                         's_out', 'match']
 
@@ -1147,7 +1148,7 @@ if __name__ == '__main__':
                 _outputs.extend(['attn_top_left', 'attn_bot_right',
                         'attn_ctr', 'attn_delta',
                         'attn_box', 'attn_box_gt', 'match_box'])
-                
+
             _max_items = _get_max_items_per_row(x.shape[1], x.shape[2])
 
             if fname_patch:
@@ -1240,13 +1241,21 @@ if __name__ == '__main__':
                 fname_ccnn = None
                 fname_acnn = None
                 fname_attn_dcnn = None
+
+            if attn:
+                fname_box = samples['box_{}'.format(_set)].get_fname()
+                fname_patch = samples['patch_{}'.format(_set)].get_fname()
+            else:
+                fname_box = None
+                fname_patch = None
+
             _run_samples(
                 _x, _y, _s, _is_train,
                 fname_input=samples['input_{}'.format(_set)].get_fname(),
                 fname_output=samples['output_{}'.format(_set)].get_fname(),
                 fname_total=samples['total_{}'.format(_set)].get_fname(),
-                fname_box=samples['box_{}'.format(_set)].get_fname(),
-                fname_patch=samples['patch_{}'.format(_set)].get_fname(),
+                fname_box=fname_box,
+                fname_patch=fname_patch,
                 fname_ccnn=fname_ccnn,
                 fname_acnn=fname_acnn,
                 fname_attn_dcnn=fname_attn_dcnn)
