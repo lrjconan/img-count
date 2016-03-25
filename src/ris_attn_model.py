@@ -581,7 +581,7 @@ def get_model(opt, device='/cpu:0'):
         unwt_cov_soft = f_unweighted_coverage(iou_soft, match_count)
         model['unwt_cov_soft'] = unwt_cov_soft
 
-        # [B, T]
+        # IOU (soft)
         iou_soft_mask = tf.reduce_sum(iou_soft * match, [1])
         iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask, [1]) /
                                  match_count) / num_ex

@@ -1,6 +1,6 @@
 import cslab_environ
 
-from ris_base import get_device_fn
+from ris_base import *
 from utils import logger
 from utils.grad_clip_optim import GradientClipOptimizer
 import image_ops as img
@@ -11,7 +11,7 @@ import tensorflow as tf
 log = logger.get()
 
 
-def get_orig_model(opt, device='/cpu:0'):
+def get_model(opt, device='/cpu:0'):
     """CNN -> -> RNN -> DCNN -> Instances"""
     model = {}
     timespan = opt['timespan']
@@ -48,7 +48,7 @@ def get_orig_model(opt, device='/cpu:0'):
     rnd_transpose = opt['rnd_transpose']
     rnd_colour = opt['rnd_colour']
 
-    with tf.device(_get_device_fn(device)):
+    with tf.device(get_device_fn(device)):
         # Input image, [B, H, W, D]
         x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
 
@@ -71,7 +71,7 @@ def get_orig_model(opt, device='/cpu:0'):
         num_ex = x_shape[0]
 
         # Random image transformation
-        x, y_gt = image.random_transformation(
+        x, y_gt = img.random_transformation(
             x, y_gt, padding, phase_train,
             rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip,
             rnd_transpose=rnd_transpose, rnd_colour=rnd_colour)
@@ -178,7 +178,7 @@ def get_orig_model(opt, device='/cpu:0'):
             skip = None
             skip_ch = None
             if add_skip_conn:
-                skip, skip_ch = _build_skip_conn(
+                skip, skip_ch = build_skip_conn(
                     cnn_channels, h_cnn, x, timespan)
 
             dcnn = nn.dcnn(dcnn_filters, dcnn_channels, dcnn_unpool, dcnn_act,
@@ -210,7 +210,7 @@ def get_orig_model(opt, device='/cpu:0'):
                 score_maxpool = opt['score_maxpool']
                 score_dim = rnn_h * rnn_w / (score_maxpool ** 2) * rnn_depth
                 if score_maxpool > 1:
-                    score_inp = _max_pool(score_inp, score_maxpool)
+                    score_inp = nn.max_pool(score_inp, score_maxpool)
                 score_inp = tf.reshape(score_inp, [-1, score_dim])
             else:
                 score_inp_shape = [-1, rnn_dim]
@@ -235,23 +235,40 @@ def get_orig_model(opt, device='/cpu:0'):
         max_num_obj = tf.to_float(y_gt_shape[1])
 
         # Pairwise IOU
-        iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
+        iou_soft = f_iou(y_out, y_gt, timespan, pairwise=True)
 
         # Matching
-        match = _segm_match(iou_soft, s_gt)
+        match = f_segm_match(iou_soft, s_gt)
         model['match'] = match
         match_sum = tf.reduce_sum(match, reduction_indices=[2])
         match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
-        iou_soft = tf.reduce_sum(tf.reduce_sum(
-            iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
+
+        # Weighted coverage (soft)
+        wt_cov_soft = f_weighted_coverage(iou_soft, y_gt)
+        model['wt_cov_soft'] = wt_cov_soft
+        unwt_cov_soft = f_unweighted_coverage(iou_soft, match_count)
+        model['unwt_cov_soft'] = unwt_cov_soft
+
+        # IOU (soft)
+        iou_soft_mask = tf.reduce_sum(iou_soft * match, [1])
+        iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask, [1]) /
+                                 match_count) / num_ex
         model['iou_soft'] = iou_soft
+        gt_wt = coverage_weight(y_gt)
+        wt_iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask * gt_wt, [1]) /
+                                    match_count) / num_ex
+        model['wt_iou_soft'] = wt_iou_soft
 
         if segm_loss_fn == 'iou':
             segm_loss = -iou_soft
+        elif segm_loss_fn == 'wt_iou':
+            segm_loss = -wt_iou_soft
+        elif segm_loss_fn == 'wt_cov':
+            segm_loss = -wt_cov_soft
         elif segm_loss_fn == 'bce':
-            segm_loss = _match_bce(y_out, y_gt, match, timespan)
+            segm_loss = f_match_bce(y_out, y_gt, match, timespan)
         model['segm_loss'] = segm_loss
-        conf_loss = _conf_loss(s_out, match, timespan, use_cum_min=True)
+        conf_loss = f_conf_loss(s_out, match, timespan, use_cum_min=True)
         model['conf_loss'] = conf_loss
         loss = loss_mix_ratio * conf_loss + segm_loss
         model['loss'] = loss
@@ -268,11 +285,30 @@ def get_orig_model(opt, device='/cpu:0'):
 
         # Statistics
         # [B, M, N] * [B, M, N] => [B] * [B] => [1]
-        iou_hard = _f_iou(tf.to_float(y_out > 0.5),
-                          y_gt, timespan, pairwise=True)
+        y_out_hard = tf.to_float(y_out > 0.5)
+        iou_hard = f_iou(y_out_hard, y_gt, timespan, pairwise=True)
+        wt_cov_hard = f_weighted_coverage(iou_hard, y_gt)
+        model['wt_cov_hard'] = wt_cov_hard
+        unwt_cov_hard = f_unweighted_coverage(iou_hard, match_count)
+        model['unwt_cov_hard'] = unwt_cov_hard
+        # [B, T]
+        iou_hard_mask = tf.reduce_sum(iou_hard * match, [1])
+        iou_hard = f_iou(tf.to_float(y_out > 0.5),
+                         y_gt, timespan, pairwise=True)
         iou_hard = tf.reduce_sum(tf.reduce_sum(
             iou_hard * match, reduction_indices=[1, 2]) / match_count) / num_ex
         model['iou_hard'] = iou_hard
-        model['count_acc'] = _count_acc(s_out, s_gt)
+        wt_iou_hard = tf.reduce_sum(tf.reduce_sum(iou_hard_mask * gt_wt, [1]) /
+                                    match_count) / num_ex
+        model['wt_iou_hard'] = wt_iou_hard
+
+        dice = f_dice(y_out_hard, y_gt, timespan, pairwise=True)
+        dice = tf.reduce_sum(tf.reduce_sum(dice * match, [1, 2]) /
+                             match_count) / num_ex
+        model['dice'] = dice
+        
+        model['count_acc'] = f_count_acc(s_out, s_gt)
+        model['dic'] = f_dic(s_out, s_gt, abs=False)
+        model['dic_abs'] = f_dic(s_out, s_gt, abs=True)
 
     return model

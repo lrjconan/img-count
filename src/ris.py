@@ -47,8 +47,9 @@ kKittiInpWidth = 448
 kKittiNumObj = 19
 
 
-def get_model(name, opt, device='/cpu:0'):
+def get_model(opt, device='/cpu:0'):
     """Model router."""
+    name = opt['type']
     if name == 'vanilla':
         return vanilla_model.get_model(opt, device=device)
     elif name == 'attention':
@@ -365,6 +366,7 @@ def _add_model_args(parser):
     # Original model default options
     kCnnFilterSize = '3,3,3,3,3'
     kCnnDepth = '4,8,8,12,16'
+    kCnnPool='2,2,2,2,2'
     kRnnType = 'lstm'
     kConvLstmFilterSize = 3
     kConvLstmHiddenDepth = 12
@@ -381,8 +383,9 @@ def _add_model_args(parser):
     kNumMlpLayers = 2
     kMlpDepth = 6
     kMlpDropout = 0.5
-    kDcnnFilterSize = [3, 3, 3, 3, 3, 3]
-    kDcnnDepth = [1, 2, 4, 4, 6, 8]
+    kDcnnFilterSize = '3,3,3,3,3,3'
+    kDcnnDepth = '8,6,4,4,2,1'
+    kDcnnPool = '2,2,2,2,2,1'
     kScoreMaxpool = 1
 
     # Attention-based model options
@@ -424,8 +427,14 @@ def _add_model_args(parser):
                         help='Comma delimited integers')
     parser.add_argument('-cnn_depth', default=kCnnDepth,
                         help='Comma delimited integers')
-    # parser.add_argument('-cnn_pool', default=kCnnPool,
-    #                     help='Comma delimited integers')
+    parser.add_argument('-cnn_pool', default=kCnnPool,
+                        help='Comma delimited integers')
+    parser.add_argument('-dcnn_filter_size', default=kDcnnFilterSize,
+                        help='Comma delimited integers')
+    parser.add_argument('-dcnn_depth', default=kDcnnDepth,
+                        help='Comma delimited integers')
+    parser.add_argument('-dcnn_pool', default=kDcnnPool,
+                        help='Comma delimited integers')
     parser.add_argument('-rnn_type', default=kRnnType, help='RNN type')
     parser.add_argument('-conv_lstm_filter_size', default=kConvLstmFilterSize,
                         type=int, help='Conv LSTM filter size')
@@ -595,27 +604,6 @@ def _add_training_args(parser):
 
 def _make_model_opt(args):
     """Convert command-line arguments into model opt dict."""
-    ccnn_fsize_list = args.ctrl_cnn_filter_size.split(',')
-    ccnn_fsize_list = [int(fsize) for fsize in ccnn_fsize_list]
-    ccnn_depth_list = args.ctrl_cnn_depth.split(',')
-    ccnn_depth_list = [int(depth) for depth in ccnn_depth_list]
-    ccnn_pool_list = args.ctrl_cnn_pool.split(',')
-    ccnn_pool_list = [int(pool) for pool in ccnn_pool_list]
-
-    acnn_fsize_list = args.attn_cnn_filter_size.split(',')
-    acnn_fsize_list = [int(fsize) for fsize in acnn_fsize_list]
-    acnn_depth_list = args.attn_cnn_depth.split(',')
-    acnn_depth_list = [int(depth) for depth in acnn_depth_list]
-    acnn_pool_list = args.attn_cnn_pool.split(',')
-    acnn_pool_list = [int(pool) for pool in acnn_pool_list]
-
-    attn_dcnn_fsize_list = args.attn_dcnn_filter_size.split(',')
-    attn_dcnn_fsize_list = [int(fsize) for fsize in attn_dcnn_fsize_list]
-    attn_dcnn_depth_list = args.attn_dcnn_depth.split(',')
-    attn_dcnn_depth_list = [int(depth) for depth in attn_dcnn_depth_list]
-    attn_dcnn_pool_list = args.attn_dcnn_pool.split(',')
-    attn_dcnn_pool_list = [int(pool) for pool in attn_dcnn_pool_list]
-
     if args.dataset == 'synth_shape':
         timespan = args.max_num_objects + 1
         inp_height = kSynthShapeInpHeight
@@ -644,71 +632,152 @@ def _make_model_opt(args):
     else:
         raise Exception('Unknown dataset name')
 
-    model_opt = {
-        'type': args.model,
-        'inp_height': inp_height,
-        'inp_width': inp_width,
-        'inp_depth': 3,
-        'padding': args.padding,
-        'attn_size': args.attn_size,
-        'timespan': timespan,
+    if args.model == 'attention':
+        ccnn_fsize_list = args.ctrl_cnn_filter_size.split(',')
+        ccnn_fsize_list = [int(fsize) for fsize in ccnn_fsize_list]
+        ccnn_depth_list = args.ctrl_cnn_depth.split(',')
+        ccnn_depth_list = [int(depth) for depth in ccnn_depth_list]
+        ccnn_pool_list = args.ctrl_cnn_pool.split(',')
+        ccnn_pool_list = [int(pool) for pool in ccnn_pool_list]
 
-        'ctrl_cnn_filter_size': ccnn_fsize_list,
-        'ctrl_cnn_depth': ccnn_depth_list,
-        'ctrl_cnn_pool': ccnn_pool_list,
+        acnn_fsize_list = args.attn_cnn_filter_size.split(',')
+        acnn_fsize_list = [int(fsize) for fsize in acnn_fsize_list]
+        acnn_depth_list = args.attn_cnn_depth.split(',')
+        acnn_depth_list = [int(depth) for depth in acnn_depth_list]
+        acnn_pool_list = args.attn_cnn_pool.split(',')
+        acnn_pool_list = [int(pool) for pool in acnn_pool_list]
 
-        'ctrl_rnn_hid_dim': args.ctrl_rnn_hid_dim,
-        'attn_rnn_hid_dim': args.attn_rnn_hid_dim,
+        attn_dcnn_fsize_list = args.attn_dcnn_filter_size.split(',')
+        attn_dcnn_fsize_list = [int(fsize) for fsize in attn_dcnn_fsize_list]
+        attn_dcnn_depth_list = args.attn_dcnn_depth.split(',')
+        attn_dcnn_depth_list = [int(depth) for depth in attn_dcnn_depth_list]
+        attn_dcnn_pool_list = args.attn_dcnn_pool.split(',')
+        attn_dcnn_pool_list = [int(pool) for pool in attn_dcnn_pool_list]
+        
+        model_opt = {
+            'type': args.model,
+            'inp_height': inp_height,
+            'inp_width': inp_width,
+            'inp_depth': 3,
+            'padding': args.padding,
+            'attn_size': args.attn_size,
+            'timespan': timespan,
 
-        'attn_cnn_filter_size': acnn_fsize_list,
-        'attn_cnn_depth': acnn_depth_list,
-        'attn_cnn_pool': acnn_pool_list,
+            'ctrl_cnn_filter_size': ccnn_fsize_list,
+            'ctrl_cnn_depth': ccnn_depth_list,
+            'ctrl_cnn_pool': ccnn_pool_list,
 
+            'ctrl_rnn_hid_dim': args.ctrl_rnn_hid_dim,
+            'attn_rnn_hid_dim': args.attn_rnn_hid_dim,
 
-        'attn_dcnn_filter_size': attn_dcnn_fsize_list,
-        'attn_dcnn_depth': attn_dcnn_depth_list,
-        'attn_dcnn_pool': attn_dcnn_pool_list,
+            'attn_cnn_filter_size': acnn_fsize_list,
+            'attn_cnn_depth': acnn_depth_list,
+            'attn_cnn_pool': acnn_pool_list,
 
-        'num_ctrl_mlp_layers': args.num_ctrl_mlp_layers,
-        'ctrl_mlp_dim': args.ctrl_mlp_dim,
+            'attn_dcnn_filter_size': attn_dcnn_fsize_list,
+            'attn_dcnn_depth': attn_dcnn_depth_list,
+            'attn_dcnn_pool': attn_dcnn_pool_list,
 
-        'attn_mlp_depth': args.attn_mlp_depth,
-        'num_attn_mlp_layers': args.num_attn_mlp_layers,
-        'mlp_dropout': args.mlp_dropout,
+            'num_ctrl_mlp_layers': args.num_ctrl_mlp_layers,
+            'ctrl_mlp_dim': args.ctrl_mlp_dim,
 
-        'weight_decay': args.weight_decay,
-        'base_learn_rate': args.base_learn_rate,
-        'learn_rate_decay': args.learn_rate_decay,
-        'steps_per_learn_rate_decay': args.steps_per_learn_rate_decay,
-        'loss_mix_ratio': args.loss_mix_ratio,
+            'attn_mlp_depth': args.attn_mlp_depth,
+            'num_attn_mlp_layers': args.num_attn_mlp_layers,
+            'mlp_dropout': args.mlp_dropout,
 
-        # Test arguments
-        'segm_loss_fn': args.segm_loss_fn,
-        'box_loss_fn': args.box_loss_fn,
-        'use_bn': args.use_bn,
-        'use_gt_attn': args.use_gt_attn,                      # DEPRECATED
-        'attn_box_padding_ratio': args.attn_box_padding_ratio,
-        'use_attn_rnn': args.use_attn_rnn,
-        'use_canvas': args.use_canvas,
-        'use_knob': args.use_knob,
-        'knob_decay': args.knob_decay,
-        'knob_base': args.knob_base,
-        'steps_per_knob_decay': args.steps_per_knob_decay,
-        'knob_box_offset': args.knob_box_offset,
-        'knob_segm_offset': args.knob_segm_offset,
-        'knob_use_timescale': args.knob_use_timescale,
-        'gt_selector': args.gt_selector,
-        'gt_box_ctr_noise': args.gt_box_ctr_noise,
-        'gt_box_pad_noise': args.gt_box_pad_noise,
-        'gt_segm_noise': args.gt_segm_noise,
-        'downsample_canvas': args.downsample_canvas,
-        'pretrain_ccnn': args.fg_cnn,
+            'weight_decay': args.weight_decay,
+            'base_learn_rate': args.base_learn_rate,
+            'learn_rate_decay': args.learn_rate_decay,
+            'steps_per_learn_rate_decay': args.steps_per_learn_rate_decay,
+            'loss_mix_ratio': args.loss_mix_ratio,
 
-        'rnd_hflip': rnd_hflip,
-        'rnd_vflip': rnd_vflip,
-        'rnd_transpose': rnd_transpose,
-        'rnd_colour': rnd_colour,
-    }
+            # Test arguments
+            'segm_loss_fn': args.segm_loss_fn,
+            'box_loss_fn': args.box_loss_fn,
+            'use_bn': args.use_bn,
+            'use_gt_attn': args.use_gt_attn,                      # DEPRECATED
+            'attn_box_padding_ratio': args.attn_box_padding_ratio,
+            'use_attn_rnn': args.use_attn_rnn,
+            'use_canvas': args.use_canvas,
+            'use_knob': args.use_knob,
+            'knob_decay': args.knob_decay,
+            'knob_base': args.knob_base,
+            'steps_per_knob_decay': args.steps_per_knob_decay,
+            'knob_box_offset': args.knob_box_offset,
+            'knob_segm_offset': args.knob_segm_offset,
+            'knob_use_timescale': args.knob_use_timescale,
+            'gt_selector': args.gt_selector,
+            'gt_box_ctr_noise': args.gt_box_ctr_noise,
+            'gt_box_pad_noise': args.gt_box_pad_noise,
+            'gt_segm_noise': args.gt_segm_noise,
+            'downsample_canvas': args.downsample_canvas,
+            'pretrain_ccnn': args.fg_cnn,
+
+            'rnd_hflip': rnd_hflip,
+            'rnd_vflip': rnd_vflip,
+            'rnd_transpose': rnd_transpose,
+            'rnd_colour': rnd_colour,
+        }
+    elif args.model == 'vanilla':
+        cnn_fsize_list = args.cnn_filter_size.split(',')
+        cnn_fsize_list = [int(fsize) for fsize in cnn_fsize_list]
+        cnn_depth_list = args.cnn_depth.split(',')
+        cnn_depth_list = [int(depth) for depth in cnn_depth_list]
+        cnn_pool_list = args.cnn_pool.split(',')
+        cnn_pool_list = [int(pool) for pool in cnn_pool_list]
+
+        dcnn_fsize_list = args.dcnn_filter_size.split(',')
+        dcnn_fsize_list = [int(fsize) for fsize in dcnn_fsize_list]
+        dcnn_depth_list = args.dcnn_depth.split(',')
+        dcnn_depth_list = [int(depth) for depth in dcnn_depth_list]
+        dcnn_pool_list = args.dcnn_pool.split(',')
+        dcnn_pool_list = [int(pool) for pool in dcnn_pool_list]
+
+        model_opt = {
+            'type': args.model,
+            'inp_height': args.height,
+            'inp_width': args.width,
+            'inp_depth': 3,
+            'padding': args.padding,
+            'timespan': timespan,
+            'weight_decay': args.weight_decay,
+            'base_learn_rate': args.base_learn_rate,
+            'learn_rate_decay': args.learn_rate_decay,
+            'steps_per_learn_rate_decay': args.steps_per_learn_rate_decay,
+            'loss_mix_ratio': args.loss_mix_ratio,
+            'cnn_filter_size': cnn_fsize_list,
+            'cnn_depth': cnn_depth_list,
+            'dcnn_filter_size': dcnn_fsize_list,
+            'dcnn_depth': dcnn_depth_list,
+            'rnn_type': args.rnn_type,
+            'conv_lstm_filter_size': args.conv_lstm_filter_size,
+            'conv_lstm_hid_depth': args.conv_lstm_hid_depth,
+            'rnn_hid_dim': args.rnn_hid_dim,
+            'mlp_depth': args.mlp_depth,
+            'score_maxpool': args.score_maxpool,
+            'num_mlp_layers': args.num_mlp_layers,
+            'mlp_dropout': args.mlp_dropout,
+
+            # Test arguments
+            # 'cum_min': not args.no_cum_min,
+            'cum_min': True,
+            # 'feed_output': args.feed_output,
+            'segm_loss_fn': args.segm_loss_fn,
+            # 'use_deconv': args.use_deconv,
+            'use_deconv': True,
+            'use_bn': args.use_bn,
+            # 'segm_dense_conn': args.segm_dense_conn,
+            'segm_dense_conn': True,
+            # 'add_skip_conn': args.add_skip_conn,
+            'add_skip_conn': True,
+            # 'score_use_core': args.score_use_core
+            'score_use_core': True,
+
+            'rnd_hflip': rnd_hflip,
+            'rnd_vflip': rnd_vflip,
+            'rnd_transpose': rnd_transpose,
+            'rnd_colour': rnd_colour
+        }
 
     return model_opt
 
@@ -923,14 +992,16 @@ def _get_ts_loggers(model_opt, debug_bn=False):
 
 def _get_plot_loggers(model_opt, train_opt):
     samples = {}
-    num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
-    num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
-    num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
     _ssets = ['train']
     if train_opt['has_valid']:
         _ssets.append('valid')
     for _set in _ssets:
-        labels = ['input', 'output', 'total', 'box', 'patch']
+        labels = ['input', 'output', 'total']
+        if model_opt['type'] == 'attention':
+            num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
+            num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
+            num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
+            labels.extend(['box', 'patch'])
         if args.debug_act:
             for _layer, _num in zip(
                     ['ccnn', 'acnn', 'attn_dcnn'],
@@ -1001,9 +1072,10 @@ if __name__ == '__main__':
         exp_folder = os.path.join(train_opt['results'], model_id)
         saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
 
-    num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
-    num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
-    num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
+    if model_opt['type'] == 'attention':
+        num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
+        num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
+        num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
 
     if not train_opt['save_ckpt']:
         log.warning(
@@ -1028,7 +1100,7 @@ if __name__ == '__main__':
 
     # Train loop options
     log.info('Building model')
-    m = get_model('attention', model_opt, device=device)
+    m = get_model(model_opt, device=device)
 
     log.info('Loading dataset')
     dataset = get_dataset(args.dataset, data_opt)
