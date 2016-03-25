@@ -130,6 +130,7 @@ def _parse_args():
     parser = argparse.ArgumentParser(description='Foreground Segmentation')
 
     _add_training_args(parser)
+    _add_model_args(parser)
 
     args = parser.parse_args()
 
@@ -168,7 +169,7 @@ def _make_model_opt(args):
         'rnd_vflip': False,
         'rnd_transpose': False,
         'rnd_colour': True,
-        'use_skip_conn': args.add_skip_conn,
+        'add_skip_conn': args.add_skip_conn,
         'base_learn_rate': 1e-3,
         'learn_rate_decay': 0.96,
         'steps_per_learn_rate_decay': 5000,

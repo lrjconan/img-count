@@ -99,7 +99,7 @@ def _get_reduction_indices(a):
     return [dim - 2, dim - 1]
 
 
-def f_iou(a, b, timespan, pairwise=False):
+def f_iou(a, b, timespan=None, pairwise=False):
     """
     Computes IOU score.
 
