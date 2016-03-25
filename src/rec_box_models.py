@@ -1,5 +1,7 @@
+from rec_ins_segm_base import *
 
-def get_box_model(opt):
+
+def get_model(opt):
     """The box model"""
     model = {}
 
@@ -216,22 +218,8 @@ def get_box_model(opt):
             _y_out = _y_out - _y_out * _noise
             canvas += tf.stop_gradient(_y_out)
 
-        s_out = tf.concat(1, s_out)
-        model['s_out'] = s_out
-        y_out = tf.concat(1, y_out)
-        model['y_out'] = y_out
         attn_box = tf.concat(1, attn_box)
         model['attn_box'] = attn_box
-        x_patch = tf.concat(1, [tf.expand_dims(x_patch[tt], 1)
-                                for tt in xrange(timespan)])
-        model['x_patch'] = x_patch
-
-        # for layer in ['ctrl_cnn', 'attn_cnn', 'attn_dcnn']:
-        #     for ii in xrange(len(opt['{}_filter_size'.format(layer)])):
-        #         for stat in ['bm', 'bv', 'em', 'ev']:
-        #             model['{}_{}_{}'.format(layer, ii, stat)] = tf.add_n(
-        #                 [model['{}_{}_{}_{}'.format(layer, ii, stat, tt)]
-        #                  for tt in xrange(timespan)]) / timespan
 
         # Loss function
         learn_rate = tf.train.exponential_decay(
@@ -282,49 +270,6 @@ def get_box_model(opt):
         box_loss_coeff = tf.constant(1.0)
         tf.add_to_collection('losses', box_loss_coeff * box_loss)
 
-        # Loss for fine segmentation
-        iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
-        match = _segm_match(iou_soft, s_gt)
-        model['match'] = match
-        match_sum = tf.reduce_sum(match, reduction_indices=[2])
-        match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
-        match_count = tf.maximum(1.0, match_count)
-
-        # Weighted coverage (soft)
-        wt_cov_soft = _weighted_coverage_score(iou_soft, y_gt)
-        model['wt_cov_soft'] = wt_cov_soft
-        unwt_cov_soft = _unweighted_coverage_score(iou_soft, match_count)
-        model['unwt_cov_soft'] = unwt_cov_soft
-
-        # [B, T]
-        iou_soft_mask = tf.reduce_sum(iou_soft * match, [1])
-        iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask, [1]) /
-                                 match_count) / num_ex
-        model['iou_soft'] = iou_soft
-        gt_wt = _coverage_weight(y_gt)
-        wt_iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask * gt_wt, [1]) /
-                                    match_count) / num_ex
-        model['wt_iou_soft'] = wt_iou_soft
-
-        if segm_loss_fn == 'iou':
-            segm_loss = -iou_soft
-        elif segm_loss_fn == 'wt_iou':
-            segm_loss = -wt_iou_soft
-        elif segm_loss_fn == 'wt_cov':
-            segm_loss = -wt_cov_soft
-        elif segm_loss_fn == 'bce':
-            segm_loss = _match_bce(y_out, y_gt, match, timespan)
-        else:
-            raise Exception('Unknown segm_loss_fn: {}'.format(segm_loss_fn))
-        model['segm_loss'] = segm_loss
-        segm_loss_coeff = tf.constant(1.0)
-        tf.add_to_collection('losses', segm_loss_coeff * segm_loss)
-
-        # Score loss
-        conf_loss = _conf_loss(s_out, match, timespan, use_cum_min=True)
-        model['conf_loss'] = conf_loss
-        tf.add_to_collection('losses', loss_mix_ratio * conf_loss)
-
         total_loss = tf.add_n(tf.get_collection(
             'losses'), name='total_loss')
         model['loss'] = total_loss
@@ -333,32 +278,6 @@ def get_box_model(opt):
             tf.train.AdamOptimizer(learn_rate, epsilon=eps),
             clip=1.0).minimize(total_loss, global_step=global_step)
         model['train_step'] = train_step
-
-        # Statistics
-        # [B, M, N] * [B, M, N] => [B] * [B] => [1]
-        y_out_hard = tf.to_float(y_out > 0.5)
-        iou_hard = _f_iou(y_out_hard, y_gt, timespan, pairwise=True)
-        wt_cov_hard = _weighted_coverage_score(iou_hard, y_gt)
-        model['wt_cov_hard'] = wt_cov_hard
-        unwt_cov_hard = _unweighted_coverage_score(iou_hard, match_count)
-        model['unwt_cov_hard'] = unwt_cov_hard
-        # [B, T]
-        iou_hard_mask = tf.reduce_sum(iou_hard * match, [1])
-        iou_hard = tf.reduce_sum(tf.reduce_sum(iou_hard_mask, [1]) /
-                                 match_count) / num_ex
-        model['iou_hard'] = iou_hard
-        wt_iou_hard = tf.reduce_sum(tf.reduce_sum(iou_hard_mask * gt_wt, [1]) /
-                                    match_count) / num_ex
-        model['wt_iou_hard'] = wt_iou_hard
-
-        dice = _f_dice(y_out_hard, y_gt, timespan, pairwise=True)
-        dice = tf.reduce_sum(tf.reduce_sum(dice * match, [1, 2]) /
-                             match_count) / num_ex
-        model['dice'] = dice
-
-        model['count_acc'] = _count_acc(s_out, s_gt)
-        model['dic'] = _dic(s_out, s_gt, abs=False)
-        model['dic_abs'] = _dic(s_out, s_gt, abs=True)
 
         # Attention coordinate for debugging [B, T, 2]
         attn_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
@@ -369,23 +288,10 @@ def get_box_model(opt):
                                  for tmp in attn_ctr])
         attn_delta = tf.concat(1, [tf.expand_dims(tmp, 1)
                                    for tmp in attn_delta])
-        attn_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                      for tmp in attn_lg_gamma])
-        attn_box_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                          for tmp in attn_box_lg_gamma])
-        y_out_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                       for tmp in y_out_lg_gamma])
-        attn_lg_gamma_mean = tf.reduce_sum(attn_lg_gamma) / num_ex / timespan
-        attn_box_lg_gamma_mean = tf.reduce_sum(
-            attn_box_lg_gamma) / num_ex / timespan
-        y_out_lg_gamma_mean = tf.reduce_sum(y_out_lg_gamma) / num_ex / timespan
         model['attn_ctr'] = attn_ctr
         model['attn_delta'] = attn_delta
         model['attn_top_left'] = attn_top_left
         model['attn_bot_right'] = attn_bot_right
-        model['attn_lg_gamma_mean'] = attn_lg_gamma_mean
-        model['attn_box_lg_gamma_mean'] = attn_box_lg_gamma_mean
-        model['y_out_lg_gamma_mean'] = y_out_lg_gamma_mean
 
         # Ctrl RNN gate statistics
         crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
