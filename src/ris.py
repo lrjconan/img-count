@@ -1361,6 +1361,7 @@ if __name__ == '__main__':
         loggers['segm_loss'].add(step, [r['segm_loss'], ''])
         if attn:
             loggers['box_loss'].add(step, [r['box_loss'], ''])
+        
         loggers['iou'].add(step, [r['iou_soft'], '', r['iou_hard'], ''])
         loggers['wt_cov'].add(step, [r['wt_cov_soft'], '',
                                      r['wt_cov_hard'], ''])
@@ -1370,9 +1371,9 @@ if __name__ == '__main__':
         loggers['count_acc'].add(step, [r['count_acc'], ''])
         loggers['dic'].add(step, [r['dic'], ''])
         loggers['dic_abs'].add(step, [r['dic_abs'], ''])
-        loggers['crnn'].add(step, [r['crnn_g_i_avg'], r['crnn_g_f_avg'],
-                                   r['crnn_g_o_avg']])
         if attn:
+            loggers['crnn'].add(step, [r['crnn_g_i_avg'], r['crnn_g_f_avg'],
+                                       r['crnn_g_o_avg']])
             loggers['gt_knob'].add(step, [r['gt_knob_prob_box'],
                                           r['gt_knob_prob_segm']])
             loggers['attn_params'].add(step, [r['attn_lg_gamma_mean'],
