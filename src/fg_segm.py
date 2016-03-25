@@ -43,8 +43,10 @@ def get_dataset(opt):
     opt['timespan'] = 20
     opt['num_examples'] = -1
     dataset = {}
-    dataset['train'] = kitti.get_foreground_dataset(dataset_folder, opt, split='train')
-    dataset['valid'] = kitti.get_foreground_dataset(dataset_folder, opt, split='valid')
+    dataset['train'] = kitti.get_foreground_dataset(dataset_folder, opt,
+                                                    split='train')
+    dataset['valid'] = kitti.get_foreground_dataset(dataset_folder, opt,
+                                                    split='valid')
 
     return dataset
 
@@ -240,6 +242,7 @@ if __name__ == '__main__':
         'rnd_vflip': False,
         'rnd_transpose': False,
         'rnd_colour': True,
+        'use_skip_conn': False,
         'base_learn_rate': 1e-3,
         'learn_rate_decay': 0.96,
         'steps_per_learn_rate_decay': 5000,
@@ -288,7 +291,7 @@ if __name__ == '__main__':
 
     sess = tf.Session()
     sess.run(tf.initialize_all_variables())
-    
+
     # Create time series loggers
     if train_opt['logs']:
         loggers = _get_ts_loggers(model_opt)
@@ -433,10 +436,10 @@ if __name__ == '__main__':
         outputs_trainval = get_outputs_trainval()
 
         for _x, _y in BatchIterator(num_ex_train,
-                                        batch_size=batch_size,
-                                        get_fn=get_batch_train,
-                                        cycle=True,
-                                        progress_bar=False):
+                                    batch_size=batch_size,
+                                    get_fn=get_batch_train,
+                                    cycle=True,
+                                    progress_bar=False):
             # Run validation stats
             if train_opt['has_valid']:
                 if step % train_opt['steps_per_valid'] == 0:

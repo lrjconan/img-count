@@ -76,6 +76,7 @@ def get_model(opt, device='/cpu:0'):
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
     steps_per_learn_rate_decay = opt['steps_per_learn_rate_decay']
+    use_skip_conn = opt['use_skip_conn']
 
     with tf.device(_get_device_fn(device)):
         x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
@@ -106,13 +107,17 @@ def get_model(opt, device='/cpu:0'):
 
         dcnn_nlayers = len(dcnn_filter_size)
         dcnn_act = [tf.nn.relu] * (dcnn_nlayers - 1) + [None]
-        dcnn_skip_ch = [0] + cnn_channels[::-1][1:] + [inp_depth]
+        if use_skip_conn:
+            dcnn_skip_ch = [0] + cnn_channels[::-1][1:] + [inp_depth]
+            dcnn_skip = [None] + h_cnn[::-1][1:] + [x]
+        else:
+            dcnn_skip_ch = None
+            dcnn_skip = None
         dcnn_channels = [cnn_channels[-1]] + dcnn_depth
         dcnn_use_bn = [use_bn] * dcnn_nlayers
         dcnn = nn.dcnn(dcnn_filter_size, dcnn_channels, dcnn_pool, dcnn_act,
                        dcnn_use_bn, skip_ch=dcnn_skip_ch,
                        phase_train=phase_train, wd=wd)
-        dcnn_skip = [None] + h_cnn[::-1][1:] + [x]
         h_dcnn = dcnn(h_cnn[-1], skip=dcnn_skip)
 
         y_out = tf.reshape(h_dcnn[-1], [-1, inp_height, inp_width])
