@@ -1,6 +1,20 @@
+import cslab_environ
 
-def get_attn_model(opt, device='/cpu:0'):
-    """The original model"""
+from ris_base import *
+from utils import logger
+from utils.grad_clip_optim import GradientClipOptimizer
+import fg_segm_reader
+import h5py
+import image_ops as img
+import nnlib as nn
+import numpy as np
+import tensorflow as tf
+
+log = logger.get()
+
+
+def get_model(opt, device='/cpu:0'):
+    """The attention model"""
     model = {}
 
     timespan = opt['timespan']
@@ -62,7 +76,7 @@ def get_attn_model(opt, device='/cpu:0'):
     rnd_transpose = opt['rnd_transpose']
     rnd_colour = opt['rnd_colour']
 
-    with tf.device(_get_device_fn(device)):
+    with tf.device(get_device_fn(device)):
         # Input definition
         # Input image, [B, H, W, D]
         x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
@@ -159,19 +173,19 @@ def get_attn_model(opt, device='/cpu:0'):
         # Groundtruth bounding box, [B, T, 2]
         attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, \
             attn_top_left_gt, attn_bot_right_gt, idx_map = \
-            _get_gt_attn(y_gt, attn_size, padding_ratio=attn_box_padding_ratio,
-                         center_shift_ratio=0.0)
+            get_gt_attn(y_gt, attn_size, padding_ratio=attn_box_padding_ratio,
+                        center_shift_ratio=0.0)
         attn_ctr_gt_noise, attn_delta_gt_noise, attn_lg_var_gt_noise, \
             attn_box_gt_noise, \
             attn_top_left_gt_noise, attn_bot_right_gt_noise, idx_map_noise = \
-            _get_gt_attn(y_gt, attn_size,
-                         padding_ratio=tf.random_uniform(
-                             tf.pack([num_ex, timespan, 1]),
-                             attn_box_padding_ratio - gt_box_pad_noise,
-                             attn_box_padding_ratio + gt_box_pad_noise),
-                         center_shift_ratio=tf.random_uniform(
-                             tf.pack([num_ex, timespan, 2]),
-                             -gt_box_ctr_noise, gt_box_ctr_noise))
+            get_gt_attn(y_gt, attn_size,
+                        padding_ratio=tf.random_uniform(
+                            tf.pack([num_ex, timespan, 1]),
+                            attn_box_padding_ratio - gt_box_pad_noise,
+                            attn_box_padding_ratio + gt_box_pad_noise),
+                        center_shift_ratio=tf.random_uniform(
+                            tf.pack([num_ex, timespan, 2]),
+                            -gt_box_ctr_noise, gt_box_ctr_noise))
         attn_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
         attn_box_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
         y_out_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
@@ -343,7 +357,7 @@ def get_attn_model(opt, device='/cpu:0'):
             ctrl_out = cmlp(h_crnn[tt])[-1]
             _ctr = tf.slice(ctrl_out, [0, 0], [-1, 2])
             _lg_delta = tf.slice(ctrl_out, [0, 2], [-1, 2])
-            attn_ctr[tt], attn_delta[tt] = _unnormalize_attn(
+            attn_ctr[tt], attn_delta[tt] = get_unnormalize_attn(
                 _ctr, _lg_delta, inp_height, inp_width, attn_size)
             attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
             # attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
@@ -358,10 +372,10 @@ def get_attn_model(opt, device='/cpu:0'):
             y_out_lg_gamma[tt] = tf.reshape(y_out_lg_gamma[tt], [-1, 1, 1, 1])
 
             # Initial filters (predicted)
-            filter_y = _get_attn_filter(
+            filter_y = get_attn_filter(
                 attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
                 attn_lg_var[tt][:, 0], inp_height, attn_size)
-            filter_x = _get_attn_filter(
+            filter_x = get_attn_filter(
                 attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
                 attn_lg_var[tt][:, 1], inp_width, attn_size)
             if tt == 0:
@@ -370,7 +384,7 @@ def get_attn_model(opt, device='/cpu:0'):
             filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
             # Attention box
-            attn_box[tt] = _extract_patch(const_ones * attn_box_gamma[tt],
+            attn_box[tt] = extract_patch(const_ones * attn_box_gamma[tt],
                                           filter_y_inv, filter_x_inv, 1)
             attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
             attn_box[tt] = tf.reshape(attn_box[tt],
@@ -380,10 +394,10 @@ def get_attn_model(opt, device='/cpu:0'):
             if use_knob:
                 # IOU [B, 1, T]
                 # [B, 1, H, W] * [B, T, H, W] = [B, T]
-                attn_iou_soft[tt] = _inter(attn_box[tt], attn_box_gt) / \
-                    _union(attn_box[tt], attn_box_gt, eps=1e-5)
+                attn_iou_soft[tt] = f_inter(attn_box[tt], attn_box_gt) / \
+                    f_union(attn_box[tt], attn_box_gt, eps=1e-5)
                 attn_iou_soft[tt] += iou_bias
-                grd_match = _greedy_match(attn_iou_soft[tt], grd_match_cum)
+                grd_match = f_greedy_match(attn_iou_soft[tt], grd_match_cum)
 
                 if gt_selector == 'greedy_match':
                     # Add in the cumulative matching to not double count.
@@ -406,16 +420,16 @@ def get_attn_model(opt, device='/cpu:0'):
                     (1 - phase_train_f * _gt_knob_box[:, tt, 0: 1]) * \
                     attn_delta[tt]
 
-            attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
+            attn_top_left[tt], attn_bot_right[tt] = get_attn_coord(
                 attn_ctr[tt], attn_delta[tt], attn_size)
 
             # [B, H, A]
-            filter_y = _get_attn_filter(
+            filter_y = get_attn_filter(
                 attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
                 attn_lg_var[tt][:, 0], inp_height, attn_size)
 
             # [B, W, A]
-            filter_x = _get_attn_filter(
+            filter_x = get_attn_filter(
                 attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
                 attn_lg_var[tt][:, 1], inp_width, attn_size)
 
@@ -426,7 +440,7 @@ def get_attn_model(opt, device='/cpu:0'):
             filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
             # Attended patch [B, A, A, D]
-            x_patch[tt] = attn_gamma[tt] * _extract_patch(
+            x_patch[tt] = attn_gamma[tt] * extract_patch(
                 acnn_inp, filter_y, filter_x, acnn_inp_depth)
 
             # CNN [B, A, A, D] => [B, RH2, RW2, RD2]
@@ -458,7 +472,7 @@ def get_attn_model(opt, device='/cpu:0'):
             h_adcnn[tt] = adcnn(h_core, skip=skip)
 
             # Output
-            y_out[tt] = _extract_patch(
+            y_out[tt] = extract_patch(
                 h_adcnn[tt][-1], filter_y_inv, filter_x_inv, 1)
             y_out[tt] = tf.exp(y_out_lg_gamma[tt]) * y_out[tt] + y_out_beta
             y_out[tt] = tf.sigmoid(y_out[tt])
@@ -520,12 +534,12 @@ def get_attn_model(opt, device='/cpu:0'):
             iou_soft_box = tf.concat(1, [tf.expand_dims(attn_iou_soft[tt], 1)
                                          for tt in xrange(timespan)])
         else:
-            iou_soft_box = _f_iou(attn_box, attn_box_gt,
+            iou_soft_box = f_iou(attn_box, attn_box_gt,
                                   timespan, pairwise=True)
 
         model['iou_soft_box'] = iou_soft_box
         model['attn_box_gt'] = attn_box_gt
-        match_box = _segm_match(iou_soft_box, s_gt)
+        match_box = f_segm_match(iou_soft_box, s_gt)
         model['match_box'] = match_box
         match_sum_box = tf.reduce_sum(match_box, reduction_indices=[2])
         match_count_box = tf.reduce_sum(
@@ -534,7 +548,7 @@ def get_attn_model(opt, device='/cpu:0'):
         iou_soft_box_mask = tf.reduce_sum(iou_soft_box * match_box, [1])
         iou_soft_box = tf.reduce_sum(tf.reduce_sum(iou_soft_box_mask, [1])
                                      / match_count_box) / num_ex
-        gt_wt_box = _coverage_weight(attn_box_gt)
+        gt_wt_box = coverage_weight(attn_box_gt)
         wt_iou_soft_box = tf.reduce_sum(tf.reduce_sum(
             iou_soft_box_mask * gt_wt_box, [1])
             / match_count_box) / num_ex
@@ -543,9 +557,9 @@ def get_attn_model(opt, device='/cpu:0'):
         elif box_loss_fn == 'wt_iou':
             box_loss = -wt_iou_soft_box
         elif box_loss_fn == 'wt_cov':
-            box_loss = -_weighted_coverage_score(iou_soft_box, attn_box_gt)
+            box_loss = -f_weighted_coverage(iou_soft_box, attn_box_gt)
         elif box_loss_fn == 'bce':
-            box_loss = _match_bce(attn_box, attn_box_gt, match_box, timespan)
+            box_loss = f_match_bce(attn_box, attn_box_gt, match_box, timespan)
         else:
             raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
         model['box_loss'] = box_loss
@@ -554,17 +568,17 @@ def get_attn_model(opt, device='/cpu:0'):
         tf.add_to_collection('losses', box_loss_coeff * box_loss)
 
         # Loss for fine segmentation
-        iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
-        match = _segm_match(iou_soft, s_gt)
+        iou_soft = f_iou(y_out, y_gt, timespan, pairwise=True)
+        match = f_segm_match(iou_soft, s_gt)
         model['match'] = match
         match_sum = tf.reduce_sum(match, reduction_indices=[2])
         match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
         match_count = tf.maximum(1.0, match_count)
 
         # Weighted coverage (soft)
-        wt_cov_soft = _weighted_coverage_score(iou_soft, y_gt)
+        wt_cov_soft = f_weighted_coverage(iou_soft, y_gt)
         model['wt_cov_soft'] = wt_cov_soft
-        unwt_cov_soft = _unweighted_coverage_score(iou_soft, match_count)
+        unwt_cov_soft = f_unweighted_coverage(iou_soft, match_count)
         model['unwt_cov_soft'] = unwt_cov_soft
 
         # [B, T]
@@ -572,7 +586,7 @@ def get_attn_model(opt, device='/cpu:0'):
         iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask, [1]) /
                                  match_count) / num_ex
         model['iou_soft'] = iou_soft
-        gt_wt = _coverage_weight(y_gt)
+        gt_wt = coverage_weight(y_gt)
         wt_iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask * gt_wt, [1]) /
                                     match_count) / num_ex
         model['wt_iou_soft'] = wt_iou_soft
@@ -584,7 +598,7 @@ def get_attn_model(opt, device='/cpu:0'):
         elif segm_loss_fn == 'wt_cov':
             segm_loss = -wt_cov_soft
         elif segm_loss_fn == 'bce':
-            segm_loss = _match_bce(y_out, y_gt, match, timespan)
+            segm_loss = f_match_bce(y_out, y_gt, match, timespan)
         else:
             raise Exception('Unknown segm_loss_fn: {}'.format(segm_loss_fn))
         model['segm_loss'] = segm_loss
@@ -592,7 +606,7 @@ def get_attn_model(opt, device='/cpu:0'):
         tf.add_to_collection('losses', segm_loss_coeff * segm_loss)
 
         # Score loss
-        conf_loss = _conf_loss(s_out, match, timespan, use_cum_min=True)
+        conf_loss = f_conf_loss(s_out, match, timespan, use_cum_min=True)
         model['conf_loss'] = conf_loss
         tf.add_to_collection('losses', loss_mix_ratio * conf_loss)
 
@@ -608,10 +622,10 @@ def get_attn_model(opt, device='/cpu:0'):
         # Statistics
         # [B, M, N] * [B, M, N] => [B] * [B] => [1]
         y_out_hard = tf.to_float(y_out > 0.5)
-        iou_hard = _f_iou(y_out_hard, y_gt, timespan, pairwise=True)
-        wt_cov_hard = _weighted_coverage_score(iou_hard, y_gt)
+        iou_hard = f_iou(y_out_hard, y_gt, timespan, pairwise=True)
+        wt_cov_hard = f_weighted_coverage(iou_hard, y_gt)
         model['wt_cov_hard'] = wt_cov_hard
-        unwt_cov_hard = _unweighted_coverage_score(iou_hard, match_count)
+        unwt_cov_hard = f_unweighted_coverage(iou_hard, match_count)
         model['unwt_cov_hard'] = unwt_cov_hard
         # [B, T]
         iou_hard_mask = tf.reduce_sum(iou_hard * match, [1])
@@ -622,14 +636,14 @@ def get_attn_model(opt, device='/cpu:0'):
                                     match_count) / num_ex
         model['wt_iou_hard'] = wt_iou_hard
 
-        dice = _f_dice(y_out_hard, y_gt, timespan, pairwise=True)
+        dice = f_dice(y_out_hard, y_gt, timespan, pairwise=True)
         dice = tf.reduce_sum(tf.reduce_sum(dice * match, [1, 2]) /
                              match_count) / num_ex
         model['dice'] = dice
 
-        model['count_acc'] = _count_acc(s_out, s_gt)
-        model['dic'] = _dic(s_out, s_gt, abs=False)
-        model['dic_abs'] = _dic(s_out, s_gt, abs=True)
+        model['count_acc'] = f_count_acc(s_out, s_gt)
+        model['dic'] = f_dic(s_out, s_gt, abs=False)
+        model['dic_abs'] = f_dic(s_out, s_gt, abs=True)
 
         # Attention coordinate for debugging [B, T, 2]
         attn_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)

@@ -32,7 +32,8 @@ from utils.saver import Saver
 from utils.time_series_logger import TimeSeriesLogger
 from utils import plot_utils as pu
 
-import rec_ins_segm_models as models
+import ris_vanilla_model as vanilla_model
+import ris_attn_model as attention_model
 
 log = logger.get()
 
@@ -44,6 +45,18 @@ kCvpppNumObj = 20
 kKittiInpHeight = 128
 kKittiInpWidth = 448
 kKittiNumObj = 19
+
+
+def get_model(name, opt, device='/cpu:0'):
+    """Model router."""
+    if name == 'vanilla':
+        return vanilla_model.get_model(opt, device=device)
+    elif name == 'attention':
+        return attention_model.get_model(opt, device=device)
+    else:
+        raise Exception('Unknown model name "{}"'.format(name))
+
+    pass
 
 
 def plot_total_instances(fname, y_out, s_out, max_items_per_row=9):
@@ -1015,7 +1028,7 @@ if __name__ == '__main__':
 
     # Train loop options
     log.info('Building model')
-    m = models.get_model('attention', model_opt, device=device)
+    m = get_model('attention', model_opt, device=device)
 
     log.info('Loading dataset')
     dataset = get_dataset(args.dataset, data_opt)
