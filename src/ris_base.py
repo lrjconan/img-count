@@ -174,7 +174,7 @@ def f_weighted_coverage(iou, y_gt):
         y_gt: [B, N, H, W]. Groundtruth segmentations.
     """
     cov = f_coverage(iou)
-    wt = coverage_weight(y_gt)
+    wt = f_coverage_weight(y_gt)
     num_ex = tf.to_float(tf.shape(y_gt)[0])
 
     return tf.reduce_sum(cov * wt) / num_ex
