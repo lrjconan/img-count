@@ -581,7 +581,7 @@ def get_model(opt, device='/cpu:0'):
         iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask, [1]) /
                                  match_count) / num_ex
         model['iou_soft'] = iou_soft
-        gt_wt = coverage_weight(y_gt)
+        gt_wt = f_coverage_weight(y_gt)
         wt_iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask * gt_wt, [1]) /
                                     match_count) / num_ex
         model['wt_iou_soft'] = wt_iou_soft
