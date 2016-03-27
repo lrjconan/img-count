@@ -179,10 +179,6 @@ def plot_output(fname, y_out, s_out, match, attn=None, max_items_per_row=9):
         attn_top_left_x = attn[0][:, :, 1]
         attn_bot_right_y = attn[1][:, :, 0]
         attn_bot_right_x = attn[1][:, :, 1]
-        attn_ctr_y = attn[2][:, :, 0]
-        attn_ctr_x = attn[2][:, :, 1]
-        attn_delta_y = attn[3][:, :, 0]
-        attn_delta_x = attn[3][:, :, 1]
 
     pu.set_axis_off(axarr, num_row, num_col)
 
@@ -480,8 +476,8 @@ def _add_model_args(parser):
                         help='Whether cumulative minimum. Default yes.')
 
     # Attention-based model options
-    parser.add_argument('-attn_size', default=kAttnSize, type=int,
-                        help='Attention size')
+    parser.add_argument('-filter_size', default=kAttnSize, type=int,
+                        help='Attention filter size')
     parser.add_argument('-ctrl_cnn_filter_size', default=kCtrlCnnFilterSize,
                         help='Comma delimited integers')
     parser.add_argument('-ctrl_cnn_depth', default=kCtrlCnnDepth,
@@ -660,7 +656,7 @@ def _make_model_opt(args):
             'inp_width': inp_width,
             'inp_depth': 3,
             'padding': args.padding,
-            'attn_size': args.attn_size,
+            'filter_size': args.filter_size,
             'timespan': timespan,
 
             'ctrl_cnn_filter_size': ccnn_fsize_list,
@@ -1146,7 +1142,6 @@ if __name__ == '__main__':
 
             if attn:
                 _outputs.extend(['attn_top_left', 'attn_bot_right',
-                        'attn_ctr', 'attn_delta',
                         'attn_box', 'attn_box_gt', 'match_box'])
 
             _max_items = _get_max_items_per_row(x.shape[1], x.shape[2])
@@ -1176,8 +1171,7 @@ if __name__ == '__main__':
             if attn:
                 plot_output(fname_output, y_out=_r['y_out'], s_out=_r['s_out'],
                             match=_r['match'],
-                            attn=(_r['attn_top_left'], _r['attn_bot_right'],
-                                  _r['attn_ctr'], _r['attn_delta']),
+                            attn=(_r['attn_top_left'], _r['attn_bot_right']),
                             max_items_per_row=_max_items)
             else:
                 plot_output(fname_output, y_out=_r['y_out'], s_out=_r['s_out'],
@@ -1192,8 +1186,7 @@ if __name__ == '__main__':
             if fname_box:
                 plot_output(fname_box, y_out=_r['attn_box'], s_out=_r['s_out'],
                             match=_r['match_box'],
-                            attn=(_r['attn_top_left'], _r['attn_bot_right'],
-                                  _r['attn_ctr'], _r['attn_delta']),
+                            attn=(_r['attn_top_left'], _r['attn_bot_right']),
                             max_items_per_row=_max_items)
 
             if fname_patch:

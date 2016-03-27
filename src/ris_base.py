@@ -1,8 +1,12 @@
 import cslab_environ
 
 from tensorflow.python.framework import ops
+from utils import logger
 import numpy as np
 import tensorflow as tf
+
+log = logger.get()
+
 
 # Register gradient for Hungarian algorithm.
 ops.NoGradient("Hungarian")
@@ -347,6 +351,42 @@ def f_dic(s_out, s_gt, abs=False):
     return count_diff
 
 
+def f_huber(y_out, y_gt, threshold=1.0):
+    """Huber loss. Smooth combination of L2 and L1 loss for robustness.
+
+    Args:
+        y_out:
+        y_gt:
+        threshold: where to change from L2 to L1
+
+    Returns:
+        huber:
+    """
+    size = tf.size(y_out)
+    err = y_out - y_gt
+    ind = tf.to_float(err <= 1)
+    squared_err = 0.5 * err * err
+    l1_err = tf.abs(err) - (threshold - 0.5 * (threshold ** 2))
+    huber = squared_err * ind + l1_err * (1 - ind)
+    return tf.reduce_sum(huber) / tf.to_float(size)
+
+
+def f_mse(y_out, y_gt):
+    """Mean squared error (L2) loss.
+
+    Args:
+        y_out:
+        y_gt:
+
+    Returns:
+        mse:
+    """
+    size = tf.size(y_out)
+    err = y_out - y_gt
+    squared_err = 0.5 * err * err
+    return tf.reduce_sum(squared_err) / tf.to_float(size)
+
+
 def build_skip_conn_inner(cnn_channels, h_cnn, x):
     """Build skip connection."""
     skip = [None]
@@ -399,28 +439,66 @@ def build_skip_conn_attn(cnn_channels, h_cnn_time, x_time, timespan):
     return skip, skip_ch
 
 
-def get_attn_filter(center, delta, lg_var, image_size, filter_size):
+# def get_attn_filter(center, delta, lg_var, image_size, filter_size):
+#     """
+#     Get Gaussian-based attention filter along one dimension
+#     (assume decomposability).
+
+#     Args:
+#         center: center of one dimension (mean), [B]
+#         delta: delta of one dimension (size), [B]
+#         lg_var: variance of the filter, [B]
+#         image_size: image size of one dimension, [B]
+#         filter_size: filter size of one dimension, [B]
+#     """
+#     # [1, 1, F].
+#     span_filter = tf.to_float(tf.reshape(tf.range(filter_size),
+#                                          [1, 1, -1]))
+
+#     # [B, 1, 1]
+#     center = tf.reshape(center, [-1, 1, 1])
+#     delta = tf.reshape(delta, [-1, 1, 1])
+
+#     # [B, 1, 1] + [B, 1, 1] * [1, F, 1] = [B, 1, F]
+#     mu = center + delta * (span_filter - (filter_size - 1) / 2.0)
+
+#     # [B, 1, 1]
+#     lg_var = tf.reshape(lg_var, [-1, 1, 1])
+
+#     # [1, L, 1]
+#     span = tf.to_float(tf.reshape(tf.range(image_size),
+#                                   tf.pack([1, image_size, 1])))
+
+#     # [1, L, 1] - [B, 1, F] = [B, L, F]
+#     filter = tf.mul(
+#         1 / tf.sqrt(tf.exp(lg_var)) / tf.sqrt(2 * np.pi),
+#         tf.exp(-0.5 * (span - mu) * (span - mu) / tf.exp(lg_var)))
+
+#     return filter
+
+
+def get_gaussian_filter(center, size, lg_var, image_size, filter_size):
     """
     Get Gaussian-based attention filter along one dimension
     (assume decomposability).
 
     Args:
-        center:
-        lg_d:
-        lg_var:
-        image_size: L
-        filter_size: F
+        center: center of one dimension (mean), [B]
+        delta: delta of one dimension (size), [B]
+        lg_var: variance of the filter, [B]
+        image_size: image size of one dimension, [B]
+        filter_size: filter size of one dimension, [B]
     """
     # [1, 1, F].
-    span_filter = tf.to_float(tf.reshape(
-        tf.range(filter_size) + 1, [1, 1, -1]))
+    span_filter = tf.to_float(tf.reshape(tf.range(filter_size),
+                                         [1, 1, -1]))
 
     # [B, 1, 1]
     center = tf.reshape(center, [-1, 1, 1])
-    delta = tf.reshape(delta, [-1, 1, 1])
+    size = tf.reshape(size, [-1, 1, 1])
 
     # [B, 1, 1] + [B, 1, 1] * [1, F, 1] = [B, 1, F]
-    mu = center + delta * (span_filter - filter_size / 2.0 - 0.5)
+    mu = center + size / filter_size * (span_filter - (filter_size - 1) / 2.0)
 
     # [B, 1, 1]
     lg_var = tf.reshape(lg_var, [-1, 1, 1])
@@ -435,6 +513,7 @@ def get_attn_filter(center, delta, lg_var, image_size, filter_size):
         tf.exp(-0.5 * (span - mu) * (span - mu) / tf.exp(lg_var)))
 
     return filter
+
 
 
 def extract_patch(x, f_y, f_x, nchannels):
@@ -465,8 +544,27 @@ def extract_patch(x, f_y, f_x, nchannels):
     return tf.concat(3, patch)
 
 
-def get_gt_attn(y_gt, attn_size, padding_ratio=0.0, center_shift_ratio=0.0):
+def get_gt_attn(y_gt, padding_ratio=0.0, center_shift_ratio=0.0):
     """Get groundtruth attention box given segmentation."""
+    top_left, bot_right, box = get_gt_box(y_gt, padding_ratio,
+                                          center_shift_ratio)
+
+    ctr, size = get_box_ctr_size(top_left, bot_right)
+    lg_var = tf.zeros(tf.shape(ctr)) + 1.0
+
+    return ctr, size, lg_var, box, top_left, bot_right
+
+
+def get_gt_box(y_gt, padding_ratio=0.0, center_shift_ratio=0.0):
+    """Get groundtruth bounding box given segmentation.
+
+    Args:
+        y_gt: Groundtruth segmentation [B, T, H, W], or [B, H, W]
+
+    Returns:
+        top_left: Bounding box top left coordinates [B, T, 2], or [B, 2]
+        bot_right: Bounding box bottom right coordinates [B, T, 2], or [B, 2]
+    """
     s = tf.shape(y_gt)
     # [B, T, H, W, 2]
     idx = get_idx_map(s)
@@ -476,83 +574,181 @@ def get_gt_attn(y_gt, attn_size, padding_ratio=0.0, center_shift_ratio=0.0):
     top_left = tf.reduce_min(idx_min, reduction_indices=[2, 3])
     bot_right = tf.reduce_max(idx_max, reduction_indices=[2, 3])
 
-    # Enlarge the groundtruth box.
-    if padding_ratio > 0:
-        # log.info('Pad groundtruth box by {:.2f}'.format(padding_ratio))
-        size = bot_right - top_left
-        top_left += center_shift_ratio * size
-        top_left -= padding_ratio * size
-        bot_right += center_shift_ratio * size
-        bot_right += padding_ratio * size
-        box = get_filled_box_idx(idx, top_left, bot_right)
-    else:
-        log.warning('Not padding groundtruth box')
+    # Enlarge the groundtruth box by some padding.
+    size = bot_right - top_left
+    top_left += center_shift_ratio * size
+    top_left -= padding_ratio * size
+    bot_right += center_shift_ratio * size
+    bot_right += padding_ratio * size
+    box = get_filled_box_idx(idx, top_left, bot_right)
 
-    ctr = (bot_right + top_left) / 2.0
-    delta = (bot_right - top_left + 1.0) / attn_size
-    lg_var = tf.zeros(tf.shape(ctr)) + 1.0
-
-    return ctr, delta, lg_var, box, top_left, bot_right, idx
+    return top_left, bot_right, box
 
 
 def get_idx_map(shape):
     """Get index map for a image.
 
     Args:
-        shape: [B, T, H, W]
+        shape: [B, T, H, W] or [B, H, W]
     Returns:
-        idx: [B, T, H, W, 2]
+        idx: [B, T, H, W, 2], or [B, H, W, 2]
     """
     s = shape
-    # [B, T, H, W, 1]
-    idx_y = tf.zeros(tf.pack([s[0], s[1], s[2], s[3], 1]), dtype='float')
-    idx_x = tf.zeros(tf.pack([s[0], s[1], s[2], s[3], 1]), dtype='float')
-    idx_y += tf.reshape(tf.to_float(tf.range(s[2])), [1, 1, -1, 1, 1])
-    idx_x += tf.reshape(tf.to_float(tf.range(s[3])), [1, 1, 1, -1, 1])
+    ndims = tf.shape(s)
+    wdim = ndims - 1
+    hdim = ndims - 2
+    idx_shape = tf.concat(0, [s, tf.constant([1])])
+    ones_h = tf.ones(hdim - 1, dtype='int32')
+    ones_w = tf.ones(wdim - 1, dtype='int32')
+    h_shape = tf.concat(0, [ones_h, tf.constant([-1]), tf.constant([1, 1])])
+    w_shape = tf.concat(0, [ones_w, tf.constant([-1]), tf.constant([1])])
+
+    # if ndims == 4:
+    #     # idx_shape = tf.pack([s[0], s[1], s[2], s[3], 1])
+    #     h_shape = [1, 1, -1, 1, 1]
+    #     w_shape = [1, 1, 1, -1, 1]
+    # elif ndims == 3:
+    #     # idx_shape = tf.pack([s[0], s[1], s[2], 1])
+    #     h_shape = [1, -1, 1, 1]
+    #     w_shape = [1, 1, -1, 1]
+
+    idx_y = tf.zeros(idx_shape, dtype='float')
+    idx_x = tf.zeros(idx_shape, dtype='float')
+
+    h = tf.slice(s, ndims - 2, [1])
+    w = tf.slice(s, ndims - 1, [1])
+    idx_y += tf.reshape(tf.to_float(tf.range(h[0])), h_shape)
+    idx_x += tf.reshape(tf.to_float(tf.range(w[0])), w_shape)
     idx = tf.concat(4, [idx_y, idx_x])
 
     return idx
 
 
 def get_filled_box_idx(idx, top_left, bot_right):
-    """Fill a box with top left and bottom right coordinates."""
-    # [B, T, H, W]
-    idx_y = idx[:, :, :, :, 0]
-    idx_x = idx[:, :, :, :, 1]
-    top_left_y = tf.expand_dims(tf.expand_dims(top_left[:, :, 0], 2), 3)
-    top_left_x = tf.expand_dims(tf.expand_dims(top_left[:, :, 1], 2), 3)
-    bot_right_y = tf.expand_dims(tf.expand_dims(bot_right[:, :, 0], 2), 3)
-    bot_right_x = tf.expand_dims(tf.expand_dims(bot_right[:, :, 1], 2), 3)
-    lower = tf.logical_and(idx_y >= top_left_y, idx_x >= top_left_x)
-    upper = tf.logical_and(idx_y <= bot_right_y, idx_x <= bot_right_x)
-    box = tf.to_float(tf.logical_and(lower, upper))
+    """Fill a box with top left and bottom right coordinates.
+
+    Args:
+        idx: [B, T, H, W, 2] or [B, H, W, 2] or [H, W, 2]
+        top_left: [B, T, 2] or [B, 2] or [2]
+        bot_right: [B, T, 2] or [B, 2] or [2]
+    """
+    # # [B, T, H, W]
+    # idx_y = idx[:, :, :, :, 0]
+    # idx_x = idx[:, :, :, :, 1]
+    # top_left_y = tf.expand_dims(tf.expand_dims(top_left[:, :, 0], 2), 3)
+    # top_left_x = tf.expand_dims(tf.expand_dims(top_left[:, :, 1], 2), 3)
+    # bot_right_y = tf.expand_dims(tf.expand_dims(bot_right[:, :, 0], 2), 3)
+    # bot_right_x = tf.expand_dims(tf.expand_dims(bot_right[:, :, 1], 2), 3)
+    # lower = tf.logical_and(idx_y >= top_left_y, idx_x >= top_left_x)
+    # upper = tf.logical_and(idx_y <= bot_right_y, idx_x <= bot_right_x)
+    # box = tf.to_float(tf.logical_and(lower, upper))
+
+    ndims = tf.shape(tf.shape(idx))
+    top_left = tf.expand_dims(tf.expand_dims(
+        top_left, ndims[0] - 3), ndims[0] - 2)
+    bot_right = tf.expand_dims(tf.expand_dims(
+        bot_right, ndims[0] - 3), ndims[0] - 2)
+    lower = tf.reduce_prod(tf.to_float(idx >= top_left), ndims - 1)
+    upper = tf.reduce_prod(tf.to_float(idx >= bot_right), ndims - 1)
+    box = lower * upper
 
     return box
 
 
-def get_unnormalize_attn(ctr, lg_delta, inp_height, inp_width, attn_size):
-    """Unnormalize the attention parameters to image size."""
-    ctr_y = ctr[:, 0] + 1.0
-    ctr_x = ctr[:, 1] + 1.0
-    ctr_y *= (inp_height + 1) / 2.0
-    ctr_x *= (inp_width + 1) / 2.0
-    ctr = tf.concat(1, [tf.expand_dims(ctr_y, 1), tf.expand_dims(ctr_x, 1)])
+def get_unnormalized_center(ctr_norm, inp_height, inp_width):
+    """Get unnormalized center coordinates
+
+    Args:
+        ctr_norm: [B, 2], normalized within range [-1, +1]
+        inp_height: int, image height
+        inp_width: int, image width
+
+    Returns:
+        ctr: [B, 2]
+    """
+    img_size = tf.to_float(tf.pack([inp_height, inp_width]))
+    img_size = img_size / 2.0
+    ctr = (ctr_norm + 1.0) * img_size
+
+    return ctr
+
+
+def get_normalized_center(ctr, inp_height, inp_width):
+    """Get unnormalized center coordinates
+
+    Args:
+        ctr: [B, 2]
+        inp_height: int, image height
+        inp_width: int, image width
+
+    Returns:
+        ctr: [B, 2], normalized within range [-1, +1]
+    """
+    img_size = tf.to_float(tf.pack([inp_height, inp_width]))
+    img_size = img_size / 2.0
+    ctr = ctr / img_size - 1
+
+    return ctr
+
+
+def get_unnormalized_size(lg_delta, inp_height, inp_width):
+    """Get unnormalized patch size.
+
+    Args:
+        lg_delta: [B, 2], logarithm of delta.
+        inp_height: int, image height.
+        inp_width: int, image width.
+
+    Returns:
+        patch: [B, 2], patch size.
+    """
     delta = tf.exp(lg_delta)
-    delta_y = delta[:, 0]
-    delta_x = delta[:, 1]
-    delta_y = (inp_height - 1.0) / (attn_size - 1.0) * delta_y
-    delta_x = (inp_width - 1.0) / (attn_size - 1.0) * delta_x
-    delta = tf.concat(1, [tf.expand_dims(delta_y, 1),
-                          tf.expand_dims(delta_x, 1)])
+    img_size = tf.to_float(tf.pack([inp_height, inp_width]))
+    patch = delta * img_size
 
-    return ctr, delta
+    return patch
 
 
-def get_attn_coord(ctr, delta, attn_size):
-    """Get attention coordinates given parameters."""
-    a = ctr * 2.0
-    b = delta * attn_size - 1.0
-    top_left = (a - b) / 2.0
-    bot_right = (a + b) / 2.0 + 1.0
+def get_normalized_size(size, inp_height, inp_width):
+    """Get normalized patch size.
 
-    return top_left, bot_right
+    Args:
+        patch: [B, 2], patch size.
+        inp_height: int, image height.
+        inp_width: int, image width.
+        patch_size: int patch size.
+
+    Returns:
+        lg_delta: [B, 2], logarithm of delta.
+    """
+    img_size = tf.to_float(tf.pack([inp_height, inp_width]))
+    lg_size = tf.log(size / image_size)
+
+    return lg_size
+
+
+def get_unnormalized_attn(ctr, lg_size, inp_height, inp_width):
+    """Unnormalize the attention parameters to image size."""
+    ctr = get_unnormalized_center(ctr, inp_height, inp_width)
+    size = get_unnormalized_size(lg_size, inp_height, inp_width)
+
+    return ctr, size
+
+
+# def get_attn_coord(ctr, delta, attn_size):
+#     """Get attention coordinates given parameters."""
+#     a = ctr * 2.0
+#     b = delta * attn_size - 1.0
+#     top_left = (a - b) / 2.0
+#     bot_right = (a + b) / 2.0 + 1.0
+
+#     return top_left, bot_right
+
+
+def get_box_coord(ctr, size):
+    """Get box coordinates given parameters."""
+    return ctr - size / 2.0, ctr + size / 2.0
+
+
+def get_box_ctr_size(top_left, bot_right):
+    return (top_left + bot_right) / 2.0, (bot_right - top_left)

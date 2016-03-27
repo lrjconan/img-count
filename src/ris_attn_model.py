@@ -22,7 +22,7 @@ def get_model(opt, device='/cpu:0'):
     inp_width = opt['inp_width']
     inp_depth = opt['inp_depth']
     padding = opt['padding']
-    attn_size = opt['attn_size']
+    filter_size = opt['filter_size']
 
     ctrl_cnn_filter_size = opt['ctrl_cnn_filter_size']
     ctrl_cnn_depth = opt['ctrl_cnn_depth']
@@ -171,14 +171,15 @@ def get_model(opt, device='/cpu:0'):
         s_out = [None] * timespan
 
         # Groundtruth bounding box, [B, T, 2]
-        attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, \
-            attn_top_left_gt, attn_bot_right_gt, idx_map = \
-            get_gt_attn(y_gt, attn_size, padding_ratio=attn_box_padding_ratio,
+        attn_ctr_gt, attn_size_gt, attn_lg_var_gt, attn_box_gt, \
+            attn_top_left_gt, attn_bot_right_gt = \
+            get_gt_attn(y_gt,
+                        padding_ratio=attn_box_padding_ratio,
                         center_shift_ratio=0.0)
-        attn_ctr_gt_noise, attn_delta_gt_noise, attn_lg_var_gt_noise, \
+        attn_ctr_gt_noise, attn_size_gt_noise, attn_lg_var_gt_noise, \
             attn_box_gt_noise, \
-            attn_top_left_gt_noise, attn_bot_right_gt_noise, idx_map_noise = \
-            get_gt_attn(y_gt, attn_size,
+            attn_top_left_gt_noise, attn_bot_right_gt_noise = \
+            get_gt_attn(y_gt,
                         padding_ratio=tf.random_uniform(
                             tf.pack([num_ex, timespan, 1]),
                             attn_box_padding_ratio - gt_box_pad_noise,
@@ -192,8 +193,10 @@ def get_model(opt, device='/cpu:0'):
         gtbox_top_left = [None] * timespan
         gtbox_bot_right = [None] * timespan
 
+        attn_ctr_norm = [None] * timespan
+        attn_lg_size = [None] * timespan
         attn_ctr = [None] * timespan
-        attn_delta = [None] * timespan
+        attn_size = [None] * timespan
         attn_lg_var = [None] * timespan
         attn_lg_gamma = [None] * timespan
         attn_gamma = [None] * timespan
@@ -218,8 +221,8 @@ def get_model(opt, device='/cpu:0'):
 
         # Attention RNN definition
         acnn_subsample = np.array(acnn_pool).prod()
-        arnn_h = attn_size / acnn_subsample
-        arnn_w = attn_size / acnn_subsample
+        arnn_h = filter_size / acnn_subsample
+        arnn_w = filter_size / acnn_subsample
 
         if use_attn_rnn:
             arnn_dim = attn_rnn_hid_dim
@@ -263,7 +266,7 @@ def get_model(opt, device='/cpu:0'):
         attn_box = [None] * timespan
         attn_iou_soft = [None] * timespan
         const_ones = tf.ones(
-            tf.pack([num_ex, attn_size, attn_size, 1]))
+            tf.pack([num_ex, filter_size, filter_size, 1]))
         attn_box_beta = tf.constant([-5.0])
         attn_box_gamma = [None] * timespan
 
@@ -348,17 +351,17 @@ def get_model(opt, device='/cpu:0'):
 
             # if use_gt_attn:
             #     attn_ctr[tt] = attn_ctr_gt[:, tt, :]
-            #     attn_delta[tt] = attn_delta_gt[:, tt, :]
+            #     attn_size[tt] = attn_size_gt[:, tt, :]
             #     attn_lg_var[tt] = attn_lg_var_gt[:, tt, :]
             #     attn_lg_gamma[tt] = attn_lg_gamma_gt[:, tt, :]
             #     attn_box_lg_gamma[tt] = attn_box_lg_gamma_gt[:, tt, :]
             #     y_out_lg_gamma[tt] = y_out_lg_gamma_gt[:, tt, :]
             # else:
             ctrl_out = cmlp(h_crnn[tt])[-1]
-            _ctr = tf.slice(ctrl_out, [0, 0], [-1, 2])
-            _lg_delta = tf.slice(ctrl_out, [0, 2], [-1, 2])
-            attn_ctr[tt], attn_delta[tt] = get_unnormalize_attn(
-                _ctr, _lg_delta, inp_height, inp_width, attn_size)
+            attn_ctr_norm[tt] = tf.slice(ctrl_out, [0, 0], [-1, 2])
+            attn_lg_size[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
+            attn_ctr[tt], attn_size[tt] = get_unnormalized_attn(
+                attn_ctr_norm[tt], attn_lg_size[tt], inp_height, inp_width)
             attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
             # attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
             attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
@@ -372,12 +375,12 @@ def get_model(opt, device='/cpu:0'):
             y_out_lg_gamma[tt] = tf.reshape(y_out_lg_gamma[tt], [-1, 1, 1, 1])
 
             # Initial filters (predicted)
-            filter_y = get_attn_filter(
-                attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
-                attn_lg_var[tt][:, 0], inp_height, attn_size)
-            filter_x = get_attn_filter(
-                attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
-                attn_lg_var[tt][:, 1], inp_width, attn_size)
+            filter_y = get_gaussian_filter(
+                attn_ctr[tt][:, 0], attn_size[tt][:, 0],
+                attn_lg_var[tt][:, 0], inp_height, filter_size)
+            filter_x = get_gaussian_filter(
+                attn_ctr[tt][:, 1], attn_size[tt][:, 1],
+                attn_lg_var[tt][:, 1], inp_width, filter_size)
             if tt == 0:
                 model['filter_y'] = filter_y
             filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
@@ -385,7 +388,7 @@ def get_model(opt, device='/cpu:0'):
 
             # Attention box
             attn_box[tt] = extract_patch(const_ones * attn_box_gamma[tt],
-                                          filter_y_inv, filter_x_inv, 1)
+                                         filter_y_inv, filter_x_inv, 1)
             attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
             attn_box[tt] = tf.reshape(attn_box[tt],
                                       [-1, 1, inp_height, inp_width])
@@ -407,31 +410,31 @@ def get_model(opt, device='/cpu:0'):
                 grd_match = tf.expand_dims(grd_match, 2)
                 attn_ctr_gt_match = tf.reduce_sum(
                     grd_match * attn_ctr_gt_noise, 1)
-                attn_delta_gt_match = tf.reduce_sum(
-                    grd_match * attn_delta_gt_noise, 1)
+                attn_size_gt_match = tf.reduce_sum(
+                    grd_match * attn_size_gt_noise, 1)
 
                 _gt_knob_box = gt_knob_box
                 attn_ctr[tt] = phase_train_f * _gt_knob_box[:, tt, 0: 1] * \
                     attn_ctr_gt_match + \
                     (1 - phase_train_f * _gt_knob_box[:, tt, 0: 1]) * \
                     attn_ctr[tt]
-                attn_delta[tt] = phase_train_f * _gt_knob_box[:, tt, 0: 1] * \
-                    attn_delta_gt_match + \
+                attn_size[tt] = phase_train_f * _gt_knob_box[:, tt, 0: 1] * \
+                    attn_size_gt_match + \
                     (1 - phase_train_f * _gt_knob_box[:, tt, 0: 1]) * \
-                    attn_delta[tt]
+                    attn_size[tt]
 
-            attn_top_left[tt], attn_bot_right[tt] = get_attn_coord(
-                attn_ctr[tt], attn_delta[tt], attn_size)
+            attn_top_left[tt], attn_bot_right[tt] = get_box_coord(
+                attn_ctr[tt], attn_size[tt])
 
             # [B, H, A]
-            filter_y = get_attn_filter(
-                attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
-                attn_lg_var[tt][:, 0], inp_height, attn_size)
+            filter_y = get_gaussian_filter(
+                attn_ctr[tt][:, 0], attn_size[tt][:, 0],
+                attn_lg_var[tt][:, 0], inp_height, filter_size)
 
             # [B, W, A]
-            filter_x = get_attn_filter(
-                attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
-                attn_lg_var[tt][:, 1], inp_width, attn_size)
+            filter_x = get_gaussian_filter(
+                attn_ctr[tt][:, 1], attn_size[tt][:, 1],
+                attn_lg_var[tt][:, 1], inp_width, filter_size)
 
             # [B, A, H]
             filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
@@ -535,7 +538,7 @@ def get_model(opt, device='/cpu:0'):
                                          for tt in xrange(timespan)])
         else:
             iou_soft_box = f_iou(attn_box, attn_box_gt,
-                                  timespan, pairwise=True)
+                                 timespan, pairwise=True)
 
         model['iou_soft_box'] = iou_soft_box
         model['attn_box_gt'] = attn_box_gt
@@ -652,8 +655,8 @@ def get_model(opt, device='/cpu:0'):
                                        for tmp in attn_bot_right])
         attn_ctr = tf.concat(1, [tf.expand_dims(tmp, 1)
                                  for tmp in attn_ctr])
-        attn_delta = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                   for tmp in attn_delta])
+        attn_size = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                   for tmp in attn_size])
         attn_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
                                       for tmp in attn_lg_gamma])
         attn_box_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
@@ -665,7 +668,7 @@ def get_model(opt, device='/cpu:0'):
             attn_box_lg_gamma) / num_ex / timespan
         y_out_lg_gamma_mean = tf.reduce_sum(y_out_lg_gamma) / num_ex / timespan
         model['attn_ctr'] = attn_ctr
-        model['attn_delta'] = attn_delta
+        model['attn_size'] = attn_size
         model['attn_top_left'] = attn_top_left
         model['attn_bot_right'] = attn_bot_right
         model['attn_lg_gamma_mean'] = attn_lg_gamma_mean

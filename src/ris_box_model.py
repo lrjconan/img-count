@@ -11,7 +11,7 @@ import tensorflow as tf
 log = logger.get()
 
 
-def get_model(opt):
+def get_model(opt, device='/:cpu:0'):
     """The box model"""
     model = {}
 
@@ -20,7 +20,6 @@ def get_model(opt):
     inp_width = opt['inp_width']
     inp_depth = opt['inp_depth']
     padding = opt['padding']
-    attn_size = opt['attn_size']
 
     ctrl_cnn_filter_size = opt['ctrl_cnn_filter_size']
     ctrl_cnn_depth = opt['ctrl_cnn_depth']
@@ -34,14 +33,10 @@ def get_model(opt):
 
     wd = opt['weight_decay']
     use_bn = opt['use_bn']
-    use_gt_attn = opt['use_gt_attn']
-    segm_loss_fn = opt['segm_loss_fn']
     box_loss_fn = opt['box_loss_fn']
-    loss_mix_ratio = opt['loss_mix_ratio']
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
     steps_per_learn_rate_decay = opt['steps_per_learn_rate_decay']
-    use_attn_rnn = opt['use_attn_rnn']
     gt_selector = opt['gt_selector']
 
     rnd_hflip = opt['rnd_hflip']
@@ -49,7 +44,7 @@ def get_model(opt):
     rnd_transpose = opt['rnd_transpose']
     rnd_colour = opt['rnd_colour']
 
-    with tf.device(_get_device_fn(device)):
+    with tf.device(get_device_fn(device)):
         # Input definition
         # Input image, [B, H, W, D]
         x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
@@ -104,8 +99,6 @@ def get_model(opt):
         crnn_dim = ctrl_rnn_hid_dim
         canvas_dim = inp_height * inp_width / (ccnn_subsample ** 2)
         crnn_inp_dim = crnn_h * crnn_w * ccnn_channels[-1]
-        if downsample_canvas:
-            crnn_inp_dim += canvas_dim
         crnn_state = [None] * (timespan + 1)
         crnn_g_i = [None] * timespan
         crnn_g_f = [None] * timespan
@@ -124,33 +117,29 @@ def get_model(opt):
                       dropout_keep=cmlp_dropout,
                       phase_train=phase_train, wd=wd, scope='ctrl_mlp')
 
-        # Groundtruth bounding box, [B, T, 2]
-        attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, \
-            attn_top_left_gt, attn_bot_right_gt, idx_map = \
-            _get_gt_attn(y_gt, attn_size, padding_ratio=attn_box_padding_ratio,
-                         center_shift_ratio=0.0)
-        attn_ctr_gt_noise, attn_delta_gt_noise, attn_lg_var_gt_noise, \
-            attn_box_gt_noise, \
-            attn_top_left_gt_noise, attn_bot_right_gt_noise, idx_map_noise = \
-            _get_gt_attn(y_gt, attn_size,
-                         padding_ratio=tf.random_uniform(
-                             tf.pack([num_ex, timespan, 1]),
-                             attn_box_padding_ratio - gt_box_pad_noise,
-                             attn_box_padding_ratio + gt_box_pad_noise),
-                         center_shift_ratio=tf.random_uniform(
-                             tf.pack([num_ex, timespan, 2]),
-                             -gt_box_ctr_noise, gt_box_ctr_noise))
-        gtbox_top_left = [None] * timespan
-        gtbox_bot_right = [None] * timespan
+        # Groundtruth box parameters
+        # [B, T, 2]
+        box_top_left_gt, box_bot_right_gt, box_map_gt = get_gt_box(
+            y_gt, padding_ratio=attn_box_padding_ratio, center_shift_ratio=0.0)
+        box_ctr_gt, box_size_gt = get_box_ctr_size(
+            box_top_left_gt, box_bot_right_gt)
+        box_ctr_norm_gt = get_normalized_center(
+            box_ctr_gt, inp_height, inp_width)
+        box_size_log_gt = get_normalized_size(
+            box_size_gt, inp_height, inp_width)
+        box_params_gt = tf.concat(3, box_ctr_norm_gt, box_size_log_gt)
 
-        attn_ctr = [None] * timespan
-        attn_delta = [None] * timespan
-        attn_top_left = [None] * timespan
-        attn_bot_right = [None] * timespan
+        # Normalized box parameters
+        box_ctr_norm = [None] * timespan
+        box_size_log = [None] * timespan
 
-        # Attention box
-        attn_box = [None] * timespan
-        attn_iou_soft = [None] * timespan
+        # Unnormalized box parameters
+        box_ctr = [None] * timespan
+        box_delta = [None] * timespan
+        box_top_left = [None] * timespan
+        box_bot_right = [None] * timespan
+        box_map = [None] * timespan
+        box_iou_soft = [None] * timespan
 
         # Groundtruth mix.
         grd_match_cum = tf.zeros(tf.pack([num_ex, timespan]))
@@ -176,47 +165,30 @@ def get_model(opt):
                 crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
 
             ctrl_out = cmlp(h_crnn[tt])[-1]
-            _ctr = tf.slice(ctrl_out, [0, 0], [-1, 2])
-            _lg_delta = tf.slice(ctrl_out, [0, 2], [-1, 2])
-            attn_ctr[tt], attn_delta[tt] = _unnormalize_attn(
-                _ctr, _lg_delta, inp_height, inp_width, attn_size)
+            # [B, T, 2]
+            box_ctr_norm[tt] = tf.slice(ctrl_out, [0, 0], [-1, 2])
+            box_size_log[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
+            box_ctr[tt], box_size[tt] = get_unnormalized_attn(
+                box_ctr_norm, box_size_log, inp_height, inp_width)
+            box_top_left[tt], box_bot_right[tt] = \
+                get_box_coord(box_ctr[tt], box_size[tt])
+            _idx_map = get_idx_map(tf.pack([num_ex, inp_height, inp_width]))
+            # [B, H, W]
+            box_map[tt] = get_filled_box_idx(
+                _idx_map, box_top_left[tt], box_bot_right[tt])
+            # [B, 1, H, W]
+            box_map[tt] = tf.expand_dims(box_map[tt], 1)
 
-            # Attention box
-            # New box method.
-            # attn_box[tt] = _extract_patch(const_ones * attn_box_gamma[tt],
-            #                               filter_y_inv, filter_x_inv, 1)
-
-            # IOU [B, 1, T]
             # [B, 1, H, W] * [B, T, H, W] = [B, T]
-            attn_iou_soft[tt] = _inter(attn_box[tt], attn_box_gt) / \
-                _union(attn_box[tt], attn_box_gt, eps=1e-5)
-            attn_iou_soft[tt] += iou_bias
-            grd_match = _greedy_match(attn_iou_soft[tt], grd_match_cum)
+            box_iou_soft[tt] = f_inter(box_map[tt], box_map_gt) / \
+                f_union(box_map[tt], box_map_gt, eps=1e-5)
+            box_iou_soft[tt] += iou_bias
+            grd_match = f_greedy_match(box_iou_soft[tt], grd_match_cum)
 
             if gt_selector == 'greedy_match':
                 # Add in the cumulative matching to not double count.
                 grd_match_cum += grd_match
 
-            # [B, T, 1]
-            grd_match = tf.expand_dims(grd_match, 2)
-            attn_ctr_gt_match = tf.reduce_sum(
-                grd_match * attn_ctr_gt_noise, 1)
-            attn_delta_gt_match = tf.reduce_sum(
-                grd_match * attn_delta_gt_noise, 1)
-
-            _gt_knob_box = gt_knob_box
-            attn_ctr[tt] = phase_train_f * _gt_knob_box[:, tt, 0: 1] * \
-                attn_ctr_gt_match + \
-                (1 - phase_train_f * _gt_knob_box[:, tt, 0: 1]) * \
-                attn_ctr[tt]
-            attn_delta[tt] = phase_train_f * _gt_knob_box[:, tt, 0: 1] * \
-                attn_delta_gt_match + \
-                (1 - phase_train_f * _gt_knob_box[:, tt, 0: 1]) * \
-                attn_delta[tt]
-            attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
-                attn_ctr[tt], attn_delta[tt], attn_size)
-
-            # Here is the knob kick in GT segmentations at this timestep.
             # [B, N, 1, 1]
             grd_match = tf.expand_dims(tf.expand_dims(grd_match, 2), 3)
             _y_out = tf.expand_dims(tf.reduce_sum(
@@ -228,8 +200,30 @@ def get_model(opt):
             _y_out = _y_out - _y_out * _noise
             canvas += tf.stop_gradient(_y_out)
 
-        attn_box = tf.concat(1, attn_box)
-        model['attn_box'] = attn_box
+        # Box map
+        box_map = tf.concat(1, box_map)
+        model['box_map'] = box_map
+
+        # Box unnormalized coordinates
+        box_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                     for tmp in box_top_left])
+        box_bot_right = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                      for tmp in box_bot_right])
+        box_ctr = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in box_ctr])
+        box_size = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in box_size])
+        model['box_top_left'] = box_top_left
+        model['box_bot_right'] = box_bot_right
+        model['box_ctr'] = box_ctr
+        model['box_size'] = box_size
+
+        # Box normalized coordinates
+        box_ctr_norm = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                     for tmp in box_ctr_norm])
+        box_size_norm = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                      for tmp in box_size_log])
+        box_params = tf.concat(3, [box_ctr_norm, box_size_log])
+        model['box_ctr_norm'] = box_ctr
+        model['box_size_log'] = box_delta
 
         # Loss function
         learn_rate = tf.train.exponential_decay(
@@ -244,15 +238,15 @@ def get_model(opt):
 
         # Loss for attnention box
         if use_knob:
-            iou_soft_box = tf.concat(1, [tf.expand_dims(attn_iou_soft[tt], 1)
+            iou_soft_box = tf.concat(1, [tf.expand_dims(box_iou_soft[tt], 1)
                                          for tt in xrange(timespan)])
         else:
-            iou_soft_box = _f_iou(attn_box, attn_box_gt,
-                                  timespan, pairwise=True)
+            iou_soft_box = f_iou(box_map, box_map_gt,
+                                 timespan, pairwise=True)
 
         model['iou_soft_box'] = iou_soft_box
-        model['attn_box_gt'] = attn_box_gt
-        match_box = _segm_match(iou_soft_box, s_gt)
+        model['box_map_gt'] = attn_box_gt
+        match_box = segm_match(iou_soft_box, s_gt)
         model['match_box'] = match_box
         match_sum_box = tf.reduce_sum(match_box, reduction_indices=[2])
         match_count_box = tf.reduce_sum(
@@ -261,18 +255,22 @@ def get_model(opt):
         iou_soft_box_mask = tf.reduce_sum(iou_soft_box * match_box, [1])
         iou_soft_box = tf.reduce_sum(tf.reduce_sum(iou_soft_box_mask, [1])
                                      / match_count_box) / num_ex
-        gt_wt_box = _coverage_weight(attn_box_gt)
+        gt_wt_box = get_coverage_weight(attn_box_gt)
         wt_iou_soft_box = tf.reduce_sum(tf.reduce_sum(
             iou_soft_box_mask * gt_wt_box, [1])
             / match_count_box) / num_ex
-        if box_loss_fn == 'iou':
+        if box_loss_fn == 'mse':
+            box_loss = f_mse(box_params, box_params_gt)
+        elif box_loss_fn == 'huber':
+            box_loss = f_huber(box_params, box_params_gt)
+        elif box_loss_fn == 'iou':
             box_loss = -iou_soft_box
         elif box_loss_fn == 'wt_iou':
             box_loss = -wt_iou_soft_box
         elif box_loss_fn == 'wt_cov':
-            box_loss = -_weighted_coverage_score(iou_soft_box, attn_box_gt)
+            box_loss = -f_weighted_coverage(iou_soft_box, attn_box_gt)
         elif box_loss_fn == 'bce':
-            box_loss = _match_bce(attn_box, attn_box_gt, match_box, timespan)
+            box_loss = f_match_bce(attn_box, attn_box_gt, match_box, timespan)
         else:
             raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
         model['box_loss'] = box_loss
@@ -288,20 +286,6 @@ def get_model(opt):
             tf.train.AdamOptimizer(learn_rate, epsilon=eps),
             clip=1.0).minimize(total_loss, global_step=global_step)
         model['train_step'] = train_step
-
-        # Attention coordinate for debugging [B, T, 2]
-        attn_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                      for tmp in attn_top_left])
-        attn_bot_right = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                       for tmp in attn_bot_right])
-        attn_ctr = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                 for tmp in attn_ctr])
-        attn_delta = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                   for tmp in attn_delta])
-        model['attn_ctr'] = attn_ctr
-        model['attn_delta'] = attn_delta
-        model['attn_top_left'] = attn_top_left
-        model['attn_bot_right'] = attn_bot_right
 
         # Ctrl RNN gate statistics
         crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
