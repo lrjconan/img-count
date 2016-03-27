@@ -349,14 +349,6 @@ def get_model(opt, device='/cpu:0'):
             h_crnn[tt] = tf.slice(
                 crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
 
-            # if use_gt_attn:
-            #     attn_ctr[tt] = attn_ctr_gt[:, tt, :]
-            #     attn_size[tt] = attn_size_gt[:, tt, :]
-            #     attn_lg_var[tt] = attn_lg_var_gt[:, tt, :]
-            #     attn_lg_gamma[tt] = attn_lg_gamma_gt[:, tt, :]
-            #     attn_box_lg_gamma[tt] = attn_box_lg_gamma_gt[:, tt, :]
-            #     y_out_lg_gamma[tt] = y_out_lg_gamma_gt[:, tt, :]
-            # else:
             ctrl_out = cmlp(h_crnn[tt])[-1]
             attn_ctr_norm[tt] = tf.slice(ctrl_out, [0, 0], [-1, 2])
             attn_lg_size[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
@@ -551,7 +543,7 @@ def get_model(opt, device='/cpu:0'):
         iou_soft_box_mask = tf.reduce_sum(iou_soft_box * match_box, [1])
         iou_soft_box = tf.reduce_sum(tf.reduce_sum(iou_soft_box_mask, [1])
                                      / match_count_box) / num_ex
-        gt_wt_box = coverage_weight(attn_box_gt)
+        gt_wt_box = f_coverage_weight(attn_box_gt)
         wt_iou_soft_box = tf.reduce_sum(tf.reduce_sum(
             iou_soft_box_mask * gt_wt_box, [1])
             / match_count_box) / num_ex

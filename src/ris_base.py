@@ -98,9 +98,9 @@ def f_union(a, b, eps=1e-5):
 
 def _get_reduction_indices(a):
     """Gets the list of axes to sum over."""
-    dim = len(a.get_shape())
+    dim = tf.shape(tf.shape(a))
 
-    return [dim - 2, dim - 1]
+    return tf.concat(0, [dim - 2, dim - 1])
 
 
 def f_iou(a, b, timespan=None, pairwise=False):
@@ -149,7 +149,7 @@ def f_coverage(iou):
     return tf.reduce_max(iou, [1])
 
 
-def coverage_weight(y_gt):
+def f_coverage_weight(y_gt):
     """
     Compute the normalized weight for each groundtruth instance.
     """
@@ -643,11 +643,12 @@ def get_filled_box_idx(idx, top_left, bot_right):
     # upper = tf.logical_and(idx_y <= bot_right_y, idx_x <= bot_right_x)
     # box = tf.to_float(tf.logical_and(lower, upper))
 
-    ndims = tf.shape(tf.shape(idx))
-    top_left = tf.expand_dims(tf.expand_dims(
-        top_left, ndims[0] - 3), ndims[0] - 2)
-    bot_right = tf.expand_dims(tf.expand_dims(
-        bot_right, ndims[0] - 3), ndims[0] - 2)
+    ss = tf.shape(idx)
+    ndims = tf.shape(ss)
+    batch = tf.slice(ss, [0], ndims - 3)
+    coord_shape = tf.concat(0, [batch, tf.constant([1, 1, 2])])
+    top_left = tf.reshape(top_left, coord_shape)
+    bot_right = tf.reshape(bot_right, coord_shape)
     lower = tf.reduce_prod(tf.to_float(idx >= top_left), ndims - 1)
     upper = tf.reduce_prod(tf.to_float(idx >= bot_right), ndims - 1)
     box = lower * upper
@@ -691,22 +692,22 @@ def get_normalized_center(ctr, inp_height, inp_width):
     return ctr
 
 
-def get_unnormalized_size(lg_delta, inp_height, inp_width):
+def get_unnormalized_size(lg_size, inp_height, inp_width):
     """Get unnormalized patch size.
 
     Args:
-        lg_delta: [B, 2], logarithm of delta.
+        lg_size: [B, T, 2] or [B, 2] or [2], logarithm of delta.
         inp_height: int, image height.
         inp_width: int, image width.
 
     Returns:
-        patch: [B, 2], patch size.
+        size: [B, T, 2] or [B, 2] or [2], patch size.
     """
-    delta = tf.exp(lg_delta)
+    size = tf.exp(lg_size)
     img_size = tf.to_float(tf.pack([inp_height, inp_width]))
-    patch = delta * img_size
+    size *= img_size
 
-    return patch
+    return size
 
 
 def get_normalized_size(size, inp_height, inp_width):
@@ -722,7 +723,7 @@ def get_normalized_size(size, inp_height, inp_width):
         lg_delta: [B, 2], logarithm of delta.
     """
     img_size = tf.to_float(tf.pack([inp_height, inp_width]))
-    lg_size = tf.log(size / image_size)
+    lg_size = tf.log(size / img_size)
 
     return lg_size
 

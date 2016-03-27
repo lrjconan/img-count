@@ -1184,7 +1184,7 @@ if __name__ == '__main__':
                                      max_items_per_row=_max_items)
 
             if fname_box:
-                plot_output(fname_box, y_out=_r['attn_box'], s_out=_r['s_out'],
+                plot_output(fname_box, y_out=_r['attn_box_gt'], s_out=_r['s_out'],
                             match=_r['match_box'],
                             attn=(_r['attn_top_left'], _r['attn_bot_right']),
                             max_items_per_row=_max_items)
