@@ -650,7 +650,7 @@ def get_filled_box_idx(idx, top_left, bot_right):
     top_left = tf.reshape(top_left, coord_shape)
     bot_right = tf.reshape(bot_right, coord_shape)
     lower = tf.reduce_prod(tf.to_float(idx >= top_left), ndims - 1)
-    upper = tf.reduce_prod(tf.to_float(idx >= bot_right), ndims - 1)
+    upper = tf.reduce_prod(tf.to_float(idx <= bot_right), ndims - 1)
     box = lower * upper
 
     return box
