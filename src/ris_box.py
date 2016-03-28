@@ -311,7 +311,7 @@ def _get_max_items_per_row(inp_height, inp_width):
 
 
 def _get_num_batch_valid():
-    return 1
+    return 10
 
 
 def _get_batch_fn(dataset):
