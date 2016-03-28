@@ -628,7 +628,7 @@ def _make_model_opt(args):
     else:
         raise Exception('Unknown dataset name')
 
-    if args.model == 'attention':
+    if args.model == 'attention' or args.model == 'double_attention':
         ccnn_fsize_list = args.ctrl_cnn_filter_size.split(',')
         ccnn_fsize_list = [int(fsize) for fsize in ccnn_fsize_list]
         ccnn_depth_list = args.ctrl_cnn_depth.split(',')
@@ -714,6 +714,12 @@ def _make_model_opt(args):
             'rnd_transpose': rnd_transpose,
             'rnd_colour': rnd_colour,
         }
+        if args.model == 'double_attention':
+            # model['num_ctrl_rnn_iter'] = args.num_ctrl_rnn_iter
+            # model['num_glimpse_mlp_layers'] = args.num_glimpse_mlp_layers
+            model['num_ctrl_rnn_iter'] = 5
+            model['num_glimpse_mlp_layers'] = 1
+
     elif args.model == 'vanilla':
         cnn_fsize_list = args.cnn_filter_size.split(',')
         cnn_fsize_list = [int(fsize) for fsize in cnn_fsize_list]
