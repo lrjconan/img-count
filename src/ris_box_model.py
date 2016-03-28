@@ -187,10 +187,10 @@ def get_model(opt, device='/:cpu:0'):
             # [B, 1, H, W] * [B, T, H, W] = [B, T]
             # box_iou_soft[tt] = f_inter(box_map[tt], box_map_gt) / \
             #     f_union(box_map[tt], box_map_gt, eps=1e-5)
-            _top_left = tf.expand_dims(attn_top_left[tt], 1)
-            _bot_right = tf.expand_dims(attn_bot_right[tt], 1)
+            _top_left = tf.expand_dims(box_top_left[tt], 1)
+            _bot_right = tf.expand_dims(box_bot_right[tt], 1)
             iou_soft_box[tt] = f_iou_box(
-                _top_left, _bot_right, attn_top_left_gt, attn_bot_right_gt)
+                _top_left, _bot_right, box_top_left_gt, box_bot_right_gt)
             box_iou_soft[tt] += iou_bias
             grd_match = f_greedy_match(box_iou_soft[tt], grd_match_cum)
 
