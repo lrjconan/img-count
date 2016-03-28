@@ -51,20 +51,71 @@ def get_dataset(opt):
     return dataset
 
 
+def plot_output(fname, y_out, s_out, match, attn=None, max_items_per_row=9):
+    """Plot some test samples.
+
+    Args:
+        fname: str, image output filename.
+        y_out: [B, T, H, W, D], segmentation output of the model.
+        s_out: [B, T], confidence score output of the model.
+        match: [B, T, T], matching matrix.
+        attn: ([B, T, 2], [B, T, 2]), top left and bottom right coordinates of
+        the attention box.
+    """
+    num_ex = y_out.shape[0]
+    num_items = y_out.shape[1]
+    num_row, num_col, calc = pu.calc_row_col(
+        num_ex, num_items, max_items_per_row=max_items_per_row)
+
+    f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
+    cmap = ['r', 'y', 'c', 'g', 'm']
+
+    if attn:
+        attn_top_left_y = attn[0][:, :, 0]
+        attn_top_left_x = attn[0][:, :, 1]
+        attn_bot_right_y = attn[1][:, :, 0]
+        attn_bot_right_x = attn[1][:, :, 1]
+
+    pu.set_axis_off(axarr, num_row, num_col)
+
+    for ii in xrange(num_ex):
+        for jj in xrange(num_items):
+            row, col = calc(ii, jj)
+            axarr[row, col].imshow(y_out[ii, jj])
+            matched = match[ii, jj].nonzero()[0]
+            axarr[row, col].text(0, 0, '{:.2f} {}'.format(
+                s_out[ii, jj], matched),
+                color=(0, 0, 0), size=8)
+
+            if attn:
+                # Plot attention box.
+                axarr[row, col].add_patch(patches.Rectangle(
+                    (attn_top_left_x[ii, jj], attn_top_left_y[ii, jj]),
+                    attn_bot_right_x[ii, jj] - attn_top_left_x[ii, jj],
+                    attn_bot_right_y[ii, jj] - attn_top_left_y[ii, jj],
+                    fill=False,
+                    color='g'))
+
+    plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
+    plt.savefig(fname, dpi=150)
+    plt.close('all')
+
+    pass
+
 
 def _add_model_args(parser):
     # Default model options
     kCtrlCnnFilterSize = '3,3,3,3,3,3,3,3,3,3'
     kCtrlCnnDepth = '4,4,8,8,16,16,32,32,64,64'
     kCtrlCnnPool = '1,2,1,2,1,2,1,2,1,2'
-    
+
     parser.add_argument('-ctrl_cnn_filter_size', default=kCtrlCnnFilterSize,
                         help='Comma delimited integers')
     parser.add_argument('-ctrl_cnn_depth', default=kCtrlCnnDepth,
                         help='Comma delimited integers')
     parser.add_argument('-ctrl_cnn_pool', default=kCtrlCnnPool,
                         help='Comma delimited integers')
-    
+
     pass
 
 
@@ -213,9 +264,12 @@ def _get_ts_loggers(model_opt):
         name='Loss',
         buffer_size=1)
     loggers['iou'] = TimeSeriesLogger(
-        os.path.join(logs_folder, 'iou.csv'),
-        ['train soft', 'valid soft', 'train hard', 'valid hard'],
+        os.path.join(logs_folder, 'iou.csv'), ['train', 'valid'],
         name='IoU',
+        buffer_size=1)
+    loggers['wt_iou'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'iou.csv'), ['train', 'valid'],
+        name='Weighted IoU',
         buffer_size=1)
     loggers['step_time'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
@@ -262,10 +316,11 @@ def _get_batch_fn(dataset):
     """
     def get_batch(idx):
         x_bat = dataset['input'][idx]
-        y_bat = dataset['label'][idx]
-        x_bat, y_bat = preprocess(x_bat, y_bat)
+        y_bat = dataset['label_segmentation'][idx]
+        s_bat = dataset['label_score'][idx]
+        x_bat, y_bat, s_bat = preprocess(x_bat, y_bat, s_bat)
 
-        return x_bat, y_bat
+        return x_bat, y_bat, s_bat
 
     return get_batch
 
@@ -280,11 +335,12 @@ def _run_model(m, names, feed_dict):
     return results_dict
 
 
-def preprocess(inp, label):
+def preprocess(inp, label_segmentation, label_score):
     """Preprocess training data."""
-    ls = label.shape
-    return (inp.astype('float32') / 255,
-            label.astype('float32').reshape(ls[0], ls[1], ls[2], 1))
+    return (inp.astype('float32') / 255, 
+            label_segmentation.astype('float32'),
+            label_score.astype('float32'))
+
 
 if __name__ == '__main__':
     # Command-line arguments
@@ -353,21 +409,30 @@ if __name__ == '__main__':
 
     def run_samples():
         """Samples"""
-        def _run_samples(x, y, phase_train, fname_input, fname_output):
-            _outputs = ['x_trans', 'y_gt_trans', 'y_out']
+        def _run_samples(x, y, s, phase_train, fname_input, fname_output):
+            _outputs = ['x_trans', 'y_gt_trans', 'box_top_left',
+                        'box_bot_right', 'box_top_left_gt', 'box_bot_right_gt',
+                        'match_box']
             _max_items = _get_max_items_per_row(x.shape[1], x.shape[2])
 
             _feed_dict = {m['x']: x, m['phase_train']: phase_train,
-                          m['y_gt']: y}
+                          m['y_gt']: y, m['s_gt']: s}
             _r = _run_model(m, _outputs, _feed_dict)
 
-            pu.plot_thumbnails(fname_input, _r['x_trans'].reshape(
-                x.shape[0], 1, x.shape[1], x.shape[2], x.shape[3]), axis=1,
-                max_items_per_row=_max_items)
+            _x = np.expand_dims(_r['x_trans'], 1)
+            _x = np.tile(_x, [1, y.shape[1], 1, 1, 1])
 
-            pu.plot_thumbnails(fname_output, _r['y_out'].reshape(
-                y.shape[0], y.shape[1], y.shape[2], 1), axis=3,
-                max_items_per_row=_max_items)
+            plot_output(fname_input, _x,
+                        s_out=s_gt,
+                        match=_r['match_box'],
+                        attn=(_r['box_top_left_gt'], _r['box_bot_right_gt']),
+                        max_items_per_row=_max_items)
+
+            plot_output(fname_input, _x,
+                        s_out=s_gt,
+                        match=_r['match_box'],
+                        attn=(_r['box_top_left'], _r['box_bot_right']),
+                        max_items_per_row=_max_items)
 
             pass
 
@@ -381,11 +446,11 @@ if __name__ == '__main__':
             _get_batch = get_batch_train if _is_train else get_batch_valid
             _num_ex = num_ex_train if _is_train else num_ex_valid
             log.info('Plotting {} samples'.format(_set))
-            _x, _y = _get_batch(
+            _x, _y, _s = _get_batch(
                 np.arange(min(_num_ex, args.num_samples_plot)))
 
             _run_samples(
-                _x, _y, _is_train,
+                _x, _y, _s, _is_train,
                 fname_input=samples['input_{}'.format(_set)].get_fname(),
                 fname_output=samples['output_{}'.format(_set)].get_fname())
 
@@ -396,12 +461,12 @@ if __name__ == '__main__':
         pass
 
     def get_outputs_valid():
-        _outputs = ['loss', 'iou_soft', 'iou_hard']
+        _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box']
 
         return _outputs
 
     def get_outputs_trainval():
-        _outputs = ['loss', 'iou_soft', 'iou_hard']
+        _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box']
 
         return _outputs
 
@@ -411,9 +476,9 @@ if __name__ == '__main__':
         r = {}
 
         for bb in xrange(num_batch):
-            _x, _y = batch_iter.next()
+            _x, _y, _s = batch_iter.next()
             _feed_dict = {m['x']: _x, m['phase_train']: phase_train,
-                          m['y_gt']: _y}
+                          m['y_gt']: _y, m['s_gt']: _s}
             _r = _run_model(m, outputs, _feed_dict)
             bat_sz = _x.shape[0]
 
@@ -430,20 +495,23 @@ if __name__ == '__main__':
 
     def write_log_valid(loggers, r):
         loggers['loss'].add(step, ['', r['loss']])
-        loggers['iou'].add(step, ['', r['iou_soft'], '', r['iou_hard']])
+        loggers['iou'].add(step, ['', r['iou_soft_box']])
+        loggers['wt_iou'].add(step, ['', r['wt_iou_soft_box']])
 
         pass
 
     def write_log_trainval(loggers, r, bn=False):
         loggers['loss'].add(step, [r['loss'], ''])
-        loggers['iou'].add(step, [r['iou_soft'], '', r['iou_hard'], ''])
+        loggers['iou'].add(step, [r['iou_soft_box'], ''])
+        loggers['wt_iou'].add(step, [r['wt_iou_soft_box'], ''])
 
         pass
 
-    def train_step(step, x, y):
+    def train_step(step, x, y, s):
         """Train step"""
         _outputs = ['loss', 'train_step']
-        _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y}
+        _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
+                      m['s_gt']: s}
         _start_time = time.time()
         r = _run_model(m, _outputs, _feed_dict)
         _step_time = (time.time() - _start_time) * 1000
@@ -474,7 +542,7 @@ if __name__ == '__main__':
                                             progress_bar=False)
         outputs_trainval = get_outputs_trainval()
 
-        for _x, _y in BatchIterator(num_ex_train,
+        for _x, _y, _s in BatchIterator(num_ex_train,
                                     batch_size=batch_size,
                                     get_fn=get_batch_train,
                                     cycle=True,
@@ -500,7 +568,7 @@ if __name__ == '__main__':
                 pass
 
             # Train step
-            train_step(step, _x, _y)
+            train_step(step, _x, _y, _s)
 
             # Model ID reminder
             if step % (10 * train_opt['steps_per_log']) == 0:

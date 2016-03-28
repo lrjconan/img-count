@@ -127,7 +127,7 @@ def get_model(opt, device='/:cpu:0'):
             box_ctr_gt, inp_height, inp_width)
         box_size_log_gt = get_normalized_size(
             box_size_gt, inp_height, inp_width)
-        box_params_gt = tf.concat(3, [box_ctr_norm_gt, box_size_log_gt])
+        box_params_gt = tf.concat(2, [box_ctr_norm_gt, box_size_log_gt])
 
         # Normalized box parameters
         box_ctr_norm = [None] * timespan
@@ -214,6 +214,8 @@ def get_model(opt, device='/:cpu:0'):
         model['box_bot_right'] = box_bot_right
         model['box_ctr'] = box_ctr
         model['box_size'] = box_size
+        model['box_top_left_gt'] = box_top_left_gt
+        model['box_bot_right_gt'] = box_bot_right_gt
 
         # Box normalized coordinates
         box_ctr_norm = tf.concat(1, [tf.expand_dims(tmp, 1)
@@ -254,6 +256,7 @@ def get_model(opt, device='/:cpu:0'):
         wt_iou_soft_box = tf.reduce_sum(tf.reduce_sum(
             iou_soft_box_mask * gt_wt_box, [1])
             / match_count_box) / num_ex
+        model['wt_iou_soft_box'] = wt_iou_soft_box
         if box_loss_fn == 'mse':
             box_loss = f_mse(box_params, box_params_gt)
         elif box_loss_fn == 'huber':

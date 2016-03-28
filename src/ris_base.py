@@ -573,13 +573,14 @@ def get_gt_box(y_gt, padding_ratio=0.0, center_shift_ratio=0.0):
     # [B, T, 2]
     top_left = tf.reduce_min(idx_min, reduction_indices=[2, 3])
     bot_right = tf.reduce_max(idx_max, reduction_indices=[2, 3])
+    min_padding = 10
 
     # Enlarge the groundtruth box by some padding.
     size = bot_right - top_left
     top_left += center_shift_ratio * size
-    top_left -= padding_ratio * size
+    top_left -= tf.maximum(padding_ratio * size, min_padding)
     bot_right += center_shift_ratio * size
-    bot_right += padding_ratio * size
+    bot_right += tf.maximum(padding_ratio * size, min_padding)
     box = get_filled_box_idx(idx, top_left, bot_right)
 
     return top_left, bot_right, box
