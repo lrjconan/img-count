@@ -117,6 +117,10 @@ def get_model(opt, device='/:cpu:0'):
                       dropout_keep=cmlp_dropout,
                       phase_train=phase_train, wd=wd, scope='ctrl_mlp')
 
+        # Score MLP definition
+        smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd, scope='score_mlp')
+        s_out = [None] * timespan
+
         # Groundtruth box parameters
         # [B, T, 2]
         box_top_left_gt, box_bot_right_gt, box_map_gt = get_gt_box(
@@ -173,6 +177,7 @@ def get_model(opt, device='/:cpu:0'):
             box_top_left[tt], box_bot_right[tt] = \
                 get_box_coord(box_ctr[tt], box_size[tt])
             _idx_map = get_idx_map(tf.pack([num_ex, inp_height, inp_width]))
+
             # [B, H, W]
             box_map[tt] = get_filled_box_idx(
                 _idx_map, box_top_left[tt], box_bot_right[tt])
@@ -198,6 +203,13 @@ def get_model(opt, device='/:cpu:0'):
                 tf.pack([num_ex, inp_height, inp_width, 1]), 0, 0.3)
             _y_out = _y_out - _y_out * _noise
             canvas += tf.stop_gradient(_y_out)
+
+            # Scoring network
+            s_out[tt] = smlp(h_crnn[tt])[-1]
+
+        # Scores
+        s_out = tf.concat(1, s_out)
+        model['s_out'] = s_out
 
         # Box map
         box_map = tf.concat(1, box_map)
@@ -239,7 +251,7 @@ def get_model(opt, device='/:cpu:0'):
         num_ex = tf.to_float(y_gt_shape[0])
         max_num_obj = tf.to_float(y_gt_shape[1])
 
-        # Loss for attnention box
+        # Loss for box
         iou_soft_box = tf.concat(1, [tf.expand_dims(box_iou_soft[tt], 1)
                                      for tt in xrange(timespan)])
 
@@ -281,6 +293,12 @@ def get_model(opt, device='/:cpu:0'):
 
         box_loss_coeff = tf.constant(1.0)
         tf.add_to_collection('losses', box_loss_coeff * box_loss)
+
+        # Score loss
+        conf_loss = f_conf_loss(s_out, match, timespan, use_cum_min=True)
+        model['conf_loss'] = conf_loss
+        conf_loss_coeff = tf.constant(1.0)
+        tf.add_to_collection('losses', conf_loss_coeff * conf_loss)
 
         total_loss = tf.add_n(tf.get_collection(
             'losses'), name='total_loss')

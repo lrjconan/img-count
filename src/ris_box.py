@@ -416,7 +416,7 @@ if __name__ == '__main__':
         def _run_samples(x, y, s, phase_train, fname_input, fname_output):
             _outputs = ['x_trans', 'y_gt_trans', 'box_top_left',
                         'box_bot_right', 'box_top_left_gt', 'box_bot_right_gt',
-                        'match_box']
+                        'match_box', 's_out']
             _max_items = _get_max_items_per_row(x.shape[1], x.shape[2])
 
             _feed_dict = {m['x']: x, m['phase_train']: phase_train,
@@ -433,7 +433,7 @@ if __name__ == '__main__':
                         max_items_per_row=_max_items)
 
             plot_output(fname_output, _x,
-                        s_out=s,
+                        s_out=_r['s_out'],
                         match=_r['match_box'],
                         attn=(_r['box_top_left'], _r['box_bot_right']),
                         max_items_per_row=_max_items)

@@ -167,7 +167,7 @@ def get_model(opt, device='/cpu:0'):
                       phase_train=phase_train, wd=wd, scope='ctrl_mlp')
 
         # Score MLP definition
-        smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd, scope='smlp')
+        smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd, scope='score_mlp')
         s_out = [None] * timespan
 
         # Groundtruth bounding box, [B, T, 2]
