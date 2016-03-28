@@ -536,7 +536,7 @@ def get_model(opt, device='/cpu:0'):
 
         # Loss for attnention box
         if use_knob:
-            iou_soft_box = tf.concat(1, [tf.expand_dims(iou_sof_box[tt], 1)
+            iou_soft_box = tf.concat(1, [tf.expand_dims(iou_soft_box[tt], 1)
                                          for tt in xrange(timespan)])
         else:
             iou_soft_box = f_iou(attn_box, attn_box_gt,
