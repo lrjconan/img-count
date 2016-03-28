@@ -351,7 +351,7 @@ if __name__ == '__main__':
     model_opt = _make_model_opt(args)
     data_opt = _make_data_opt(args)
 
-    model_id = _get_model_id('fg_segm')
+    model_id = _get_model_id('ris_box')
     step = 0
     exp_folder = os.path.join(train_opt['results'], model_id)
     saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)

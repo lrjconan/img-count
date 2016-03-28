@@ -276,26 +276,25 @@ def f_bce(y_out, y_gt):
     return -y_gt * tf.log(y_out + eps) - (1 - y_gt) * tf.log(1 - y_out + eps)
 
 
-def f_match_bce(y_out, y_gt, match, timespan):
+def f_match_loss(y_out, y_gt, match, timespan, loss_fn):
     """Binary cross entropy with matching.
 
     Args:
-        y_out: [B, N, H, W]
-        y_gt: [B, N, H, W]
+        y_out: [B, N, H, W] or [B, N, D]
+        y_gt: [B, N, H, W] or [B, N, D]
         match: [B, N, N]
         match_count: [B]
-        num_ex: [1]
         timespan: N
+        loss_fn: 
     """
     # N * [B, 1, H, W]
     y_out_list = tf.split(1, timespan, y_out)
     # N * [B, 1, N]
     match_list = tf.split(1, timespan, match)
-    bce_list = [None] * timespan
+    err_list = [None] * timespan
     shape = tf.shape(y_out)
     num_ex = tf.to_float(shape[0])
-    height = tf.to_float(shape[2])
-    width = tf.to_float(shape[3])
+    num_dim = tf.to_float(tf.reduce_prod(shape[2:]))
 
     # [B, N, M] => [B, N]
     match_sum = tf.reduce_sum(match, reduction_indices=[2])
@@ -306,15 +305,15 @@ def f_match_bce(y_out, y_gt, match, timespan):
         # [B, 1, H, W] * [B, N, H, W] => [B, N, H, W] => [B, N]
         # [B, N] * [B, N] => [B]
         # [B] => [B, 1]
-        bce_list[ii] = tf.expand_dims(tf.reduce_sum(tf.reduce_sum(
-            f_bce(y_out_list[ii], y_gt), reduction_indices=[2, 3]) *
+        err_list[ii] = tf.expand_dims(tf.reduce_sum(tf.reduce_sum(
+            loss_fn(y_out_list[ii], y_gt), reduction_indices=[2, 3]) *
             tf.reshape(match_list[ii], [-1, timespan]),
             reduction_indices=[1]), 1)
 
     # N * [B, 1] => [B, N] => [B]
-    bce_total = tf.reduce_sum(tf.concat(1, bce_list), reduction_indices=[1])
+    err_total = tf.reduce_sum(tf.concat(1, err_list), reduction_indices=[1])
 
-    return tf.reduce_sum(bce_total / match_count) / num_ex / height / width
+    return tf.reduce_sum(err_total / match_count) / num_ex / num_dim
 
 
 def f_count_acc(s_out, s_gt):
@@ -368,10 +367,11 @@ def f_huber(y_out, y_gt, threshold=1.0):
     squared_err = 0.5 * err * err
     l1_err = tf.abs(err) - (threshold - 0.5 * (threshold ** 2))
     huber = squared_err * ind + l1_err * (1 - ind)
-    return tf.reduce_sum(huber) / tf.to_float(size)
+
+    return huber
 
 
-def f_mse(y_out, y_gt):
+def f_squared_err(y_out, y_gt):
     """Mean squared error (L2) loss.
 
     Args:
@@ -381,10 +381,10 @@ def f_mse(y_out, y_gt):
     Returns:
         mse:
     """
-    size = tf.size(y_out)
     err = y_out - y_gt
     squared_err = 0.5 * err * err
-    return tf.reduce_sum(squared_err) / tf.to_float(size)
+
+    return squared_err
 
 
 def build_skip_conn_inner(cnn_channels, h_cnn, x):
@@ -513,7 +513,6 @@ def get_gaussian_filter(center, size, lg_var, image_size, filter_size):
         tf.exp(-0.5 * (span - mu) * (span - mu) / tf.exp(lg_var)))
 
     return filter
-
 
 
 def extract_patch(x, f_y, f_x, nchannels):

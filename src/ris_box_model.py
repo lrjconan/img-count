@@ -221,7 +221,7 @@ def get_model(opt, device='/:cpu:0'):
         box_ctr_norm = tf.concat(1, [tf.expand_dims(tmp, 1)
                                      for tmp in box_ctr_norm])
         box_size_log = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                      for tmp in box_size_log])
+                                     for tmp in box_size_log])
         box_params = tf.concat(2, [box_ctr_norm, box_size_log])
         model['box_ctr_norm'] = box_ctr_norm
         model['box_size_log'] = box_size_log
@@ -258,9 +258,11 @@ def get_model(opt, device='/:cpu:0'):
             / match_count_box) / num_ex
         model['wt_iou_soft_box'] = wt_iou_soft_box
         if box_loss_fn == 'mse':
-            box_loss = f_mse(box_params, box_params_gt)
+            box_loss = f_match_loss(
+                box_params, box_params_gt, match_box, timespan, f_squared_err)
         elif box_loss_fn == 'huber':
-            box_loss = f_huber(box_params, box_params_gt)
+            box_loss = f_match_loss(
+                box_params, box_params_gt, match_box, timespan, f_huber)
         elif box_loss_fn == 'iou':
             box_loss = -iou_soft_box
         elif box_loss_fn == 'wt_iou':
@@ -268,7 +270,8 @@ def get_model(opt, device='/:cpu:0'):
         elif box_loss_fn == 'wt_cov':
             box_loss = -f_weighted_coverage(iou_soft_box, box_map_gt)
         elif box_loss_fn == 'bce':
-            box_loss = f_match_bce(box_map, box_map_gt, match_box, timespan)
+            box_loss = f_match_loss(
+                box_map, box_map_gt, match_box, timespan, f_bce)
         else:
             raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
         model['box_loss'] = box_loss
