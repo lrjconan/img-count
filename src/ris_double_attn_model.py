@@ -277,7 +277,7 @@ def get_model(opt, device='/cpu:0'):
 
         # Attention box
         attn_box = [None] * timespan
-        attn_iou_soft = [None] * timespan
+        iou_soft_box = [None] * timespan
         const_ones = tf.ones(
             tf.pack([num_ex, filter_size, filter_size, 1]))
         attn_box_beta = tf.constant([-5.0])
@@ -410,10 +410,14 @@ def get_model(opt, device='/cpu:0'):
             if use_knob:
                 # IOU [B, 1, T]
                 # [B, 1, H, W] * [B, T, H, W] = [B, T]
-                attn_iou_soft[tt] = f_inter(attn_box[tt], attn_box_gt) / \
-                    f_union(attn_box[tt], attn_box_gt, eps=1e-5)
-                attn_iou_soft[tt] += iou_bias
-                grd_match = f_greedy_match(attn_iou_soft[tt], grd_match_cum)
+                # attn_iou_soft[tt] = f_inter(attn_box[tt], attn_box_gt) / \
+                #     f_union(attn_box[tt], attn_box_gt, eps=1e-5)
+                _top_left = tf.expand_dims(attn_top_left[tt], 1)
+                _bot_right = tf.expand_dims(attn_bot_right[tt], 1)
+                iou_soft_box[tt] = f_iou_box(
+                    _top_left, _bot_right, attn_top_left_gt, attn_bot_right_gt)
+                iou_soft_box[tt] += iou_bias
+                grd_match = f_greedy_match(iou_soft_box[tt], grd_match_cum)
 
                 if gt_selector == 'greedy_match':
                     # Add in the cumulative matching to not double count.
@@ -547,7 +551,7 @@ def get_model(opt, device='/cpu:0'):
 
         # Loss for attnention box
         if use_knob:
-            iou_soft_box = tf.concat(1, [tf.expand_dims(attn_iou_soft[tt], 1)
+            iou_soft_box = tf.concat(1, [tf.expand_dims(iou_soft_box[tt], 1)
                                          for tt in xrange(timespan)])
         else:
             iou_soft_box = f_iou(attn_box, attn_box_gt,
