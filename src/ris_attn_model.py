@@ -383,6 +383,8 @@ def get_model(opt, device='/cpu:0'):
             #                              filter_y_inv, filter_x_inv, 1)
 
             _idx_map = get_idx_map(tf.pack([num_ex, inp_height, inp_width]))
+            attn_top_left[tt], attn_bot_right[tt] = get_box_coord(
+                attn_ctr[tt], attn_size[tt])
             attn_box[tt] = get_filled_box_idx(
                 _idx_map, attn_top_left[tt], attn_bot_right[tt])
             attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
