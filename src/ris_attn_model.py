@@ -379,8 +379,12 @@ def get_model(opt, device='/cpu:0'):
             filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
             # Attention box
-            attn_box[tt] = extract_patch(const_ones * attn_box_gamma[tt],
-                                         filter_y_inv, filter_x_inv, 1)
+            # attn_box[tt] = extract_patch(const_ones * attn_box_gamma[tt],
+            #                              filter_y_inv, filter_x_inv, 1)
+
+            _idx_map = get_idx_map(tf.pack([num_ex, inp_height, inp_width]))
+            attn_box[tt] = get_filled_box_idx(
+                _idx_map, attn_top_left[tt], attn_bot_right[tt])
             attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
             attn_box[tt] = tf.reshape(attn_box[tt],
                                       [-1, 1, inp_height, inp_width])
@@ -648,7 +652,7 @@ def get_model(opt, device='/cpu:0'):
         attn_ctr = tf.concat(1, [tf.expand_dims(tmp, 1)
                                  for tmp in attn_ctr])
         attn_size = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                   for tmp in attn_size])
+                                  for tmp in attn_size])
         attn_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
                                       for tmp in attn_lg_gamma])
         attn_box_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)

@@ -174,8 +174,8 @@ def get_model(opt, device='/:cpu:0'):
             box_size_log[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
             box_ctr[tt], box_size[tt] = get_unnormalized_attn(
                 box_ctr_norm[tt], box_size_log[tt], inp_height, inp_width)
-            box_top_left[tt], box_bot_right[tt] = \
-                get_box_coord(box_ctr[tt], box_size[tt])
+            box_top_left[tt], box_bot_right[tt] = get_box_coord(
+                box_ctr[tt], box_size[tt])
             _idx_map = get_idx_map(tf.pack([num_ex, inp_height, inp_width]))
 
             # [B, H, W]
