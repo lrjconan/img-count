@@ -243,7 +243,6 @@ def get_model(opt, device='/:cpu:0'):
         iou_soft_box = tf.concat(1, [tf.expand_dims(box_iou_soft[tt], 1)
                                      for tt in xrange(timespan)])
 
-        model['iou_soft_box'] = iou_soft_box
         model['box_map_gt'] = box_map_gt
         match_box = f_segm_match(iou_soft_box, s_gt)
         model['match_box'] = match_box
@@ -254,6 +253,7 @@ def get_model(opt, device='/:cpu:0'):
         iou_soft_box_mask = tf.reduce_sum(iou_soft_box * match_box, [1])
         iou_soft_box = tf.reduce_sum(tf.reduce_sum(iou_soft_box_mask, [1])
                                      / match_count_box) / num_ex
+        model['iou_soft_box'] = iou_soft_box
         gt_wt_box = f_coverage_weight(box_map_gt)
         wt_iou_soft_box = tf.reduce_sum(tf.reduce_sum(
             iou_soft_box_mask * gt_wt_box, [1])

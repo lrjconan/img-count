@@ -76,6 +76,9 @@ def plot_output(fname, y_out, s_out, match, attn=None, max_items_per_row=9):
         attn_top_left_x = attn[0][:, :, 1]
         attn_bot_right_y = attn[1][:, :, 0]
         attn_bot_right_x = attn[1][:, :, 1]
+        # print 'plot coord'
+        # print attn[0][0, :, :]
+        # print attn[1][0, :, :]
 
     pu.set_axis_off(axarr, num_row, num_col)
 
@@ -308,7 +311,7 @@ def _get_max_items_per_row(inp_height, inp_width):
 
 
 def _get_num_batch_valid():
-    return 10
+    return 1
 
 
 def _get_batch_fn(dataset):
@@ -429,7 +432,7 @@ if __name__ == '__main__':
                         attn=(_r['box_top_left_gt'], _r['box_bot_right_gt']),
                         max_items_per_row=_max_items)
 
-            plot_output(fname_input, _x,
+            plot_output(fname_output, _x,
                         s_out=s,
                         match=_r['match_box'],
                         attn=(_r['box_top_left'], _r['box_bot_right']),
@@ -504,6 +507,8 @@ if __name__ == '__main__':
         loggers['loss'].add(step, ['', r['loss']])
         loggers['iou'].add(step, ['', r['iou_soft_box']])
         loggers['wt_iou'].add(step, ['', r['wt_iou_soft_box']])
+        # print 'iou', r['iou_soft_box']
+        # print 'wt_iou', r['wt_iou_soft_box']
         # print 'center norm:'
         # print r['box_ctr_norm_gt'][0]
         # print 'size log:'
@@ -521,6 +526,8 @@ if __name__ == '__main__':
         loggers['loss'].add(step, [r['loss'], ''])
         loggers['iou'].add(step, [r['iou_soft_box'], ''])
         loggers['wt_iou'].add(step, [r['wt_iou_soft_box'], ''])
+        # print 'iou', r['iou_soft_box']
+        # print 'wt_iou', r['wt_iou_soft_box']
 
         # for ii in xrange(r['match_box'].shape[0]):
         #     print 'Ex', ii
