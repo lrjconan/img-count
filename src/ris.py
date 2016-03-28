@@ -34,6 +34,7 @@ from utils import plot_utils as pu
 
 import ris_vanilla_model as vanilla_model
 import ris_attn_model as attention_model
+import ris_double_attn_model as double_attention_model
 
 log = logger.get()
 
@@ -54,6 +55,8 @@ def get_model(opt, device='/cpu:0'):
         return vanilla_model.get_model(opt, device=device)
     elif name == 'attention':
         return attention_model.get_model(opt, device=device)
+    elif name == 'double_attention':
+        return double_attention_model.get_model(opt, device=device)
     else:
         raise Exception('Unknown model name "{}"'.format(name))
 
@@ -715,10 +718,10 @@ def _make_model_opt(args):
             'rnd_colour': rnd_colour,
         }
         if args.model == 'double_attention':
-            # model['num_ctrl_rnn_iter'] = args.num_ctrl_rnn_iter
-            # model['num_glimpse_mlp_layers'] = args.num_glimpse_mlp_layers
-            model['num_ctrl_rnn_iter'] = 5
-            model['num_glimpse_mlp_layers'] = 1
+            # model_opt['num_ctrl_rnn_iter'] = args.num_ctrl_rnn_iter
+            # model_opt['num_glimpse_mlp_layers'] = args.num_glimpse_mlp_layers
+            model_opt['num_ctrl_rnn_iter'] = 5
+            model_opt['num_glimpse_mlp_layers'] = 1
 
     elif args.model == 'vanilla':
         cnn_fsize_list = args.cnn_filter_size.split(',')
