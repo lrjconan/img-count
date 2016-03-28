@@ -619,7 +619,7 @@ def get_idx_map(shape):
     w = tf.slice(s, ndims - 1, [1])
     idx_y += tf.reshape(tf.to_float(tf.range(h[0])), h_shape)
     idx_x += tf.reshape(tf.to_float(tf.range(w[0])), w_shape)
-    idx = tf.concat(4, [idx_y, idx_x])
+    idx = tf.concat(ndims[0], [idx_y, idx_x])
 
     return idx
 
