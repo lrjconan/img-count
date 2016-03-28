@@ -272,7 +272,7 @@ def _get_ts_loggers(model_opt):
         name='IoU',
         buffer_size=1)
     loggers['wt_iou'] = TimeSeriesLogger(
-        os.path.join(logs_folder, 'iou.csv'), ['train', 'valid'],
+        os.path.join(logs_folder, 'wt_iou.csv'), ['train', 'valid'],
         name='Weighted IoU',
         buffer_size=1)
     loggers['step_time'] = TimeSeriesLogger(
