@@ -278,6 +278,10 @@ def _get_ts_loggers(model_opt):
         os.path.join(logs_folder, 'wt_iou.csv'), ['train', 'valid'],
         name='Weighted IoU',
         buffer_size=1)
+    loggers['conf_loss'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'conf_loss.csv'), ['train', 'valid'],
+        name='Confidence Loss',
+        buffer_size=1)
     loggers['step_time'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
         name='Step time',
@@ -468,7 +472,7 @@ if __name__ == '__main__':
         pass
 
     def get_outputs_valid():
-        _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box']
+        _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box', 'conf_loss']
         # _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box',
         #             'box_ctr_norm_gt', 'box_size_log_gt',
         #             'box_top_left_gt', 'box_bot_right_gt', 'match_box']
@@ -476,7 +480,7 @@ if __name__ == '__main__':
         return _outputs
 
     def get_outputs_trainval():
-        _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box']
+        _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box', 'conf_loss']
         # _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box',
         #             'box_ctr_norm_gt', 'box_size_log_gt',
         #             'box_top_left_gt', 'box_bot_right_gt', 'match_box']
@@ -510,6 +514,7 @@ if __name__ == '__main__':
         loggers['loss'].add(step, ['', r['loss']])
         loggers['iou'].add(step, ['', r['iou_soft_box']])
         loggers['wt_iou'].add(step, ['', r['wt_iou_soft_box']])
+        loggers['conf_loss'].add(step, ['', r['conf_loss']])
         # print 'iou', r['iou_soft_box']
         # print 'wt_iou', r['wt_iou_soft_box']
         # print 'center norm:'
@@ -529,6 +534,7 @@ if __name__ == '__main__':
         loggers['loss'].add(step, [r['loss'], ''])
         loggers['iou'].add(step, [r['iou_soft_box'], ''])
         loggers['wt_iou'].add(step, [r['wt_iou_soft_box'], ''])
+        loggers['conf_loss'].add(step, [r['conf_loss'], ''])
         # print 'iou', r['iou_soft_box']
         # print 'wt_iou', r['wt_iou_soft_box']
 

@@ -136,6 +136,48 @@ def f_iou(a, b, timespan=None, pairwise=False):
         return f_inter(a, b) / f_union(a, b)
 
 
+def f_inter_box(top_left_a, bot_right_a, top_left_b, bot_right_b):
+    """Computes intersection area with boxes.
+
+    Args:
+        top_left_a: [B, T, 2] or [B, 2]
+        bot_right_a: [B, T, 2] or [B, 2]
+        top_left_b: [B, T, 2] or [B, 2]
+        bot_right_b: [B, T, 2] or [B, 2]
+
+    Returns:
+        area: [B, T]
+    """
+    top_left = tf.maximum(top_left_a, top_left_b)
+    bot_right = tf.minimum(bot_right_a, bot_right_b)
+    ndims = tf.shape(tf.shape(top_left_a))
+    area = tf.reduce_prod(bot_right - top_left, ndims - 1)
+
+    return area
+
+
+def f_iou_box(top_left_a, bot_right_a, top_left_b, bot_right_b):
+    """Computes IoU of boxes.
+
+    Args:
+        top_left_a: [B, T, 2] or [B, 2]
+        bot_right_a: [B, T, 2] or [B, 2]
+        top_left_b: [B, T, 2] or [B, 2]
+        bot_right_b: [B, T, 2] or [B, 2]
+
+    Returns:
+        iou: [B, T]
+    """
+    inter_area = f_inter_box(top_left_a, bot_right_a, top_left_b, bot_right_b)
+    ndims = tf.shape(tf.shape(top_left_a))
+    area_a = tf.reduce_prod(bot_right_a - top_left_a, ndims - 1)
+    area_b = tf.reduce_prod(bot_right_b - top_left_b, ndims - 1)
+    union_area = (area_a + area_b - inter_area + 1e-5)
+    iou = inter_area / union_area
+
+    return iou
+
+
 def f_coverage(iou):
     """
     Coverage function proposed in [1]
@@ -313,7 +355,7 @@ def f_match_loss(y_out, y_gt, match, timespan, loss_fn, model=None):
             tf.reshape(match_list[ii], [-1, timespan]), [1]), 1)
 
     # N * [B, 1] => [B, N] => [B]
-    
+
     err_total = tf.reduce_sum(tf.concat(1, err_list), reduction_indices=[1])
 
     return tf.reduce_sum(err_total / match_count) / num_ex / num_dim
@@ -560,7 +602,7 @@ def get_gt_attn(y_gt, padding_ratio=0.0, center_shift_ratio=0.0):
 def get_gt_box(y_gt, padding_ratio=0.0, center_shift_ratio=0.0):
     """Get groundtruth bounding box given segmentation.
     Current only support [B, T, H, W] as input!!!
-    
+
     Args:
         y_gt: Groundtruth segmentation [B, T, H, W], or [B, H, W]
 
@@ -587,7 +629,7 @@ def get_gt_box(y_gt, padding_ratio=0.0, center_shift_ratio=0.0):
     bot_right += center_shift_ratio * size
     bot_right += tf.maximum(padding_ratio * size, min_padding)
     box = get_filled_box_idx(idx, top_left, bot_right)
-   
+
     # If the segmentation is zero, then fix to top left corner.
     top_left *= y_gt_not_zero
     bot_right = y_gt_not_zero * bot_right + \
