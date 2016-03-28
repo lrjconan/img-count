@@ -112,6 +112,7 @@ def _add_model_args(parser):
     kCtrlCnnFilterSize = '3,3,3,3,3,3,3,3,3,3'
     kCtrlCnnDepth = '4,4,8,8,16,16,32,32,64,64'
     kCtrlCnnPool = '1,2,1,2,1,2,1,2,1,2'
+    kBoxLossFn = 'mse'
 
     parser.add_argument('-ctrl_cnn_filter_size', default=kCtrlCnnFilterSize,
                         help='Comma delimited integers')
@@ -119,6 +120,8 @@ def _add_model_args(parser):
                         help='Comma delimited integers')
     parser.add_argument('-ctrl_cnn_pool', default=kCtrlCnnPool,
                         help='Comma delimited integers')
+    parser.add_argument('-box_loss_fn', default=kBoxLossFn,
+                        help='Loss function for box regressor')
 
     pass
 
@@ -204,7 +207,7 @@ def _make_model_opt(args):
         'attn_box_padding_ratio': 0.2,
         'weight_decay': 5e-5,
         'use_bn': True,
-        'box_loss_fn': 'mse',
+        'box_loss_fn': args.box_loss_fn,
         'base_learn_rate': 1e-3,
         'learn_rate_decay': 0.96,
         'steps_per_learn_rate_decay': 5000,
@@ -341,7 +344,7 @@ def _run_model(m, names, feed_dict):
 
 def preprocess(inp, label_segmentation, label_score):
     """Preprocess training data."""
-    return (inp.astype('float32') / 255, 
+    return (inp.astype('float32') / 255,
             label_segmentation.astype('float32'),
             label_score.astype('float32'))
 
@@ -467,7 +470,7 @@ if __name__ == '__main__':
     def get_outputs_valid():
         _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box']
         # _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box',
-        #             'box_ctr_norm_gt', 'box_size_log_gt', 
+        #             'box_ctr_norm_gt', 'box_size_log_gt',
         #             'box_top_left_gt', 'box_bot_right_gt', 'match_box']
 
         return _outputs
@@ -475,7 +478,7 @@ if __name__ == '__main__':
     def get_outputs_trainval():
         _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box']
         # _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box',
-        #             'box_ctr_norm_gt', 'box_size_log_gt', 
+        #             'box_ctr_norm_gt', 'box_size_log_gt',
         #             'box_top_left_gt', 'box_bot_right_gt', 'match_box']
 
         return _outputs
@@ -580,10 +583,10 @@ if __name__ == '__main__':
         outputs_trainval = get_outputs_trainval()
 
         for _x, _y, _s in BatchIterator(num_ex_train,
-                                    batch_size=batch_size,
-                                    get_fn=get_batch_train,
-                                    cycle=True,
-                                    progress_bar=False):
+                                        batch_size=batch_size,
+                                        get_fn=get_batch_train,
+                                        cycle=True,
+                                        progress_bar=False):
             # Run validation stats
             if train_opt['has_valid']:
                 if step % train_opt['steps_per_valid'] == 0:
