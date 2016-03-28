@@ -603,15 +603,6 @@ def get_idx_map(shape):
     h_shape = tf.concat(0, [ones_h, tf.constant([-1]), tf.constant([1, 1])])
     w_shape = tf.concat(0, [ones_w, tf.constant([-1]), tf.constant([1])])
 
-    # if ndims == 4:
-    #     # idx_shape = tf.pack([s[0], s[1], s[2], s[3], 1])
-    #     h_shape = [1, 1, -1, 1, 1]
-    #     w_shape = [1, 1, 1, -1, 1]
-    # elif ndims == 3:
-    #     # idx_shape = tf.pack([s[0], s[1], s[2], 1])
-    #     h_shape = [1, -1, 1, 1]
-    #     w_shape = [1, 1, -1, 1]
-
     idx_y = tf.zeros(idx_shape, dtype='float')
     idx_x = tf.zeros(idx_shape, dtype='float')
 
@@ -632,17 +623,6 @@ def get_filled_box_idx(idx, top_left, bot_right):
         top_left: [B, T, 2] or [B, 2] or [2]
         bot_right: [B, T, 2] or [B, 2] or [2]
     """
-    # # [B, T, H, W]
-    # idx_y = idx[:, :, :, :, 0]
-    # idx_x = idx[:, :, :, :, 1]
-    # top_left_y = tf.expand_dims(tf.expand_dims(top_left[:, :, 0], 2), 3)
-    # top_left_x = tf.expand_dims(tf.expand_dims(top_left[:, :, 1], 2), 3)
-    # bot_right_y = tf.expand_dims(tf.expand_dims(bot_right[:, :, 0], 2), 3)
-    # bot_right_x = tf.expand_dims(tf.expand_dims(bot_right[:, :, 1], 2), 3)
-    # lower = tf.logical_and(idx_y >= top_left_y, idx_x >= top_left_x)
-    # upper = tf.logical_and(idx_y <= bot_right_y, idx_x <= bot_right_x)
-    # box = tf.to_float(tf.logical_and(lower, upper))
-
     ss = tf.shape(idx)
     ndims = tf.shape(ss)
     batch = tf.slice(ss, [0], ndims - 3)
@@ -660,7 +640,7 @@ def get_unnormalized_center(ctr_norm, inp_height, inp_width):
     """Get unnormalized center coordinates
 
     Args:
-        ctr_norm: [B, 2], normalized within range [-1, +1]
+        ctr_norm: [B, T, 2] or [B, 2] or [2], normalized within range [-1, +1]
         inp_height: int, image height
         inp_width: int, image width
 
@@ -678,7 +658,7 @@ def get_normalized_center(ctr, inp_height, inp_width):
     """Get unnormalized center coordinates
 
     Args:
-        ctr: [B, 2]
+        ctr: [B, T, 2] or [B, 2] or [2]
         inp_height: int, image height
         inp_width: int, image width
 
