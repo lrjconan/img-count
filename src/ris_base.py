@@ -276,7 +276,7 @@ def f_bce(y_out, y_gt):
     return -y_gt * tf.log(y_out + eps) - (1 - y_gt) * tf.log(1 - y_out + eps)
 
 
-def f_match_loss(y_out, y_gt, match, timespan, loss_fn):
+def f_match_loss(y_out, y_gt, match, timespan, loss_fn, model=None):
     """Binary cross entropy with matching.
 
     Args:
@@ -294,13 +294,14 @@ def f_match_loss(y_out, y_gt, match, timespan, loss_fn):
     err_list = [None] * timespan
     shape = tf.shape(y_out)
     num_ex = tf.to_float(shape[0])
-    num_dim = tf.to_float(tf.reduce_prod(shape[2:]))
+    num_dim = tf.to_float(tf.reduce_prod(tf.to_float(shape[2:])))
     sshape = tf.size(shape)
 
     # [B, N, M] => [B, N]
     match_sum = tf.reduce_sum(match, reduction_indices=[2])
     # [B, N] => [B]
     match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
+    match_count = tf.maximum(match_count, 1)
 
     for ii in xrange(timespan):
         # [B, 1, H, W] * [B, N, H, W] => [B, N, H, W] => [B, N]
@@ -312,6 +313,7 @@ def f_match_loss(y_out, y_gt, match, timespan, loss_fn):
             tf.reshape(match_list[ii], [-1, timespan]), [1]), 1)
 
     # N * [B, 1] => [B, N] => [B]
+    
     err_total = tf.reduce_sum(tf.concat(1, err_list), reduction_indices=[1])
 
     return tf.reduce_sum(err_total / match_count) / num_ex / num_dim
@@ -557,7 +559,8 @@ def get_gt_attn(y_gt, padding_ratio=0.0, center_shift_ratio=0.0):
 
 def get_gt_box(y_gt, padding_ratio=0.0, center_shift_ratio=0.0):
     """Get groundtruth bounding box given segmentation.
-
+    Current only support [B, T, H, W] as input!!!
+    
     Args:
         y_gt: Groundtruth segmentation [B, T, H, W], or [B, H, W]
 
@@ -568,6 +571,8 @@ def get_gt_box(y_gt, padding_ratio=0.0, center_shift_ratio=0.0):
     s = tf.shape(y_gt)
     # [B, T, H, W, 2]
     idx = get_idx_map(s)
+    y_gt_not_zero = tf.to_float(tf.reduce_sum(y_gt, [2, 3]) > 0)
+    y_gt_not_zero = tf.expand_dims(y_gt_not_zero, 2)
     idx_min = idx + tf.expand_dims((1.0 - y_gt) * tf.to_float(s[2] * s[3]), 4)
     idx_max = idx * tf.expand_dims(y_gt, 4)
     # [B, T, 2]
@@ -582,6 +587,11 @@ def get_gt_box(y_gt, padding_ratio=0.0, center_shift_ratio=0.0):
     bot_right += center_shift_ratio * size
     bot_right += tf.maximum(padding_ratio * size, min_padding)
     box = get_filled_box_idx(idx, top_left, bot_right)
+   
+    # If the segmentation is zero, then fix to top left corner.
+    top_left *= y_gt_not_zero
+    bot_right = y_gt_not_zero * bot_right + \
+        (1 - y_gt_not_zero) * (2 * min_padding)
 
     return top_left, bot_right, box
 

@@ -214,6 +214,8 @@ def get_model(opt, device='/:cpu:0'):
         model['box_bot_right'] = box_bot_right
         model['box_ctr'] = box_ctr
         model['box_size'] = box_size
+        model['box_ctr_norm_gt'] = box_ctr_norm_gt
+        model['box_size_log_gt'] = box_size_log_gt
         model['box_top_left_gt'] = box_top_left_gt
         model['box_bot_right_gt'] = box_bot_right_gt
 
@@ -259,7 +261,8 @@ def get_model(opt, device='/:cpu:0'):
         model['wt_iou_soft_box'] = wt_iou_soft_box
         if box_loss_fn == 'mse':
             box_loss = f_match_loss(
-                box_params, box_params_gt, match_box, timespan, f_squared_err)
+                box_params, box_params_gt, match_box, timespan, f_squared_err,
+                model=model)
         elif box_loss_fn == 'huber':
             box_loss = f_match_loss(
                 box_params, box_params_gt, match_box, timespan, f_huber)

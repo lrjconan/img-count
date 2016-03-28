@@ -12,6 +12,7 @@ import datetime
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import numpy as np
 import os
 import pickle as pkl
@@ -423,13 +424,13 @@ if __name__ == '__main__':
             _x = np.tile(_x, [1, y.shape[1], 1, 1, 1])
 
             plot_output(fname_input, _x,
-                        s_out=s_gt,
+                        s_out=s,
                         match=_r['match_box'],
                         attn=(_r['box_top_left_gt'], _r['box_bot_right_gt']),
                         max_items_per_row=_max_items)
 
             plot_output(fname_input, _x,
-                        s_out=s_gt,
+                        s_out=s,
                         match=_r['match_box'],
                         attn=(_r['box_top_left'], _r['box_bot_right']),
                         max_items_per_row=_max_items)
@@ -462,11 +463,17 @@ if __name__ == '__main__':
 
     def get_outputs_valid():
         _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box']
+        # _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box',
+        #             'box_ctr_norm_gt', 'box_size_log_gt', 
+        #             'box_top_left_gt', 'box_bot_right_gt', 'match_box']
 
         return _outputs
 
     def get_outputs_trainval():
         _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box']
+        # _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box',
+        #             'box_ctr_norm_gt', 'box_size_log_gt', 
+        #             'box_top_left_gt', 'box_bot_right_gt', 'match_box']
 
         return _outputs
 
@@ -497,6 +504,16 @@ if __name__ == '__main__':
         loggers['loss'].add(step, ['', r['loss']])
         loggers['iou'].add(step, ['', r['iou_soft_box']])
         loggers['wt_iou'].add(step, ['', r['wt_iou_soft_box']])
+        # print 'center norm:'
+        # print r['box_ctr_norm_gt'][0]
+        # print 'size log:'
+        # print r['box_size_log_gt'][0]
+        # print 'top left:'
+        # print r['box_top_left_gt'][0]
+        # print 'bot right:'
+        # print r['box_bot_right_gt'][0]
+        # print 'match box:'
+        # print r['match_box'][0]
 
         pass
 
@@ -504,6 +521,19 @@ if __name__ == '__main__':
         loggers['loss'].add(step, [r['loss'], ''])
         loggers['iou'].add(step, [r['iou_soft_box'], ''])
         loggers['wt_iou'].add(step, [r['wt_iou_soft_box'], ''])
+
+        # for ii in xrange(r['match_box'].shape[0]):
+        #     print 'Ex', ii
+        #     print 'center norm:'
+        #     print r['box_ctr_norm_gt'][ii]
+        #     print 'size log:'
+        #     print r['box_size_log_gt'][ii]
+        #     print 'top left:'
+        #     print r['box_top_left_gt'][ii]
+        #     print 'bot right:'
+        #     print r['box_bot_right_gt'][ii]
+        #     print 'match box:'
+        #     print r['match_box'][ii]
 
         pass
 
