@@ -362,7 +362,7 @@ def _add_model_args(parser):
     # Original model default options
     kCnnFilterSize = '3,3,3,3,3'
     kCnnDepth = '4,8,8,12,16'
-    kCnnPool='2,2,2,2,2'
+    kCnnPool = '2,2,2,2,2'
     kRnnType = 'lstm'
     kConvLstmFilterSize = 3
     kConvLstmHiddenDepth = 12
@@ -507,7 +507,7 @@ def _add_model_args(parser):
     parser.add_argument('-num_attn_mlp_layers', default=kNumAttnMlpLayers,
                         type=int, help='Number of attention MLP layers')
     parser.add_argument('-attn_mlp_depth', default=kAttnMlpDepth,
-                        type=int, help='Attntion MLP depth')
+                        type=int, help='Attention MLP depth')
     parser.add_argument('-box_loss_fn', default='iou',
                         help='Box loss function, "iou" or "bce"')
     parser.add_argument('-use_gt_attn', action='store_true',
@@ -649,7 +649,7 @@ def _make_model_opt(args):
         attn_dcnn_depth_list = [int(depth) for depth in attn_dcnn_depth_list]
         attn_dcnn_pool_list = args.attn_dcnn_pool.split(',')
         attn_dcnn_pool_list = [int(pool) for pool in attn_dcnn_pool_list]
-        
+
         model_opt = {
             'type': args.model,
             'inp_height': inp_height,
@@ -945,16 +945,17 @@ def _get_ts_loggers(model_opt, debug_bn=False):
         name='Step time',
         buffer_size=1)
 
-    if model_opt['type'] == 'attention':
+    if model_opt['type'] == 'attention' or \
+            model_opt['type'] == 'double_attention':
         loggers['box_loss'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'box_loss.csv'), ['train', 'valid'],
             name='Box Loss',
             buffer_size=1)
-        loggers['crnn'] = TimeSeriesLogger(
-            os.path.join(logs_folder, 'crnn.csv'),
-            ['input gate', 'forget gate', 'output gate'],
-            name='Ctrl RNN',
-            buffer_size=1)
+        # loggers['crnn'] = TimeSeriesLogger(
+        #     os.path.join(logs_folder, 'crnn.csv'),
+        #     ['input gate', 'forget gate', 'output gate'],
+        #     name='Ctrl RNN',
+        #     buffer_size=1)
         loggers['gt_knob'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'gt_knob.csv'),
             ['box', 'segmentation'],
@@ -999,7 +1000,8 @@ def _get_plot_loggers(model_opt, train_opt):
         _ssets.append('valid')
     for _set in _ssets:
         labels = ['input', 'output', 'total']
-        if model_opt['type'] == 'attention':
+        if model_opt['type'] == 'attention' or \
+                model_opt['type'] == 'double_attention':
             num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
             num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
             num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
@@ -1138,7 +1140,7 @@ if __name__ == '__main__':
     def run_samples():
         """Samples"""
         attn = model_opt['type'] == 'attention'
-        
+
         def _run_samples(x, y, s, phase_train, fname_input, fname_output,
                          fname_total=None, fname_box=None, fname_patch=None,
                          fname_ccnn=None, fname_acnn=None, fname_attn_dcnn=None):
@@ -1148,7 +1150,7 @@ if __name__ == '__main__':
 
             if attn:
                 _outputs.extend(['attn_top_left', 'attn_bot_right',
-                        'attn_box', 'attn_box_gt', 'match_box'])
+                                 'attn_box', 'attn_box_gt', 'match_box'])
 
             _max_items = _get_max_items_per_row(x.shape[1], x.shape[2])
 
@@ -1182,7 +1184,6 @@ if __name__ == '__main__':
             else:
                 plot_output(fname_output, y_out=_r['y_out'], s_out=_r['s_out'],
                             match=_r['match'], max_items_per_row=_max_items)
-
 
             if fname_total:
                 plot_total_instances(fname_total, y_out=_r['y_out'],
@@ -1296,10 +1297,13 @@ if __name__ == '__main__':
                     'learn_rate']
 
         if model_opt['type'] == 'attention':
-            _outputs.extend(['box_loss', 'crnn_g_i_avg', 'crnn_g_f_avg',
-                             'crnn_g_o_avg', 'gt_knob_prob_box',
+            _outputs.extend(['box_loss', 'gt_knob_prob_box',
                              'gt_knob_prob_segm', 'attn_lg_gamma_mean',
                              'attn_box_lg_gamma_mean', 'y_out_lg_gamma_mean'])
+            # _outputs.extend(['box_loss', 'crnn_g_i_avg', 'crnn_g_f_avg',
+            #                  'crnn_g_o_avg', 'gt_knob_prob_box',
+            #                  'gt_knob_prob_segm', 'attn_lg_gamma_mean',
+            #                  'attn_box_lg_gamma_mean', 'y_out_lg_gamma_mean'])
 
         return _outputs
 
@@ -1380,7 +1384,7 @@ if __name__ == '__main__':
         loggers['segm_loss'].add(step, [r['segm_loss'], ''])
         if attn:
             loggers['box_loss'].add(step, [r['box_loss'], ''])
-        
+
         loggers['iou'].add(step, [r['iou_soft'], '', r['iou_hard'], ''])
         loggers['wt_cov'].add(step, [r['wt_cov_soft'], '',
                                      r['wt_cov_hard'], ''])
@@ -1391,8 +1395,8 @@ if __name__ == '__main__':
         loggers['dic'].add(step, [r['dic'], ''])
         loggers['dic_abs'].add(step, [r['dic_abs'], ''])
         if attn:
-            loggers['crnn'].add(step, [r['crnn_g_i_avg'], r['crnn_g_f_avg'],
-                                       r['crnn_g_o_avg']])
+            # loggers['crnn'].add(step, [r['crnn_g_i_avg'], r['crnn_g_f_avg'],
+            #                            r['crnn_g_o_avg']])
             loggers['gt_knob'].add(step, [r['gt_knob_prob_box'],
                                           r['gt_knob_prob_segm']])
             loggers['attn_params'].add(step, [r['attn_lg_gamma_mean'],
