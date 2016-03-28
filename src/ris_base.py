@@ -295,6 +295,7 @@ def f_match_loss(y_out, y_gt, match, timespan, loss_fn):
     shape = tf.shape(y_out)
     num_ex = tf.to_float(shape[0])
     num_dim = tf.to_float(tf.reduce_prod(shape[2:]))
+    sshape = tf.size(shape)
 
     # [B, N, M] => [B, N]
     match_sum = tf.reduce_sum(match, reduction_indices=[2])
@@ -305,10 +306,10 @@ def f_match_loss(y_out, y_gt, match, timespan, loss_fn):
         # [B, 1, H, W] * [B, N, H, W] => [B, N, H, W] => [B, N]
         # [B, N] * [B, N] => [B]
         # [B] => [B, 1]
+        red_idx = tf.range(2, sshape)
         err_list[ii] = tf.expand_dims(tf.reduce_sum(tf.reduce_sum(
-            loss_fn(y_out_list[ii], y_gt), reduction_indices=[2, 3]) *
-            tf.reshape(match_list[ii], [-1, timespan]),
-            reduction_indices=[1]), 1)
+            loss_fn(y_out_list[ii], y_gt), red_idx) *
+            tf.reshape(match_list[ii], [-1, timespan]), [1]), 1)
 
     # N * [B, 1] => [B, N] => [B]
     err_total = tf.reduce_sum(tf.concat(1, err_list), reduction_indices=[1])
