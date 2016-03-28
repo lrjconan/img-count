@@ -1079,7 +1079,7 @@ if __name__ == '__main__':
         exp_folder = os.path.join(train_opt['results'], model_id)
         saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
 
-    if model_opt['type'] == 'attention':
+    if model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention':
         num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
         num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
         num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
@@ -1142,7 +1142,7 @@ if __name__ == '__main__':
 
     def run_samples():
         """Samples"""
-        attn = model_opt['type'] == 'attention'
+        attn = model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention'
 
         def _run_samples(x, y, s, phase_train, fname_input, fname_output,
                          fname_total=None, fname_box=None, fname_patch=None,
@@ -1288,7 +1288,7 @@ if __name__ == '__main__':
                     'count_acc', 'dice', 'dic', 'dic_abs', 'wt_cov_soft',
                     'wt_cov_hard', 'unwt_cov_soft', 'unwt_cov_hard']
 
-        if model_opt['type'] == 'attention':
+        if model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention':
             _outputs.extend(['box_loss'])
 
         return _outputs
@@ -1299,7 +1299,7 @@ if __name__ == '__main__':
                     'wt_cov_hard', 'unwt_cov_soft', 'unwt_cov_hard',
                     'learn_rate']
 
-        if model_opt['type'] == 'attention':
+        if model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention':
             _outputs.extend(['box_loss', 'gt_knob_prob_box',
                              'gt_knob_prob_segm', 'attn_lg_gamma_mean',
                              'attn_box_lg_gamma_mean', 'y_out_lg_gamma_mean'])
@@ -1347,7 +1347,7 @@ if __name__ == '__main__':
         pass
 
     def write_log_valid(step, loggers, r):
-        attn = model_opt['type'] == 'attention'
+        attn = model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention'
 
         loggers['loss'].add(step, ['', r['loss']])
         loggers['conf_loss'].add(step, ['', r['conf_loss']])
@@ -1380,7 +1380,7 @@ if __name__ == '__main__':
         pass
 
     def write_log_trainval(step, loggers, r, bn=False):
-        attn = model_opt['type'] == 'attention'
+        attn = model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention'
 
         loggers['loss'].add(step, [r['loss'], ''])
         loggers['conf_loss'].add(step, [r['conf_loss'], ''])
