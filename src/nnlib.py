@@ -178,6 +178,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
     log.info('Activation: {}'.format(act))
     log.info('Pool: {}'.format(pool))
     log.info('BN: {}'.format(use_bn))
+    log.info('Shared weights: {}'.format(shared_weights))
 
     with tf.variable_scope(scope):
         for ii in xrange(nlayers):
