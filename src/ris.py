@@ -514,7 +514,7 @@ def _add_model_args(parser):
                         help='Comma delimited integers')
     parser.add_argument('-attn_dcnn_pool', default=kAttnDcnnPool,
                         help='Comma delimited integers')
-    parser.add_argument('-ctrl_lstm_hid_dim', default=kCtrlRnnHiddenDim,
+    parser.add_argument('-ctrl_rnn_hid_dim', default=kCtrlRnnHiddenDim,
                         type=int, help='RNN hidden dimension')
     parser.add_argument('-attn_rnn_hid_dim', default=kAttnRnnHiddenDim,
                         type=int, help='RNN hidden dimension')
@@ -567,7 +567,7 @@ def _add_model_args(parser):
                         help='Whether to share weights between CCNN and ACNN')
 
     # Double attention arguments
-    parser.add_argument('-num_ctrl_lstm_iter', default=kNumCtrlRNNIter,
+    parser.add_argument('-num_ctrl_rnn_iter', default=kNumCtrlRNNIter,
                         type=int, help='Number of control RNN iterations')
     parser.add_argument('-num_glimpse_mlp_layers', default=kNumGlimpseMlpLayers,
                         type=int, help='Number of glimpse MLP layers')
@@ -690,7 +690,7 @@ def _make_model_opt(args):
             'ctrl_cnn_depth': ccnn_depth_list,
             'ctrl_cnn_pool': ccnn_pool_list,
 
-            'ctrl_lstm_hid_dim': args.ctrl_lstm_hid_dim,
+            'ctrl_rnn_hid_dim': args.ctrl_rnn_hid_dim,
             'attn_rnn_hid_dim': args.attn_rnn_hid_dim,
 
             'attn_cnn_filter_size': acnn_fsize_list,
@@ -743,9 +743,9 @@ def _make_model_opt(args):
             'rnd_colour': rnd_colour,
         }
         if args.model == 'double_attention':
-            model_opt['num_ctrl_lstm_iter'] = args.num_ctrl_lstm_iter
+            model_opt['num_ctrl_rnn_iter'] = args.num_ctrl_rnn_iter
             model_opt['num_glimpse_mlp_layers'] = args.num_glimpse_mlp_layers
-            # model_opt['num_ctrl_lstm_iter'] = 5
+            # model_opt['num_ctrl_rnn_iter'] = 5
             # model_opt['num_glimpse_mlp_layers'] = 1
 
     elif args.model == 'vanilla':
