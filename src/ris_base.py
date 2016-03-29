@@ -784,7 +784,7 @@ def get_unnormalized_attn(ctr, lg_size, inp_height, inp_width):
 #     return top_left, bot_right
 
 
-def get_box_coord(ctr, size):
+def get_box_coord(ctr, size, truncate=True):
     """Get box coordinates given parameters."""
     return ctr - size / 2.0, ctr + size / 2.0
 
