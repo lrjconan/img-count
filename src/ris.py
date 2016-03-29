@@ -1473,6 +1473,21 @@ if __name__ == '__main__':
         loggers['learn_rate'].add(step, r['learn_rate'])
 
         # Batch normalization stats.
+        if train_opt['debug_weights']:
+            for layer_name, nlayers in zip(['glimpse_mlp', 'ctrl_mlp'],
+                                           [model_opt['num_glimpse_mlp_layers'],
+                                            model_opt['num_ctrl_mlp_layers']]):
+                _output = []
+                for ii in xrange(nlayers):
+                    _output.append(r['{}_w_{}_mean'.format(layer_name, ii)])
+                loggers[layer_name].add(step, _output)
+
+            for layer_name in ['ctrl_rnn']:
+                _output = [r['{}_w_x_mean'.format(layer_name)],
+                           r['{}_w_h_mean'.format(layer_name)],
+                           r['{}_b_mean'.format(layer_name)]]
+                loggers[layer_name].add(step, _output)
+
         if bn:
             for _layer, _num in zip(
                     ['ccnn', 'acnn', 'attn_dcnn'],
