@@ -412,7 +412,6 @@ def _add_model_args(parser):
     # kAttnDcnnDepth = '16,16,8,4,4,1'
     # kAttnDcnnPool = '2,1,2,1,2,1'
 
-
     kCtrlMlpDim = 256
     kNumCtrlMlpLayers = 2
     kCtrlRnnHiddenDim = 256
@@ -620,6 +619,8 @@ def _add_training_args(parser):
                         help='Write out logs on conv layer activation')
     parser.add_argument('-no_valid', action='store_true',
                         help='Use the whole training set.')
+    parser.add_argument('-debug_weights', action='store_true',
+                        help='Plot the weights')
 
     pass
 
@@ -883,7 +884,8 @@ def _make_train_opt(args):
         'save_ckpt': args.save_ckpt,
         'logs': args.logs,
         'gpu': args.gpu,
-        'localhost': args.localhost
+        'localhost': args.localhost,
+        'debug_weights': args.debug_weights
     }
 
     return train_opt
@@ -913,7 +915,7 @@ def _get_model_id(task_name):
     return model_id
 
 
-def _get_ts_loggers(model_opt, debug_bn=False):
+def _get_ts_loggers(model_opt, debug_bn=False, debug_weights=False):
     loggers = {}
     loggers['loss'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'loss.csv'), ['train', 'valid'],
@@ -993,6 +995,29 @@ def _get_ts_loggers(model_opt, debug_bn=False):
             ['attn log gamma', 'box log gamma', 'out log gamma'],
             name='Attn params',
             buffer_size=1)
+
+    if debug_weights:
+        for layer_name, nlayers in zip(['glimpse_mlp', 'ctrl_mlp'],
+                                       [model_opt['num_glimpse_mlp_layers'],
+                                        model_opt['num_ctrl_mlp_layers']]):
+            labels = []
+            for ii in xrange(nlayers):
+                labels.append('w_{}'.format(ii))
+                labels.append('b_{}'.format(ii))
+            loggers[layer_name] = TimeSeriesLogger(
+                os.path.join(logs_folder,
+                             '{}.csv'.format(layer_name)),
+                labels,
+                name='{} weights stats'.format(layer_name),
+                buffer_size=1)
+        for layer_name in ['ctrl_rnn']:
+            labels = ['w_x', 'w_h', 'b']
+            loggers[layer_name] = TimeSeriesLogger(
+                os.path.join(logs_folder,
+                             '{}.csv'.format(layer_name)),
+                labels,
+                name='{} weights stats'.format(layer_name),
+                buffer_size=1)
 
     if debug_bn:
         num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
@@ -1146,7 +1171,8 @@ if __name__ == '__main__':
     # Create time series loggers
     loggers = {}
     if train_opt['logs']:
-        loggers = _get_ts_loggers(model_opt, debug_bn=train_opt['debug_bn'])
+        loggers = _get_ts_loggers(model_opt, debug_bn=train_opt['debug_bn'],
+                                  debug_weights=train_opt['debug_weights'])
         _register_raw_logs(log_manager, log, model_opt, saver)
         samples = _get_plot_loggers(model_opt, train_opt)
         _log_url = 'http://{}/deep-dashboard?id={}'.format(
@@ -1323,6 +1349,18 @@ if __name__ == '__main__':
                     'count_acc', 'dice', 'dic', 'dic_abs', 'wt_cov_soft',
                     'wt_cov_hard', 'unwt_cov_soft', 'unwt_cov_hard',
                     'learn_rate']
+
+        if train_opt['debug_weights']:
+            for layer_name, nlayers in zip(['glimpse_mlp', 'ctrl_mlp'],
+                                           [model_opt['num_glimpse_mlp_layers'],
+                                            model_opt['num_ctrl_mlp_layers']]):
+                for ii in xrange(nlayers):
+                    _outputs.append('{}_w_{}_mean'.format(layer_name, ii))
+
+            for layer_name in ['ctrl_rnn']:
+                _outputs.append('{}_w_x_mean'.format(layer_name))
+                _outputs.append('{}_w_h_mean'.format(layer_name))
+                _outputs.append('{}_b_mean'.format(layer_name))
 
         if model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention':
             _outputs.extend(['box_loss', 'gt_knob_prob_box',

@@ -365,7 +365,7 @@ def dropout(x, keep_prob, phase_train):
     return tf.nn.dropout(x, keep_prob)
 
 
-def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, scope='mlp'):
+def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, scope='mlp', model=None):
     """Add MLP. N = number of layers.
 
     Args:
@@ -392,6 +392,15 @@ def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, 
             w[ii] = weight_variable([nin, nout], wd=wd)
             if add_bias:
                 b[ii] = weight_variable([nout])
+
+            if model:
+                model['{}_w_{}'.format(scope, ii)] = w[ii]
+                model['{}_w_{}_mean'.format(scope, ii)] = tf.reduce_sum(
+                    w[ii]) / nin / nout
+                if add_bias:
+                    model['{}_b_{}'.format(scope, ii)] = b[ii]
+                    model['{}_b_{}_mean'.format(scope, ii)] = tf.reduce_sum(
+                        b[ii]) / nout
 
     def run_mlp(x):
         h = [None] * nlayers
@@ -477,7 +486,7 @@ def conv_lstm(inp_depth, hid_depth, filter_size, wd=None, scope='conv_lstm'):
     return unroll
 
 
-def lstm(inp_dim, hid_dim, wd=None, scope='lstm'):
+def lstm(inp_dim, hid_dim, wd=None, scope='lstm', model=None):
     """Adds an LSTM component.
 
     Args:
@@ -514,6 +523,17 @@ def lstm(inp_dim, hid_dim, wd=None, scope='lstm'):
         w_ho = weight_variable([hid_dim, hid_dim], wd=wd, name='w_ho')
         b_o = weight_variable([hid_dim], initializer=tf.constant_initializer(0.0),
                               name='b_o')
+
+        if model:
+            model['{}_w_x_mean'] = (tf.reduce_sum(
+                w_xi) + tf.reduce_sum(w_xf) + tf.reduce_sum(w_xu) +
+                tf.reduce_sum(w_xo)) / inp_dim / hid_dim / 4
+            model['{}_w_h_mean'] = (tf.reduce_sum(
+                w_hi) + tf.reduce_sum(w_hf) + tf.reduce_sum(w_hu) +
+                tf.reduce_sum(w_ho)) / hid_dim / hid_dim / 4
+            model['{}_b_mean'] = (tf.reduce_sum(
+                b_i) + tf.reduce_sum(b_f) + tf.reduce_sum(b_u) +
+                tf.reduce_sum(b_o)) / hid_dim / 4
 
     def unroll(inp, state):
         c = tf.slice(state, [0, 0], [-1, hid_dim])
