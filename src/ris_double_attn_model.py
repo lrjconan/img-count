@@ -160,7 +160,7 @@ def get_model(opt, device='/cpu:0'):
         crnn_g_o = [None] * timespan
         h_crnn = [None] * timespan
         crnn_cell = nn.lstm(glimpse_feat_dim, crnn_dim,
-                            wd=wd, scope='ctrl_lstm')
+                            wd=wd, scope='ctrl_lstm', model=model)
 
         # Glimpse MLP definition
         gmlp_dims = [crnn_dim] * num_glimpse_mlp_layers + [glimpse_map_dim]
@@ -169,7 +169,8 @@ def get_model(opt, device='/cpu:0'):
         gmlp_dropout = None
         gmlp = nn.mlp(gmlp_dims, gmlp_act, add_bias=True,
                       dropout_keep=gmlp_dropout,
-                      phase_train=phase_train, wd=wd, scope='glimpse_mlp')
+                      phase_train=phase_train, wd=wd, scope='glimpse_mlp',
+                      model=model)
 
         # Controller MLP definition
         cmlp_dims = [crnn_dim] + [ctrl_mlp_dim] * \
@@ -179,7 +180,8 @@ def get_model(opt, device='/cpu:0'):
         # cmlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
         cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=True,
                       dropout_keep=cmlp_dropout,
-                      phase_train=phase_train, wd=wd, scope='ctrl_mlp')
+                      phase_train=phase_train, wd=wd, scope='ctrl_mlp',
+                      model=model)
 
         # Score MLP definition
         smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd, scope='score_mlp')
