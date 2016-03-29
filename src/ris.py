@@ -1356,6 +1356,7 @@ if __name__ == '__main__':
                                             model_opt['num_ctrl_mlp_layers']]):
                 for ii in xrange(nlayers):
                     _outputs.append('{}_w_{}_mean'.format(layer_name, ii))
+                    _outputs.append('{}_b_{}_mean'.format(layer_name, ii))
 
             for layer_name in ['ctrl_lstm']:
                 _outputs.append('{}_w_x_mean'.format(layer_name))
@@ -1472,7 +1473,6 @@ if __name__ == '__main__':
                                               r['y_out_lg_gamma_mean']])
         loggers['learn_rate'].add(step, r['learn_rate'])
 
-        # Batch normalization stats.
         if train_opt['debug_weights']:
             for layer_name, nlayers in zip(['glimpse_mlp', 'ctrl_mlp'],
                                            [model_opt['num_glimpse_mlp_layers'],
@@ -1480,6 +1480,7 @@ if __name__ == '__main__':
                 _output = []
                 for ii in xrange(nlayers):
                     _output.append(r['{}_w_{}_mean'.format(layer_name, ii)])
+                    _output.append(r['{}_b_{}_mean'.format(layer_name, ii)])
                 loggers[layer_name].add(step, _output)
 
             for layer_name in ['ctrl_lstm']:
@@ -1488,6 +1489,7 @@ if __name__ == '__main__':
                            r['{}_b_mean'.format(layer_name)]]
                 loggers[layer_name].add(step, _output)
 
+        # Batch normalization stats.
         if bn:
             for _layer, _num in zip(
                     ['ccnn', 'acnn', 'attn_dcnn'],

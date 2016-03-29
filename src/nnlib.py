@@ -396,11 +396,11 @@ def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, 
             if model:
                 model['{}_w_{}'.format(scope, ii)] = w[ii]
                 model['{}_w_{}_mean'.format(scope, ii)] = tf.reduce_sum(
-                    w[ii]) / nin / nout
+                    tf.abs(w[ii])) / nin / nout
                 if add_bias:
                     model['{}_b_{}'.format(scope, ii)] = b[ii]
                     model['{}_b_{}_mean'.format(scope, ii)] = tf.reduce_sum(
-                        b[ii]) / nout
+                        tf.abs(b[ii])) / nout
 
     def run_mlp(x):
         h = [None] * nlayers
@@ -526,14 +526,17 @@ def lstm(inp_dim, hid_dim, wd=None, scope='lstm', model=None):
 
         if model:
             model['{}_w_x_mean'.format(scope)] = (tf.reduce_sum(
-                w_xi) + tf.reduce_sum(w_xf) + tf.reduce_sum(w_xu) +
-                tf.reduce_sum(w_xo)) / inp_dim / hid_dim / 4
+                tf.abs(w_xi)) + tf.reduce_sum(tf.abs(w_xf)) +
+                tf.reduce_sum(tf.abs(w_xu)) +
+                tf.reduce_sum(tf.abs(w_xo))) / inp_dim / hid_dim / 4
             model['{}_w_h_mean'.format(scope)] = (tf.reduce_sum(
-                w_hi) + tf.reduce_sum(w_hf) + tf.reduce_sum(w_hu) +
-                tf.reduce_sum(w_ho)) / hid_dim / hid_dim / 4
+                tf.abs(w_hi)) + tf.reduce_sum(tf.abs(w_hf)) +
+                tf.reduce_sum(tf.abs(w_hu)) +
+                tf.reduce_sum(tf.abs(w_ho))) / hid_dim / hid_dim / 4
             model['{}_b_mean'.format(scope)] = (tf.reduce_sum(
-                b_i) + tf.reduce_sum(b_f) + tf.reduce_sum(b_u) +
-                tf.reduce_sum(b_o)) / hid_dim / 4
+                tf.abs(b_i)) + tf.reduce_sum(tf.abs(b_f)) +
+                tf.reduce_sum(tf.abs(b_u)) +
+                tf.reduce_sum(tf.abs(b_o))) / hid_dim / 4
 
     def unroll(inp, state):
         c = tf.slice(state, [0, 0], [-1, hid_dim])
