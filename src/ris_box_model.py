@@ -88,7 +88,7 @@ def get_model(opt, device='/:cpu:0'):
         ccnn_frozen = False
         ccnn = nn.cnn(ccnn_filters, ccnn_channels, ccnn_pool, ccnn_act,
                       ccnn_use_bn, phase_train=phase_train, wd=wd,
-                      scope='ctrl_cnn', model=model, weights=ccnn_init_w,
+                      scope='ctrl_cnn', model=model, init_weights=ccnn_init_w,
                       frozen=ccnn_frozen)
         h_ccnn = [None] * timespan
 
