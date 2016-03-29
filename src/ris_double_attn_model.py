@@ -353,7 +353,12 @@ def get_model(opt, device='/cpu:0'):
             crnn_g_f[tt] = [None] * num_ctrl_rnn_iter
             crnn_g_o[tt] = [None] * num_ctrl_rnn_iter
             h_crnn[tt] = [None] * num_ctrl_rnn_iter
-            crnn_state[tt][-1] = tf.zeros(tf.pack([num_ex, crnn_dim * 2]))
+
+            if tt == 0:
+                crnn_state[tt][-1] = tf.zeros(tf.pack([num_ex, crnn_dim * 2]))
+            else:
+                crnn_state[tt][-1] = crnn_state[tt - 1][num_ctrl_rnn_iter - 1]
+                
             crnn_glimpse_map[tt] = [None] * num_ctrl_rnn_iter
             crnn_glimpse_map[tt][0] = tf.ones(
                 tf.pack([num_ex, glimpse_map_dim, 1])) / glimpse_map_dim
