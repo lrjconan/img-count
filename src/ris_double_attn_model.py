@@ -231,7 +231,7 @@ def get_model(opt, device='/cpu:0'):
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
                       acnn_use_bn, phase_train=phase_train, wd=wd,
                       scope='attn_cnn', model=model, 
-                      shared_weights=cnn_shared_weights)
+                      shared_weights=ccnn_shared_weights)
 
         x_patch = [None] * timespan
         h_acnn = [None] * timespan

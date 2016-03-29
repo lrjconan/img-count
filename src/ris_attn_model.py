@@ -213,7 +213,7 @@ def get_model(opt, device='/cpu:0'):
                     {'w': model['ctrl_cnn_w_{}'.format(ii)],
                      'b': model['ctrl_cnn_b_{}'.format(ii)]})
         else:
-            ccnn_share_weights = None
+            ccnn_shared_weights = None
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
                       acnn_use_bn, phase_train=phase_train, wd=wd,
                       scope='attn_cnn', model=model, 
