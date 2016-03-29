@@ -392,7 +392,8 @@ def _add_model_args(parser):
     kAttnBoxPaddingRatio = 0.2
 
     kCtrlCnnFilterSize = '3,3,3,3,3'
-    kCtrlCnnDepth = '4,8,8,12,16'
+    kCtrlCnnDepth = '4,8,16,16,32'
+    # kCtrlCnnDepth = '4,8,8,12,16'
     kCtrlCnnPool = '2,2,2,2,2'
     kAttnCnnFilterSize = '3,3,3'
     kAttnCnnDepth = '4,8,16'
@@ -400,6 +401,17 @@ def _add_model_args(parser):
     kAttnDcnnFilterSize = '3,3,3,3'
     kAttnDcnnDepth = '16,8,4,1'
     kAttnDcnnPool = '2,2,2,1'
+
+    # kCtrlCnnFilterSize = '3,3,3,3,3'
+    # kCtrlCnnDepth = '4,8,16,16,32'
+    # kCtrlCnnPool = '2,2,2,2,2'
+    # kAttnCnnFilterSize = '3,3,3,3,3'
+    # kAttnCnnDepth = '4,8,16,16,32'
+    # kAttnCnnPool = '2,1,2,1,2'
+    # kAttnDcnnFilterSize = '3,3,3,3,3,3'
+    # kAttnDcnnDepth = '16,16,8,4,4,1'
+    # kAttnDcnnPool = '2,1,2,1,2,1'
+
 
     kCtrlMlpDim = 256
     kNumCtrlMlpLayers = 1
@@ -551,7 +563,9 @@ def _add_model_args(parser):
     parser.add_argument('-downsample_canvas', action='store_true',
                         help='Whether downsample canvas to feed to Ctrl RNN')
     parser.add_argument('-fg_cnn', default=None,
-                        help='Use pre-trained foreground segmentation CNN.')
+                        help='Use pre-trained foreground segmentation CNN')
+    parser.add_argument('-cnn_share_weights', action='store_true',
+                        help='Whether to share weights between CCNN and ACNN')
 
     # Double attention arguments
     parser.add_argument('-num_ctrl_rnn_iter', default=kNumCtrlRNNIter,
@@ -720,6 +734,7 @@ def _make_model_opt(args):
             'gt_segm_noise': args.gt_segm_noise,
             'downsample_canvas': args.downsample_canvas,
             'pretrain_ccnn': args.fg_cnn,
+            'cnn_share_weights': args.cnn_share_weights,
 
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,

@@ -154,7 +154,7 @@ def batch_norm(x, n_out, phase_train, scope='bn', affine=True):
     return normed, batch_mean, batch_var, ema_mean, ema_var
 
 
-def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=None, weights=None, frozen=False):
+def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=None, init_weights=None, frozen=False, shared_weights=None):
     """Add CNN. N = number of layers.
 
     Args:
@@ -181,19 +181,24 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
 
     with tf.variable_scope(scope):
         for ii in xrange(nlayers):
-            if weights:
+            if init_weights:
                 init = tf.constant_initializer
             else:
                 init = None
-            if weights:
-                init_val_w = weights[ii]['w']
-                init_val_b = weights[ii]['b']
+            if init_weights:
+                init_val_w = init_weights[ii]['w']
+                init_val_b = init_weights[ii]['b']
             else:
                 init_val_w = None
                 init_val_b = None
-            w[ii] = weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]],
-                                    init_val=init_val_w, wd=wd)
-            b[ii] = weight_variable([ch[ii + 1]], init_val=init_val_b)
+
+            if shared_weights:
+                w[ii] = shared_weights[ii]['w']
+                b[ii] = shared_weights[ii]['b']
+            else:
+                w[ii] = weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]],
+                                        init_val=init_val_w, wd=wd)
+                b[ii] = weight_variable([ch[ii + 1]], init_val=init_val_b)
             log.info('Filter: {}'.format([f[ii], f[ii], ch[ii], ch[ii + 1]]))
             # if use_bn[ii]:
             # bn[ii] = batch_norm(ch[ii + 1])

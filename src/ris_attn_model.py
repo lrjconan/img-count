@@ -70,6 +70,7 @@ def get_model(opt, device='/cpu:0'):
     gt_segm_noise = opt['gt_segm_noise']
     downsample_canvas = opt['downsample_canvas']
     pretrain_ccnn = opt['pretrain_ccnn']
+    cnn_share_weights = opt['cnn_share_weights']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -135,7 +136,7 @@ def get_model(opt, device='/cpu:0'):
 
         ccnn = nn.cnn(ccnn_filters, ccnn_channels, ccnn_pool, ccnn_act,
                       ccnn_use_bn, phase_train=phase_train, wd=wd,
-                      scope='ctrl_cnn', model=model, weights=ccnn_init_w,
+                      scope='ctrl_cnn', model=model, init_weights=ccnn_init_w,
                       frozen=ccnn_frozen)
         h_ccnn = [None] * timespan
 
@@ -187,12 +188,6 @@ def get_model(opt, device='/cpu:0'):
                         center_shift_ratio=tf.random_uniform(
                             tf.pack([num_ex, timespan, 2]),
                             -gt_box_ctr_noise, gt_box_ctr_noise))
-        attn_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
-        attn_box_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
-        y_out_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
-        gtbox_top_left = [None] * timespan
-        gtbox_bot_right = [None] * timespan
-
         attn_ctr_norm = [None] * timespan
         attn_lg_size = [None] * timespan
         attn_ctr = [None] * timespan
@@ -211,9 +206,18 @@ def get_model(opt, device='/cpu:0'):
         acnn_pool = attn_cnn_pool
         acnn_act = [tf.nn.relu] * acnn_nlayers
         acnn_use_bn = [use_bn] * acnn_nlayers
+        if cnn_share_weights:
+            ccnn_shared_weights = []
+            for ii in xrange(ccnn_nlayers):
+                ccnn_shared_weights.append(
+                    {'w': model['ctrl_cnn_w_{}'.format(ii)],
+                     'b': model['ctrl_cnn_b_{}'.format(ii)]})
+        else:
+            ccnn_share_weights = None
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
                       acnn_use_bn, phase_train=phase_train, wd=wd,
-                      scope='attn_cnn', model=model)
+                      scope='attn_cnn', model=model, 
+                      shared_weights=ccnn_shared_weights)
 
         x_patch = [None] * timespan
         h_acnn = [None] * timespan
@@ -255,7 +259,7 @@ def get_model(opt, device='/cpu:0'):
         adcnn_act = [tf.nn.relu] * adcnn_nlayers
         adcnn_channels = [attn_mlp_depth] + attn_dcnn_depth
         adcnn_use_bn = [use_bn] * adcnn_nlayers
-        adcnn_skip_ch = [0] + acnn_channels[::-1][1:] + [ccnn_inp_depth]
+        adcnn_skip_ch = [0] + acnn_channels[::-1][1:]
         adcnn = nn.dcnn(adcnn_filters, adcnn_channels, adcnn_unpool,
                         adcnn_act, use_bn=adcnn_use_bn, skip_ch=adcnn_skip_ch,
                         phase_train=phase_train, wd=wd, model=model,

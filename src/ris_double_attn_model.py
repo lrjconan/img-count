@@ -74,6 +74,7 @@ def get_model(opt, device='/cpu:0'):
     gt_segm_noise = opt['gt_segm_noise']
     downsample_canvas = opt['downsample_canvas']
     pretrain_ccnn = opt['pretrain_ccnn']
+    cnn_share_weights = opt['cnn_share_weights']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -158,7 +159,8 @@ def get_model(opt, device='/cpu:0'):
         crnn_g_f = [None] * timespan
         crnn_g_o = [None] * timespan
         h_crnn = [None] * timespan
-        crnn_cell = nn.lstm(glimpse_feat_dim, crnn_dim, wd=wd, scope='ctrl_lstm')
+        crnn_cell = nn.lstm(glimpse_feat_dim, crnn_dim,
+                            wd=wd, scope='ctrl_lstm')
 
         # Glimpse MLP definition
         gmlp_dims = [crnn_dim] * num_glimpse_mlp_layers + [glimpse_map_dim]
@@ -200,12 +202,6 @@ def get_model(opt, device='/cpu:0'):
                         center_shift_ratio=tf.random_uniform(
                             tf.pack([num_ex, timespan, 2]),
                             -gt_box_ctr_noise, gt_box_ctr_noise))
-        attn_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
-        attn_box_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
-        y_out_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
-        gtbox_top_left = [None] * timespan
-        gtbox_bot_right = [None] * timespan
-
         attn_ctr_norm = [None] * timespan
         attn_lg_size = [None] * timespan
         attn_ctr = [None] * timespan
@@ -224,9 +220,18 @@ def get_model(opt, device='/cpu:0'):
         acnn_pool = attn_cnn_pool
         acnn_act = [tf.nn.relu] * acnn_nlayers
         acnn_use_bn = [use_bn] * acnn_nlayers
+        if cnn_share_weights:
+            ccnn_shared_weights = []
+            for ii in xrange(ccnn_nlayers):
+                ccnn_shared_weights.append(
+                    {'w': model['ctrl_cnn_w_{}'.format(ii)],
+                     'b': model['ctrl_cnn_b_{}'.format(ii)]})
+        else:
+            ccnn_share_weights = None
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
                       acnn_use_bn, phase_train=phase_train, wd=wd,
-                      scope='attn_cnn', model=model)
+                      scope='attn_cnn', model=model, 
+                      shared_weights=cnn_shared_weights)
 
         x_patch = [None] * timespan
         h_acnn = [None] * timespan
@@ -268,7 +273,7 @@ def get_model(opt, device='/cpu:0'):
         adcnn_act = [tf.nn.relu] * adcnn_nlayers
         adcnn_channels = [attn_mlp_depth] + attn_dcnn_depth
         adcnn_use_bn = [use_bn] * adcnn_nlayers
-        adcnn_skip_ch = [0] + acnn_channels[::-1][1:] + [ccnn_inp_depth]
+        adcnn_skip_ch = [0] + acnn_channels[::-1][1:]
         adcnn = nn.dcnn(adcnn_filters, adcnn_channels, adcnn_unpool,
                         adcnn_act, use_bn=adcnn_use_bn, skip_ch=adcnn_skip_ch,
                         phase_train=phase_train, wd=wd, model=model,
@@ -362,7 +367,8 @@ def get_model(opt, device='/cpu:0'):
                     crnn_state[tt][tt2], [0, crnn_dim], [-1, crnn_dim])
                 h_gmlp = gmlp(h_crnn[tt][tt2])
                 if tt2 < num_ctrl_rnn_iter - 1:
-                    crnn_glimpse_map[tt][tt2 + 1] = tf.expand_dims(h_gmlp[-1], 2)
+                    crnn_glimpse_map[tt][
+                        tt2 + 1] = tf.expand_dims(h_gmlp[-1], 2)
 
             ctrl_out = cmlp(h_crnn[tt][-1])[-1]
             attn_ctr_norm[tt] = tf.slice(ctrl_out, [0, 0], [-1, 2])
