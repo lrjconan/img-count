@@ -417,6 +417,10 @@ def _add_model_args(parser):
     kGtBoxPadNoise = 0.1
     kGtSegmNoise = 0.3
 
+    # Double attention model options
+    kNumCtrlRNNIter = 5
+    kNumGlimpseMlpLayers = 2
+
     # Model type
     parser.add_argument('-model', default='attention',
                         help='Which model to train')
@@ -549,6 +553,11 @@ def _add_model_args(parser):
     parser.add_argument('-fg_cnn', default=None,
                         help='Use pre-trained foreground segmentation CNN.')
 
+    # Double attention arguments
+    parser.add_argument('-num_ctrl_rnn_iter', default=kNumCtrlRNNIter,
+                        type=int, help='Number of control RNN iterations')
+    parser.add_argument('-num_glimpse_mlp_layers', default=kNumGlimpseMlpLayers,
+                        type=int, help='Number of glimpse MLP layers')
     pass
 
 
@@ -718,10 +727,10 @@ def _make_model_opt(args):
             'rnd_colour': rnd_colour,
         }
         if args.model == 'double_attention':
-            # model_opt['num_ctrl_rnn_iter'] = args.num_ctrl_rnn_iter
-            # model_opt['num_glimpse_mlp_layers'] = args.num_glimpse_mlp_layers
-            model_opt['num_ctrl_rnn_iter'] = 5
-            model_opt['num_glimpse_mlp_layers'] = 1
+            model_opt['num_ctrl_rnn_iter'] = args.num_ctrl_rnn_iter
+            model_opt['num_glimpse_mlp_layers'] = args.num_glimpse_mlp_layers
+            # model_opt['num_ctrl_rnn_iter'] = 5
+            # model_opt['num_glimpse_mlp_layers'] = 1
 
     elif args.model == 'vanilla':
         cnn_fsize_list = args.cnn_filter_size.split(',')
@@ -1142,7 +1151,8 @@ if __name__ == '__main__':
 
     def run_samples():
         """Samples"""
-        attn = model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention'
+        attn = model_opt['type'] == 'attention' or model_opt[
+            'type'] == 'double_attention'
 
         def _run_samples(x, y, s, phase_train, fname_input, fname_output,
                          fname_total=None, fname_box=None, fname_patch=None,
@@ -1347,7 +1357,8 @@ if __name__ == '__main__':
         pass
 
     def write_log_valid(step, loggers, r):
-        attn = model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention'
+        attn = model_opt['type'] == 'attention' or model_opt[
+            'type'] == 'double_attention'
 
         loggers['loss'].add(step, ['', r['loss']])
         loggers['conf_loss'].add(step, ['', r['conf_loss']])
@@ -1380,7 +1391,8 @@ if __name__ == '__main__':
         pass
 
     def write_log_trainval(step, loggers, r, bn=False):
-        attn = model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention'
+        attn = model_opt['type'] == 'attention' or model_opt[
+            'type'] == 'double_attention'
 
         loggers['loss'].add(step, [r['loss'], ''])
         loggers['conf_loss'].add(step, [r['conf_loss'], ''])
