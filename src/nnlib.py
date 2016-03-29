@@ -525,13 +525,13 @@ def lstm(inp_dim, hid_dim, wd=None, scope='lstm', model=None):
                               name='b_o')
 
         if model:
-            model['{}_w_x_mean'] = (tf.reduce_sum(
+            model['{}_w_x_mean'.format(scope)] = (tf.reduce_sum(
                 w_xi) + tf.reduce_sum(w_xf) + tf.reduce_sum(w_xu) +
                 tf.reduce_sum(w_xo)) / inp_dim / hid_dim / 4
-            model['{}_w_h_mean'] = (tf.reduce_sum(
+            model['{}_w_h_mean'.format(scope)] = (tf.reduce_sum(
                 w_hi) + tf.reduce_sum(w_hf) + tf.reduce_sum(w_hu) +
                 tf.reduce_sum(w_ho)) / hid_dim / hid_dim / 4
-            model['{}_b_mean'] = (tf.reduce_sum(
+            model['{}_b_mean'.format(scope)] = (tf.reduce_sum(
                 b_i) + tf.reduce_sum(b_f) + tf.reduce_sum(b_u) +
                 tf.reduce_sum(b_o)) / hid_dim / 4
 
