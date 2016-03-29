@@ -514,7 +514,7 @@ def _add_model_args(parser):
                         help='Comma delimited integers')
     parser.add_argument('-attn_dcnn_pool', default=kAttnDcnnPool,
                         help='Comma delimited integers')
-    parser.add_argument('-ctrl_rnn_hid_dim', default=kCtrlRnnHiddenDim,
+    parser.add_argument('-ctrl_lstm_hid_dim', default=kCtrlRnnHiddenDim,
                         type=int, help='RNN hidden dimension')
     parser.add_argument('-attn_rnn_hid_dim', default=kAttnRnnHiddenDim,
                         type=int, help='RNN hidden dimension')
@@ -567,7 +567,7 @@ def _add_model_args(parser):
                         help='Whether to share weights between CCNN and ACNN')
 
     # Double attention arguments
-    parser.add_argument('-num_ctrl_rnn_iter', default=kNumCtrlRNNIter,
+    parser.add_argument('-num_ctrl_lstm_iter', default=kNumCtrlRNNIter,
                         type=int, help='Number of control RNN iterations')
     parser.add_argument('-num_glimpse_mlp_layers', default=kNumGlimpseMlpLayers,
                         type=int, help='Number of glimpse MLP layers')
@@ -690,7 +690,7 @@ def _make_model_opt(args):
             'ctrl_cnn_depth': ccnn_depth_list,
             'ctrl_cnn_pool': ccnn_pool_list,
 
-            'ctrl_rnn_hid_dim': args.ctrl_rnn_hid_dim,
+            'ctrl_lstm_hid_dim': args.ctrl_lstm_hid_dim,
             'attn_rnn_hid_dim': args.attn_rnn_hid_dim,
 
             'attn_cnn_filter_size': acnn_fsize_list,
@@ -743,9 +743,9 @@ def _make_model_opt(args):
             'rnd_colour': rnd_colour,
         }
         if args.model == 'double_attention':
-            model_opt['num_ctrl_rnn_iter'] = args.num_ctrl_rnn_iter
+            model_opt['num_ctrl_lstm_iter'] = args.num_ctrl_lstm_iter
             model_opt['num_glimpse_mlp_layers'] = args.num_glimpse_mlp_layers
-            # model_opt['num_ctrl_rnn_iter'] = 5
+            # model_opt['num_ctrl_lstm_iter'] = 5
             # model_opt['num_glimpse_mlp_layers'] = 1
 
     elif args.model == 'vanilla':
@@ -1010,7 +1010,7 @@ def _get_ts_loggers(model_opt, debug_bn=False, debug_weights=False):
                 labels,
                 name='{} weights stats'.format(layer_name),
                 buffer_size=1)
-        for layer_name in ['ctrl_rnn']:
+        for layer_name in ['ctrl_lstm']:
             labels = ['w_x', 'w_h', 'b']
             loggers[layer_name] = TimeSeriesLogger(
                 os.path.join(logs_folder,
@@ -1357,7 +1357,7 @@ if __name__ == '__main__':
                 for ii in xrange(nlayers):
                     _outputs.append('{}_w_{}_mean'.format(layer_name, ii))
 
-            for layer_name in ['ctrl_rnn']:
+            for layer_name in ['ctrl_lstm']:
                 _outputs.append('{}_w_x_mean'.format(layer_name))
                 _outputs.append('{}_w_h_mean'.format(layer_name))
                 _outputs.append('{}_b_mean'.format(layer_name))
@@ -1482,7 +1482,7 @@ if __name__ == '__main__':
                     _output.append(r['{}_w_{}_mean'.format(layer_name, ii)])
                 loggers[layer_name].add(step, _output)
 
-            for layer_name in ['ctrl_rnn']:
+            for layer_name in ['ctrl_lstm']:
                 _output = [r['{}_w_x_mean'.format(layer_name)],
                            r['{}_w_h_mean'.format(layer_name)],
                            r['{}_b_mean'.format(layer_name)]]
