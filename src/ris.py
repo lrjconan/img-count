@@ -414,7 +414,7 @@ def _add_model_args(parser):
 
 
     kCtrlMlpDim = 256
-    kNumCtrlMlpLayers = 1
+    kNumCtrlMlpLayers = 2
     kCtrlRnnHiddenDim = 256
     kAttnRnnHiddenDim = 256
     kNumAttnMlpLayers = 2
