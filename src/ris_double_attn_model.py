@@ -232,7 +232,7 @@ def get_model(opt, device='/cpu:0'):
             ccnn_shared_weights = None
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
                       acnn_use_bn, phase_train=phase_train, wd=wd,
-                      scope='attn_cnn', model=model, 
+                      scope='attn_cnn', model=model,
                       shared_weights=ccnn_shared_weights)
 
         x_patch = [None] * timespan
@@ -360,7 +360,7 @@ def get_model(opt, device='/cpu:0'):
                 crnn_state[tt][-1] = tf.zeros(tf.pack([num_ex, crnn_dim * 2]))
             else:
                 crnn_state[tt][-1] = crnn_state[tt - 1][num_ctrl_rnn_iter - 1]
-                
+
             crnn_glimpse_map[tt] = [None] * num_ctrl_rnn_iter
             crnn_glimpse_map[tt][0] = tf.ones(
                 tf.pack([num_ex, glimpse_map_dim, 1])) / glimpse_map_dim
@@ -378,8 +378,11 @@ def get_model(opt, device='/cpu:0'):
                         tt2 + 1] = tf.expand_dims(h_gmlp[-1], 2)
 
             ctrl_out = cmlp(h_crnn[tt][-1])[-1]
+            # Restrict to (-1, 1)
             attn_ctr_norm[tt] = tf.tanh(tf.slice(ctrl_out, [0, 0], [-1, 2]))
-            attn_lg_size[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
+            # Restrict to (-inf, 0)
+            attn_lg_size[tt] = -tf.nn.softplus(
+                tf.slice(ctrl_out, [0, 2], [-1, 2]))
             attn_ctr[tt], attn_size[tt] = get_unnormalized_attn(
                 attn_ctr_norm[tt], attn_lg_size[tt], inp_height, inp_width)
             attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
