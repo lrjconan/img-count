@@ -571,6 +571,8 @@ def _add_model_args(parser):
                         type=int, help='Number of control RNN iterations')
     parser.add_argument('-num_glimpse_mlp_layers', default=kNumGlimpseMlpLayers,
                         type=int, help='Number of glimpse MLP layers')
+    parser.add_argument('-squash_ctrl_params', action='store_true',
+                        help='Whether to squash control parameters.')
     pass
 
 
@@ -736,7 +738,8 @@ def _make_model_opt(args):
             'downsample_canvas': args.downsample_canvas,
             'pretrain_ccnn': args.fg_cnn,
             'cnn_share_weights': args.cnn_share_weights,
-
+            'squash_ctrl_params': args.squash_ctrl_params,
+            
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,
             'rnd_transpose': rnd_transpose,

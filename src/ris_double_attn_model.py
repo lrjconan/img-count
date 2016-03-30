@@ -75,6 +75,7 @@ def get_model(opt, device='/cpu:0'):
     downsample_canvas = opt['downsample_canvas']
     pretrain_ccnn = opt['pretrain_ccnn']
     cnn_share_weights = opt['cnn_share_weights']
+    squash_ctrl_params = opt['squash_ctrl_params']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -379,15 +380,17 @@ def get_model(opt, device='/cpu:0'):
 
             ctrl_out = cmlp(h_crnn[tt][-1])[-1]
 
-            # attn_ctr_norm[tt] = tf.slice(ctrl_out, [0, 0], [-1, 2])
-            # attn_lg_size[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
-            
-            # Restrict to (-1, 1)
-            attn_ctr_norm[tt] = tf.tanh(tf.slice(ctrl_out, [0, 0], [-1, 2]))
-            # Restrict to (-inf, 0)
-            attn_lg_size[tt] = -tf.nn.softplus(
-                tf.slice(ctrl_out, [0, 2], [-1, 2]))
-            
+            if squash_ctrl_params:
+                # Restrict to (-1, 1)
+                attn_ctr_norm[tt] = tf.tanh(
+                    tf.slice(ctrl_out, [0, 0], [-1, 2]))
+                # Restrict to (-inf, 0)
+                attn_lg_size[tt] = -tf.nn.softplus(
+                    tf.slice(ctrl_out, [0, 2], [-1, 2]))
+            else:
+                attn_ctr_norm[tt] = tf.slice(ctrl_out, [0, 0], [-1, 2])
+                attn_lg_size[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
+
             attn_ctr[tt], attn_size[tt] = get_unnormalized_attn(
                 attn_ctr_norm[tt], attn_lg_size[tt], inp_height, inp_width)
             attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))

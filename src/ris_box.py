@@ -507,11 +507,11 @@ if __name__ == '__main__':
                     r[key] = _r[key] * bat_sz / nvalid
 
         log.info('{:d} loss {:.4f}'.format(step, r['loss']))
-        write_log(loggers, r)
+        write_log(step, loggers, r)
 
         pass
 
-    def write_log_valid(loggers, r):
+    def write_log_valid(step, loggers, r):
         loggers['loss'].add(step, ['', r['loss']])
         loggers['iou'].add(step, ['', r['iou_soft_box']])
         loggers['wt_iou'].add(step, ['', r['wt_iou_soft_box']])
@@ -531,7 +531,7 @@ if __name__ == '__main__':
 
         pass
 
-    def write_log_trainval(loggers, r, bn=False):
+    def write_log_trainval(step, loggers, r, bn=False):
         loggers['loss'].add(step, [r['loss'], ''])
         loggers['iou'].add(step, [r['iou_soft_box'], ''])
         loggers['wt_iou'].add(step, [r['wt_iou_soft_box'], ''])
