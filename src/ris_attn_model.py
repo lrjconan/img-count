@@ -158,7 +158,8 @@ def get_model(opt, device='/cpu:0'):
         crnn_g_o = [None] * timespan
         h_crnn = [None] * timespan
         crnn_state[-1] = tf.zeros(tf.pack([num_ex, crnn_dim * 2]))
-        crnn_cell = nn.lstm(crnn_inp_dim, crnn_dim, wd=wd, scope='ctrl_lstm')
+        crnn_cell = nn.lstm(crnn_inp_dim, crnn_dim, wd=wd, scope='ctrl_lstm',
+                            model=model)
 
         # Controller MLP definition
         cmlp_dims = [crnn_dim] + [ctrl_mlp_dim] * \
@@ -168,10 +169,12 @@ def get_model(opt, device='/cpu:0'):
         # cmlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
         cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=True,
                       dropout_keep=cmlp_dropout,
-                      phase_train=phase_train, wd=wd, scope='ctrl_mlp')
+                      phase_train=phase_train, wd=wd, scope='ctrl_mlp',
+                      model=model)
 
         # Score MLP definition
-        smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd, scope='score_mlp')
+        smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd, scope='score_mlp',
+                      model=model)
         s_out = [None] * timespan
 
         # Groundtruth bounding box, [B, T, 2]
