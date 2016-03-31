@@ -377,7 +377,8 @@ def get_model(opt, device='/cpu:0'):
             # attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
             attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
             attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
-            y_out_lg_gamma[tt] = tf.slice(ctrl_out, [0, 8], [-1, 1])
+            # y_out_lg_gamma[tt] = tf.slice(ctrl_out, [0, 8], [-1, 1])
+            y_out_lg_gamma[tt] = tf.ones(tf.pack([num_ex, 2])) * 3.0
 
             attn_gamma[tt] = tf.reshape(
                 tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
