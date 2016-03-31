@@ -24,7 +24,9 @@ if __name__ == '__main__':
     ckpt_fname = ckpt_info['ckpt_fname']
     step = ckpt_info['step']
     # ckpt_id = 8000
-    # ckpt_fname = '{}/model.ckpt-{}'.format(model_folder, ckpt_id)
+    ckpt_id = 1200
+    ckpt_fname = '{}/model.ckpt-{}'.format(model_folder, ckpt_id)
+
     model_opt = ckpt_info['model_opt']
     data_opt = ckpt_info['data_opt']
     if 'squash_ctrl_params' not in model_opt:
