@@ -297,6 +297,10 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
             b[ii] = weight_variable([out_ch])
             in_ch = out_ch
 
+            if model:
+                model['{}_w_{}'.format(scope, ii)] = w[ii]
+                model['{}_b_{}'.format(scope, ii)] = b[ii]
+
     copy = [0]
 
     def run_dcnn(x, skip=None):
@@ -525,6 +529,19 @@ def lstm(inp_dim, hid_dim, wd=None, scope='lstm', model=None):
                               name='b_o')
 
         if model:
+            model['{}_w_xi'.format(scope)] = w_xi
+            model['{}_w_hi'.format(scope)] = w_hi
+            model['{}_b_i'.format(scope)] = b_i
+            model['{}_w_xf'.format(scope)] = w_xf
+            model['{}_w_hf'.format(scope)] = w_hf
+            model['{}_b_f'.format(scope)] = b_f
+            model['{}_w_xu'.format(scope)] = w_xu
+            model['{}_w_hu'.format(scope)] = w_hu
+            model['{}_b_u'.format(scope)] = b_u
+            model['{}_w_xo'.format(scope)] = w_xo
+            model['{}_w_ho'.format(scope)] = w_ho
+            model['{}_b_o'.format(scope)] = b_o
+
             model['{}_w_x_mean'.format(scope)] = (tf.reduce_sum(
                 tf.abs(w_xi)) + tf.reduce_sum(tf.abs(w_xf)) +
                 tf.reduce_sum(tf.abs(w_xu)) +
