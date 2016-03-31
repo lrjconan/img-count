@@ -1526,6 +1526,10 @@ if __name__ == '__main__':
             loggers['loss'].add(step, [r['loss'], ''])
             loggers['step_time'].add(step, _step_time)
 
+        if np.isnan(r['loss']):
+            saver.save(sess, global_step=step)
+            raise Exception('NaN occurred. Saved last step.')
+
         pass
 
     def train_loop(step=0):
