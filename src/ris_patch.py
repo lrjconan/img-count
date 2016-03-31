@@ -1098,40 +1098,24 @@ if __name__ == '__main__':
         get_batch_valid = _get_batch_fn(dataset['valid'])
         log.info('Number of validation examples: {}'.format(num_ex_valid))
 
-    def run_samples():
+    def run_samples(rnd):
         """Samples"""
         attn = model_opt['type'] == 'attention' or model_opt[
             'type'] == 'double_attention'
 
         def _run_samples(x, y, s, phase_train, fname_input, fname_output,
-                         fname_total=None, fname_box=None, fname_patch=None,
-                         fname_ccnn=None, fname_acnn=None, fname_attn_dcnn=None):
+                         fname_total=None):
 
             _outputs = ['x_trans', 'y_gt_trans', 'y_out', 'match']
 
             if attn:
-                _outputs.extend(['attn_top_left', 'attn_bot_right',
-                                 'attn_box', 'attn_box_gt', 'match_box'])
+                _outputs.extend(['attn_top_left', 'attn_bot_right'])
 
             _max_items = _get_max_items_per_row(x.shape[1], x.shape[2])
 
-            if fname_patch:
-                _outputs.append('x_patch')
-            if fname_ccnn:
-                [_outputs.append('h_ccnn_{}'.format(ii))
-                 for ii in xrange(num_ctrl_cnn)]
-                h_ccnn = [None] * num_ctrl_cnn
-            if fname_acnn:
-                [_outputs.append('h_acnn_{}'.format(ii))
-                 for ii in xrange(num_attn_cnn)]
-                h_acnn = [None] * num_attn_cnn
-            if fname_attn_dcnn:
-                [_outputs.append('h_attn_dcnn_{}'.format(ii))
-                 for ii in xrange(num_attn_dcnn)]
-                h_attn_dcnn = [None] * num_attn_dcnn
-
+            order = get_permuted_order(s, rnd)
             _feed_dict = {m['x']: x, m['phase_train']: phase_train,
-                          m['y_gt']: y, m['s_gt']: s}
+                          m['y_gt']: y, m['s_gt']: s, m['order']: order}
             _r = _run_model(m, _outputs, _feed_dict)
 
             plot_input(fname_input, x=_r['x_trans'], y_gt=_r['y_gt_trans'],
@@ -1150,36 +1134,6 @@ if __name__ == '__main__':
                 plot_total_instances(fname_total, y_out=_r['y_out'], s_out=s,
                                      max_items_per_row=_max_items)
 
-            if fname_box:
-                plot_output(fname_box, y_out=_r['attn_box'], s_out=s,
-                            match=_r['match_box'],
-                            attn=(_r['attn_top_left'], _r['attn_bot_right']),
-                            max_items_per_row=_max_items)
-
-            if fname_patch:
-                pu.plot_thumbnails(fname_patch,
-                                   _r['x_patch'][:, :, :, :, : 3],
-                                   axis=1, max_items_per_row=8)
-
-            if fname_ccnn:
-                for ii in xrange(num_ctrl_cnn):
-                    _h = _r['h_ccnn_{}'.format(ii)]
-                    pu.plot_thumbnails(fname_ccnn[ii], _h[:, 0], axis=3,
-                                       max_items_per_row=_max_items)
-
-            if fname_acnn:
-                for ii in xrange(num_attn_cnn):
-                    _h = _r['h_acnn_{}'.format(ii)]
-                    pu.plot_thumbnails(fname_acnn[ii], _h[:, 0], axis=3,
-                                       max_items_per_row=8)
-
-            if fname_attn_dcnn:
-                for ii in xrange(num_attn_dcnn):
-                    _h = _r['h_attn_dcnn_{}'.format(ii)]
-                    pu.plot_thumbnails(fname_attn_dcnn[ii], _h[ii][:, 0],
-                                       axis=3,
-                                       max_items_per_row=8)
-
             pass
 
         # Plot some samples.
@@ -1195,49 +1149,17 @@ if __name__ == '__main__':
             _x, _y, _s = _get_batch(
                 np.arange(min(_num_ex, args.num_samples_plot)))
 
-            if args.debug_act:
-                fname_ccnn = [samples['ccnn_{}_{}'.format(
-                    ii, _set)].get_fname() for ii in xrange(num_ctrl_cnn)]
-                fname_acnn = [samples['acnn_{}_{}'.format(
-                    ii, _set)].get_fname() for ii in xrange(num_attn_cnn)]
-                fname_attn_dcnn = [samples['attn_dcnn_{}_{}'.format(
-                    ii, _set)].get_fname() for ii in xrange(num_attn_dcnn)]
-            else:
-                fname_ccnn = None
-                fname_acnn = None
-                fname_attn_dcnn = None
-
-            if attn:
-                fname_box = samples['box_{}'.format(_set)].get_fname()
-                fname_patch = samples['patch_{}'.format(_set)].get_fname()
-                names = ['input', 'output', 'total', 'box', 'patch']
-            else:
-                fname_box = None
-                fname_patch = None
-                names = ['input', 'output', 'total']
+            names = ['input', 'output', 'total']
 
             _run_samples(
                 _x, _y, _s, _is_train,
                 fname_input=samples['input_{}'.format(_set)].get_fname(),
                 fname_output=samples['output_{}'.format(_set)].get_fname(),
-                fname_total=samples['total_{}'.format(_set)].get_fname(),
-                fname_box=fname_box,
-                fname_patch=fname_patch,
-                fname_ccnn=fname_ccnn,
-                fname_acnn=fname_acnn,
-                fname_attn_dcnn=fname_attn_dcnn)
+                fname_total=samples['total_{}'.format(_set)].get_fname())
 
             if not samples['output_{}'.format(_set)].is_registered():
                 for _name in names:
                     samples['{}_{}'.format(_name, _set)].register()
-
-                if args.debug_act:
-                    for _name, _num in zip(
-                            ['ccnn', 'acnn', 'attn_dcnn'],
-                            [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
-                        [samples[
-                            '{}_{}_{}'.format(_name, ii, _set)].register()
-                            for ii in xrange(_num)]
         pass
 
     def get_outputs_valid():
@@ -1399,11 +1321,11 @@ if __name__ == '__main__':
 
             # Plot samples
             if step % train_opt['steps_per_plot'] == 0:
-                run_samples()
+                run_samples(random)
                 pass
 
             # Train step
-            train_step(step, _x, _y, _s, random)
+            train_step(step, _x, _y, _s, order)
 
             # Model ID reminder
             if step % (10 * train_opt['steps_per_log']) == 0:
