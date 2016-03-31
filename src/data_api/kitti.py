@@ -75,6 +75,8 @@ def get_dataset(folder, opt, split='train'):
 
     inp_height = opt['height']
     inp_width = opt['width']
+    log.error(inp_height)
+    log.error(inp_width)
     num_ex = opt['num_examples'] if 'num_examples' in opt else -1
     timespan = opt['timespan'] if 'timespan' in opt else -1
     inp_shape = (inp_width, inp_height)

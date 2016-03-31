@@ -1026,6 +1026,7 @@ if __name__ == '__main__':
     train_opt = _make_train_opt(args)
     model_opt = _make_model_opt(args)
     data_opt = _make_data_opt(args)
+    # log.fatal(data_opt)
 
     # Restore previously saved checkpoints.
     if train_opt['restore']:
