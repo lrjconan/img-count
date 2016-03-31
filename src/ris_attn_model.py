@@ -72,7 +72,7 @@ def get_model(opt, device='/cpu:0'):
     pretrain_ccnn = opt['pretrain_ccnn']
     cnn_share_weights = opt['cnn_share_weights']
     squash_ctrl_params = opt['squash_ctrl_params']
-    use_iou_box = opt['iou_box']
+    use_iou_box = opt['use_iou_box']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
