@@ -1107,8 +1107,7 @@ if __name__ == '__main__':
                          fname_total=None, fname_box=None, fname_patch=None,
                          fname_ccnn=None, fname_acnn=None, fname_attn_dcnn=None):
 
-            _outputs = ['x_trans', 'y_gt_trans', 'y_out',
-                        's_out', 'match']
+            _outputs = ['x_trans', 'y_gt_trans', 'y_out', 'match']
 
             if attn:
                 _outputs.extend(['attn_top_left', 'attn_bot_right',
@@ -1139,21 +1138,20 @@ if __name__ == '__main__':
                        s_gt=s, max_items_per_row=_max_items)
 
             if attn:
-                plot_output(fname_output, y_out=_r['y_out'], s_out=_r['s_out'],
+                plot_output(fname_output, y_out=_r['y_out'], s_out=s,
                             match=_r['match'],
                             attn=(_r['attn_top_left'], _r['attn_bot_right']),
                             max_items_per_row=_max_items)
             else:
-                plot_output(fname_output, y_out=_r['y_out'], s_out=_r['s_out'],
+                plot_output(fname_output, y_out=_r['y_out'], s_out=s,
                             match=_r['match'], max_items_per_row=_max_items)
 
             if fname_total:
-                plot_total_instances(fname_total, y_out=_r['y_out'],
-                                     s_out=_r['s_out'],
+                plot_total_instances(fname_total, y_out=_r['y_out'], s_out=s,
                                      max_items_per_row=_max_items)
 
             if fname_box:
-                plot_output(fname_box, y_out=_r['attn_box'], s_out=_r['s_out'],
+                plot_output(fname_box, y_out=_r['attn_box'], s_out=s,
                             match=_r['match_box'],
                             attn=(_r['attn_top_left'], _r['attn_bot_right']),
                             max_items_per_row=_max_items)
