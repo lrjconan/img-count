@@ -16,6 +16,8 @@ if __name__ == '__main__':
     # model_folder = sys.argv[1]
     # model_folder = '/ais/gobi3/u/mren/results/img-count/rec_ins_segm-20160329234848'
     # model_folder = '../results/rec_ins_segm-20160330212049'
+    # model_type = 'double_attention'
+
     model_folder = '../results/rec_ins_segm-20160331003617'
     # data_folder = '/ais/gobi3/u/mren/data/lsc/A1'
     # model_folder = '../results/rec_ins_segm-20160329195154'
@@ -38,9 +40,11 @@ if __name__ == '__main__':
     if 'clip_gradient' not in model_opt:
         model_opt['clip_gradient'] = 1.0
 
-    # model = double_attention.get_model(model_opt)
-    model = attention.get_model(model_opt)
-    
+    if model_opt['type'] == 'double_attention':
+        model = double_attention.get_model(model_opt)
+    elif model_opt['type'] == 'attention':
+        model = attention.get_model(model_opt)
+
     # all_data = cvppp.get_dataset(data_folder, data_opt)
     # dataset = {}
     # split = 103
@@ -90,11 +94,19 @@ if __name__ == '__main__':
                 log.info(key)
                 output_list.append(key)
 
-    for mlp, nlayers in zip(['ctrl_mlp', 'glimpse_mlp', 'score_mlp', 'attn_mlp'],
-                            [model_opt['num_ctrl_mlp_layers'],
-                             model_opt['num_glimpse_mlp_layers'],
-                             1,
-                             model_opt['num_attn_mlp_layers']]):
+    if model_opt['type'] == 'double_attention':
+        mlps = ['ctrl_mlp', 'glimpse_mlp', 'score_mlp', 'attn_mlp']
+        mlplayers = [model_opt['num_ctrl_mlp_layers'],
+                     model_opt['num_glimpse_mlp_layers'],
+                     1,
+                     model_opt['num_attn_mlp_layers']]
+    elif model_opt['type'] == 'attention':
+        mlps = ['ctrl_mlp', 'score_mlp', 'attn_mlp']
+        mlplayers = [model_opt['num_ctrl_mlp_layers'],
+                     1,
+                     model_opt['num_attn_mlp_layers']]
+
+    for mlp, nlayers in zip(mlps, mlplayers):
         for ii in xrange(nlayers):
             for w in ['w', 'b']:
                 key = '{}_{}_{}'.format(mlp, w, ii)
