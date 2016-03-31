@@ -16,7 +16,7 @@ def get_device_fn(device):
     """Choose device for different ops."""
     OPS_ON_CPU = set(['ResizeBilinear', 'ResizeBilinearGrad', 'Mod', 'CumMin',
                       'CumMinGrad', 'Hungarian', 'Reverse', 'SparseToDense',
-                      'BatchMatMul'])
+                      'BatchMatMul', 'Gather'])
 
     def _device_fn(op):
         if op.type in OPS_ON_CPU:
