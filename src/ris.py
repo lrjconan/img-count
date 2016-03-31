@@ -745,7 +745,7 @@ def _make_model_opt(args):
             'cnn_share_weights': args.cnn_share_weights,
             'squash_ctrl_params': args.squash_ctrl_params,
             'use_iou_box': args.use_iou_box,
-            'clip_gradient': clip_gradient,
+            'clip_gradient': args.clip_gradient,
             
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,
@@ -812,7 +812,7 @@ def _make_model_opt(args):
             'add_skip_conn': True,
             # 'score_use_core': args.score_use_core
             'score_use_core': True,
-            'clip_gradient': clip_gradient,
+            'clip_gradient': args.clip_gradient,
 
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,
