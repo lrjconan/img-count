@@ -60,9 +60,9 @@ if __name__ == '__main__':
     saver.restore(sess, ckpt_fname)
 
     loss = sess.run(model['loss'], feed_dict={model['x']: x_bat,
-                                       model['y_gt']: y_bat,
-                                       model['s_gt']: s_bat,
-                                       model['phase_train']=True})
+                                              model['y_gt']: y_bat,
+                                              model['s_gt']: s_bat,
+                                              model['phase_train']: True})
     log.info('loss: {:6.4f}'.format(loss))
 
     model_val = {}
