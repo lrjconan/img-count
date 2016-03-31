@@ -30,8 +30,8 @@ if name == '__main__':
         for ii in xrange(len(model_opt['ctrl_cnn_filter_size'])):
             print cnn, ii
             for w in ['w', 'b']:
-            key = '{}_{}_{}'.format(cnn, w, ii)
-            output_list.append(model[key])
+                key = '{}_{}_{}'.format(cnn, w, ii)
+                output_list.append(model[key])
 
     output_val = sess.run(output_list)
     for kk, key in enumerate(output_list):
