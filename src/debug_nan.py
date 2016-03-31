@@ -20,9 +20,9 @@ if __name__ == '__main__':
     saver = Saver(model_folder)
     ckpt_info = saver.get_ckpt_info()
 
-    # ckpt_fname = ckpt_info['ckpt_fname']
-    ckpt_id = 8000
-    ckpt_fname = '{}/model.ckpt-{}'.format(model_folder, ckpt_id)
+    ckpt_fname = ckpt_info['ckpt_fname']
+    # ckpt_id = 8000
+    # ckpt_fname = '{}/model.ckpt-{}'.format(model_folder, ckpt_id)
     model_opt = ckpt_info['model_opt']
     if 'squash_ctrl_params' not in model_opt:
         model_opt['squash_ctrl_params'] = False
