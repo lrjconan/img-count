@@ -72,6 +72,7 @@ def get_model(opt, device='/cpu:0'):
     pretrain_ccnn = opt['pretrain_ccnn']
     cnn_share_weights = opt['cnn_share_weights']
     squash_ctrl_params = opt['squash_ctrl_params']
+    use_iou_box = opt['iou_box']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -217,7 +218,7 @@ def get_model(opt, device='/cpu:0'):
             ccnn_shared_weights = None
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
                       acnn_use_bn, phase_train=phase_train, wd=wd,
-                      scope='attn_cnn', model=model, 
+                      scope='attn_cnn', model=model,
                       shared_weights=ccnn_shared_weights)
 
         x_patch = [None] * timespan
@@ -392,29 +393,35 @@ def get_model(opt, device='/cpu:0'):
             filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
             # Attention box
-            # attn_box[tt] = extract_patch(const_ones * attn_box_gamma[tt],
-            #                              filter_y_inv, filter_x_inv, 1)
-
-            _idx_map = get_idx_map(tf.pack([num_ex, inp_height, inp_width]))
-            attn_top_left[tt], attn_bot_right[tt] = get_box_coord(
-                attn_ctr[tt], attn_size[tt])
-            attn_box[tt] = get_filled_box_idx(
-                _idx_map, attn_top_left[tt], attn_bot_right[tt])
-            attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
-            attn_box[tt] = tf.reshape(attn_box[tt],
-                                      [-1, 1, inp_height, inp_width])
+            if use_iou_box:
+                _idx_map = get_idx_map(
+                    tf.pack([num_ex, inp_height, inp_width]))
+                attn_top_left[tt], attn_bot_right[tt] = get_box_coord(
+                    attn_ctr[tt], attn_size[tt])
+                attn_box[tt] = get_filled_box_idx(
+                    _idx_map, attn_top_left[tt], attn_bot_right[tt])
+                attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
+                attn_box[tt] = tf.reshape(attn_box[tt],
+                                          [-1, 1, inp_height, inp_width])
+            else:
+                attn_box[tt] = extract_patch(const_ones * attn_box_gamma[tt],
+                                             filter_y_inv, filter_x_inv, 1)
 
             # Here is the knob kick in GT bbox.
             if use_knob:
                 # IOU [B, 1, T]
                 # [B, 1, H, W] * [B, T, H, W] = [B, T]
-                # iou_soft_box[tt] = f_inter(attn_box[tt], attn_box_gt) / \
-                #     f_union(attn_box[tt], attn_box_gt, eps=1e-5)
-                _top_left = tf.expand_dims(attn_top_left[tt], 1)
-                _bot_right = tf.expand_dims(attn_bot_right[tt], 1)
-                iou_soft_box[tt] = f_iou_box(
-                    _top_left, _bot_right, attn_top_left_gt, attn_bot_right_gt)
-                iou_soft_box[tt] += iou_bias
+                if use_iou_box:
+                    _top_left = tf.expand_dims(attn_top_left[tt], 1)
+                    _bot_right = tf.expand_dims(attn_bot_right[tt], 1)
+                    iou_soft_box[tt] = f_iou_box(
+                        _top_left, _bot_right, attn_top_left_gt,
+                        attn_bot_right_gt)
+                    iou_soft_box[tt] += iou_bias
+                else:
+                    iou_soft_box[tt] = f_inter(attn_box[tt], attn_box_gt) / \
+                        f_union(attn_box[tt], attn_box_gt, eps=1e-5)
+
                 grd_match = f_greedy_match(iou_soft_box[tt], grd_match_cum)
 
                 if gt_selector == 'greedy_match':

@@ -565,6 +565,8 @@ def _add_model_args(parser):
                         help='Use pre-trained foreground segmentation CNN')
     parser.add_argument('-cnn_share_weights', action='store_true',
                         help='Whether to share weights between CCNN and ACNN')
+    parser.add_argument('-use_iou_box', action='store_true',
+                        help='Whether to use box to calculate IoU')
 
     # Double attention arguments
     parser.add_argument('-num_ctrl_rnn_iter', default=kNumCtrlRNNIter,
@@ -1529,6 +1531,10 @@ if __name__ == '__main__':
         # Check NaN.
         if np.isnan(r['loss']):
             saver.save(sess, global_step=step)
+            input_file = h5py.File(os.path.join(exp_folder, 'nan_input.h5'))
+            input_file['x'] = x
+            input_file['y_gt'] = y_gt
+            input_file['s_gt'] = s_gt
             raise Exception('NaN occurred. Saved last step.')
 
         pass
