@@ -42,6 +42,7 @@ def get_model(opt, device='/cpu:0'):
     num_mlp_layers = opt['num_mlp_layers']
     mlp_dropout_ratio = opt['mlp_dropout']
     segm_loss_fn = opt['segm_loss_fn']
+    clip_gradient = opt['clip_gradient']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -280,7 +281,7 @@ def get_model(opt, device='/cpu:0'):
 
         train_step = GradientClipOptimizer(
             tf.train.AdamOptimizer(learn_rate, epsilon=eps),
-            clip=1.0).minimize(total_loss, global_step=global_step)
+            clip=clip_gradient).minimize(total_loss, global_step=global_step)
         model['train_step'] = train_step
 
         # Statistics

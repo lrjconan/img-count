@@ -427,6 +427,7 @@ def _add_model_args(parser):
     kGtBoxCtrNoise = 0.05
     kGtBoxPadNoise = 0.1
     kGtSegmNoise = 0.3
+    kClipGradient = 1.0
 
     # Double attention model options
     kNumCtrlRNNIter = 5
@@ -567,6 +568,8 @@ def _add_model_args(parser):
                         help='Whether to share weights between CCNN and ACNN')
     parser.add_argument('-use_iou_box', action='store_true',
                         help='Whether to use box to calculate IoU')
+    parser.add_argument('-clip_gradient', default=kClipGradient, type=float,
+                        help='Largest gradient norm size')
 
     # Double attention arguments
     parser.add_argument('-num_ctrl_rnn_iter', default=kNumCtrlRNNIter,
@@ -742,6 +745,7 @@ def _make_model_opt(args):
             'cnn_share_weights': args.cnn_share_weights,
             'squash_ctrl_params': args.squash_ctrl_params,
             'use_iou_box': args.use_iou_box,
+            'clip_gradient': clip_gradient,
             
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,
@@ -808,6 +812,7 @@ def _make_model_opt(args):
             'add_skip_conn': True,
             # 'score_use_core': args.score_use_core
             'score_use_core': True,
+            'clip_gradient': clip_gradient,
 
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,

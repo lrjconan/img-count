@@ -73,6 +73,7 @@ def get_model(opt, device='/cpu:0'):
     cnn_share_weights = opt['cnn_share_weights']
     squash_ctrl_params = opt['squash_ctrl_params']
     use_iou_box = opt['use_iou_box']
+    clip_gradient = opt['clip_gradient']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -644,7 +645,7 @@ def get_model(opt, device='/cpu:0'):
 
         train_step = GradientClipOptimizer(
             tf.train.AdamOptimizer(learn_rate, epsilon=eps),
-            clip=1.0).minimize(total_loss, global_step=global_step)
+            clip=clip_gradient).minimize(total_loss, global_step=global_step)
         model['train_step'] = train_step
 
         # Statistics
