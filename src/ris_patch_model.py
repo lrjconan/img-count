@@ -35,15 +35,10 @@ def get_model(opt, device='/cpu:0'):
     inp_width = opt['inp_width']
     inp_depth = opt['inp_depth']
     padding = opt['padding']
-    filter_size = opt['filter_size']
-
-    ctrl_cnn_filter_size = opt['ctrl_cnn_filter_size']
-    ctrl_cnn_depth = opt['ctrl_cnn_depth']
-    ctrl_cnn_pool = opt['ctrl_cnn_pool']
-    ctrl_rnn_hid_dim = opt['ctrl_rnn_hid_dim']
-
-    num_ctrl_mlp_layers = opt['num_ctrl_mlp_layers']
-    ctrl_mlp_dim = opt['ctrl_mlp_dim']
+    filter_height = opt['filter_height']
+    filter_width = opt['filter_width']
+    log.error(filter_height)
+    log.error(filter_width)
 
     attn_cnn_filter_size = opt['attn_cnn_filter_size']
     attn_cnn_depth = opt['attn_cnn_depth']
@@ -63,29 +58,13 @@ def get_model(opt, device='/cpu:0'):
     use_bn = opt['use_bn']
     use_gt_attn = opt['use_gt_attn']
     segm_loss_fn = opt['segm_loss_fn']
-    box_loss_fn = opt['box_loss_fn']
     loss_mix_ratio = opt['loss_mix_ratio']
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
     steps_per_learn_rate_decay = opt['steps_per_learn_rate_decay']
-    use_attn_rnn = opt['use_attn_rnn']
-    use_knob = opt['use_knob']
-    knob_base = opt['knob_base']
-    knob_decay = opt['knob_decay']
-    steps_per_knob_decay = opt['steps_per_knob_decay']
-    use_canvas = opt['use_canvas']
-    knob_box_offset = opt['knob_box_offset']
-    knob_segm_offset = opt['knob_segm_offset']
-    knob_use_timescale = opt['knob_use_timescale']
-    gt_selector = opt['gt_selector']
     gt_box_ctr_noise = opt['gt_box_ctr_noise']
     gt_box_pad_noise = opt['gt_box_pad_noise']
     gt_segm_noise = opt['gt_segm_noise']
-    downsample_canvas = opt['downsample_canvas']
-    pretrain_ccnn = opt['pretrain_ccnn']
-    cnn_share_weights = opt['cnn_share_weights']
-    squash_ctrl_params = opt['squash_ctrl_params']
-    use_iou_box = opt['use_iou_box']
     clip_gradient = opt['clip_gradient']
 
     rnd_hflip = opt['rnd_hflip']
@@ -152,18 +131,9 @@ def get_model(opt, device='/cpu:0'):
         acnn_pool = attn_cnn_pool
         acnn_act = [tf.nn.relu] * acnn_nlayers
         acnn_use_bn = [use_bn] * acnn_nlayers
-        if cnn_share_weights:
-            ccnn_shared_weights = []
-            for ii in xrange(ccnn_nlayers):
-                ccnn_shared_weights.append(
-                    {'w': model['ctrl_cnn_w_{}'.format(ii)],
-                     'b': model['ctrl_cnn_b_{}'.format(ii)]})
-        else:
-            ccnn_shared_weights = None
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
                       acnn_use_bn, phase_train=phase_train, wd=wd,
-                      scope='attn_cnn', model=model,
-                      shared_weights=ccnn_shared_weights)
+                      scope='attn_cnn', model=model)
 
         x_patch = [None] * timespan
         h_acnn = [None] * timespan
@@ -171,8 +141,10 @@ def get_model(opt, device='/cpu:0'):
 
         # Attention RNN definition
         acnn_subsample = np.array(acnn_pool).prod()
-        arnn_h = filter_size / acnn_subsample
-        arnn_w = filter_size / acnn_subsample
+        arnn_h = filter_height / acnn_subsample
+        arnn_w = filter_width/ acnn_subsample
+        log.error(arnn_h)
+        log.error(arnn_w)
         amlp_inp_dim = arnn_h * arnn_w * acnn_channels[-1]
 
         # Attention MLP definition
@@ -220,20 +192,20 @@ def get_model(opt, device='/cpu:0'):
             attn_top_left[tt], attn_bot_right[tt] = get_box_coord(
                 attn_ctr[tt], attn_size[tt])
 
-            # [B, H, A]
+            # [B, H, H']
             filter_y = get_gaussian_filter(
                 attn_ctr[tt][:, 0], attn_size[tt][:, 0], 0.0,
-                inp_height, filter_size)
+                inp_height, filter_height)
 
-            # [B, W, A]
+            # [B, W, W']
             filter_x = get_gaussian_filter(
                 attn_ctr[tt][:, 1], attn_size[tt][:, 1], 0.0,
-                inp_width, filter_size)
+                inp_width, filter_width)
 
-            # [B, A, H]
+            # [B, H', H]
             filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
 
-            # [B, A, W]
+            # [B, W', W]
             filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
             # Attended patch [B, A, A, D]
@@ -242,27 +214,14 @@ def get_model(opt, device='/cpu:0'):
                 acnn_inp, filter_y, filter_x, acnn_inp_depth)
 
             if tt == 0:
-                model['mask'] = mask
-                model['attn_top_left'] = attn_top_left[tt]
+                model['filter_x'] = filter_x
+                model['filter_y'] = filter_y
                 model['x_patch'] = x_patch[tt]
 
             # CNN [B, A, A, D] => [B, RH2, RW2, RD2]
             h_acnn[tt] = acnn(x_patch[tt])
             h_acnn_last[tt] = h_acnn[tt][-1]
-
-            if use_attn_rnn:
-                # RNN [B, T, R2]
-                arnn_inp = tf.reshape(h_acnn_last[tt], [-1, arnn_inp_dim])
-                arnn_state[tt], arnn_g_i[tt], arnn_g_f[tt], arnn_g_o[tt] = \
-                    arnn_cell(arnn_inp, arnn_state[tt - 1])
-
-            # Dense segmentation network [B, R] => [B, M]
-            if use_attn_rnn:
-                h_arnn = tf.slice(
-                    arnn_state[tt], [0, arnn_dim], [-1, arnn_dim])
-                amlp_inp = h_arnn
-            else:
-                amlp_inp = h_acnn_last[tt]
+            amlp_inp = h_acnn_last[tt]
             amlp_inp = tf.reshape(amlp_inp, [-1, amlp_inp_dim])
             h_core = amlp(amlp_inp)[-1]
             h_core = tf.reshape(h_core, [-1, arnn_h, arnn_w, attn_mlp_depth])

@@ -389,7 +389,8 @@ def _add_model_args(parser):
     kScoreMaxpool = 1
 
     # Attention-based model options
-    kAttnSize = 48
+    kAttnWidth = 48
+    kAttnHeight = 48
     kAttnBoxPaddingRatio = 0.2
 
     kCtrlCnnFilterSize = '3,3,3,3,3'
@@ -498,6 +499,10 @@ def _add_model_args(parser):
     # Attention-based model options
     parser.add_argument('-filter_size', default=kAttnSize, type=int,
                         help='Attention filter size')
+    # parser.add_argument('-filter_height', default=kAttnHeight, type=int,
+    #                     help='Attention filter width')
+    # parser.add_argument('-filter_width', default=kAttnWidth, type=int,
+    #                     help='Attention filter size')
     parser.add_argument('-ctrl_cnn_filter_size', default=kCtrlCnnFilterSize,
                         help='Comma delimited integers')
     parser.add_argument('-ctrl_cnn_depth', default=kCtrlCnnDepth,

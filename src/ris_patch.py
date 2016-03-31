@@ -377,7 +377,9 @@ def _add_model_args(parser):
     kScoreMaxpool = 1
 
     # Attention-based model options
-    kAttnSize = 48
+    # kAttnSize = 48
+    kAttnHeight = 48
+    kAttnWidth = 96
     kAttnBoxPaddingRatio = 0.2
 
     kCtrlCnnFilterSize = '3,3,3,3,3'
@@ -484,8 +486,10 @@ def _add_model_args(parser):
                         help='Whether cumulative minimum. Default yes.')
 
     # Attention-based model options
-    parser.add_argument('-filter_size', default=kAttnSize, type=int,
-                        help='Attention filter size')
+    parser.add_argument('-filter_height', default=kAttnHeight, type=int,
+                        help='Attention filter height')
+    parser.add_argument('-filter_width', default=kAttnWidth, type=int,
+                        help='Attention filter width')
     parser.add_argument('-ctrl_cnn_filter_size', default=kCtrlCnnFilterSize,
                         help='Comma delimited integers')
     parser.add_argument('-ctrl_cnn_depth', default=kCtrlCnnDepth,
@@ -679,7 +683,8 @@ def _make_model_opt(args):
             'inp_width': inp_width,
             'inp_depth': 3,
             'padding': args.padding,
-            'filter_size': args.filter_size,
+            'filter_height': args.filter_height,
+            'filter_width': args.filter_width,
             'timespan': timespan,
 
             'ctrl_cnn_filter_size': ccnn_fsize_list,
@@ -1031,7 +1036,7 @@ if __name__ == '__main__':
         model_id = ckpt_info['model_id']
         exp_folder = train_opt['restore']
     else:
-        model_id = _get_model_id('rec_ins_segm')
+        model_id = _get_model_id('rec_ins_segm_patch')
         step = 0
         exp_folder = os.path.join(train_opt['results'], model_id)
         saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
@@ -1186,6 +1191,10 @@ if __name__ == '__main__':
             _order = get_permuted_order(_s, rnd)
             _feed_dict = {m['x']: _x, m['phase_train']: phase_train,
                           m['y_gt']: _y, m['s_gt']: _s, m['order']: _order}
+            # _r = _run_model(m, ['x_patch', 'filter_y', 'filter_x'], _feed_dict)
+            # print _r['x_patch'].shape
+            # print _r['filter_y'].shape
+            # print _r['filter_x'].shape
             _r = _run_model(m, outputs, _feed_dict)
             bat_sz = _x.shape[0]
 

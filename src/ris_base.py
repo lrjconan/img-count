@@ -581,12 +581,13 @@ def extract_patch(x, f_y, f_x, nchannels):
         patch: [B, FH, FW]
     """
     patch = [None] * nchannels
-    fsize_h = tf.shape(f_x)[2]
-    fsize_w = tf.shape(f_y)[2]
+    fsize_h = tf.shape(f_y)[2]
+    fsize_w = tf.shape(f_x)[2]
     hh = tf.shape(x)[1]
     ww = tf.shape(x)[2]
 
     for dd in xrange(nchannels):
+        # [B, H, W]
         x_ch = tf.reshape(
             tf.slice(x, [0, 0, 0, dd], [-1, -1, -1, 1]),
             tf.pack([-1, hh, ww]))
