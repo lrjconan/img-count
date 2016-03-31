@@ -35,6 +35,8 @@ if __name__ == '__main__':
         model_opt['squash_ctrl_params'] = False
     if 'use_iou_box' not in model_opt:
         model_opt['use_iou_box'] = True
+    if 'clip_gradient' not in model_opt:
+        model_opt['clip_gradient'] = 1.0
 
     # model = double_attention.get_model(model_opt)
     model = attention.get_model(model_opt)
