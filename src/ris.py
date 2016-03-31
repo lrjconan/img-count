@@ -1519,13 +1519,14 @@ if __name__ == '__main__':
         r = _run_model(m, _outputs, _feed_dict)
         _step_time = (time.time() - _start_time) * 1000
 
-        # Print statistics
+        # Print statistics.
         if step % train_opt['steps_per_log'] == 0:
             log.info('{:d} loss {:.4f} t {:.2f}ms'.format(step, r['loss'],
                                                           _step_time))
             loggers['loss'].add(step, [r['loss'], ''])
             loggers['step_time'].add(step, _step_time)
 
+        # Check NaN.
         if np.isnan(r['loss']):
             saver.save(sess, global_step=step)
             raise Exception('NaN occurred. Saved last step.')
