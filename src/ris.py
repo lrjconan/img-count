@@ -741,6 +741,7 @@ def _make_model_opt(args):
             'pretrain_ccnn': args.fg_cnn,
             'cnn_share_weights': args.cnn_share_weights,
             'squash_ctrl_params': args.squash_ctrl_params,
+            'use_iou_box': args.use_iou_box,
             
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,
