@@ -430,6 +430,8 @@ def get_model(opt, device='/cpu:0'):
                     attn_ctr[tt], attn_size[tt])
                 attn_box[tt] = get_filled_box_idx(
                     _idx_map, attn_top_left[tt], attn_bot_right[tt])
+                attn_box[tt] = tf.reshape(attn_box[tt],
+                                          [-1, 1, inp_height, inp_width])
             else:
                 attn_box[tt] = extract_patch(const_ones * attn_box_gamma[tt],
                                              filter_y_inv, filter_x_inv, 1)
