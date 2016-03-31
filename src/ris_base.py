@@ -175,10 +175,12 @@ def f_iou_box(top_left_a, bot_right_a, top_left_b, bot_right_b):
     """
     inter_area = f_inter_box(top_left_a, bot_right_a, top_left_b, bot_right_b)
     ndims = tf.shape(tf.shape(top_left_a))
-    area_a = tf.to_float(top_left_a < bot_right_a) * \
-        tf.reduce_prod(bot_right_a - top_left_a, ndims - 1)
-    area_b = tf.to_float(top_left_b < bot_right_b) * \
-        tf.reduce_prod(bot_right_b - top_left_b, ndims - 1)
+    area_a = tf.reduce_prod(bot_right_a - top_left_a, ndims - 1)
+    area_b = tf.reduce_prod(bot_right_b - top_left_b, ndims - 1)
+    # area_a = tf.to_float(top_left_a < bot_right_a) * \
+    #     tf.reduce_prod(bot_right_a - top_left_a, ndims - 1)
+    # area_b = tf.to_float(top_left_b < bot_right_b) * \
+    #     tf.reduce_prod(bot_right_b - top_left_b, ndims - 1)
     union_area = (area_a + area_b - inter_area + 1e-5)
     iou = inter_area / union_area
 
