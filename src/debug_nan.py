@@ -67,8 +67,8 @@ if __name__ == '__main__':
     # y_bat = dataset['train']['label_segmentation'][batch_start: batch_end]
     # s_bat = dataset['train']['label_score'][batch_start: batch_end]
 
-    # sess = tf.Session()
-    # saver.restore(sess, ckpt_fname)
+    sess = tf.Session()
+    saver.restore(sess, ckpt_fname)
 
     # loss = sess.run(model['loss'], feed_dict={model['x']: x_bat,
     #                                           model['y_gt']: y_bat,
