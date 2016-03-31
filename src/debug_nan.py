@@ -13,7 +13,7 @@ log = logger.get()
 
 if __name__ == '__main__':
     # model_folder = sys.argv[1]
-    model_folder = '/ais/gobi3/u/mren/results/img-count/rec_ins_segm-20160329234848'
+    # model_folder = '/ais/gobi3/u/mren/results/img-count/rec_ins_segm-20160329234848'
     model_folder = '../results/rec_ins_segm-20160330212049'
     # model_folder = '../results/rec_ins_segm-20160329195154'
 
