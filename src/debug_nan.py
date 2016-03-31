@@ -33,27 +33,37 @@ if __name__ == '__main__':
         model_opt['use_iou_box'] = True
 
     model = double_attention.get_model(model_opt)
-    dataset = cvppp.get_dataset(data_folder, data_opt)
+    all_data = cvppp.get_dataset(data_folder, data_opt)
+    dataset = {}
+
     split = 103
     random = np.random.RandomState(2)
-    idx = np.arange(_all_data['input'].shape[0])
+    idx = np.arange(all_data['input'].shape[0])
     random.shuffle(idx)
     train_idx = idx[: split]
     valid_idx = idx[split:]
     log.info('Train index: {}'.format(train_idx))
     log.info('Valid index: {}'.format(valid_idx))
     dataset['train'] = {
-        'input': _all_data['input'][train_idx],
-        'label_segmentation': _all_data['label_segmentation'][train_idx],
-        'label_score': _all_data['label_score'][train_idx]
+        'input': all_data['input'][train_idx],
+        'label_segmentation': all_data['label_segmentation'][train_idx],
+        'label_score': all_data['label_score'][train_idx]
     }
 
     batch_start = (step * 8) % train_idx.size
     batch_end = max(batch_start + 8, train_idx.size)
-    x_bat = dataset['train']['input'][batch_start : batch_end]
+    x_bat = dataset['train']['input'][batch_start: batch_end]
+    y_bat = dataset['train']['label_segmentation'][batch_start: batch_end]
+    s_bat = dataset['train']['label_score'][batch_start: batch_end]
 
     sess = tf.Session()
     saver.restore(sess, ckpt_fname)
+
+    loss = sess.run(model['loss'], feed_dict={model['x']: x_bat,
+                                       model['y_gt']: y_bat,
+                                       model['s_gt']: s_bat,
+                                       model['phase_train']=True})
+    log.info('loss: {:6.4f}'.format(loss))
 
     model_val = {}
     output_list = []
