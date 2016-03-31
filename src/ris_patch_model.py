@@ -37,8 +37,6 @@ def get_model(opt, device='/cpu:0'):
     padding = opt['padding']
     filter_height = opt['filter_height']
     filter_width = opt['filter_width']
-    log.error(filter_height)
-    log.error(filter_width)
 
     attn_cnn_filter_size = opt['attn_cnn_filter_size']
     attn_cnn_depth = opt['attn_cnn_depth']
@@ -143,8 +141,6 @@ def get_model(opt, device='/cpu:0'):
         acnn_subsample = np.array(acnn_pool).prod()
         arnn_h = filter_height / acnn_subsample
         arnn_w = filter_width/ acnn_subsample
-        log.error(arnn_h)
-        log.error(arnn_w)
         amlp_inp_dim = arnn_h * arnn_w * acnn_channels[-1]
 
         # Attention MLP definition
