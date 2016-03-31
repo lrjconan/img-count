@@ -532,8 +532,8 @@ def get_model(opt, device='/cpu:0'):
                 else:
                     _y_out = tf.reshape(y_out[tt],
                                         [-1, inp_height, inp_width, 1])
-                # canvas += tf.stop_gradient(_y_out)
-                canvas += _y_out
+                canvas += tf.stop_gradient(_y_out)
+                # canvas += _y_out
 
         s_out = tf.concat(1, s_out)
         model['s_out'] = s_out
