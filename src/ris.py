@@ -1540,8 +1540,8 @@ if __name__ == '__main__':
             saver.save(sess, global_step=step)
             input_file = h5py.File(os.path.join(exp_folder, 'nan_input.h5'))
             input_file['x'] = x
-            input_file['y_gt'] = y_gt
-            input_file['s_gt'] = s_gt
+            input_file['y'] = y
+            input_file['s'] = s
             raise Exception('NaN occurred. Saved last step.')
 
         pass
