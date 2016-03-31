@@ -26,6 +26,8 @@ if __name__ == '__main__':
     model_opt = ckpt_info['model_opt']
     if 'squash_ctrl_params' not in model_opt:
         model_opt['squash_ctrl_params'] = False
+    if 'use_iou_box' not in model_opt:
+        model_opt['use_iou_box'] = True
 
     model = double_attention.get_model(model_opt)
 
