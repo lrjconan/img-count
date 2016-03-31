@@ -15,21 +15,42 @@ if __name__ == '__main__':
     # model_folder = sys.argv[1]
     # model_folder = '/ais/gobi3/u/mren/results/img-count/rec_ins_segm-20160329234848'
     model_folder = '../results/rec_ins_segm-20160330212049'
+    data_folder = '/ais/gobi3/u/mren/data/lsc/A1'
     # model_folder = '../results/rec_ins_segm-20160329195154'
 
     saver = Saver(model_folder)
     ckpt_info = saver.get_ckpt_info()
 
     ckpt_fname = ckpt_info['ckpt_fname']
+    step = ckpt_info['step']
     # ckpt_id = 8000
     # ckpt_fname = '{}/model.ckpt-{}'.format(model_folder, ckpt_id)
     model_opt = ckpt_info['model_opt']
+    data_opt = ckpt_info['data_opt']
     if 'squash_ctrl_params' not in model_opt:
         model_opt['squash_ctrl_params'] = False
     if 'use_iou_box' not in model_opt:
         model_opt['use_iou_box'] = True
 
     model = double_attention.get_model(model_opt)
+    dataset = cvppp.get_dataset(data_folder, data_opt)
+    split = 103
+    random = np.random.RandomState(2)
+    idx = np.arange(_all_data['input'].shape[0])
+    random.shuffle(idx)
+    train_idx = idx[: split]
+    valid_idx = idx[split:]
+    log.info('Train index: {}'.format(train_idx))
+    log.info('Valid index: {}'.format(valid_idx))
+    dataset['train'] = {
+        'input': _all_data['input'][train_idx],
+        'label_segmentation': _all_data['label_segmentation'][train_idx],
+        'label_score': _all_data['label_score'][train_idx]
+    }
+
+    batch_start = (step * 8) % train_idx.size
+    batch_end = max(batch_start + 8, train_idx.size)
+    x_bat = dataset['train']['input'][batch_start : batch_end]
 
     sess = tf.Session()
     saver.restore(sess, ckpt_fname)
