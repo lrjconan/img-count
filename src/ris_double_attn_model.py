@@ -185,7 +185,7 @@ def get_model(opt, device='/cpu:0'):
                       model=model)
 
         # Score MLP definition
-        smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd, scope='score_mlp')
+        smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd, scope='score_mlp', model=model)
         s_out = [None] * timespan
 
         # Groundtruth bounding box, [B, T, 2]
