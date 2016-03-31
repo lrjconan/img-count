@@ -9,6 +9,7 @@ import cslab_environ
 
 import argparse
 import datetime
+import h5py
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.patches as patches
