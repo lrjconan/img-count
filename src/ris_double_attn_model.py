@@ -435,6 +435,8 @@ def get_model(opt, device='/cpu:0'):
             else:
                 attn_box[tt] = extract_patch(const_ones * attn_box_gamma[tt],
                                              filter_y_inv, filter_x_inv, 1)
+                attn_box[tt] = tf.reshape(attn_box[tt],
+                                          [-1, 1, inp_height, inp_width])
 
             # Here is the knob kick in GT bbox.
             if use_knob:
@@ -444,7 +446,7 @@ def get_model(opt, device='/cpu:0'):
                     _top_left = tf.expand_dims(attn_top_left[tt], 1)
                     _bot_right = tf.expand_dims(attn_bot_right[tt], 1)
                     iou_soft_box[tt] = f_iou_box(
-                        _top_left, _bot_right, attn_top_left_gt, 
+                        _top_left, _bot_right, attn_top_left_gt,
                         attn_bot_right_gt)
                     iou_soft_box[tt] += iou_bias
                 else:

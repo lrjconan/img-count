@@ -406,6 +406,8 @@ def get_model(opt, device='/cpu:0'):
             else:
                 attn_box[tt] = extract_patch(const_ones * attn_box_gamma[tt],
                                              filter_y_inv, filter_x_inv, 1)
+                attn_box[tt] = tf.reshape(attn_box[tt],
+                                          [-1, 1, inp_height, inp_width])
 
             # Here is the knob kick in GT bbox.
             if use_knob:
