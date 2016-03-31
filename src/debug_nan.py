@@ -7,7 +7,7 @@ import sys
 import tensorflow as tf
 
 
-if name == '__main__':
+if __name__ == '__main__':
     model_folder = sys.argv[1]
     # model_folder = '../results/rec_ins_segm-20160329195154'
 
