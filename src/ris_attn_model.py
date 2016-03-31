@@ -256,7 +256,8 @@ def get_model(opt, device='/cpu:0'):
         amlp_dropout = None
         # amlp_dropout = [1.0 - mlp_dropout_ratio] * num_attn_mlp_layers
         amlp = nn.mlp(amlp_dims, amlp_act, dropout_keep=amlp_dropout,
-                      phase_train=phase_train, wd=wd, scope='attn_mlp')
+                      phase_train=phase_train, wd=wd, scope='attn_mlp',
+                      model=model)
 
         # DCNN [B, RH, RW, MD] => [B, A, A, 1]
         adcnn_filters = attn_dcnn_filter_size
