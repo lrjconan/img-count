@@ -5,6 +5,7 @@ from utils.saver import Saver
 from utils import logger
 import numpy as np
 import ris_double_attn_model as double_attention
+import ris_attn_model as attention
 import sys
 import tensorflow as tf
 
@@ -35,7 +36,8 @@ if __name__ == '__main__':
     if 'use_iou_box' not in model_opt:
         model_opt['use_iou_box'] = True
 
-    model = double_attention.get_model(model_opt)
+    # model = double_attention.get_model(model_opt)
+    model = attention.get_model(model_opt)
     
     # all_data = cvppp.get_dataset(data_folder, data_opt)
     # dataset = {}
