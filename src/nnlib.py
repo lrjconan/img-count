@@ -186,7 +186,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                 init = tf.constant_initializer
             else:
                 init = None
-            if init_weights:
+            if init_weights is not None and init_weights[ii] is not None:
                 init_val_w = init_weights[ii]['w']
                 init_val_b = init_weights[ii]['b']
             else:
@@ -244,7 +244,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
             if pool[ii] > 1:
                 h[ii] = max_pool(h[ii], pool[ii])
 
-            if frozen:
+            if frozen is not None and frozen[ii] is not None:
                 h[ii] = tf.stop_gradient(h[ii])
 
         copy[0] += 1

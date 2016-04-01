@@ -32,7 +32,6 @@ def read(folder):
         for ii in xrange(attn_cnn_nlayers):
             w_name = '{}_w_{}'.format(net, ii)
             b_name = '{}_b_{}'.format(net, ii)
-
             output_list.append(w_name)
             output_list.append(b_name)
 

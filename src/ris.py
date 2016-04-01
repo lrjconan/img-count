@@ -568,8 +568,8 @@ def _add_model_args(parser):
                         type=float, help='Groundtruth segmentation noise')
     parser.add_argument('-downsample_canvas', action='store_true',
                         help='Whether downsample canvas to feed to Ctrl RNN')
-    parser.add_argument('-fg_cnn', default=None,
-                        help='Use pre-trained foreground segmentation CNN')
+    parser.add_argument('-pretrain_cnn', default=None,
+                        help='Use pre-trained segmentation CNN')
     parser.add_argument('-cnn_share_weights', action='store_true',
                         help='Whether to share weights between CCNN and ACNN')
     parser.add_argument('-use_iou_box', action='store_true',
@@ -749,7 +749,7 @@ def _make_model_opt(args):
             'gt_box_pad_noise': args.gt_box_pad_noise,
             'gt_segm_noise': args.gt_segm_noise,
             'downsample_canvas': args.downsample_canvas,
-            'pretrain_ccnn': args.fg_cnn,
+            'pretrain_cnn': args.pretrain_cnn,
             'cnn_share_weights': args.cnn_share_weights,
             'squash_ctrl_params': args.squash_ctrl_params,
             'use_iou_box': args.use_iou_box,

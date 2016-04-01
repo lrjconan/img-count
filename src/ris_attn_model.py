@@ -3,7 +3,6 @@ import cslab_environ
 from ris_base import *
 from utils import logger
 from utils.grad_clip_optim import GradientClipOptimizer
-import fg_segm_reader
 import h5py
 import image_ops as img
 import nnlib as nn
@@ -128,12 +127,15 @@ def get_model(opt, device='/cpu:0'):
         ccnn_pool = ctrl_cnn_pool
         ccnn_act = [tf.nn.relu] * ccnn_nlayers
         ccnn_use_bn = [use_bn] * ccnn_nlayers
-        if pretrain_ccnn:
-            h5f = h5py.File(pretrain_ccnn, 'r')
-            ccnn_init_w = [{'w': h5f['cnn_w_{}'.format(ii)][:],
-                            'b': h5f['cnn_b_{}'.format(ii)][:]}
-                           for ii in xrange(ccnn_nlayers)]
-            ccnn_frozen = True
+        if pretrain_cnn:
+            h5f = h5py.File(pretrain_cnn, 'r')
+            ccnn_init_w = [{'w': h5f['attn_cnn_w_{}'.format(ii)][:],
+                            'b': h5f['attn_cnn_b_{}'.format(ii)][:]}
+                           for ii in xrange(3)]
+            ccnn_frozen = [True, True, True]
+            for ii in xrange(3, ccnn_nlayers):
+                ccnn_init_w.append(None)
+                ccnn_frozen.append(False)
         else:
             ccnn_init_w = None
             ccnn_frozen = False
@@ -379,6 +381,7 @@ def get_model(opt, device='/cpu:0'):
                 attn_lg_size[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
             attn_ctr[tt], attn_size[tt] = get_unnormalized_attn(
                 attn_ctr_norm[tt], attn_lg_size[tt], inp_height, inp_width)
+
             attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
             # attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
             attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
@@ -462,15 +465,20 @@ def get_model(opt, device='/cpu:0'):
             attn_top_left[tt], attn_bot_right[tt] = get_box_coord(
                 attn_ctr[tt], attn_size[tt])
 
+            ###########################
+            # Warning!! Stop gradient #
+            ###########################
             # [B, H, A]
             filter_y = get_gaussian_filter(
                 attn_ctr[tt][:, 0], attn_size[tt][:, 0],
                 attn_lg_var[tt][:, 0], inp_height, filter_height)
+            filter_y = tf.stop_gradient(filter_y)
 
             # [B, W, A]
             filter_x = get_gaussian_filter(
                 attn_ctr[tt][:, 1], attn_size[tt][:, 1],
                 attn_lg_var[tt][:, 1], inp_width, filter_width)
+            filter_x = tf.stop_gradient(filter_x)
 
             # [B, A, H]
             filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
