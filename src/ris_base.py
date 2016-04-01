@@ -36,7 +36,7 @@ def cum_min(s, d):
         d: Second dim.
 
     Returns:
-        s_min: [B, D], cumulative minimum accross the second dim.
+        s_min: [B, D], cumulative minimum across the second dim.
     """
     s_min_list = [None] * d
     s_min_list[0] = s[:, 0: 1]
@@ -44,6 +44,24 @@ def cum_min(s, d):
         s_min_list[ii] = tf.minimum(s_min_list[ii - 1], s[:, ii: ii + 1])
 
     return tf.concat(1, s_min_list)
+
+
+def cum_max(s, d):
+    """Calculates cumulative maximum.
+
+    Args:
+        s: Input matrix [B, D].
+        d: Second dim.
+
+    Returns:
+        s_max: [B, D], cumulative maximum across the second dim, reversed.
+    """
+    s_max_list = [None] * d
+    s_max_list[d] = s[:, d: d + 1]
+    for ii in xrange(d - 1, -1, -1):
+        s_max_list[ii] = tf.maximum(s_min_list[ii + 1], s[:, ii: ii + 1])
+
+    return tf.concat(1, s_max_list)
 
 
 def f_dice(a, b, timespan, pairwise=False):
@@ -264,8 +282,9 @@ def f_conf_loss(s_out, match, timespan, use_cum_min=True):
     if use_cum_min:
         # [B, N]
         s_out_min = cum_min(s_out, timespan)
+        s_out_max = cum_max(s_out, timespan)
         # [B, N]
-        s_bce = f_bce(s_out_min, match_sum)
+        s_bce = f_bce_minmax(s_out_min, s_out_max, match_sum)
     else:
         s_bce = f_bce(s_out, match_sum)
     loss = tf.reduce_sum(s_bce) / num_ex / max_num_obj
@@ -328,6 +347,16 @@ def f_bce(y_out, y_gt):
     """Binary cross entropy."""
     eps = 1e-5
     return -y_gt * tf.log(y_out + eps) - (1 - y_gt) * tf.log(1 - y_out + eps)
+
+
+def f_bce_minmax(y_out_min, y_out_miny_gt):
+    """Binary cross entropy.
+
+    Use minimum to compare against 1.
+    Use maximum to compare against 0.
+    """
+    eps = 1e-5
+    return -y_gt * tf.log(y_out_min + eps) - (1 - y_gt) * tf.log(1 - y_out_max + eps)
 
 
 def f_match_loss(y_out, y_gt, match, timespan, loss_fn, model=None):
