@@ -123,6 +123,7 @@ def get_model(opt, device='/cpu:0'):
         # Controller CNN definition
         ccnn_filters = ctrl_cnn_filter_size
         ccnn_nlayers = len(ccnn_filters)
+        acnn_nlayers = len(attn_cnn_filter_size)
         ccnn_channels = [ccnn_inp_depth] + ctrl_cnn_depth
         ccnn_pool = ctrl_cnn_pool
         ccnn_act = [tf.nn.relu] * ccnn_nlayers
