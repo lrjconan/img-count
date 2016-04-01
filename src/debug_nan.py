@@ -18,8 +18,9 @@ if __name__ == '__main__':
     # model_folder = '../results/rec_ins_segm-20160330212049'
     # model_type = 'double_attention'
 
-    model_folder = '../results/rec_ins_segm-20160331003617'
-    # data_folder = '/ais/gobi3/u/mren/data/lsc/A1'
+    # model_folder = '../results/rec_ins_segm-20160331003617'
+    model_folder = '../results/rec_ins_segm-20160331203421/model.ckpt'
+    data_folder = '/ais/gobi3/u/mren/data/lsc/A1'
     # model_folder = '../results/rec_ins_segm-20160329195154'
 
     saver = Saver(model_folder)
@@ -45,6 +46,9 @@ if __name__ == '__main__':
     elif model_opt['type'] == 'attention':
         model = attention.get_model(model_opt)
 
+    ############
+    # Run data #
+    ############
     # all_data = cvppp.get_dataset(data_folder, data_opt)
     # dataset = {}
     # split = 103
