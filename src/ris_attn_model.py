@@ -344,6 +344,11 @@ def get_model(opt, device='/cpu:0'):
                 acnn_inp = x
                 _h_ccnn = h_ccnn
 
+            ###########################
+            # Warning!! Stop gradient #
+            ###########################
+            acnn_inp = tf.stop_gradient(acnn_inp)
+
             h_ccnn_last = _h_ccnn[-1]
             if downsample_canvas:
                 _canvas = nn.avg_pool(canvas, ccnn_subsample)

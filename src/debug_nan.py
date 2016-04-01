@@ -7,7 +7,9 @@ import numpy as np
 import ris_double_attn_model as double_attention
 import ris_attn_model as attention
 import sys
+import os
 import tensorflow as tf
+import h5py
 
 
 log = logger.get()
@@ -49,6 +51,11 @@ if __name__ == '__main__':
     ############
     # Run data #
     ############
+    data = h5py.File(os.path.join(model_folder, 'nan_input.h5'), 'r')
+    x = data['x'][:]
+    y = data['y'][:]
+    s = data['s'][:]
+
     # all_data = cvppp.get_dataset(data_folder, data_opt)
     # dataset = {}
     # split = 103
