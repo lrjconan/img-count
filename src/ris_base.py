@@ -182,7 +182,10 @@ def f_iou_box(top_left_a, bot_right_a, top_left_b, bot_right_b):
     # area_b = tf.to_float(top_left_b < bot_right_b) * \
     #     tf.reduce_prod(bot_right_b - top_left_b, ndims - 1)
     union_area = (area_a + area_b - inter_area + 1e-5)
+    union_area = tf.maximum(union_area, 1e-5)
     iou = inter_area / union_area
+    iou = tf.maximum(iou, 1e-5)
+    iou = tf.minimum(iou, 1.0)
 
     return iou
 
