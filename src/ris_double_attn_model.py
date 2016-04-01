@@ -125,6 +125,11 @@ def get_model(opt, device='/cpu:0'):
             ccnn_inp_depth = inp_depth
             acnn_inp_depth = inp_depth
 
+        ###########################
+        # Warning!! Stop gradient #
+        ###########################
+        acnn_inp = tf.stop_gradient(acnn_inp)
+
         # Controller CNN definition
         ccnn_filters = ctrl_cnn_filter_size
         ccnn_nlayers = len(ccnn_filters)
@@ -480,16 +485,21 @@ def get_model(opt, device='/cpu:0'):
 
             attn_top_left[tt], attn_bot_right[tt] = get_box_coord(
                 attn_ctr[tt], attn_size[tt])
-
+            
+            ###########################
+            # Warning!! Stop gradient #
+            ###########################
             # [B, H, A]
             filter_y = get_gaussian_filter(
                 attn_ctr[tt][:, 0], attn_size[tt][:, 0],
                 attn_lg_var[tt][:, 0], inp_height, filter_height)
+            filter_y = tf.stop_gradient(filter_y)
 
             # [B, W, A]
             filter_x = get_gaussian_filter(
                 attn_ctr[tt][:, 1], attn_size[tt][:, 1],
                 attn_lg_var[tt][:, 1], inp_width, filter_width)
+            filter_x = tf.stop_gradient(filter_x)
 
             # [B, A, H]
             filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
