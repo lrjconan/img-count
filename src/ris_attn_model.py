@@ -70,7 +70,6 @@ def get_model(opt, device='/cpu:0'):
     gt_segm_noise = opt['gt_segm_noise']
     downsample_canvas = opt['downsample_canvas']
     pretrain_cnn = opt['pretrain_cnn']
-    num_pretrain_cnn_layers = opt['num_pretrain_cnn_layers']
     cnn_share_weights = opt['cnn_share_weights']
     squash_ctrl_params = opt['squash_ctrl_params']
     use_iou_box = opt['use_iou_box']
