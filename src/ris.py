@@ -497,12 +497,12 @@ def _add_model_args(parser):
                         help='Whether cumulative minimum. Default yes.')
 
     # Attention-based model options
-    parser.add_argument('-filter_size', default=kAttnSize, type=int,
-                        help='Attention filter size')
-    # parser.add_argument('-filter_height', default=kAttnHeight, type=int,
-    #                     help='Attention filter width')
-    # parser.add_argument('-filter_width', default=kAttnWidth, type=int,
+    # parser.add_argument('-filter_size', default=kAttnSize, type=int,
     #                     help='Attention filter size')
+    parser.add_argument('-filter_height', default=kAttnHeight, type=int,
+                        help='Attention filter width')
+    parser.add_argument('-filter_width', default=kAttnWidth, type=int,
+                        help='Attention filter size')
     parser.add_argument('-ctrl_cnn_filter_size', default=kCtrlCnnFilterSize,
                         help='Comma delimited integers')
     parser.add_argument('-ctrl_cnn_depth', default=kCtrlCnnDepth,
@@ -696,7 +696,9 @@ def _make_model_opt(args):
             'inp_width': inp_width,
             'inp_depth': 3,
             'padding': args.padding,
-            'filter_size': args.filter_size,
+            # 'filter_size': args.filter_size,
+            'filter_height': args.filter_height,
+            'filter_width': args.filter_width,
             'timespan': timespan,
 
             'ctrl_cnn_filter_size': ccnn_fsize_list,

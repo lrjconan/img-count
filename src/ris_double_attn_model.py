@@ -22,7 +22,8 @@ def get_model(opt, device='/cpu:0'):
     inp_width = opt['inp_width']
     inp_depth = opt['inp_depth']
     padding = opt['padding']
-    filter_size = opt['filter_size']
+    filter_height = opt['filter_height']
+    filter_width = opt['filter_width']
 
     ctrl_cnn_filter_size = opt['ctrl_cnn_filter_size']
     ctrl_cnn_depth = opt['ctrl_cnn_depth']
@@ -245,8 +246,8 @@ def get_model(opt, device='/cpu:0'):
 
         # Attention RNN definition
         acnn_subsample = np.array(acnn_pool).prod()
-        arnn_h = filter_size / acnn_subsample
-        arnn_w = filter_size / acnn_subsample
+        arnn_h = filter_height / acnn_subsample
+        arnn_w = filter_width / acnn_subsample
 
         if use_attn_rnn:
             arnn_dim = attn_rnn_hid_dim
@@ -291,7 +292,7 @@ def get_model(opt, device='/cpu:0'):
         attn_box = [None] * timespan
         iou_soft_box = [None] * timespan
         const_ones = tf.ones(
-            tf.pack([num_ex, filter_size, filter_size, 1]))
+            tf.pack([num_ex, filter_height, filter_width, 1]))
         attn_box_beta = tf.constant([-5.0])
         attn_box_gamma = [None] * timespan
 
@@ -413,10 +414,10 @@ def get_model(opt, device='/cpu:0'):
             # Initial filters (predicted)
             filter_y = get_gaussian_filter(
                 attn_ctr[tt][:, 0], attn_size[tt][:, 0],
-                attn_lg_var[tt][:, 0], inp_height, filter_size)
+                attn_lg_var[tt][:, 0], inp_height, filter_height)
             filter_x = get_gaussian_filter(
                 attn_ctr[tt][:, 1], attn_size[tt][:, 1],
-                attn_lg_var[tt][:, 1], inp_width, filter_size)
+                attn_lg_var[tt][:, 1], inp_width, filter_width)
             if tt == 0:
                 model['filter_y'] = filter_y
             filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
@@ -483,12 +484,12 @@ def get_model(opt, device='/cpu:0'):
             # [B, H, A]
             filter_y = get_gaussian_filter(
                 attn_ctr[tt][:, 0], attn_size[tt][:, 0],
-                attn_lg_var[tt][:, 0], inp_height, filter_size)
+                attn_lg_var[tt][:, 0], inp_height, filter_height)
 
             # [B, W, A]
             filter_x = get_gaussian_filter(
                 attn_ctr[tt][:, 1], attn_size[tt][:, 1],
-                attn_lg_var[tt][:, 1], inp_width, filter_size)
+                attn_lg_var[tt][:, 1], inp_width, filter_width)
 
             # [B, A, H]
             filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
