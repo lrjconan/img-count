@@ -1044,7 +1044,7 @@ def _get_ts_loggers(model_opt, debug_bn=False, debug_weights=False):
         num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
         num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
         for sname, fname, num_layers in zip(
-                ['ccnn', 'acnn', 'attn_dcnn'],
+                ['ctrl_cnn', 'attn_cnn', 'attn_dcnn'],
                 ['Ctrl CNN', 'Attn CNN', 'D-CNN'],
                 [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
             for ii in xrange(num_layers):
@@ -1450,10 +1450,9 @@ if __name__ == '__main__':
         loggers['dic_abs'].add(step, ['', r['dic_abs']])
 
         # Batch normalization stats.
-        print r
         if train_opt['debug_bn']:
             for _layer, _num in zip(
-                    ['ccnn', 'acnn', 'attn_dcnn'],
+                    ['ctrl_cnn', 'attn_cnn', 'attn_dcnn'],
                     [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
                 for ii in xrange(_num):
                     for tt in xrange(model_opt['timespan']):
