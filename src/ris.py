@@ -1450,6 +1450,7 @@ if __name__ == '__main__':
         loggers['dic_abs'].add(step, ['', r['dic_abs']])
 
         # Batch normalization stats.
+        print r
         if train_opt['debug_bn']:
             for _layer, _num in zip(
                     ['ccnn', 'acnn', 'attn_dcnn'],
