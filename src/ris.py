@@ -755,7 +755,7 @@ def _make_model_opt(args):
             'squash_ctrl_params': args.squash_ctrl_params,
             'use_iou_box': args.use_iou_box,
             'clip_gradient': args.clip_gradient,
-            
+
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,
             'rnd_transpose': rnd_transpose,
@@ -1048,7 +1048,11 @@ def _get_ts_loggers(model_opt, debug_bn=False, debug_weights=False):
                 ['Ctrl CNN', 'Attn CNN', 'D-CNN'],
                 [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
             for ii in xrange(num_layers):
-                for tt in xrange(model_opt['timespan']):
+                num_iter = model_opt['timespan']
+                if 'num_ctrl_rnn_iter' in model_opt and \
+                        _layer == 'ctrl_cnn':
+                    num_iter = model_opt['num_ctrl_rnn_iter']
+                for tt in xrange(num_iter):
                     _bn_logger = TimeSeriesLogger(
                         os.path.join(
                             logs_folder,
@@ -1455,7 +1459,11 @@ if __name__ == '__main__':
                     ['ctrl_cnn', 'attn_cnn', 'attn_dcnn'],
                     [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
                 for ii in xrange(_num):
-                    for tt in xrange(model_opt['timespan']):
+                    num_iter = model_opt['timespan']
+                    if 'num_ctrl_rnn_iter' in model_opt and \
+                            _layer == 'ctrl_cnn':
+                        num_iter = model_opt['num_ctrl_rnn_iter']
+                    for tt in xrange(num_iter):
                         _prefix = '{}_{}_{{}}_{}'.format(_layer, ii, tt)
                         _output = ['', r[_prefix.format('bm')],
                                    '', r[_prefix.format('bv')], '', '']
@@ -1515,7 +1523,11 @@ if __name__ == '__main__':
                     ['ctrl_cnn', 'attn_cnn', 'attn_dcnn'],
                     [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
                 for ii in xrange(_num):
-                    for tt in xrange(model_opt['timespan']):
+                    num_iter = model_opt['timespan']
+                    if 'num_ctrl_rnn_iter' in model_opt and \
+                            _layer == 'ctrl_cnn':
+                        num_iter = model_opt['num_ctrl_rnn_iter']
+                    for tt in xrange(num_iter):
                         _prefix = '{}_{}_{{}}_{}'.format(
                             _layer, ii, tt)
                         _output = [r[_prefix.format('bm')], '',
