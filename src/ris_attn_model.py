@@ -284,7 +284,7 @@ def get_model(opt, device='/cpu:0'):
         amlp = nn.mlp(amlp_dims, amlp_act, dropout_keep=amlp_dropout,
                       phase_train=phase_train, wd=wd, scope='attn_mlp',
                       init_weights=amlp_init_w,
-                      frozen=amlp_frozen
+                      frozen=amlp_frozen,
                       model=model)
 
         # DCNN [B, RH, RW, MD] => [B, A, A, 1]
