@@ -59,5 +59,5 @@ def save(fname, folder):
     pass
 
 if __name__ == '__main__':
-    save('/ais/gobi3/u/mren/results/img-count/fg_segm-20160318131644/weights.h5',
-         '/ais/gobi3/u/mren/results/img-count/fg_segm-20160318131644')
+    save('/ais/gobi3/u/mren/results/img-count/rec_ins_segm-20160331170303/weights.h5',
+         '/ais/gobi3/u/mren/results/img-count/rec_ins_segm-20160331170303')

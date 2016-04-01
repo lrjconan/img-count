@@ -70,6 +70,7 @@ def get_model(opt, device='/cpu:0'):
     gt_segm_noise = opt['gt_segm_noise']
     downsample_canvas = opt['downsample_canvas']
     pretrain_cnn = opt['pretrain_cnn']
+    num_pretrain_cnn_layers = opt['num_pretrain_cnn_layers']
     cnn_share_weights = opt['cnn_share_weights']
     squash_ctrl_params = opt['squash_ctrl_params']
     use_iou_box = opt['use_iou_box']
@@ -131,9 +132,9 @@ def get_model(opt, device='/cpu:0'):
             h5f = h5py.File(pretrain_cnn, 'r')
             ccnn_init_w = [{'w': h5f['attn_cnn_w_{}'.format(ii)][:],
                             'b': h5f['attn_cnn_b_{}'.format(ii)][:]}
-                           for ii in xrange(3)]
-            ccnn_frozen = [True, True, True]
-            for ii in xrange(3, ccnn_nlayers):
+                           for ii in xrange(acnn_nlayers)]
+            ccnn_frozen = [True] * acnn_nlayers
+            for ii in xrange(acnn_nlayers, ccnn_nlayers):
                 ccnn_init_w.append(None)
                 ccnn_frozen.append(False)
         else:
@@ -215,6 +216,16 @@ def get_model(opt, device='/cpu:0'):
         acnn_pool = attn_cnn_pool
         acnn_act = [tf.nn.relu] * acnn_nlayers
         acnn_use_bn = [use_bn] * acnn_nlayers
+
+        if pretrain_cnn:
+            acnn_init_w = [{'w': h5f['attn_cnn_w_{}'.format(ii)][:],
+                            'b': h5f['attn_cnn_b_{}'.format(ii)][:]}
+                           for ii in xrange(acnn_nlayers)]
+            acnn_frozen = [True] * acnn_nlayers
+        else:
+            acnn_init_w = None
+            acnn_frozen = None
+
         if cnn_share_weights:
             ccnn_shared_weights = []
             for ii in xrange(ccnn_nlayers):
@@ -226,6 +237,8 @@ def get_model(opt, device='/cpu:0'):
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
                       acnn_use_bn, phase_train=phase_train, wd=wd,
                       scope='attn_cnn', model=model,
+                      init_weights=acnn_init_w,
+                      frozen=acnn_frozen,
                       shared_weights=ccnn_shared_weights)
 
         x_patch = [None] * timespan
@@ -257,9 +270,21 @@ def get_model(opt, device='/cpu:0'):
         amlp_dims = [amlp_inp_dim] + [core_dim] * num_attn_mlp_layers
         amlp_act = [tf.nn.relu] * num_attn_mlp_layers
         amlp_dropout = None
+
+        if pretrain_cnn:
+            amlp_init_w = [{'w': h5f['attn_mlp_w_{}'.format(ii)][:],
+                            'b': h5f['attn_mlp_b_{}'.format(ii)][:]}
+                           for ii in xrange(num_attn_mlp_layers)]
+            amlp_frozen = [True] * num_attn_mlp_layers
+        else:
+            amlp_init_w = None
+            amlp_frozen = None
+
         # amlp_dropout = [1.0 - mlp_dropout_ratio] * num_attn_mlp_layers
         amlp = nn.mlp(amlp_dims, amlp_act, dropout_keep=amlp_dropout,
                       phase_train=phase_train, wd=wd, scope='attn_mlp',
+                      init_weights=amlp_init_w,
+                      frozen=amlp_frozen
                       model=model)
 
         # DCNN [B, RH, RW, MD] => [B, A, A, 1]
@@ -270,9 +295,21 @@ def get_model(opt, device='/cpu:0'):
         adcnn_channels = [attn_mlp_depth] + attn_dcnn_depth
         adcnn_use_bn = [use_bn] * adcnn_nlayers
         adcnn_skip_ch = [0] + acnn_channels[::-1][1:]
+
+        if pretrain_cnn:
+            adcnn_init_w = [{'w': h5f['attn_dcnn_w_{}'.format(ii)][:],
+                            'b': h5f['attn_dcnn_b_{}'.format(ii)][:]}
+                           for ii in xrange(adcnn_nlayers)]
+            adcnn_frozen = [True] * adcnn_layers
+        else:
+            adcnn_init_w = None
+            adcnn_frozen = None
+
         adcnn = nn.dcnn(adcnn_filters, adcnn_channels, adcnn_unpool,
                         adcnn_act, use_bn=adcnn_use_bn, skip_ch=adcnn_skip_ch,
                         phase_train=phase_train, wd=wd, model=model,
+                        init_weights=adcnn_init_w,
+                        frozen=adcnn_frozen,
                         scope='attn_dcnn')
         h_adcnn = [None] * timespan
 

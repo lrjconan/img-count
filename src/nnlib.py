@@ -186,6 +186,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                 init = tf.constant_initializer
             else:
                 init = None
+
             if init_weights is not None and init_weights[ii] is not None:
                 init_val_w = init_weights[ii]['w']
                 init_val_b = init_weights[ii]['b']
@@ -254,7 +255,8 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
     return run_cnn
 
 
-def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scope='dcnn', model=None):
+def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, 
+         scope='dcnn', model=None, init_weights=None, frozen=None):
     """Add DCNN. N = number of layers.
 
     Args:
@@ -293,8 +295,20 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
                     in_ch += skip_ch[ii]
 
             log.info('Filter: {}'.format([f[ii], f[ii], out_ch, in_ch]))
-            w[ii] = weight_variable([f[ii], f[ii], out_ch, in_ch], wd=wd)
-            b[ii] = weight_variable([out_ch])
+                
+            if init_weights is not None and init_weights[ii] is not None:
+                init_val_w = init_weights[ii]['w']
+                init_val_b = init_weights[ii]['b']
+            else:
+                init_val_w = None
+                init_val_b = None
+
+            w[ii] = weight_variable([f[ii], f[ii], out_ch, in_ch],
+                                    init_val=init_val_w, wd=wd)
+            b[ii] = weight_variable([out_ch], init_val=init_val_b)
+
+            # w[ii] = weight_variable([f[ii], f[ii], out_ch, in_ch], wd=wd)
+            # b[ii] = weight_variable([out_ch])
             in_ch = out_ch
 
             if model:
@@ -355,6 +369,9 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
             if act[ii] is not None:
                 h[ii] = act[ii](h[ii])
 
+            if frozen is not None and frozen[ii]:
+                h[ii] = tf.stop_gradient(h[ii])
+
         copy[0] += 1
 
         return h
@@ -369,7 +386,8 @@ def dropout(x, keep_prob, phase_train):
     return tf.nn.dropout(x, keep_prob)
 
 
-def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, scope='mlp', model=None):
+def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None,
+        scope='mlp', model=None, init_weights=None, frozen=None):
     """Add MLP. N = number of layers.
 
     Args:
@@ -393,9 +411,17 @@ def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, 
         for ii in xrange(nlayers):
             nin = dims[ii]
             nout = dims[ii + 1]
-            w[ii] = weight_variable([nin, nout], wd=wd)
+
+            if init_weights is not None and init_weights[ii] is not None:
+                init_val_w = init_weights[ii]['w']
+                init_val_b = init_weights[ii]['b']
+            else:
+                init_val_w = None
+                init_val_b = None
+
+            w[ii] = weight_variable([nin, nout], init_val=init_val_w, wd=wd)
             if add_bias:
-                b[ii] = weight_variable([nout])
+                b[ii] = weight_variable([nout], init_val=init_val_w)
 
             if model:
                 model['{}_w_{}'.format(scope, ii)] = w[ii]
@@ -425,6 +451,9 @@ def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, 
 
             if act[ii]:
                 h[ii] = act[ii](h[ii])
+
+            if frozen is not None and frozen[ii]:
+                h[ii] = tf.stop_gradient(h[ii])
 
         return h
 
