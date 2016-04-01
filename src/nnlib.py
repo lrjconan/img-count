@@ -421,7 +421,7 @@ def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None,
 
             w[ii] = weight_variable([nin, nout], init_val=init_val_w, wd=wd)
             if add_bias:
-                b[ii] = weight_variable([nout], init_val=init_val_w)
+                b[ii] = weight_variable([nout], init_val=init_val_b)
 
             if model:
                 model['{}_w_{}'.format(scope, ii)] = w[ii]
