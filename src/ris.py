@@ -1,3 +1,4 @@
+
 """
 Recurrent instance segmentation with attention.
 
@@ -1079,7 +1080,7 @@ def _get_plot_loggers(model_opt, train_opt):
             labels.extend(['box', 'patch'])
         if args.debug_act:
             for _layer, _num in zip(
-                    ['ccnn', 'acnn', 'attn_dcnn'],
+                    ['ccnn', 'acnn', 'adcnn'],
                     [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
                 for ii in xrange(_num):
                     labels.append('{}_{}'.format(_layer, ii))
@@ -1313,7 +1314,7 @@ if __name__ == '__main__':
                     ii, _set)].get_fname() for ii in xrange(num_ctrl_cnn)]
                 fname_acnn = [samples['acnn_{}_{}'.format(
                     ii, _set)].get_fname() for ii in xrange(num_attn_cnn)]
-                fname_attn_dcnn = [samples['attn_dcnn_{}_{}'.format(
+                fname_attn_dcnn = [samples['adcnn_{}_{}'.format(
                     ii, _set)].get_fname() for ii in xrange(num_attn_dcnn)]
             else:
                 fname_ccnn = None
@@ -1346,7 +1347,7 @@ if __name__ == '__main__':
 
                 if args.debug_act:
                     for _name, _num in zip(
-                            ['ccnn', 'acnn', 'attn_dcnn'],
+                            ['ccnn', 'acnn', 'adcnn'],
                             [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
                         [samples[
                             '{}_{}_{}'.format(_name, ii, _set)].register()
@@ -1399,7 +1400,7 @@ if __name__ == '__main__':
                 ['ctrl_cnn', 'attn_cnn', 'attn_dcnn'],
                 [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
             for ii in xrange(_num):
-                for tt in xrange(timespan):
+                for tt in xrange(model_opt['timespan']):
                     for _stat in ['bm', 'bv', 'em', 'ev']:
                         _outputs.append(
                             '{}_{}_{}_{}'.format(_layer, ii, _stat, tt))
