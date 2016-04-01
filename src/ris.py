@@ -1464,7 +1464,7 @@ if __name__ == '__main__':
 
         pass
 
-    def write_log_trainval(step, loggers, r, bn=False):
+    def write_log_trainval(step, loggers, r):
         attn = model_opt['type'] == 'attention' or model_opt[
             'type'] == 'double_attention'
 
@@ -1510,9 +1510,9 @@ if __name__ == '__main__':
                 loggers[layer_name].add(step, _output)
 
         # Batch normalization stats.
-        if bn:
+        if train_opt['debug_bn']:
             for _layer, _num in zip(
-                    ['ccnn', 'acnn', 'attn_dcnn'],
+                    ['ctrl_cnn', 'attn_cnn', 'attn_dcnn'],
                     [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
                 for ii in xrange(_num):
                     for tt in xrange(model['timespan']):
