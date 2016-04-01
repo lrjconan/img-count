@@ -23,7 +23,7 @@ def read(folder):
     model_id = ckpt_info['model_id']
     model = patch_model.get_model(model_opt)
     attn_cnn_nlayers = len(model_opt['attn_cnn_filter_size'])
-    attn_mlp_nlayers = model_opt['attn_mlp_nlayers']
+    attn_mlp_nlayers = model_opt['num_attn_mlp_layers']
     attn_dcnn_nlayers = len(model_opt['attn_dcnn_filter_size'])
     weights = {}
     sess = tf.Session()
@@ -33,11 +33,11 @@ def read(folder):
     for net, nlayers in zip(['attn_cnn', 'attn_mlp', 'attn_dcnn'],
                             [attn_cnn_nlayers, attn_mlp_nlayers,
                              attn_dcnn_nlayers]):
-        for ii in xrange(attn_cnn_nlayers):
-            w_name = '{}_w_{}'.format(net, ii)
-            b_name = '{}_b_{}'.format(net, ii)
-            output_list.append(w_name)
-            output_list.append(b_name)
+        for ii in xrange(nlayers):
+            for w in ['w', 'b']:
+                key = '{}_{}_{}'.format(net, w, ii)
+                log.info(key)
+                output_list.append(key)
 
     output_var = []
     for key in output_list:
