@@ -15,6 +15,10 @@ def read(folder):
     saver = Saver(folder)
     ckpt_info = saver.get_ckpt_info()
     model_opt = ckpt_info['model_opt']
+    if 'filter_height' not in model_opt:
+        model_opt['filter_height'] = model_opt['filter_size']
+        model_opt['filter_width'] = model_opt['filter_size']
+        
     ckpt_fname = ckpt_info['ckpt_fname']
     model_id = ckpt_info['model_id']
     model = patch_model.get_model(model_opt)
