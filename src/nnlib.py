@@ -154,7 +154,7 @@ def batch_norm(x, n_out, phase_train, scope='bn', affine=True):
     return normed, batch_mean, batch_var, ema_mean, ema_var
 
 
-def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=None, init_weights=None, frozen=False, shared_weights=None):
+def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=None, init_weights=None, frozen=None, shared_weights=None):
     """Add CNN. N = number of layers.
 
     Args:
@@ -244,7 +244,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
             if pool[ii] > 1:
                 h[ii] = max_pool(h[ii], pool[ii])
 
-            if frozen is not None and frozen[ii] is not None:
+            if frozen is not None and frozen[ii]:
                 h[ii] = tf.stop_gradient(h[ii])
 
         copy[0] += 1

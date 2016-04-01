@@ -138,7 +138,7 @@ def get_model(opt, device='/cpu:0'):
                 ccnn_frozen.append(False)
         else:
             ccnn_init_w = None
-            ccnn_frozen = False
+            ccnn_frozen = None
 
         ccnn = nn.cnn(ccnn_filters, ccnn_channels, ccnn_pool, ccnn_act,
                       ccnn_use_bn, phase_train=phase_train, wd=wd,
