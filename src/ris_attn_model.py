@@ -221,7 +221,7 @@ def get_model(opt, device='/cpu:0'):
             acnn_init_w = [{'w': h5f['attn_cnn_w_{}'.format(ii)][:],
                             'b': h5f['attn_cnn_b_{}'.format(ii)][:]}
                            for ii in xrange(acnn_nlayers)]
-            acnn_frozen = [True] * acnn_nlayers
+            acnn_frozen = None
         else:
             acnn_init_w = None
             acnn_frozen = None
@@ -275,7 +275,7 @@ def get_model(opt, device='/cpu:0'):
             amlp_init_w = [{'w': h5f['attn_mlp_w_{}'.format(ii)][:],
                             'b': h5f['attn_mlp_b_{}'.format(ii)][:]}
                            for ii in xrange(num_attn_mlp_layers)]
-            amlp_frozen = [True] * num_attn_mlp_layers
+            amlp_frozen = None
         else:
             amlp_init_w = None
             amlp_frozen = None
@@ -300,7 +300,7 @@ def get_model(opt, device='/cpu:0'):
             adcnn_init_w = [{'w': h5f['attn_dcnn_w_{}'.format(ii)][:],
                             'b': h5f['attn_dcnn_b_{}'.format(ii)][:]}
                            for ii in xrange(adcnn_nlayers)]
-            adcnn_frozen = [True] * adcnn_nlayers
+            adcnn_frozen = None
         else:
             adcnn_init_w = None
             adcnn_frozen = None
