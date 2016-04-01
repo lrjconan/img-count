@@ -1050,7 +1050,7 @@ def _get_ts_loggers(model_opt, debug_bn=False, debug_weights=False):
             for ii in xrange(num_layers):
                 num_iter = model_opt['timespan']
                 if 'num_ctrl_rnn_iter' in model_opt and \
-                        _layer == 'ctrl_cnn':
+                        sname == 'ctrl_cnn':
                     num_iter = model_opt['num_ctrl_rnn_iter']
                 for tt in xrange(num_iter):
                     _bn_logger = TimeSeriesLogger(
