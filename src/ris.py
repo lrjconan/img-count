@@ -1515,7 +1515,7 @@ if __name__ == '__main__':
                     ['ctrl_cnn', 'attn_cnn', 'attn_dcnn'],
                     [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
                 for ii in xrange(_num):
-                    for tt in xrange(model['timespan']):
+                    for tt in xrange(model_opt['timespan']):
                         _prefix = '{}_{}_{{}}_{}'.format(
                             _layer, ii, tt)
                         _output = [r[_prefix.format('bm')], '',
