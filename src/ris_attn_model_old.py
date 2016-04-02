@@ -607,6 +607,7 @@ def get_model(opt, device='/cpu:0'):
     gt_box_ctr_noise = opt['gt_box_ctr_noise']
     gt_box_pad_noise = opt['gt_box_pad_noise']
     gt_segm_noise = opt['gt_segm_noise']
+    use_iou_box = opt['use_iou_box']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -781,7 +782,7 @@ def get_model(opt, device='/cpu:0'):
 
         # Attention box
         attn_box = [None] * timespan
-        attn_iou_soft = [None] * timespan
+        iou_soft_box = [None] * timespan
         # attn_box_const = 10.0
         const_ones = tf.ones(
             tf.pack([num_ex, filter_height, filter_width, 1]))
@@ -904,10 +905,21 @@ def get_model(opt, device='/cpu:0'):
                 # Greedy matching here.
                 # IOU [B, 1, T]
                 # [B, 1, H, W] * [B, T, H, W] = [B, T]
-                attn_iou_soft[tt] = _inter(attn_box[tt], attn_box_gt) / \
-                    _union(attn_box[tt], attn_box_gt, eps=0)
-                attn_iou_soft[tt] += iou_bias
-                grd_match = _greedy_match(attn_iou_soft[tt], grd_match_cum)
+                if use_iou_box:
+                    _top_left = tf.expand_dims(attn_top_left[tt], 1)
+                    _bot_right = tf.expand_dims(attn_bot_right[tt], 1)
+                    iou_soft_box[tt] = base.f_iou_box(
+                        _top_left, _bot_right, attn_top_left_gt,
+                        attn_bot_right_gt)
+                    iou_soft_box[tt] += iou_bias
+                else:
+                    iou_soft_box[tt] = _inter(attn_box[tt], attn_box_gt) / \
+                        _union(attn_box[tt], attn_box_gt, eps=1e-5)
+
+                # iou_soft_box[tt] = _inter(attn_box[tt], attn_box_gt) / \
+                #     _union(attn_box[tt], attn_box_gt, eps=0)
+                iou_soft_box[tt] += iou_bias
+                grd_match = _greedy_match(iou_soft_box[tt], grd_match_cum)
                 # Let's try not using cumulative match.
                 # grd_match_cum += grd_match
 
@@ -1057,7 +1069,14 @@ def get_model(opt, device='/cpu:0'):
         max_num_obj = tf.to_float(y_gt_shape[1])
 
         # Loss for attnention box
-        iou_soft_box = base.f_iou(attn_box, attn_box_gt, timespan, pairwise=True)
+        if use_knob:
+            iou_soft_box = tf.concat(1, [tf.expand_dims(iou_soft_box[tt], 1)
+                                         for tt in xrange(timespan)])
+        else:
+            iou_soft_box = f_iou(attn_box, attn_box_gt,
+                                 timespan, pairwise=True)
+        # iou_soft_box = base.f_iou(
+        #     attn_box, attn_box_gt, timespan, pairwise=True)
         model['attn_box_gt'] = attn_box_gt
         match_box = base.f_segm_match(iou_soft_box, s_gt)
         model['match_box'] = match_box
@@ -1096,7 +1115,7 @@ def get_model(opt, device='/cpu:0'):
         iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask, [1]) /
                                  match_count) / num_ex
         # iou_soft = tf.reduce_sum(tf.reduce_sum(
-        #     iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
+        # iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex
         model['iou_soft'] = iou_soft
         gt_wt = base.f_coverage_weight(y_gt)
         wt_iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask * gt_wt, [1]) /

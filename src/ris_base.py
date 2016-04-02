@@ -57,7 +57,6 @@ def f_cum_max(s, d):
         s_max: [B, D], cumulative maximum across the second dim, reversed.
     """
     s_max_list = [None] * d
-    print d
     s_max_list[-1] = s[:, d - 1: d]
     for ii in xrange(d - 2, -1, -1):
         s_max_list[ii] = tf.maximum(s_max_list[ii + 1], s[:, ii: ii + 1])
