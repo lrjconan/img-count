@@ -893,12 +893,27 @@ def get_model(opt, device='/cpu:0'):
             filters_x_inv = tf.transpose(filters_x, [0, 2, 1])
 
             # Attention box
-            attn_box[tt] = _extract_patch(const_ones * attn_box_lg_gamma[tt],
-                                          filters_y_inv, filters_x_inv, 1)
-            attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
-            # attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta[tt])
-            attn_box[tt] = tf.reshape(
-                attn_box[tt], [-1, 1, inp_height, inp_width])
+            if use_iou_box:
+                _idx_map = base.get_idx_map(
+                    tf.pack([num_ex, inp_height, inp_width]))
+                attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
+                    attn_ctr[tt], attn_delta[tt], filter_height, filter_width)
+                attn_box[tt] = base.get_filled_box_idx(
+                    _idx_map, attn_top_left[tt], attn_bot_right[tt])
+                attn_box[tt] = tf.reshape(attn_box[tt],
+                                          [-1, 1, inp_height, inp_width])
+            else:
+                attn_box[tt] = extract_patch(const_ones * attn_box_gamma[tt],
+                                             filter_y_inv, filter_x_inv, 1)
+                attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
+                attn_box[tt] = tf.reshape(attn_box[tt],
+                                          [-1, 1, inp_height, inp_width])
+            # # Attention box
+            # attn_box[tt] = _extract_patch(const_ones * attn_box_lg_gamma[tt],
+            #                               filters_y_inv, filters_x_inv, 1)
+            # attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
+            # attn_box[tt] = tf.reshape(
+            #     attn_box[tt], [-1, 1, inp_height, inp_width])
 
             # Here is the knob kick in GT bbox.
             if use_knob:
