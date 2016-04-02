@@ -57,9 +57,10 @@ def cum_max(s, d):
         s_max: [B, D], cumulative maximum across the second dim, reversed.
     """
     s_max_list = [None] * d
-    s_max_list[d] = s[:, d: d + 1]
-    for ii in xrange(d - 1, -1, -1):
-        s_max_list[ii] = tf.maximum(s_min_list[ii + 1], s[:, ii: ii + 1])
+    print d
+    s_max_list[-1] = s[:, d - 1: d]
+    for ii in xrange(d - 2, -1, -1):
+        s_max_list[ii] = tf.maximum(s_max_list[ii + 1], s[:, ii: ii + 1])
 
     return tf.concat(1, s_max_list)
 
@@ -349,7 +350,7 @@ def f_bce(y_out, y_gt):
     return -y_gt * tf.log(y_out + eps) - (1 - y_gt) * tf.log(1 - y_out + eps)
 
 
-def f_bce_minmax(y_out_min, y_out_miny_gt):
+def f_bce_minmax(y_out_min, y_out_max, y_gt):
     """Binary cross entropy.
 
     Use minimum to compare against 1.

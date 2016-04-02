@@ -74,7 +74,7 @@ def get_model(opt, device='/cpu:0'):
     gt_box_pad_noise = opt['gt_box_pad_noise']
     gt_segm_noise = opt['gt_segm_noise']
     downsample_canvas = opt['downsample_canvas']
-    pretrain_ccnn = opt['pretrain_ccnn']
+    pretrain_cnn = opt['pretrain_cnn']
     cnn_share_weights = opt['cnn_share_weights']
     squash_ctrl_params = opt['squash_ctrl_params']
     use_iou_box = opt['use_iou_box']
@@ -125,10 +125,6 @@ def get_model(opt, device='/cpu:0'):
             ccnn_inp_depth = inp_depth
             acnn_inp_depth = inp_depth
 
-        ###########################
-        # Warning!! Stop gradient #
-        ###########################
-        acnn_inp = tf.stop_gradient(acnn_inp)
 
         # Controller CNN definition
         ccnn_filters = ctrl_cnn_filter_size
@@ -137,15 +133,15 @@ def get_model(opt, device='/cpu:0'):
         ccnn_pool = ctrl_cnn_pool
         ccnn_act = [tf.nn.relu] * ccnn_nlayers
         ccnn_use_bn = [use_bn] * ccnn_nlayers
-        if pretrain_ccnn:
-            h5f = h5py.File(pretrain_ccnn, 'r')
+        if pretrain_cnn:
+            h5f = h5py.File(pretrain_cnn, 'r')
             ccnn_init_w = [{'w': h5f['cnn_w_{}'.format(ii)][:],
                             'b': h5f['cnn_b_{}'.format(ii)][:]}
                            for ii in xrange(ccnn_nlayers)]
             ccnn_frozen = True
         else:
             ccnn_init_w = None
-            ccnn_frozen = False
+            ccnn_frozen = None
 
         ccnn = nn.cnn(ccnn_filters, ccnn_channels, ccnn_pool, ccnn_act,
                       ccnn_use_bn, phase_train=phase_train, wd=wd,
@@ -356,6 +352,11 @@ def get_model(opt, device='/cpu:0'):
                 acnn_inp = x
                 _h_ccnn = h_ccnn
 
+            ###########################
+            # Warning!! Stop gradient #
+            ###########################
+            acnn_inp = tf.stop_gradient(acnn_inp)
+            
             h_ccnn_last = _h_ccnn[-1]
             # crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
             crnn_inp = tf.reshape(
