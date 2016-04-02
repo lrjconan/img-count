@@ -28,7 +28,7 @@ def get_device_fn(device):
     return _device_fn
 
 
-def cum_min(s, d):
+def f_cum_min(s, d):
     """Calculates cumulative minimum.
 
     Args:
@@ -46,7 +46,7 @@ def cum_min(s, d):
     return tf.concat(1, s_min_list)
 
 
-def cum_max(s, d):
+def f_cum_max(s, d):
     """Calculates cumulative maximum.
 
     Args:
@@ -282,8 +282,8 @@ def f_conf_loss(s_out, match, timespan, use_cum_min=True):
     # Loss for confidence scores.
     if use_cum_min:
         # [B, N]
-        s_out_min = cum_min(s_out, timespan)
-        s_out_max = cum_max(s_out, timespan)
+        s_out_min = f_cum_min(s_out, timespan)
+        s_out_max = f_cum_max(s_out, timespan)
         # [B, N]
         s_bce = f_bce_minmax(s_out_min, s_out_max, match_sum)
     else:
@@ -351,10 +351,10 @@ def f_bce(y_out, y_gt):
 
 
 def f_bce_minmax(y_out_min, y_out_max, y_gt):
-    """Binary cross entropy.
+    """Binary cross entropy (encourages monotonic decreasing).
 
-    Use minimum to compare against 1.
-    Use maximum to compare against 0.
+    Use minimum (cumulative from start) to compare against 1.
+    Use maximum (cumulative till end) to compare against 0.
     """
     eps = 1e-5
     return -y_gt * tf.log(y_out_min + eps) - (1 - y_gt) * tf.log(1 - y_out_max + eps)

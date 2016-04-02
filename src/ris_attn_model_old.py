@@ -1057,9 +1057,9 @@ def get_model(opt, device='/cpu:0'):
         max_num_obj = tf.to_float(y_gt_shape[1])
 
         # Loss for attnention box
-        iou_soft_box = _f_iou(attn_box, attn_box_gt, timespan, pairwise=True)
+        iou_soft_box = base.f_iou(attn_box, attn_box_gt, timespan, pairwise=True)
         model['attn_box_gt'] = attn_box_gt
-        match_box = _segm_match(iou_soft_box, s_gt)
+        match_box = base.f_segm_match(iou_soft_box, s_gt)
         model['match_box'] = match_box
         match_sum_box = tf.reduce_sum(match_box, reduction_indices=[2])
         match_count_box = tf.reduce_sum(
@@ -1080,8 +1080,8 @@ def get_model(opt, device='/cpu:0'):
         tf.add_to_collection('losses', box_loss_coeff * box_loss)
 
         # Loss for fine segmentation
-        iou_soft = _f_iou(y_out, y_gt, timespan, pairwise=True)
-        match = _segm_match(iou_soft, s_gt)
+        iou_soft = base.f_iou(y_out, y_gt, timespan, pairwise=True)
+        match = base._segm_match(iou_soft, s_gt)
         model['match'] = match
         match_sum = tf.reduce_sum(match, reduction_indices=[2])
         match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
@@ -1131,7 +1131,7 @@ def get_model(opt, device='/cpu:0'):
         # Statistics
         # [B, M, N] * [B, M, N] => [B] * [B] => [1]
         y_out_hard = tf.to_float(y_out > 0.5)
-        iou_hard = _f_iou(y_out_hard, y_gt, timespan, pairwise=True)
+        iou_hard = base.f_iou(y_out_hard, y_gt, timespan, pairwise=True)
         wt_cov_hard = base.f_weighted_coverage(iou_hard, y_gt)
         model['wt_cov_hard'] = wt_cov_hard
         unwt_cov_hard = base.f_unweighted_coverage(iou_hard, match_count)
