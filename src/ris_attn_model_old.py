@@ -1081,7 +1081,7 @@ def get_model(opt, device='/cpu:0'):
 
         # Loss for fine segmentation
         iou_soft = base.f_iou(y_out, y_gt, timespan, pairwise=True)
-        match = base._segm_match(iou_soft, s_gt)
+        match = base.segm_match(iou_soft, s_gt)
         model['match'] = match
         match_sum = tf.reduce_sum(match, reduction_indices=[2])
         match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
