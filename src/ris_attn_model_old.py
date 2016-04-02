@@ -1115,7 +1115,7 @@ def get_model(opt, device='/cpu:0'):
         tf.add_to_collection('losses', segm_loss_coeff * segm_loss)
 
         # Score loss
-        conf_loss = _conf_loss(s_out, match, timespan, use_cum_min=True)
+        conf_loss = base.f_conf_loss(s_out, match, timespan, use_cum_min=True)
         model['conf_loss'] = conf_loss
         tf.add_to_collection('losses', loss_mix_ratio * conf_loss)
 
