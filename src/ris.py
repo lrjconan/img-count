@@ -58,13 +58,11 @@ def sort_by_segm_size(y):
     """
     # [B, T]
     y_size = np.sum(np.sum(y, 3), 2)
-    print y_size
     # [B, T, H, W]
     y_sort = np.zeros(y.shape, dtype=y.dtype)
     for ii in xrange(y.shape[0]):
         idx = np.argsort(y_size[ii])[::-1]
         y_sort[ii, :, :, :] = y[ii, idx, :, :]
-    print np.sum(np.sum(y_sort, 3), 2)
 
     return y_sort
 
