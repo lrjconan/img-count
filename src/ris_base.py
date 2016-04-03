@@ -396,7 +396,6 @@ def f_match_loss(y_out, y_gt, match, timespan, loss_fn, model=None):
             tf.reshape(match_list[ii], [-1, timespan]), [1]), 1)
 
     # N * [B, 1] => [B, N] => [B]
-
     err_total = tf.reduce_sum(tf.concat(1, err_list), reduction_indices=[1])
 
     return tf.reduce_sum(err_total / match_count) / num_ex / num_dim

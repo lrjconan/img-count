@@ -50,6 +50,25 @@ kKittiInpWidth = 448
 kKittiNumObj = 19
 
 
+def sort_by_segm_size(y):
+    """Sort the input/output sequence by the groundtruth size.
+
+    Args:
+        y: [B, T, H, W]
+    """
+    # [B, T]
+    y_size = np.sum(np.sum(y, 3), 2)
+    print y_size
+    # [B, T, H, W]
+    y_sort = np.zeros(y.shape, dtype=y.dtype)
+    for ii in xrange(y.shape[0]):
+        idx = np.argsort(y_size[ii])[::-1]
+        y_sort[ii, :, :, :] = y[ii, idx, :, :]
+    print np.sum(np.sum(y_sort, 3), 2)
+
+    return y_sort
+
+
 def get_model(opt, device='/cpu:0'):
     """Model router."""
     name = opt['type']
@@ -496,6 +515,7 @@ def _add_model_args(parser):
                         help='Whether to use batch normalization.')
     parser.add_argument('-no_cum_min', action='store_true',
                         help='Whether cumulative minimum. Default yes.')
+    parser.add_argument('-fixed_order', action='store_true')
 
     # Attention-based model options
     # parser.add_argument('-filter_size', default=kAttnSize, type=int,
@@ -755,6 +775,7 @@ def _make_model_opt(args):
             'squash_ctrl_params': args.squash_ctrl_params,
             'use_iou_box': args.use_iou_box,
             'clip_gradient': args.clip_gradient,
+            'fixed_order': args.fixed_order,
 
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,
@@ -822,6 +843,7 @@ def _make_model_opt(args):
             # 'score_use_core': args.score_use_core
             'score_use_core': True,
             'clip_gradient': args.clip_gradient,
+            'fixed_order': args.fixed_order,
 
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,
@@ -955,38 +977,31 @@ def _get_ts_loggers(model_opt, debug_bn=False, debug_weights=False):
         name='IoU',
         buffer_size=1)
     loggers['wt_cov'] = TimeSeriesLogger(
-        os.path.join(logs_folder, 'wt_cov.csv'),
-        ['train soft', 'valid soft', 'train hard', 'valid hard'],
+        os.path.join(logs_folder, 'wt_cov.csv'), ['train', 'valid'],
         name='Weighted Coverage',
         buffer_size=1)
     loggers['unwt_cov'] = TimeSeriesLogger(
-        os.path.join(logs_folder, 'unwt_cov.csv'),
-        ['train soft', 'valid soft', 'train hard', 'valid hard'],
+        os.path.join(logs_folder, 'unwt_cov.csv'), ['train', 'valid'],
         name='Unweighted Coverage',
         buffer_size=1)
     loggers['dice'] = TimeSeriesLogger(
-        os.path.join(logs_folder, 'dice.csv'),
-        ['train', 'valid'],
+        os.path.join(logs_folder, 'dice.csv'), ['train', 'valid'],
         name='Dice',
         buffer_size=1)
     loggers['dic'] = TimeSeriesLogger(
-        os.path.join(logs_folder, 'dic.csv'),
-        ['train', 'valid'],
+        os.path.join(logs_folder, 'dic.csv'), ['train', 'valid'],
         name='DiC',
         buffer_size=1)
     loggers['dic_abs'] = TimeSeriesLogger(
-        os.path.join(logs_folder, 'dic_abs.csv'),
-        ['train', 'valid'],
+        os.path.join(logs_folder, 'dic_abs.csv'), ['train', 'valid'],
         name='|DiC|',
         buffer_size=1)
     loggers['learn_rate'] = TimeSeriesLogger(
-        os.path.join(logs_folder, 'learn_rate.csv'),
-        'learning rate',
+        os.path.join(logs_folder, 'learn_rate.csv'), 'learning rate',
         name='Learning rate',
         buffer_size=1)
     loggers['count_acc'] = TimeSeriesLogger(
-        os.path.join(logs_folder, 'count_acc.csv'),
-        ['train', 'valid'],
+        os.path.join(logs_folder, 'count_acc.csv'), ['train', 'valid'],
         name='Count acc',
         buffer_size=1)
     loggers['step_time'] = TimeSeriesLogger(
@@ -1185,6 +1200,12 @@ if __name__ == '__main__':
     log.info('Loading dataset')
     dataset = get_dataset(args.dataset, data_opt)
 
+    if model_opt['fixed_order']:
+        dataset['train']['label_segmentation'] = sort_by_segm_size(
+            dataset['train']['label_segmentation'])
+        dataset['valid']['label_segmentation'] = sort_by_segm_size(
+            dataset['valid']['label_segmentation'])
+
     sess = tf.Session()
 
     if args.restore:
@@ -1360,8 +1381,8 @@ if __name__ == '__main__':
 
     def get_outputs_valid():
         _outputs = ['loss', 'conf_loss', 'segm_loss', 'iou_soft', 'iou_hard',
-                    'count_acc', 'dice', 'dic', 'dic_abs', 'wt_cov_soft',
-                    'wt_cov_hard', 'unwt_cov_soft', 'unwt_cov_hard']
+                    'count_acc', 'dice', 'dic', 'dic_abs', 'wt_cov_hard', 
+                    'unwt_cov_hard']
 
         if model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention':
             _outputs.extend(['box_loss'])
@@ -1370,9 +1391,8 @@ if __name__ == '__main__':
 
     def get_outputs_trainval():
         _outputs = ['loss', 'conf_loss', 'segm_loss', 'iou_soft', 'iou_hard',
-                    'count_acc', 'dice', 'dic', 'dic_abs', 'wt_cov_soft',
-                    'wt_cov_hard', 'unwt_cov_soft', 'unwt_cov_hard',
-                    'learn_rate']
+                    'count_acc', 'dice', 'dic', 'dic_abs', 'wt_cov_hard', 
+                    'unwt_cov_hard', 'learn_rate']
 
         if train_opt['debug_weights']:
             for layer_name, nlayers in zip(['glimpse_mlp', 'ctrl_mlp'],
@@ -1444,10 +1464,8 @@ if __name__ == '__main__':
         if attn:
             loggers['box_loss'].add(step, ['', r['box_loss']])
         loggers['iou'].add(step, ['', r['iou_soft'], '', r['iou_hard']])
-        loggers['wt_cov'].add(step, ['', r['wt_cov_soft'], '',
-                                     r['wt_cov_hard']])
-        loggers['unwt_cov'].add(step, ['', r['unwt_cov_soft'], '',
-                                       r['unwt_cov_hard']])
+        loggers['wt_cov'].add(step, ['', r['wt_cov_hard']])
+        loggers['unwt_cov'].add(step, ['', r['unwt_cov_hard']])
         loggers['dice'].add(step, ['', r['dice']])
         loggers['count_acc'].add(step, ['', r['count_acc']])
         loggers['dic'].add(step, ['', r['dic']])
@@ -1483,10 +1501,8 @@ if __name__ == '__main__':
             loggers['box_loss'].add(step, [r['box_loss'], ''])
 
         loggers['iou'].add(step, [r['iou_soft'], '', r['iou_hard'], ''])
-        loggers['wt_cov'].add(step, [r['wt_cov_soft'], '',
-                                     r['wt_cov_hard'], ''])
-        loggers['unwt_cov'].add(step, [r['unwt_cov_soft'], '',
-                                       r['unwt_cov_hard'], ''])
+        loggers['wt_cov'].add(step, [r['wt_cov_hard'], ''])
+        loggers['unwt_cov'].add(step, [r['unwt_cov_hard'], ''])
         loggers['dice'].add(step, [r['dice'], ''])
         loggers['count_acc'].add(step, [r['count_acc'], ''])
         loggers['dic'].add(step, [r['dic'], ''])

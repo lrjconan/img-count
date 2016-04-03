@@ -646,7 +646,9 @@ def get_model(opt, device='/cpu:0'):
         elif box_loss_fn == 'mse':
             box_loss_fn = f_match_loss(y_out, y_gt, match_box, timespan, f_mse)
         elif box_loss_fn == 'bce':
-            box_loss = f_match_bce(attn_box, attn_box_gt, match_box, timespan)
+            # box_loss = f_match_bce(attn_box, attn_box_gt, match_box, timespan)
+            box_loss_fn = f_match_loss(y_out, y_gt, match_box, timespan, f_bce)
+
         else:
             raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
         model['box_loss'] = box_loss
