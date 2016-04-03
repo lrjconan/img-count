@@ -885,14 +885,14 @@ def get_model(opt, device='/cpu:0'):
             y_out_lg_gamma[tt] = tf.reshape(y_out_lg_gamma[tt], [-1, 1, 1, 1])
 
             # Initial filters (predicted)
-            filters_y = _get_attn_filter(
+            filter_y = _get_attn_filter(
                 attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
                 attn_lg_var[tt][:, 0], inp_height, filter_height)
-            filters_x = _get_attn_filter(
+            filter_x = _get_attn_filter(
                 attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
                 attn_lg_var[tt][:, 1], inp_width, filter_width)
-            filters_y_inv = tf.transpose(filters_y, [0, 2, 1])
-            filters_x_inv = tf.transpose(filters_x, [0, 2, 1])
+            filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
+            filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
             # Attention box
             if use_iou_box:
@@ -955,24 +955,24 @@ def get_model(opt, device='/cpu:0'):
                 attn_ctr[tt], attn_delta[tt], filter_height, filter_width)
 
             # [B, H, A]
-            filters_y = _get_attn_filter(
+            filter_y = _get_attn_filter(
                 attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
                 attn_lg_var[tt][:, 0], inp_height, filter_height)
 
             # [B, W, A]
-            filters_x = _get_attn_filter(
+            filter_x = _get_attn_filter(
                 attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
                 attn_lg_var[tt][:, 1], inp_width, filter_width)
 
             # [B, A, H]
-            filters_y_inv = tf.transpose(filters_y, [0, 2, 1])
+            filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
 
             # [B, A, W]
-            filters_x_inv = tf.transpose(filters_x, [0, 2, 1])
+            filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
             # Attended patch [B, A, A, D]
             x_patch[tt] = attn_gamma[tt] * base.extract_patch(
-                acnn_inp, filters_y, filters_x, acnn_inp_depth)
+                acnn_inp, filter_y, filter_x, acnn_inp_depth)
 
             # CNN [B, A, A, D] => [B, RH2, RW2, RD2]
             h_acnn[tt] = acnn(x_patch[tt])
@@ -1004,7 +1004,7 @@ def get_model(opt, device='/cpu:0'):
 
             # Output
             y_out[tt] = base.extract_patch(
-                h_dcnn[tt][-1], filters_y_inv, filters_x_inv, 1)
+                h_dcnn[tt][-1], filter_y_inv, filter_x_inv, 1)
             y_out[tt] = tf.exp(y_out_lg_gamma[tt]) * y_out[tt] + y_out_beta
             y_out[tt] = tf.sigmoid(y_out[tt])
             y_out[tt] = tf.reshape(y_out[tt], [-1, 1, inp_height, inp_width])
