@@ -584,7 +584,8 @@ def get_gaussian_filter(center, size, lg_var, image_size, filter_size):
     size = tf.reshape(size, [-1, 1, 1])
 
     # [B, 1, 1] + [B, 1, 1] * [1, F, 1] = [B, 1, F]
-    mu = center + size / filter_size * (span_filter - (filter_size - 1) / 2.0)
+    # mu = center + size / filter_size * (span_filter - (filter_size - 1) / 2.0)
+    mu = center + (size + 1) / filter_size * (span_filter - (filter_size - 1) / 2.0)
 
     # [B, 1, 1]
     lg_var = tf.reshape(lg_var, [-1, 1, 1])
@@ -594,11 +595,11 @@ def get_gaussian_filter(center, size, lg_var, image_size, filter_size):
                                   tf.pack([1, image_size, 1])))
 
     # [1, L, 1] - [B, 1, F] = [B, L, F]
-    filter = tf.mul(
+    filt = tf.mul(
         1 / tf.sqrt(tf.exp(lg_var)) / tf.sqrt(2 * np.pi),
         tf.exp(-0.5 * (span - mu) * (span - mu) / tf.exp(lg_var)))
 
-    return filter
+    return filt
 
 
 def extract_patch(x, f_y, f_x, nchannels):

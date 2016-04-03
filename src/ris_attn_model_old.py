@@ -430,11 +430,11 @@ def _get_attn_filter(center, delta, lg_var, image_size, filter_size):
                                   tf.pack([1, image_size, 1])))
 
     # [1, L, 1] - [B, 1, F] = [B, L, F]
-    filter = tf.mul(
+    filt = tf.mul(
         1 / tf.sqrt(tf.exp(lg_var)) / tf.sqrt(2 * np.pi),
         tf.exp(-0.5 * (span - mu) * (span - mu) / tf.exp(lg_var)))
 
-    return filter
+    return filt
 
 
 def _extract_patch(x, f_y, f_x, nchannels):
@@ -924,12 +924,21 @@ def get_model(opt, device='/cpu:0'):
             y_out_lg_gamma[tt] = tf.reshape(y_out_lg_gamma[tt], [-1, 1, 1, 1])
 
             # Initial filters (predicted)
-            filter_y = _get_attn_filter(
-                attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
+            # filter_y = _get_attn_filter(
+            #     attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
+            #     attn_lg_var[tt][:, 0], inp_height, filter_height)
+            # filter_x = _get_attn_filter(
+            #     attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
+            #     attn_lg_var[tt][:, 1], inp_width, filter_width)
+            
+            filter_y = base.get_gaussian_filter(
+                attn_ctr[tt][:, 0], attn_size[tt][:, 0],
                 attn_lg_var[tt][:, 0], inp_height, filter_height)
-            filter_x = _get_attn_filter(
-                attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
+            filter_x = base.get_gaussian_filter(
+                attn_ctr[tt][:, 1], attn_size[tt][:, 1],
                 attn_lg_var[tt][:, 1], inp_width, filter_width)
+
+
             filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
             filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
@@ -978,6 +987,8 @@ def get_model(opt, device='/cpu:0'):
                 attn_ctr_gtm = tf.reduce_sum(grd_match * attn_ctr_gt_noise, 1)
                 attn_delta_gtm = tf.reduce_sum(
                     grd_match * attn_delta_gt_noise, 1)
+                attn_size_gtm = tf.reduce_sum(
+                    grd_match * attn_size_gt_noise, 1)
 
                 _gt_knob_box = gt_knob_box
                 # _gt_knob_box = gt_knob_prob_box
@@ -989,18 +1000,30 @@ def get_model(opt, device='/cpu:0'):
                     attn_delta_gtm + \
                     (1 - phase_train_f * _gt_knob_box[:, tt, 0: 1]) * \
                     attn_delta[tt]
+                attn_size[tt] = phase_train_f * _gt_knob_box[:, tt, 0: 1] * \
+                    attn_size_gtm + \
+                    (1 - phase_train_f * _gt_knob_box[:, tt, 0: 1]) * \
+                    attn_size[tt]
 
             attn_top_left[tt], attn_bot_right[tt] = _get_attn_coord(
                 attn_ctr[tt], attn_delta[tt], filter_height, filter_width)
 
-            # [B, H, A]
-            filter_y = _get_attn_filter(
-                attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
-                attn_lg_var[tt][:, 0], inp_height, filter_height)
+            # # [B, H, A]
+            # filter_y = _get_attn_filter(
+            #     attn_ctr[tt][:, 0], attn_delta[tt][:, 0],
+            #     attn_lg_var[tt][:, 0], inp_height, filter_height)
+            # # [B, W, A]
+            # filter_x = _get_attn_filter(
+            #     attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
+            #     attn_lg_var[tt][:, 1], inp_width, filter_width)
 
+            # [B, H, A]
+            filter_y = base.get_gaussian_filter(
+                attn_ctr[tt][:, 0], attn_size[tt][:, 0],
+                attn_lg_var[tt][:, 0], inp_height, filter_height)
             # [B, W, A]
-            filter_x = _get_attn_filter(
-                attn_ctr[tt][:, 1], attn_delta[tt][:, 1],
+            filter_x = base.get_gaussian_filter(
+                attn_ctr[tt][:, 1], attn_size[tt][:, 1],
                 attn_lg_var[tt][:, 1], inp_width, filter_width)
 
             # [B, A, H]
