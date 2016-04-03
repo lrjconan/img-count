@@ -693,22 +693,43 @@ def get_model(opt, device='/cpu:0'):
         s_out = [None] * timespan
 
         # Groundtruth bounding box, [B, T, 2]
-        attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, \
-            attn_top_left_gt, attn_bot_right_gt, idx_map = \
-            _get_gt_attn(y_gt, filter_height, filter_width,
-                         padding_ratio=attn_box_padding_ratio,
-                         center_shift_ratio=0.0)
-        attn_ctr_gt_noise, attn_delta_gt_noise, attn_lg_var_gt_noise, \
+        # attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, \
+        #     attn_top_left_gt, attn_bot_right_gt, idx_map = \
+        #     _get_gt_attn(y_gt, filter_height, filter_width,
+        #                  padding_ratio=attn_box_padding_ratio,
+        #                  center_shift_ratio=0.0)
+        # attn_ctr_gt_noise, attn_delta_gt_noise, attn_lg_var_gt_noise, \
+        #     attn_box_gt_noise, \
+        #     attn_top_left_gt_noise, attn_bot_right_gt_noise, idx_map_noise = \
+        #     _get_gt_attn(y_gt, filter_height, filter_width,
+        #                  padding_ratio=tf.random_uniform(
+        #                      tf.pack([num_ex, timespan, 1]),
+        #                      attn_box_padding_ratio - gt_box_pad_noise,
+        #                      attn_box_padding_ratio + gt_box_pad_noise),
+        #                  center_shift_ratio=tf.random_uniform(
+        #                      tf.pack([num_ex, timespan, 2]),
+        #                      -gt_box_ctr_noise, gt_box_ctr_noise))
+        # attn_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
+        attn_ctr_gt, attn_size_gt, attn_lg_var_gt, attn_box_gt, \
+            attn_top_left_gt, attn_bot_right_gt = \
+            base.get_gt_attn(y_gt,
+                             padding_ratio=attn_box_padding_ratio,
+                             center_shift_ratio=0.0)
+        attn_ctr_gt_noise, attn_size_gt_noise, attn_lg_var_gt_noise, \
             attn_box_gt_noise, \
-            attn_top_left_gt_noise, attn_bot_right_gt_noise, idx_map_noise = \
-            _get_gt_attn(y_gt, filter_height, filter_width,
-                         padding_ratio=tf.random_uniform(
-                             tf.pack([num_ex, timespan, 1]),
-                             attn_box_padding_ratio - gt_box_pad_noise,
-                             attn_box_padding_ratio + gt_box_pad_noise),
-                         center_shift_ratio=tf.random_uniform(
-                             tf.pack([num_ex, timespan, 2]),
-                             -gt_box_ctr_noise, gt_box_ctr_noise))
+            attn_top_left_gt_noise, attn_bot_right_gt_noise = \
+            base.get_gt_attn(y_gt,
+                             padding_ratio=tf.random_uniform(
+                                 tf.pack([num_ex, timespan, 1]),
+                                 attn_box_padding_ratio - gt_box_pad_noise,
+                                 attn_box_padding_ratio + gt_box_pad_noise),
+                             center_shift_ratio=tf.random_uniform(
+                                 tf.pack([num_ex, timespan, 2]),
+                                 -gt_box_ctr_noise, gt_box_ctr_noise))
+        attn_delta_gt = (attn_size_gt + 1.0) / max(filter_height, filter_width)
+        attn_delta_gt_noise = (attn_size_gt_noise + 1.0) / \
+            max(filter_height, filter_width)
+
         attn_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
         attn_box_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
         y_out_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
