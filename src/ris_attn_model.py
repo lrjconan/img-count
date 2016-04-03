@@ -643,6 +643,8 @@ def get_model(opt, device='/cpu:0'):
             box_loss = -wt_iou_soft_box
         elif box_loss_fn == 'wt_cov':
             box_loss = -f_weighted_coverage(iou_soft_box, attn_box_gt)
+        elif box_loss_fn == 'mse':
+            box_loss_fn = f_match_loss(y_out, y_gt, match_box, timespan, f_mse)
         elif box_loss_fn == 'bce':
             box_loss = f_match_bce(attn_box, attn_box_gt, match_box, timespan)
         else:
@@ -756,6 +758,8 @@ def get_model(opt, device='/cpu:0'):
         model['attn_lg_gamma_mean'] = attn_lg_gamma_mean
         model['attn_box_lg_gamma_mean'] = attn_box_lg_gamma_mean
         model['y_out_lg_gamma_mean'] = y_out_lg_gamma_mean
+        attn_params = tf.concat(2, [attn_ctr_norm, attn_lg_size])
+        attn_params_gt = tf.concat(2, [attn_ctr_norm_gt, attn_lg_size_gt])
 
         # Ctrl RNN gate statistics
         crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])

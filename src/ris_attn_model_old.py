@@ -695,7 +695,8 @@ def get_model(opt, device='/cpu:0'):
         # Groundtruth bounding box, [B, T, 2]
         attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, \
             attn_top_left_gt, attn_bot_right_gt, idx_map = \
-            _get_gt_attn(y_gt, filter_height, filter_width, padding_ratio=attn_box_padding_ratio,
+            _get_gt_attn(y_gt, filter_height, filter_width,
+                         padding_ratio=attn_box_padding_ratio,
                          center_shift_ratio=0.0)
         attn_ctr_gt_noise, attn_delta_gt_noise, attn_lg_var_gt_noise, \
             attn_box_gt_noise, \
@@ -720,6 +721,7 @@ def get_model(opt, device='/cpu:0'):
         attn_lg_gamma = [None] * timespan
         attn_gamma = [None] * timespan
         attn_box_lg_gamma = [None] * timespan
+        attn_box_gamma = [None] * timespan
         attn_top_left = [None] * timespan
         attn_bot_right = [None] * timespan
 
@@ -878,8 +880,8 @@ def get_model(opt, device='/cpu:0'):
 
             attn_gamma[tt] = tf.reshape(
                 tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
-            attn_box_lg_gamma[tt] = tf.reshape(tf.exp(
-                attn_box_lg_gamma[tt]), [-1, 1, 1, 1])
+            attn_box_gamma[tt] = tf.reshape(
+                tf.exp(attn_box_lg_gamma[tt]), [-1, 1, 1, 1])
             y_out_lg_gamma[tt] = tf.reshape(y_out_lg_gamma[tt], [-1, 1, 1, 1])
 
             # Initial filters (predicted)
@@ -908,13 +910,7 @@ def get_model(opt, device='/cpu:0'):
                 attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
                 attn_box[tt] = tf.reshape(attn_box[tt],
                                           [-1, 1, inp_height, inp_width])
-            # # Attention box
-            # attn_box[tt] = _extract_patch(const_ones * attn_box_lg_gamma[tt],
-            #                               filters_y_inv, filters_x_inv, 1)
-            # attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
-            # attn_box[tt] = tf.reshape(
-            #     attn_box[tt], [-1, 1, inp_height, inp_width])
-
+                
             # Here is the knob kick in GT bbox.
             if use_knob:
                 # Greedy matching here.
