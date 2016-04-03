@@ -905,12 +905,12 @@ def get_model(opt, device='/cpu:0'):
                 attn_box[tt] = tf.reshape(attn_box[tt],
                                           [-1, 1, inp_height, inp_width])
             else:
-                attn_box[tt] = extract_patch(const_ones * attn_box_gamma[tt],
-                                             filter_y_inv, filter_x_inv, 1)
+                attn_box[tt] = base.extract_patch(const_ones * attn_box_gamma[tt],
+                                                  filter_y_inv, filter_x_inv, 1)
                 attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
                 attn_box[tt] = tf.reshape(attn_box[tt],
                                           [-1, 1, inp_height, inp_width])
-                
+
             # Here is the knob kick in GT bbox.
             if use_knob:
                 # Greedy matching here.
@@ -971,7 +971,7 @@ def get_model(opt, device='/cpu:0'):
             filters_x_inv = tf.transpose(filters_x, [0, 2, 1])
 
             # Attended patch [B, A, A, D]
-            x_patch[tt] = attn_gamma[tt] * _extract_patch(
+            x_patch[tt] = attn_gamma[tt] * base.extract_patch(
                 acnn_inp, filters_y, filters_x, acnn_inp_depth)
 
             # CNN [B, A, A, D] => [B, RH2, RW2, RD2]
@@ -1003,7 +1003,7 @@ def get_model(opt, device='/cpu:0'):
             h_dcnn[tt] = dcnn(h_core, skip=skip)
 
             # Output
-            y_out[tt] = _extract_patch(
+            y_out[tt] = base.extract_patch(
                 h_dcnn[tt][-1], filters_y_inv, filters_x_inv, 1)
             y_out[tt] = tf.exp(y_out_lg_gamma[tt]) * y_out[tt] + y_out_beta
             y_out[tt] = tf.sigmoid(y_out[tt])
