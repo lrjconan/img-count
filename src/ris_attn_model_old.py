@@ -713,10 +713,6 @@ def get_model(opt, device='/cpu:0'):
                       dropout_keep=cmlp_dropout,
                       phase_train=phase_train, wd=wd, scope='ctrl_mlp')
 
-        # Score MLP definition
-        smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd, scope='smlp')
-        s_out = [None] * timespan
-
         # Groundtruth bounding box, [B, T, 2]
         # attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, \
         #     attn_top_left_gt, attn_bot_right_gt, idx_map = \
@@ -818,6 +814,11 @@ def get_model(opt, device='/cpu:0'):
         # amlp_dropout = [1.0 - mlp_dropout_ratio] * num_attn_mlp_layers
         amlp = nn.mlp(amlp_dims, amlp_act, dropout_keep=amlp_dropout,
                       phase_train=phase_train, wd=wd, scope='attn_mlp')
+
+        # Score MLP definition
+        # smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd, scope='score_mlp')
+        smlp = nn.mlp([crnn_dim + core_dim, 1], [tf.sigmoid], wd=wd, scope='score_mlp')
+        s_out = [None] * timespan
 
         # DCNN [B, RH, RW, MD] => [B, A, A, 1]
         dcnn_filters = dcnn_filter_size
@@ -1077,9 +1078,6 @@ def get_model(opt, device='/cpu:0'):
                 arnn_state[tt], arnn_g_i[tt], arnn_g_f[tt], arnn_g_o[tt] = \
                     arnn_cell(arnn_inp, arnn_state[tt - 1])
 
-            # Scoring network
-            s_out[tt] = smlp(h_crnn[tt])[-1]
-
             # Dense segmentation network [B, R] => [B, M]
             if use_attn_rnn:
                 h_arnn = tf.slice(
@@ -1101,6 +1099,11 @@ def get_model(opt, device='/cpu:0'):
             y_out[tt] = tf.exp(y_out_lg_gamma[tt]) * y_out[tt] + y_out_beta
             y_out[tt] = tf.sigmoid(y_out[tt])
             y_out[tt] = tf.reshape(y_out[tt], [-1, 1, inp_height, inp_width])
+
+            # Scoring network
+            # s_out[tt] = smlp(h_crnn[tt])[-1]
+            smlp_inp = tf.concat(1, [h_crnn[tt], h_core])
+            s_out[tt] = smlp(h_crnn[tt])[-1]
 
             # Here is the knob kick in GT segmentations at this timestep.
             # [B, N, 1, 1]
