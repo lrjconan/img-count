@@ -627,6 +627,7 @@ def get_model(opt, device='/cpu:0'):
     gt_box_ctr_noise = opt['gt_box_ctr_noise']
     gt_box_pad_noise = opt['gt_box_pad_noise']
     gt_segm_noise = opt['gt_segm_noise']
+    squash_ctrl_params = opt['squash_ctrl_params']
     use_iou_box = opt['use_iou_box']
     fixed_order = opt['fixed_order']
 
@@ -914,6 +915,12 @@ def get_model(opt, device='/cpu:0'):
                 ctrl_out = cmlp(h_crnn[tt])[-1]
                 attn_ctr_norm[tt] = tf.slice(ctrl_out, [0, 0], [-1, 2])
                 attn_lg_size[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
+                if squash_ctrl_params:
+                    # Restrict to (-1, 1)
+                    attn_ctr_norm[tt] = tf.tanh(attn_ctr_norm[tt])
+                    # Restrict to (-inf, 0)
+                    attn_lg_size[tt] = -tf.nn.softplus(attn_lg_size[tt])
+                
                 # attn_ctr[tt], attn_delta[tt] = _unnormalize_attn(
                 # _ctr, _lg_delta, inp_height, inp_width, filter_height,
                 # filter_width)
@@ -1197,6 +1204,7 @@ def get_model(opt, device='/cpu:0'):
         model['match_box'] = match_box
         match_sum_box = tf.reduce_sum(match_box, reduction_indices=[2])
         match_count_box = tf.reduce_sum(match_sum_box, reduction_indices=[1])
+        match_count_box = tf.maximum(1.0, match_count_box)
         if box_loss_fn == 'iou':
             # [B] if fixed order, [B, T] if matching.
             if fixed_order:
@@ -1229,6 +1237,7 @@ def get_model(opt, device='/cpu:0'):
         model['match'] = match
         match_sum = tf.reduce_sum(match, reduction_indices=[2])
         match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
+        match_count = tf.maximum(1.0, match_count)
 
         # Weighted coverage (soft)
         if not fixed_order:
