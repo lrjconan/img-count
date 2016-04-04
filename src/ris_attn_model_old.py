@@ -1087,11 +1087,11 @@ def get_model(opt, device='/cpu:0'):
                 amlp_inp = h_acnn_last[tt]
             amlp_inp = tf.reshape(amlp_inp, [-1, amlp_inp_dim])
             h_core = amlp(amlp_inp)[-1]
-            h_core = tf.reshape(h_core, [-1, arnn_h, arnn_w, attn_mlp_depth])
+            h_core_img = tf.reshape(h_core, [-1, arnn_h, arnn_w, attn_mlp_depth])
 
             # DCNN
             skip = [None] + h_acnn[tt][::-1][1:] + [x_patch[tt]]
-            h_dcnn[tt] = dcnn(h_core, skip=skip)
+            h_dcnn[tt] = dcnn(h_core_img, skip=skip)
 
             # Output
             y_out[tt] = base.extract_patch(
