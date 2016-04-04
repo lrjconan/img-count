@@ -1101,9 +1101,10 @@ def get_model(opt, device='/cpu:0'):
             y_out[tt] = tf.reshape(y_out[tt], [-1, 1, inp_height, inp_width])
 
             # Scoring network
+            # smlp_inp = h_crnn[tt]
             # s_out[tt] = smlp(h_crnn[tt])[-1]
             smlp_inp = tf.concat(1, [h_crnn[tt], h_core])
-            s_out[tt] = smlp(h_crnn[tt])[-1]
+            s_out[tt] = smlp(smlp_inp)[-1]
 
             # Here is the knob kick in GT segmentations at this timestep.
             # [B, N, 1, 1]
