@@ -191,12 +191,16 @@ def get_model(opt, device='/cpu:0'):
 
         for tt in xrange(timespan):
             # Get a new greedy match based on order.
-            mask = _get_idx_mask(order[:, tt], timespan)
-
-            # [B, T, 1]
-            mask = tf.expand_dims(mask, 2)
-            attn_ctr[tt] = tf.reduce_sum(mask * attn_ctr_gt_noise, 1)
-            attn_size[tt] = tf.reduce_sum(mask * attn_size_gt_noise, 1)
+            if fixed_order:
+                attn_ctr[tt] = attn_ctr_gt_noise[:, tt, :]
+                attn_size[tt] = attn_size_gt_noise[:, tt, :]
+            else:
+                mask = _get_idx_mask(order[:, tt], timespan)
+                # [B, T, 1]
+                mask = tf.expand_dims(mask, 2)
+                attn_ctr[tt] = tf.reduce_sum(mask * attn_ctr_gt_noise, 1)
+                attn_size[tt] = tf.reduce_sum(mask * attn_size_gt_noise, 1)
+                
             attn_top_left[tt], attn_bot_right[tt] = base.get_box_coord(
                 attn_ctr[tt], attn_size[tt])
 
