@@ -197,7 +197,7 @@ def get_model(opt, device='/cpu:0'):
             mask = tf.expand_dims(mask, 2)
             attn_ctr[tt] = tf.reduce_sum(mask * attn_ctr_gt_noise, 1)
             attn_size[tt] = tf.reduce_sum(mask * attn_size_gt_noise, 1)
-            attn_top_left[tt], attn_bot_right[tt] = get_box_coord(
+            attn_top_left[tt], attn_bot_right[tt] = base.get_box_coord(
                 attn_ctr[tt], attn_size[tt])
 
             # [B, H, H']
