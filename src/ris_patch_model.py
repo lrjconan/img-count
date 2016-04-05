@@ -282,7 +282,7 @@ def get_model(opt, device='/cpu:0'):
         else:
             iou_soft = iou_soft_pairwise
             match = real_match
-        match = base.f_segm_match(iou_soft, s_gt)
+        # match = base.f_segm_match(iou_soft, s_gt)
         model['match'] = match
         match_sum = tf.reduce_sum(match, reduction_indices=[2])
         match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
