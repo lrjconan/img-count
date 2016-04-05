@@ -42,10 +42,10 @@ kSynthShapeInpWidth = 224
 kCvpppInpHeight = 224
 kCvpppInpWidth = 224
 kCvpppNumObj = 20
-# kKittiInpHeight = 128
-# kKittiInpWidth = 448
-kKittiInpHeight = 160
-kKittiInpWidth = 560
+kKittiInpHeight = 128
+kKittiInpWidth = 448
+# kKittiInpHeight = 160
+# kKittiInpWidth = 560
 kKittiNumObj = 19
 
 
