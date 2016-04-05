@@ -250,8 +250,13 @@ def get_model(opt, device='/cpu:0'):
             y_out[tt] = tf.reshape(y_out[tt], [-1, 1, inp_height, inp_width])
 
             # Canvas
-            mask = tf.expand_dims(mask, 3)
-            _y_out = tf.expand_dims(tf.reduce_sum(mask * y_gt, 1), 3)
+            if fixed_order:
+                _y_out = y_gt[:, tt, :, :]
+            else:
+                mask = tf.expand_dims(mask, 3)
+                _y_out = tf.reduce_sum(mask * y_gt, 1)
+
+            _y_out = tf.expand_dims(_y_out, 3)
             # Add independent uniform noise to groundtruth.
             _noise = tf.random_uniform(
                 tf.pack([num_ex, inp_height, inp_width, 1]),
