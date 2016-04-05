@@ -1,6 +1,6 @@
 import cslab_environ
 
-from ris_base import *
+import ris_base as base
 from utils import logger
 from utils.grad_clip_optim import GradientClipOptimizer
 import fg_segm_reader
@@ -121,7 +121,7 @@ def get_model(opt, device='/cpu:0'):
         attn_ctr_gt_noise, attn_size_gt_noise, attn_lg_var_gt_noise, \
             attn_box_gt_noise, \
             attn_top_left_gt_noise, attn_bot_right_gt_noise = \
-            get_gt_attn(y_gt,
+            base.get_gt_attn(y_gt,
                         padding_ratio=tf.random_uniform(
                             tf.pack([num_ex, timespan, 1]),
                             attn_box_padding_ratio - gt_box_pad_noise,
@@ -201,12 +201,12 @@ def get_model(opt, device='/cpu:0'):
                 attn_ctr[tt], attn_size[tt])
 
             # [B, H, H']
-            filter_y = get_gaussian_filter(
+            filter_y = base.get_gaussian_filter(
                 attn_ctr[tt][:, 0], attn_size[tt][:, 0], 0.0,
                 inp_height, filter_height)
 
             # [B, W, W']
-            filter_x = get_gaussian_filter(
+            filter_x = base.get_gaussian_filter(
                 attn_ctr[tt][:, 1], attn_size[tt][:, 1], 0.0,
                 inp_width, filter_width)
 
@@ -239,7 +239,7 @@ def get_model(opt, device='/cpu:0'):
             h_adcnn[tt] = adcnn(h_core, skip=skip)
 
             # Output
-            y_out[tt] = extract_patch(
+            y_out[tt] = base.extract_patch(
                 h_adcnn[tt][-1], filter_y_inv, filter_x_inv, 1)
             y_out[tt] = tf.exp(y_out_lg_gamma) * y_out[tt] + y_out_beta
             y_out[tt] = tf.sigmoid(y_out[tt])
@@ -282,16 +282,16 @@ def get_model(opt, device='/cpu:0'):
         else:
             iou_soft = iou_soft_pairwise
             match = real_match
-        match = f_segm_match(iou_soft, s_gt)
+        match = base.f_segm_match(iou_soft, s_gt)
         model['match'] = match
         match_sum = tf.reduce_sum(match, reduction_indices=[2])
         match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
         match_count = tf.maximum(1.0, match_count)
 
         # Weighted coverage (soft)
-        wt_cov_soft = f_weighted_coverage(iou_soft_pairwise, y_gt)
+        wt_cov_soft = base.f_weighted_coverage(iou_soft_pairwise, y_gt)
         model['wt_cov_soft'] = wt_cov_soft
-        unwt_cov_soft = f_unweighted_coverage(iou_soft_pairwise, match_count)
+        unwt_cov_soft = base.f_unweighted_coverage(iou_soft_pairwise, match_count)
         model['unwt_cov_soft'] = unwt_cov_soft
 
         # IOU (soft)
@@ -314,7 +314,7 @@ def get_model(opt, device='/cpu:0'):
         elif segm_loss_fn == 'wt_cov':
             segm_loss = -wt_cov_soft
         elif segm_loss_fn == 'bce':
-            segm_loss = f_match_bce(y_out, y_gt, match, timespan)
+            segm_loss = base.f_match_bce(y_out, y_gt, match, timespan)
         else:
             raise Exception('Unknown segm_loss_fn: {}'.format(segm_loss_fn))
         model['segm_loss'] = segm_loss
@@ -333,10 +333,10 @@ def get_model(opt, device='/cpu:0'):
         # Statistics
         # [B, M, N] * [B, M, N] => [B] * [B] => [1]
         y_out_hard = tf.to_float(y_out > 0.5)
-        iou_hard = f_iou(y_out_hard, y_gt, timespan, pairwise=True)
-        wt_cov_hard = f_weighted_coverage(iou_hard, y_gt)
+        iou_hard = base.f_iou(y_out_hard, y_gt, timespan, pairwise=True)
+        wt_cov_hard = base.f_weighted_coverage(iou_hard, y_gt)
         model['wt_cov_hard'] = wt_cov_hard
-        unwt_cov_hard = f_unweighted_coverage(iou_hard, match_count)
+        unwt_cov_hard = base.f_unweighted_coverage(iou_hard, match_count)
         model['unwt_cov_hard'] = unwt_cov_hard
         # [B, T]
         iou_hard_mask = tf.reduce_sum(iou_hard * match, [1])
