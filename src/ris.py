@@ -35,7 +35,8 @@ from utils.time_series_logger import TimeSeriesLogger
 from utils import plot_utils as pu
 
 import ris_vanilla_model as vanilla_model
-import ris_attn_model_old as attention_model
+# import ris_attn_model_old as attention_model
+import ris_attn_model as attention_model
 import ris_double_attn_model as double_attention_model
 
 log = logger.get()
