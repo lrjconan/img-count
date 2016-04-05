@@ -218,7 +218,7 @@ def get_model(opt, device='/cpu:0'):
 
             # Attended patch [B, A, A, D]
             acnn_inp = tf.concat(3, [x, canvas])
-            x_patch[tt] = extract_patch(
+            x_patch[tt] = base.extract_patch(
                 acnn_inp, filter_y, filter_x, acnn_inp_depth)
 
             if tt == 0:
