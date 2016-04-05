@@ -273,7 +273,7 @@ def get_model(opt, device='/cpu:0'):
         max_num_obj = tf.to_float(y_gt_shape[1])
 
         # Loss for fine segmentation
-        identity_match = _get_identity_match(num_ex_f, timespan, s_gt)
+        identity_match = _get_identity_match(num_ex, timespan, s_gt)
         iou_soft_pairwise = base.f_iou(y_out, y_gt, timespan, pairwise=True)
         real_match = base.f_segm_match(iou_soft_pairwise, s_gt)
         if fixed_order:
