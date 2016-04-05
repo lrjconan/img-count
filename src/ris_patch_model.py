@@ -26,6 +26,17 @@ def _get_idx_mask(idx, timespan):
     return tf.gather(eye, idx)
 
 
+def _get_identity_match(num_ex, timespan, s_gt):
+    zeros = tf.zeros(tf.pack([num_ex, timespan, timespan]))
+    eye = tf.expand_dims(tf.constant(np.eye(timespan), dtype='float32'), 0)
+    mask_x = tf.expand_dims(s_gt, 1)
+    mask_y = tf.expand_dims(s_gt, 2)
+    match = zeros + eye
+    match = match * mask_x * mask_y
+
+    return match
+
+
 def get_model(opt, device='/cpu:0'):
     """The attention model"""
     model = {}
@@ -141,7 +152,7 @@ def get_model(opt, device='/cpu:0'):
         # Attention RNN definition
         acnn_subsample = np.array(acnn_pool).prod()
         arnn_h = filter_height / acnn_subsample
-        arnn_w = filter_width/ acnn_subsample
+        arnn_w = filter_width / acnn_subsample
         amlp_inp_dim = arnn_h * arnn_w * acnn_channels[-1]
 
         # Attention MLP definition
