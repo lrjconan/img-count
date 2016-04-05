@@ -528,7 +528,7 @@ class ShardedFileReader(object):
                     'You need to specify key field in the constructor.')
 
         if key not in self._key_index:
-            log.warining('Key {} not found in file {}'.format(key, self.file))
+            log.warning('Key {} not found in file {}'.format(key, self.file))
             return None
         else:
             location = self._key_index[key]

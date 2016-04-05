@@ -181,7 +181,7 @@ def get_separate_labels(label_img):
 
 
 if __name__ == '__main__':
-    folder = '/ais/gobi3/u/mren/data/kitti'
+    folder = '/ais/gobi3/u/mren/data/kitti/object'
     for split in ['train', 'valid']:
         dataset = get_dataset(
             folder,

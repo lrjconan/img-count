@@ -274,7 +274,7 @@ def get_dataset(dataset_name, opt):
             }
     elif dataset_name == 'kitti':
         if os.path.exists('/u/mren'):
-            dataset_folder = '/ais/gobi3/u/mren/data/kitti'
+            dataset_folder = '/ais/gobi3/u/mren/data/kitti/object'
         else:
             dataset_folder = '/home/mren/data/kitti'
         opt['timespan'] = 20
