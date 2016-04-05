@@ -82,7 +82,7 @@ def get_model(opt, device='/cpu:0'):
     rnd_transpose = opt['rnd_transpose']
     rnd_colour = opt['rnd_colour']
 
-    with tf.device(get_device_fn(device)):
+    with tf.device(base.get_device_fn(device)):
         # Input definition
         # Input image, [B, H, W, D]
         x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
