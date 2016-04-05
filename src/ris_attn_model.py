@@ -758,8 +758,8 @@ def get_model(opt, device='/cpu:0'):
         model['attn_lg_gamma_mean'] = attn_lg_gamma_mean
         model['attn_box_lg_gamma_mean'] = attn_box_lg_gamma_mean
         model['y_out_lg_gamma_mean'] = y_out_lg_gamma_mean
-        attn_params = tf.concat(2, [attn_ctr_norm, attn_lg_size])
-        attn_params_gt = tf.concat(2, [attn_ctr_norm_gt, attn_lg_size_gt])
+        # attn_params = tf.concat(2, [attn_ctr_norm, attn_lg_size])
+        # attn_params_gt = tf.concat(2, [attn_ctr_norm_gt, attn_lg_size_gt])
 
         # Ctrl RNN gate statistics
         crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
