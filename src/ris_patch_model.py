@@ -343,9 +343,9 @@ def get_model(opt, device='/cpu:0'):
         iou_hard = tf.reduce_sum(tf.reduce_sum(iou_hard_mask, [1]) /
                                  match_count) / num_ex_f
         model['iou_hard'] = iou_hard
-        wt_iou_hard = tf.reduce_sum(tf.reduce_sum(iou_hard_mask * gt_wt, [1]) /
-                                    match_count) / num_ex_f
-        model['wt_iou_hard'] = wt_iou_hard
+        # wt_iou_hard = tf.reduce_sum(tf.reduce_sum(iou_hard_mask * gt_wt, [1]) /
+        #                             match_count) / num_ex_f
+        # model['wt_iou_hard'] = wt_iou_hard
 
         # Attention coordinate for debugging [B, T, 2]
         attn_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
