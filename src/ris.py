@@ -1572,12 +1572,13 @@ if __name__ == '__main__':
 
         # Check NaN.
         if np.isnan(r['loss']):
+            log.error('NaN occurred. Saving last step.')
             saver.save(sess, global_step=step)
             input_file = h5py.File(os.path.join(exp_folder, 'nan_input.h5'))
             input_file['x'] = x
             input_file['y'] = y
             input_file['s'] = s
-            raise Exception('NaN occurred. Saved last step.')
+            raise Exception('NaN')
 
         pass
 

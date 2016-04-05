@@ -64,6 +64,7 @@ def get_model(opt, device='/cpu:0'):
     gt_box_pad_noise = opt['gt_box_pad_noise']
     gt_segm_noise = opt['gt_segm_noise']
     clip_gradient = opt['clip_gradient']
+    fixed_order = opt['fixed_order']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -257,11 +258,19 @@ def get_model(opt, device='/cpu:0'):
         eps = 1e-7
 
         y_gt_shape = tf.shape(y_gt)
-        num_ex = tf.to_float(y_gt_shape[0])
+        num_ex_f = tf.to_float(y_gt_shape[0])
         max_num_obj = tf.to_float(y_gt_shape[1])
 
         # Loss for fine segmentation
-        iou_soft = f_iou(y_out, y_gt, timespan, pairwise=True)
+        identity_match = _get_identity_match(num_ex_f, timespan, s_gt)
+        iou_soft_pairwise = base.f_iou(y_out, y_gt, timespan, pairwise=True)
+        real_match = base.f_segm_match(iou_soft_pairwise, s_gt)
+        if fixed_order:
+            iou_soft = base.f_iou(y_out, y_gt, pairwise=False)
+            match = identity_match
+        else:
+            iou_soft = iou_soft_pairwise
+            match = real_match
         match = f_segm_match(iou_soft, s_gt)
         model['match'] = match
         match_sum = tf.reduce_sum(match, reduction_indices=[2])
@@ -269,20 +278,23 @@ def get_model(opt, device='/cpu:0'):
         match_count = tf.maximum(1.0, match_count)
 
         # Weighted coverage (soft)
-        wt_cov_soft = f_weighted_coverage(iou_soft, y_gt)
+        wt_cov_soft = f_weighted_coverage(iou_soft_pairwise, y_gt)
         model['wt_cov_soft'] = wt_cov_soft
-        unwt_cov_soft = f_unweighted_coverage(iou_soft, match_count)
+        unwt_cov_soft = f_unweighted_coverage(iou_soft_pairwise, match_count)
         model['unwt_cov_soft'] = unwt_cov_soft
 
         # IOU (soft)
-        iou_soft_mask = tf.reduce_sum(iou_soft * match, [1])
-        iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask, [1]) /
-                                 match_count) / num_ex
+        if fixed_order:
+            iou_soft_mask = iou_soft
+        else:
+            iou_soft_mask = tf.reduce_sum(iou_soft * match, [1])
+        iou_soft = tf.reduce_sum(iou_soft_mask, [1])
+        iou_soft = tf.reduce_sum(iou_soft / match_count) / num_ex_f
         model['iou_soft'] = iou_soft
-        gt_wt = f_coverage_weight(y_gt)
-        wt_iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask * gt_wt, [1]) /
-                                    match_count) / num_ex
-        model['wt_iou_soft'] = wt_iou_soft
+        # gt_wt = f_coverage_weight(y_gt)
+        # wt_iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask * gt_wt, [1]) /
+        #                             match_count) / num_ex_f
+        # model['wt_iou_soft'] = wt_iou_soft
 
         if segm_loss_fn == 'iou':
             segm_loss = -iou_soft
@@ -318,10 +330,10 @@ def get_model(opt, device='/cpu:0'):
         # [B, T]
         iou_hard_mask = tf.reduce_sum(iou_hard * match, [1])
         iou_hard = tf.reduce_sum(tf.reduce_sum(iou_hard_mask, [1]) /
-                                 match_count) / num_ex
+                                 match_count) / num_ex_f
         model['iou_hard'] = iou_hard
         wt_iou_hard = tf.reduce_sum(tf.reduce_sum(iou_hard_mask * gt_wt, [1]) /
-                                    match_count) / num_ex
+                                    match_count) / num_ex_f
         model['wt_iou_hard'] = wt_iou_hard
 
         # Attention coordinate for debugging [B, T, 2]

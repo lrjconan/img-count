@@ -1244,11 +1244,10 @@ def get_model(opt, device='/cpu:0'):
         match_count = tf.maximum(1.0, match_count)
 
         # Weighted coverage (soft)
-        if not fixed_order:
-            wt_cov_soft = base.f_weighted_coverage(iou_soft, y_gt)
-            model['wt_cov_soft'] = wt_cov_soft
-            unwt_cov_soft = base.f_unweighted_coverage(iou_soft, match_count)
-            model['unwt_cov_soft'] = unwt_cov_soft
+        wt_cov_soft = base.f_weighted_coverage(iou_soft_pairwise, y_gt)
+        model['wt_cov_soft'] = wt_cov_soft
+        unwt_cov_soft = base.f_unweighted_coverage(iou_soft_pairwise, match_count)
+        model['unwt_cov_soft'] = unwt_cov_soft
 
         # [B] if fixed order, [B, T] if matching.
         if fixed_order:
@@ -1257,16 +1256,14 @@ def get_model(opt, device='/cpu:0'):
             iou_soft_mask = tf.reduce_sum(iou_soft * match, [1])
         iou_soft = tf.reduce_sum(iou_soft_mask, [1])
         iou_soft = tf.reduce_sum(iou_soft / match_count) / num_ex_f
-        # iou_soft = tf.reduce_sum(tf.reduce_sum(
-        # iou_soft * match, reduction_indices=[1, 2]) / match_count) / num_ex_f
         model['iou_soft'] = iou_soft
 
-        if not fixed_order:
-            gt_wt = base.f_coverage_weight(y_gt)
-            wt_iou_soft = tf.reduce_sum(
-                tf.reduce_sum(iou_soft_mask * gt_wt, [1]) /
-                match_count) / num_ex_f
-            model['wt_iou_soft'] = wt_iou_soft
+        # if not fixed_order:
+        #     gt_wt = base.f_coverage_weight(y_gt)
+        #     wt_iou_soft = tf.reduce_sum(
+        #         tf.reduce_sum(iou_soft_mask * gt_wt, [1]) /
+        #         match_count) / num_ex_f
+        #     model['wt_iou_soft'] = wt_iou_soft
 
         if segm_loss_fn == 'iou':
             segm_loss = -iou_soft

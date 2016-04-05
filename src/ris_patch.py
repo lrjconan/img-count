@@ -49,6 +49,23 @@ kKittiInpWidth = 560
 kKittiNumObj = 19
 
 
+def sort_by_segm_size(y):
+    """Sort the input/output sequence by the groundtruth size.
+
+    Args:
+        y: [B, T, H, W]
+    """
+    # [B, T]
+    y_size = np.sum(np.sum(y, 3), 2)
+    # [B, T, H, W]
+    y_sort = np.zeros(y.shape, dtype=y.dtype)
+    for ii in xrange(y.shape[0]):
+        idx = np.argsort(y_size[ii])[::-1]
+        y_sort[ii, :, :, :] = y[ii, idx, :, :]
+
+    return y_sort
+
+
 def get_model(opt, device='/cpu:0'):
     """Model router."""
     return patch_model.get_model(opt, device)
@@ -486,6 +503,8 @@ def _add_model_args(parser):
                         help='Whether to use batch normalization.')
     parser.add_argument('-no_cum_min', action='store_true',
                         help='Whether cumulative minimum. Default yes.')
+    parser.add_argument('-fixed_order', action='store_true',
+                        help='Whether to train in fixed order.')
 
     # Attention-based model options
     parser.add_argument('-filter_height', default=kAttnHeight, type=int,
@@ -742,6 +761,7 @@ def _make_model_opt(args):
             'squash_ctrl_params': args.squash_ctrl_params,
             'use_iou_box': args.use_iou_box,
             'clip_gradient': args.clip_gradient,
+            'fixed_order': args.fixed_order,
 
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,
@@ -809,6 +829,7 @@ def _make_model_opt(args):
             # 'score_use_core': args.score_use_core
             'score_use_core': True,
             'clip_gradient': args.clip_gradient,
+            'fixed_order': args.fixed_order,
 
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,
@@ -1076,6 +1097,12 @@ if __name__ == '__main__':
 
     log.info('Loading dataset')
     dataset = get_dataset(args.dataset, data_opt)
+
+    if model_opt['fixed_order']:
+        dataset['train']['label_segmentation'] = sort_by_segm_size(
+            dataset['train']['label_segmentation'])
+        dataset['valid']['label_segmentation'] = sort_by_segm_size(
+            dataset['valid']['label_segmentation'])
 
     sess = tf.Session()
 
