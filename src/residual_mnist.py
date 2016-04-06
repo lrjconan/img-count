@@ -124,6 +124,17 @@ if __name__ == '__main__':
     results_folder = args.results
     exp_folder = os.path.join(results_folder, model_id)
 
+    # Set device
+    if args.gpu >= 0:
+        device = '/gpu:{}'.format(args.gpu)
+    else:
+        device = '/cpu:0'
+
+    dataset = mnist.read_data_sets("../MNIST_data/", one_hot=True)
+    m = get_model(None, device=device)
+    sess = tf.Session()
+    sess.run(tf.initialize_all_variables())
+    
     # Logger
     if args.logs:
         logs_folder = args.logs
@@ -133,15 +144,18 @@ if __name__ == '__main__':
 
         # Create time series logger
         ce_logger = TimeSeriesLogger(
-            os.path.join(logs_folder, 'ce.csv'), ['train ce', 'valid ce'],
+            os.path.join(logs_folder, 'ce.csv'), ['train', 'valid'],
             name='Cross Entropy',
+            buffer_size=1)
+        ce_logger = TimeSeriesLogger(
+            os.path.join(logs_folder, 'acc.csv'), ['train', 'valid'],
+            name='Accuracy',
             buffer_size=1)
         step_time_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
             buffer_size=10)
 
         log_manager.register(log.filename, 'plain', 'Raw logs')
-
         log.info(
             'Curves can be viewed at: http://{}/visualizer?id={}'.format(
                 args.localhost, model_id))
@@ -150,39 +164,32 @@ if __name__ == '__main__':
 
     log.log_args()
 
-    # Set device
-    if args.gpu >= 0:
-        device = '/gpu:{}'.format(args.gpu)
-    else:
-        device = '/cpu:0'
-
     # Train loop options
     loop_config = {
         'num_steps': args.num_steps,
         'steps_per_ckpt': args.steps_per_ckpt
     }
 
-    dataset = mnist.read_data_sets("../MNIST_data/", one_hot=True)
-    m = get_model(None, device=device)
-    sess = tf.Session()
-    sess.run(tf.initialize_all_variables())
-
     random = np.random.RandomState(2)
     step = 0
     while step < loop_config['num_steps']:
 
         # Validation
-        valid_ce = 0.0
+        ce = 0.0
+        acc = 0.0
         log.info('Running validation')
         for ii in xrange(100):
             batch = dataset.test.next_batch(100)
             x = preprocess(batch[0])
             y = batch[1]
-            ce = sess.run(m['ce'], feed_dict={
+            r = sess.run([m['ce'], m['acc']], feed_dict={
                 m['x']: x, m['y_gt']: y, m['phase_train']: True
             })
-            valid_ce += ce / 100.0
-        log.info('step {:d}, valid ce {:.4f}'.format(step, valid_ce))
+            ce += r[0] / 100.0
+            acc += r[1] / 100.0
+        log.info('step {:d}, valid ce {:.4f}'.format(step, ce))
+        ce_logger.add(step, ['', ce])
+        acc_logger.add(step, ['', acc])
 
         # Train
         for ii in xrange(500):
@@ -199,6 +206,7 @@ if __name__ == '__main__':
                 log.info('{:d} ce {:.4f} t {:.2f}ms'.format(
                     step, ce, step_time))
                 ce_logger.add(step, [ce, ''])
+                acc_logger.add(step, [acc, ''])
                 step_time_logger.add(step, step_time)
 
             step += 1
