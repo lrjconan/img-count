@@ -134,7 +134,7 @@ if __name__ == '__main__':
     m = get_model(None, device=device)
     sess = tf.Session()
     sess.run(tf.initialize_all_variables())
-    
+
     # Logger
     if args.logs:
         logs_folder = args.logs
@@ -147,7 +147,7 @@ if __name__ == '__main__':
             os.path.join(logs_folder, 'ce.csv'), ['train', 'valid'],
             name='Cross Entropy',
             buffer_size=1)
-        ce_logger = TimeSeriesLogger(
+        acc_logger = TimeSeriesLogger(
             os.path.join(logs_folder, 'acc.csv'), ['train', 'valid'],
             name='Accuracy',
             buffer_size=1)
@@ -157,7 +157,7 @@ if __name__ == '__main__':
 
         log_manager.register(log.filename, 'plain', 'Raw logs')
         log.info(
-            'Curves can be viewed at: http://{}/visualizer?id={}'.format(
+            'Curves can be viewed at: http://{}/deep-dashboard?id={}'.format(
                 args.localhost, model_id))
     else:
         log = logger.get()
