@@ -60,60 +60,60 @@ def weight_variable(shape, initializer=None, init_val=None, wd=None, name=None, 
     return var
 
 
-def batch_norm_2(n_out, scope='bn', affine=True):
-    """
-    Batch normalization on convolutional maps.
-    Args:
-        x: input tensor, [B, H, W, D]
-        n_out: integer, depth of input maps
-        phase_train: boolean tf.Variable, true indicates training phase
-        scope: string, variable scope
-        affine: whether to affine-transform outputs
-    Return:
-        normed: batch-normalized maps
-    """
-    with tf.variable_scope(scope):
-        beta = tf.Variable(tf.constant(0.0, shape=[n_out]),
-                           name='beta', trainable=True)
-        gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
-                            name='gamma', trainable=affine)
-        batch_mean = tf.Variable(tf.constant(
-            0.0, shape=[n_out]), name='batch_mean')
-        batch_var = tf.Variable(tf.constant(
-            0.0, shape=[n_out]), name='batch_var')
-        ema = tf.train.ExponentialMovingAverage(decay=0.999)
-        ema_apply_op = ema.apply([batch_mean, batch_var])
-        ema_mean, ema_var = ema.average(batch_mean), ema.average(batch_var)
+# def batch_norm_2(n_out, scope='bn', affine=True):
+#     """
+#     Batch normalization on convolutional maps.
+#     Args:
+#         x: input tensor, [B, H, W, D]
+#         n_out: integer, depth of input maps
+#         phase_train: boolean tf.Variable, true indicates training phase
+#         scope: string, variable scope
+#         affine: whether to affine-transform outputs
+#     Return:
+#         normed: batch-normalized maps
+#     """
+#     with tf.variable_scope(scope):
+#         beta = tf.Variable(tf.constant(0.0, shape=[n_out]),
+#                            name='beta', trainable=True)
+#         gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
+#                             name='gamma', trainable=affine)
+#         batch_mean = tf.Variable(tf.constant(
+#             0.0, shape=[n_out]), name='batch_mean')
+#         batch_var = tf.Variable(tf.constant(
+#             0.0, shape=[n_out]), name='batch_var')
+#         ema = tf.train.ExponentialMovingAverage(decay=0.999)
+#         ema_apply_op = ema.apply([batch_mean, batch_var])
+#         ema_mean, ema_var = ema.average(batch_mean), ema.average(batch_var)
 
-        def run_bn(x, phase_train):
-            _batch_mean, _batch_var = tf.nn.moments(
-                x, [0, 1, 2], name='moments')
-            _batch_mean.set_shape([n_out])
-            _batch_var.set_shape([n_out])
-            batch_mean_2 = tf.assign(batch_mean, _batch_mean)
-            batch_var_2 = tf.assign(batch_var, _batch_var)
+#         def run_bn(x, phase_train):
+#             _batch_mean, _batch_var = tf.nn.moments(
+#                 x, [0, 1, 2], name='moments')
+#             _batch_mean.set_shape([n_out])
+#             _batch_var.set_shape([n_out])
+#             batch_mean_2 = tf.assign(batch_mean, _batch_mean)
+#             batch_var_2 = tf.assign(batch_var, _batch_var)
 
-            def mean_var_with_update():
-                with tf.control_dependencies([batch_mean_2, batch_var_2, ema_apply_op]):
-                    return tf.identity(_batch_mean), tf.identity(_batch_var)
+#             def mean_var_with_update():
+#                 with tf.control_dependencies([batch_mean_2, batch_var_2, ema_apply_op]):
+#                     return tf.identity(_batch_mean), tf.identity(_batch_var)
 
-            def mean_var_without_update():
-                with tf.control_dependencies([batch_mean_2, batch_var_2]):
-                    return tf.identity(ema_mean), tf.identity(ema_var)
+#             def mean_var_without_update():
+#                 with tf.control_dependencies([batch_mean_2, batch_var_2]):
+#                     return tf.identity(ema_mean), tf.identity(ema_var)
 
-            mean, var = control_flow_ops.cond(phase_train,
-                                              mean_var_with_update,
-                                              mean_var_without_update)
-            # normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
-            normed = tf.nn.batch_norm_with_global_normalization(x, mean, var,
-                                                                beta, gamma, 1e-3, affine)
+#             mean, var = control_flow_ops.cond(phase_train,
+#                                               mean_var_with_update,
+#                                               mean_var_without_update)
+#             # normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
+#             normed = tf.nn.batch_norm_with_global_normalization(x, mean, var,
+# beta, gamma, 1e-3, affine)
 
-            return normed, batch_mean_2, batch_var_2, ema_mean, ema_var
+#             return normed, batch_mean_2, batch_var_2, ema_mean, ema_var
 
-    return run_bn
+#     return run_bn
 
 
-def batch_norm(x, n_out, phase_train, scope='bn', affine=True):
+def batch_norm(x, n_out, phase_train, scope='bn', affine=True, model=None):
     """
     Batch normalization on convolutional maps.
     Args:
@@ -146,11 +146,16 @@ def batch_norm(x, n_out, phase_train, scope='bn', affine=True):
         mean, var = control_flow_ops.cond(phase_train,
                                           mean_var_with_update,
                                           lambda: (ema_mean, ema_var))
-        # mean, var = control_flow_ops.cond(phase_train,
-        #                                   mean_var_with_update,
-        #                                   lambda: (batch_mean, batch_var))
 
         normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
+
+        if model is not None:
+            for name, param in zip(['beta', 'gamma'], [beta, gamma]):
+                key = '{}_{}'.format(scope, name)
+                if key in model:
+                    raise Exception('Key exists: {}'.format(key))
+                model[key] = param
+
     return normed, batch_mean, batch_var, ema_mean, ema_var
 
 
@@ -210,9 +215,13 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                                         trainable=trainable)
             log.info('Filter: {}, Trainable: {}'.format(
                 [f[ii], f[ii], ch[ii], ch[ii + 1]], trainable))
+
             if model:
-                model['{}_w_{}'.format(scope, ii)] = w[ii]
-                model['{}_b_{}'.format(scope, ii)] = b[ii]
+                for name, param in zip(['w', 'b'], [w[ii], b[ii]]):
+                    key = '{}_{}_{}'.format(scope, name, ii)
+                    if key in model:
+                        raise Exception('Key exists: {}'.format(key))
+                    model[key] = param
     copy = [0]
 
     def run_cnn(x):
@@ -234,7 +243,10 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
 
             if use_bn[ii]:
                 # h[ii], bm, bv, em, ev = bn[ii](h[ii], phase_train)
-                h[ii], bm, bv, em, ev = batch_norm(h[ii], out_ch, phase_train)
+                h[ii], bm, bv, em, ev = batch_norm(
+                    h[ii], out_ch, phase_train,
+                    scope='{}_bn_{}_{}'.format(scope, ii, copy[0]))
+
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
                         tf.reduce_sum(bm) / out_ch
@@ -361,7 +373,9 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
                 strides=[1, pool[ii], pool[ii], 1]) + b[ii]
 
             if use_bn[ii]:
-                h[ii], bm, bv, em, ev = batch_norm(h[ii], out_ch, phase_train)
+                h[ii], bm, bv, em, ev = batch_norm(
+                    h[ii], out_ch, phase_train,
+                    scope='{}_bn_{}_{}'.format(scope, ii, copy[0]))
 
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \

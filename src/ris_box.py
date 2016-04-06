@@ -35,6 +35,10 @@ import ris_box_model as model
 
 log = logger.get()
 
+kKittiNumObj = 19
+kKittiInpHeight = 128
+kKittiInpWidth = 448
+
 
 def get_dataset(opt):
     if os.path.exists('/u/mren'):
@@ -122,6 +126,7 @@ def _add_model_args(parser):
                         help='Comma delimited integers')
     parser.add_argument('-box_loss_fn', default=kBoxLossFn,
                         help='Loss function for box regressor')
+    parser.add_argument('-fixed_order', action='store_true')
 
     pass
 
@@ -192,27 +197,32 @@ def _make_model_opt(args):
     ccnn_pool_list = args.ctrl_cnn_pool.split(',')
     ccnn_pool_list = [int(pool) for pool in ccnn_pool_list]
 
+    timespan = kKittiNumObj + 1
+    inp_height = kKittiInpHeight
+    inp_width = kKittiInpWidth
+
     model_opt = {
-        'timespan': 20,
-        'inp_height': 128,
-        'inp_width': 448,
+        'timespan': timespan,
+        'inp_height': inp_height,
+        'inp_width': inp_width,
         'inp_depth': 3,
         'padding': 16,
         'ctrl_cnn_filter_size': ccnn_fsize_list,
         'ctrl_cnn_depth': ccnn_depth_list,
         'ctrl_cnn_pool': ccnn_pool_list,
-        'ctrl_rnn_hid_dim': 256,
-        'num_ctrl_mlp_layers': 2,
-        'ctrl_mlp_dim': 256,
+        'ctrl_rnn_hid_dim': args.ctrl_rnn_hid_dim,
+        'num_ctrl_mlp_layers': args.num_ctrl_mlp_layers,
+        'ctrl_mlp_dim': args.ctrl_mlp_dim,
         'attn_box_padding_ratio': 0.2,
         'weight_decay': 5e-5,
         'use_bn': True,
         'box_loss_fn': args.box_loss_fn,
         'base_learn_rate': 1e-3,
         'learn_rate_decay': 0.96,
-        'steps_per_learn_rate_decay': 5000,
+        'steps_per_learn_rate_decay': args.steps_per_learn_rate_decay,
         # 'gt_selector': 'greedy_match',
         'gt_selector': 'greedy',
+        'fixed_order': args.fixed_order,
         'rnd_hflip': True,
         'rnd_vflip': False,
         'rnd_transpose': False,

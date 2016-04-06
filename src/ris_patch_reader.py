@@ -65,5 +65,8 @@ def save(fname, folder):
 if __name__ == '__main__':
     # save('/ais/gobi3/u/mren/results/img-count/rec_ins_segm-20160331170303/weights.h5',
     #      '/ais/gobi3/u/mren/results/img-count/rec_ins_segm-20160331170303')
-    save('/ais/gobi3/u/mren/results/img-count/rec_ins_segm_patch-20160331181759/weights.h5',
-         '/ais/gobi3/u/mren/results/img-count/rec_ins_segm_patch-20160331181759')
+    # save('/ais/gobi3/u/mren/results/img-count/rec_ins_segm_patch-20160331181759/weights.h5',
+    #      '/ais/gobi3/u/mren/results/img-count/rec_ins_segm_patch-20160331181759')
+
+    save('/ais/gobi3/u/mren/results/img-count/rec_ins_segm_patch-20160405114225/weights.h5',
+         '/ais/gobi3/u/mren/results/img-count/rec_ins_segm_patch-20160405114225')
