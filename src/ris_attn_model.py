@@ -138,7 +138,7 @@ def get_model(opt, device='/cpu:0'):
         ccnn_channels = [ccnn_inp_depth] + ctrl_cnn_depth
         ccnn_pool = ctrl_cnn_pool
         ccnn_act = [tf.nn.relu] * ccnn_nlayers
-        ccnn_use_bn = [use_bn] * ccnn_nlayers
+        ccnn_usei_bn = [use_bn] * ccnn_nlayers
 
         if pretrain_cnn:
             log.info('Loading pretrained weights from {}'.format(pretrain_cnn))
@@ -594,7 +594,8 @@ def get_model(opt, device='/cpu:0'):
                 else:
                     _y_out = tf.reshape(y_out[tt],
                                         [-1, inp_height, inp_width, 1])
-                canvas += tf.stop_gradient(_y_out)
+                canvas = tf.maximum(_y_out, canvas)
+                # canvas += tf.stop_gradient(_y_out)
 
 #########################
 # Model outputs
