@@ -491,8 +491,6 @@ def get_model(opt, device='/cpu:0'):
                     grd_match = tf.expand_dims(grd_match, 2)
                     attn_ctr_gtm = tf.reduce_sum(
                         grd_match * attn_ctr_gt_noise, 1)
-                    attn_delta_gtm = tf.reduce_sum(
-                        grd_match * attn_delta_gt_noise, 1)
                     attn_size_gtm = tf.reduce_sum(
                         grd_match * attn_size_gt_noise, 1)
 
