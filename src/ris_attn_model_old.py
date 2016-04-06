@@ -698,39 +698,20 @@ def get_model(opt, device='/cpu:0'):
         crnn_g_o = [None] * timespan
         h_crnn = [None] * timespan
         crnn_state[-1] = tf.zeros(tf.pack([num_ex, crnn_dim * 2]))
-        crnn_cell = nn.lstm(crnn_inp_dim, crnn_dim, wd=wd, scope='ctrl_lstm')
+        crnn_cell = nn.lstm(crnn_inp_dim, crnn_dim, wd=wd, scope='ctrl_lstm',
+                            model=model)
 
         # Controller MLP definition
         cmlp_dims = [crnn_dim] + [ctrl_mlp_dim] * \
             (num_ctrl_mlp_layers - 1) + [9]
         cmlp_act = [tf.nn.relu] * (num_ctrl_mlp_layers - 1) + [None]
         cmlp_dropout = None
-        # cmlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
-        # cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=False,
-        #               dropout_keep=cmlp_dropout,
-        #               phase_train=phase_train, wd=wd, scope='ctrl_mlp')
         cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=True,
                       dropout_keep=cmlp_dropout,
-                      phase_train=phase_train, wd=wd, scope='ctrl_mlp')
+                      phase_train=phase_train, wd=wd, scope='ctrl_mlp',
+                      model=model)
 
         # Groundtruth bounding box, [B, T, 2]
-        # attn_ctr_gt, attn_delta_gt, attn_lg_var_gt, attn_box_gt, \
-        #     attn_top_left_gt, attn_bot_right_gt, idx_map = \
-        #     _get_gt_attn(y_gt, filter_height, filter_width,
-        #                  padding_ratio=attn_box_padding_ratio,
-        #                  center_shift_ratio=0.0)
-        # attn_ctr_gt_noise, attn_delta_gt_noise, attn_lg_var_gt_noise, \
-        #     attn_box_gt_noise, \
-        #     attn_top_left_gt_noise, attn_bot_right_gt_noise, idx_map_noise = \
-        #     _get_gt_attn(y_gt, filter_height, filter_width,
-        #                  padding_ratio=tf.random_uniform(
-        #                      tf.pack([num_ex, timespan, 1]),
-        #                      attn_box_padding_ratio - gt_box_pad_noise,
-        #                      attn_box_padding_ratio + gt_box_pad_noise),
-        #                  center_shift_ratio=tf.random_uniform(
-        #                      tf.pack([num_ex, timespan, 2]),
-        #                      -gt_box_ctr_noise, gt_box_ctr_noise))
-        # attn_lg_gamma_gt = tf.zeros(tf.pack([num_ex, timespan, 1]))
         attn_ctr_gt, attn_size_gt, attn_lg_var_gt, attn_box_gt, \
             attn_top_left_gt, attn_bot_right_gt = \
             base.get_gt_attn(y_gt,
@@ -813,7 +794,8 @@ def get_model(opt, device='/cpu:0'):
         amlp_dropout = None
         # amlp_dropout = [1.0 - mlp_dropout_ratio] * num_attn_mlp_layers
         amlp = nn.mlp(amlp_dims, amlp_act, dropout_keep=amlp_dropout,
-                      phase_train=phase_train, wd=wd, scope='attn_mlp')
+                      phase_train=phase_train, wd=wd, scope='attn_mlp',
+                      model=model)
 
         # Score MLP definition
         # smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd, scope='score_mlp')
@@ -837,11 +819,8 @@ def get_model(opt, device='/cpu:0'):
         # Attention box
         attn_box = [None] * timespan
         iou_soft_box = [None] * timespan
-        # attn_box_const = 10.0
-        const_ones = tf.ones(
-            tf.pack([num_ex, filter_height, filter_width, 1]))
+        const_ones = tf.ones(tf.pack([num_ex, filter_height, filter_width, 1]))
         attn_box_beta = -5.0
-        # attn_box_beta = nn.weight_variable([1])
 
         # Knob
         # Cumulative greedy match
@@ -988,7 +967,8 @@ def get_model(opt, device='/cpu:0'):
                 else:
                     if not fixed_order:
                         # [B, T]
-                        iou_soft_box[tt] = base.f_inter(attn_box[tt], attn_box_gt) / \
+                        iou_soft_box[tt] = base.f_inter(
+                            attn_box[tt], attn_box_gt) / \
                             base.f_union(attn_box[tt], attn_box_gt, eps=1e-5)
 
                 if fixed_order:

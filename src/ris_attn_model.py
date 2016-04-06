@@ -271,12 +271,11 @@ def get_model(opt, device='/cpu:0'):
             amlp_init_w = [{'w': h5f['attn_mlp_w_{}'.format(ii)][:],
                             'b': h5f['attn_mlp_b_{}'.format(ii)][:]}
                            for ii in xrange(num_attn_mlp_layers)]
-            amlp_frozen = None
+            amlp_frozen = True
         else:
             amlp_init_w = None
             amlp_frozen = None
 
-        # amlp_dropout = [1.0 - mlp_dropout_ratio] * num_attn_mlp_layers
         amlp = nn.mlp(amlp_dims, amlp_act, dropout_keep=amlp_dropout,
                       phase_train=phase_train, wd=wd, scope='attn_mlp',
                       init_weights=amlp_init_w,
@@ -284,8 +283,6 @@ def get_model(opt, device='/cpu:0'):
                       model=model)
 
         # Score MLP definition
-        # smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd, scope='score_mlp',
-        #               model=model)
         smlp = nn.mlp([crnn_dim + core_dim, 1], [tf.sigmoid], wd=wd,
                       scope='score_mlp', model=model)
         s_out = [None] * timespan
@@ -319,18 +316,12 @@ def get_model(opt, device='/cpu:0'):
         # Attention box
         attn_box = [None] * timespan
         iou_soft_box = [None] * timespan
-        const_ones = tf.ones(
-            tf.pack([num_ex, filter_height, filter_width, 1]))
+        const_ones = tf.ones(tf.pack([num_ex, filter_height, filter_width, 1]))
         attn_box_beta = tf.constant([-5.0])
         attn_box_gamma = [None] * timespan
 
         # Groundtruth mix.
         grd_match_cum = tf.zeros(tf.pack([num_ex, timespan]))
-        # Add a bias on every entry so there is no duplicate match
-        # [1, N]
-        # iou_bias_eps = 1e-7
-        # iou_bias = tf.expand_dims(tf.to_float(
-        #     tf.reverse(tf.range(timespan), [True])) * iou_bias_eps, 0)
 
         # Scale mix ratio on different timesteps.
         gt_knob_time_scale = tf.reshape(
@@ -474,7 +465,8 @@ def get_model(opt, device='/cpu:0'):
                             attn_bot_right_gt)
                 else:
                     if not fixed_order:
-                        iou_soft_box[tt] = base.f_inter(attn_box[tt], attn_box_gt) / \
+                        iou_soft_box[tt] = base.f_inter(
+                            attn_box[tt], attn_box_gt) / \
                             base.f_union(attn_box[tt], attn_box_gt, eps=1e-5)
 
                 if fixed_order:
