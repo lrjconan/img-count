@@ -6,6 +6,7 @@ from utils import logger
 from utils.saver import Saver
 import ris_patch_model as patch_model
 import h5py
+import sys
 
 log = logger.get()
 
@@ -18,7 +19,7 @@ def read(folder):
     if 'filter_height' not in model_opt:
         model_opt['filter_height'] = model_opt['filter_size']
         model_opt['filter_width'] = model_opt['filter_size']
-        
+
     ckpt_fname = ckpt_info['ckpt_fname']
     model_id = ckpt_info['model_id']
     model = patch_model.get_model(model_opt)
@@ -42,7 +43,7 @@ def read(folder):
     output_var = []
     for key in output_list:
         output_var.append(model[key])
-    
+
     output_var_value = sess.run(output_var)
 
     for key, value in zip(output_list, output_var_value):
@@ -69,5 +70,6 @@ if __name__ == '__main__':
     # save('/ais/gobi3/u/mren/results/img-count/rec_ins_segm_patch-20160331181759/weights.h5',
     #      '/ais/gobi3/u/mren/results/img-count/rec_ins_segm_patch-20160331181759')
 
-    save('/ais/gobi3/u/mren/results/img-count/rec_ins_segm_patch-20160405114225/weights.h5',
-         '/ais/gobi3/u/mren/results/img-count/rec_ins_segm_patch-20160405114225')
+    model_id = sys.argv[1]
+    save('/ais/gobi3/u/mren/results/img-count/{}/weights.h5'.format(model_id),
+         '/ais/gobi3/u/mren/results/img-count/{}'.format(model_id))
