@@ -313,13 +313,9 @@ def _get_ts_loggers(model_opt):
         os.path.join(logs_folder, 'loss.csv'), ['train', 'valid'],
         name='Loss',
         buffer_size=1)
-    loggers['iou'] = TimeSeriesLogger(
-        os.path.join(logs_folder, 'iou.csv'), ['train', 'valid'],
-        name='IoU',
-        buffer_size=1)
-    loggers['wt_iou'] = TimeSeriesLogger(
-        os.path.join(logs_folder, 'wt_iou.csv'), ['train', 'valid'],
-        name='Weighted IoU',
+    loggers['box_loss'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'box_loss.csv'), ['train', 'valid'],
+        name='Box Loss',
         buffer_size=1)
     loggers['conf_loss'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'conf_loss.csv'), ['train', 'valid'],
@@ -349,6 +345,10 @@ def _get_plot_loggers(model_opt, train_opt):
 
 def _register_raw_logs(log_manager, log, model_opt, saver):
     log_manager.register(log.filename, 'plain', 'Raw logs')
+    cmd_fname = os.path.join(logs_folder, 'cmd.txt')
+    with open(cmd_fname, 'w') as f:
+        f.write(' '.join(sys.argv))
+    log_manager.register(cmd_fname, 'plain', 'Command-line arguments')
     model_opt_fname = os.path.join(logs_folder, 'model_opt.yaml')
     saver.save_opt(model_opt_fname, model_opt)
     log_manager.register(model_opt_fname, 'plain', 'Model hyperparameters')
