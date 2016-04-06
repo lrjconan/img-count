@@ -33,6 +33,7 @@ from utils.saver import Saver
 from utils.time_series_logger import TimeSeriesLogger
 from utils import plot_utils as pu
 
+import ris_base as base
 import ris_box_model as model
 
 log = logger.get()
@@ -439,6 +440,11 @@ if __name__ == '__main__':
 
     log.info('Loading dataset')
     dataset = get_dataset(data_opt)
+    if model_opt['fixed_order']:
+        dataset['train']['label_segmentation'] = base.sort_by_segm_size(
+            dataset['train']['label_segmentation'])
+        dataset['valid']['label_segmentation'] = base.sort_by_segm_size(
+            dataset['valid']['label_segmentation'])
 
     sess = tf.Session()
     sess.run(tf.initialize_all_variables())
@@ -588,7 +594,7 @@ if __name__ == '__main__':
             input_file['y'] = y
             input_file['s'] = s
             raise Exception('NaN')
-            
+
         pass
 
     def train_loop(step=0):
