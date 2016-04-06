@@ -94,11 +94,14 @@ def get_model(opt, device='/:cpu:0'):
         ccnn_use_bn = [use_bn] * ccnn_nlayers
 
         if pretrain_cnn:
+            log.info('Loading pretrained weights from {}'.format(pretrain_cnn))
             h5f = h5py.File(pretrain_cnn, 'r')
             acnn_nlayers = 0
             # Assuming acnn_nlayers is smaller than ccnn_nlayers.
             for ii in xrange(ccnn_nlayers):
                 if 'attn_cnn_w_{}'.format(ii) in h5f:
+                    log.info('Loading attn_cnn_w_{}'.format(ii))
+                    log.info('Loading attn_cnn_b_{}'.format(ii))
                     acnn_nlayers += 1
             ccnn_init_w = [{'w': h5f['attn_cnn_w_{}'.format(ii)][:],
                             'b': h5f['attn_cnn_b_{}'.format(ii)][:]}
