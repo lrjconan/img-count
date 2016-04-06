@@ -9,6 +9,7 @@ import cslab_environ
 
 import argparse
 import datetime
+import h5py
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -578,6 +579,16 @@ if __name__ == '__main__':
             loggers['loss'].add(step, [r['loss'], ''])
             loggers['step_time'].add(step, _step_time)
 
+        # Check NaN.
+        if np.isnan(r['loss']):
+            log.error('NaN occurred. Saving last step.')
+            saver.save(sess, global_step=step)
+            input_file = h5py.File(os.path.join(exp_folder, 'nan_input.h5'))
+            input_file['x'] = x
+            input_file['y'] = y
+            input_file['s'] = s
+            raise Exception('NaN')
+            
         pass
 
     def train_loop(step=0):
