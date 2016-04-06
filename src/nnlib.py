@@ -149,12 +149,12 @@ def batch_norm(x, n_out, phase_train, scope='bn', affine=True, model=None):
 
         normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
 
-        if model is not None:
-            for name, param in zip(['beta', 'gamma'], [beta, gamma]):
-                key = '{}_{}'.format(scope, name)
-                if key in model:
-                    raise Exception('Key exists: {}'.format(key))
-                model[key] = param
+        # if model is not None:
+        #     for name, param in zip(['beta', 'gamma'], [beta, gamma]):
+        #         key = '{}_{}'.format(scope, name)
+        #         if key in model:
+        #             raise Exception('Key exists: {}'.format(key))
+        #         model[key] = param
 
     return normed, batch_mean, batch_var, ema_mean, ema_var
 
