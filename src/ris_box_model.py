@@ -184,12 +184,17 @@ def get_model(opt, device='/:cpu:0'):
 
             ctrl_out = cmlp(h_crnn[tt])[-1]
             # [B, T, 2]
-            box_ctr_norm[tt] = tf.slice(ctrl_out, [0, 0], [-1, 2])
-            box_size_log[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
-            box_ctr[tt], box_size[tt] = get_unnormalized_attn(
-                box_ctr_norm[tt], box_size_log[tt], inp_height, inp_width)
+            attn_ctr_norm[tt] = tf.slice(ctrl_out, [0, 0], [-1, 2])
+            attn_lg_size[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
+            attn_ctr[tt], attn_size[tt] = base.get_unnormalized_attn(
+                attn_ctr_norm[tt], attn_lg_size[tt], inp_height, inp_width)
             attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
-            filter_y = get_gaussian_filter(
+
+            attn_gamma[tt] = tf.reshape(
+                tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
+
+            # Initial filters (predicted)
+            filter_y = base.get_gaussian_filter(
                 attn_ctr[tt][:, 0], attn_size[tt][:, 0],
                 attn_lg_var[tt][:, 0], inp_height, filter_height)
             filter_x = get_gaussian_filter(
@@ -200,42 +205,56 @@ def get_model(opt, device='/:cpu:0'):
 
             # Attention box
             if use_iou_box:
-                _idx_map = get_idx_map(
+                _idx_map = base.get_idx_map(
                     tf.pack([num_ex, inp_height, inp_width]))
-                box_top_left[tt], box_bot_right[tt] = base.get_box_coord(
-                    box_ctr[tt], box_size[tt])
-                box_map[tt] = base.get_filled_box_idx(
-                    _idx_map, box_top_left[tt], box_bot_right[tt])
-                box_map[tt] = tf.reshape(box_map[tt],
-                                         [-1, 1, inp_height, inp_width])
+                attn_top_left[tt], attn_bot_right[tt] = get_box_coord(
+                    attn_ctr[tt], attn_size[tt])
+                attn_box[tt] = base.get_filled_box_idx(
+                    _idx_map, attn_top_left[tt], attn_bot_right[tt])
+                attn_box[tt] = tf.reshape(attn_box[tt],
+                                          [-1, 1, inp_height, inp_width])
             else:
-                box_map[tt] = extract_patch(const_ones * attn_box_gamma[tt],
-                                            filter_y_inv, filter_x_inv, 1)
-                box_map[tt] = tf.sigmoid(box_map[tt] + box_map_beta)
-                box_map[tt] = tf.reshape(box_map[tt],
-                                         [-1, 1, inp_height, inp_width])
+                attn_box[tt] = base.extract_patch(const_ones * attn_box_gamma[tt],
+                                                  filter_y_inv, filter_x_inv, 1)
+                attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
+                attn_box[tt] = tf.reshape(attn_box[tt],
+                                          [-1, 1, inp_height, inp_width])
 
+            # IOU [B, 1, T]
             # [B, 1, H, W] * [B, T, H, W] = [B, T]
             if use_iou_box:
                 _top_left = tf.expand_dims(attn_top_left[tt], 1)
                 _bot_right = tf.expand_dims(attn_bot_right[tt], 1)
-                iou_soft_box[tt] = f_iou_box(
-                    _top_left, _bot_right, attn_top_left_gt,
-                    attn_bot_right_gt)
+
+                if fixed_order:
+                    # [B]
+                    iou_soft_box[tt] = base.f_iou_box(
+                        attn_top_left[tt], attn_bot_right[tt],
+                        attn_top_left_gt[:, tt],
+                        attn_bot_right_gt[:, tt])
+                else:
+                    # [B, T]
+                    iou_soft_box[tt] = base.f_iou_box(
+                        _top_left, _bot_right, attn_top_left_gt,
+                        attn_bot_right_gt)
             else:
-                iou_soft_box[tt] = f_inter(attn_box[tt], attn_box_gt) / \
-                    f_union(attn_box[tt], attn_box_gt, eps=1e-5)
+                if not fixed_order:
+                    iou_soft_box[tt] = base.f_inter(
+                        attn_box[tt], attn_box_gt) / \
+                        base.f_union(attn_box[tt], attn_box_gt, eps=1e-5)
 
             grd_match = f_greedy_match(box_iou_soft[tt], grd_match_cum)
+            # if gt_selector == 'greedy_match':
+            #     # Add in the cumulative matching to not double count.
+            #     grd_match_cum += grd_match
 
-            if gt_selector == 'greedy_match':
-                # Add in the cumulative matching to not double count.
-                grd_match_cum += grd_match
+            if fixed_order:
+                _y_out = tf.expand_dims(y_gt[:, tt, :, :], 3)
+            else:
+                # [B, N, 1, 1]
+                grd_match = tf.expand_dims(tf.expand_dims(grd_match, 2), 3)
+                _y_out = tf.expand_dims(tf.reduce_sum(grd_match * y_gt, 1), 3)
 
-            # [B, N, 1, 1]
-            grd_match = tf.expand_dims(tf.expand_dims(grd_match, 2), 3)
-            _y_out = tf.expand_dims(tf.reduce_sum(
-                grd_match * y_gt, 1), 3)
             # Add independent uniform noise to groundtruth.
             _noise = tf.random_uniform(
                 tf.pack([num_ex, inp_height, inp_width, 1]), 0, 0.3)
@@ -250,33 +269,33 @@ def get_model(opt, device='/:cpu:0'):
         model['s_out'] = s_out
 
         # Box map
-        box_map = tf.concat(1, box_map)
-        model['box_map'] = box_map
+        attn_box = tf.concat(1, attn_box)
+        model['attn_box'] = attn_box
 
         # Box unnormalized coordinates
-        box_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                     for tmp in box_top_left])
-        box_bot_right = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                      for tmp in box_bot_right])
-        box_ctr = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in box_ctr])
-        box_size = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in box_size])
-        model['box_top_left'] = box_top_left
-        model['box_bot_right'] = box_bot_right
-        model['box_ctr'] = box_ctr
-        model['box_size'] = box_size
-        model['box_ctr_norm_gt'] = box_ctr_norm_gt
-        model['box_size_log_gt'] = box_size_log_gt
-        model['box_top_left_gt'] = box_top_left_gt
-        model['box_bot_right_gt'] = box_bot_right_gt
+        attn_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                     for tmp in attn_top_left])
+        attn_bot_right = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                      for tmp in attn_bot_right])
+        attn_ctr = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in attn_ctr])
+        attn_size = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in attn_size])
+        model['attn_top_left'] = attn_top_left
+        model['attn_bot_right'] = attn_bot_right
+        model['attn_ctr'] = attn_ctr
+        model['attn_size'] = attn_size
+        model['attn_ctr_norm_gt'] = attn_ctr_norm_gt
+        model['attn_size_log_gt'] = attn_size_log_gt
+        model['attn_top_left_gt'] = attn_top_left_gt
+        model['attn_bot_right_gt'] = attn_bot_right_gt
 
         # Box normalized coordinates
-        box_ctr_norm = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                     for tmp in box_ctr_norm])
-        box_size_log = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                     for tmp in box_size_log])
-        box_params = tf.concat(2, [box_ctr_norm, box_size_log])
-        model['box_ctr_norm'] = box_ctr_norm
-        model['box_size_log'] = box_size_log
+        attn_ctr_norm = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                     for tmp in attn_ctr_norm])
+        attn_size_log = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                     for tmp in attn_size_log])
+        attn_params = tf.concat(2, [attn_ctr_norm, attn_size_log])
+        model['attn_ctr_norm'] = attn_ctr_norm
+        model['attn_lg_size'] = attn_lg_size
 
         # Loss function
         learn_rate = tf.train.exponential_decay(
@@ -289,9 +308,15 @@ def get_model(opt, device='/:cpu:0'):
         num_ex = tf.to_float(y_gt_shape[0])
         max_num_obj = tf.to_float(y_gt_shape[1])
 
-        # Loss for box
-        iou_soft_box = tf.concat(1, [tf.expand_dims(box_iou_soft[tt], 1)
-                                     for tt in xrange(timespan)])
+        # Loss for attnention box
+        if fixed_order:
+            # [B, T] for fixed order.
+            iou_soft_box = base.f_iou(
+                attn_box, attn_box_gt, pairwise=False)
+        else:
+            # [B, T, T] for matching.
+            iou_soft_box = tf.concat(1, [tf.expand_dims(iou_soft_box[tt], 1)
+                                         for tt in xrange(timespan)])
 
         model['box_map_gt'] = box_map_gt
         match_box = f_segm_match(iou_soft_box, s_gt)

@@ -45,6 +45,17 @@ def sort_by_segm_size(y):
     return y_sort
 
 
+def get_identity_match(num_ex, timespan, s_gt):
+    zeros = tf.zeros(tf.pack([num_ex, timespan, timespan]))
+    eye = tf.expand_dims(tf.constant(np.eye(timespan), dtype='float32'), 0)
+    mask_x = tf.expand_dims(s_gt, 1)
+    mask_y = tf.expand_dims(s_gt, 2)
+    match = zeros + eye
+    match = match * mask_x * mask_y
+
+    return match
+
+
 def f_cum_min(s, d):
     """Calculates cumulative minimum.
 
