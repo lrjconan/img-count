@@ -251,7 +251,6 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                     h[ii], out_ch, phase_train,
                     model=model)
 
-
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
                         tf.reduce_sum(bm) / out_ch

@@ -108,7 +108,9 @@ def get_model(opt, device='/cpu:0'):
         # Global step
         global_step = tf.Variable(0.0)
 
-        # Random image transformation
+###############################
+# Random input transformation
+###############################
         x, y_gt = img.random_transformation(
             x, y_gt, padding, phase_train,
             rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip,
@@ -137,8 +139,17 @@ def get_model(opt, device='/cpu:0'):
         ccnn_pool = ctrl_cnn_pool
         ccnn_act = [tf.nn.relu] * ccnn_nlayers
         ccnn_use_bn = [use_bn] * ccnn_nlayers
+
         if pretrain_cnn:
+            log.info('Loading pretrained weights from {}'.format(pretrain_cnn))
             h5f = h5py.File(pretrain_cnn, 'r')
+            acnn_nlayers = 0
+            # Assuming acnn_nlayers is smaller than ccnn_nlayers.
+            for ii in xrange(ccnn_nlayers):
+                if 'attn_cnn_w_{}'.format(ii) in h5f:
+                    log.info('Loading attn_cnn_w_{}'.format(ii))
+                    log.info('Loading attn_cnn_b_{}'.format(ii))
+                    acnn_nlayers += 1
             ccnn_init_w = [{'w': h5f['attn_cnn_w_{}'.format(ii)][:],
                             'b': h5f['attn_cnn_b_{}'.format(ii)][:]}
                            for ii in xrange(acnn_nlayers)]

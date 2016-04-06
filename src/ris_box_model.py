@@ -72,7 +72,9 @@ def get_model(opt, device='/:cpu:0'):
         # Global step
         global_step = tf.Variable(0.0)
 
-        # Random image transformation
+###############################
+# Random input transformation
+###############################
         x, y_gt = img.random_transformation(
             x, y_gt, padding, phase_train,
             rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip,
@@ -80,12 +82,16 @@ def get_model(opt, device='/:cpu:0'):
         model['x_trans'] = x
         model['y_gt_trans'] = y_gt
 
-        # Canvas
+############################
+# Canvas: external memory
+############################
         canvas = tf.zeros(tf.pack([num_ex, inp_height, inp_width, 1]))
         ccnn_inp_depth = inp_depth + 1
         acnn_inp_depth = inp_depth + 1
 
-        # Controller CNN definition
+############################
+# Controller CNN definition
+############################
         ccnn_filters = ctrl_cnn_filter_size
         ccnn_nlayers = len(ccnn_filters)
         ccnn_channels = [ccnn_inp_depth] + ctrl_cnn_depth

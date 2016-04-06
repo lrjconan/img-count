@@ -464,9 +464,9 @@ if __name__ == '__main__':
     def run_samples():
         """Samples"""
         def _run_samples(x, y, s, phase_train, fname_input, fname_output):
-            _outputs = ['x_trans', 'y_gt_trans', 'box_top_left',
-                        'box_bot_right', 'box_top_left_gt', 'box_bot_right_gt',
-                        'match_box', 's_out']
+            _outputs = ['x_trans', 'y_gt_trans', 'attn_top_left',
+                        'attn_bot_right', 'attn_top_left_gt',
+                        'attn_bot_right_gt', 'match_box', 's_out']
             _max_items = _get_max_items_per_row(x.shape[1], x.shape[2])
 
             _feed_dict = {m['x']: x, m['phase_train']: phase_train,
@@ -479,13 +479,13 @@ if __name__ == '__main__':
             plot_output(fname_input, _x,
                         s_out=s,
                         match=_r['match_box'],
-                        attn=(_r['box_top_left_gt'], _r['box_bot_right_gt']),
+                        attn=(_r['attn_top_left_gt'], _r['attn_bot_right_gt']),
                         max_items_per_row=_max_items)
 
             plot_output(fname_output, _x,
                         s_out=_r['s_out'],
                         match=_r['match_box'],
-                        attn=(_r['box_top_left'], _r['box_bot_right']),
+                        attn=(_r['attn_top_left'], _r['attn_bot_right']),
                         max_items_per_row=_max_items)
 
             pass
@@ -515,18 +515,12 @@ if __name__ == '__main__':
         pass
 
     def get_outputs_valid():
-        _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box', 'conf_loss']
-        # _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box',
-        #             'box_ctr_norm_gt', 'box_size_log_gt',
-        #             'box_top_left_gt', 'box_bot_right_gt', 'match_box']
+        _outputs = ['loss', 'box_loss', 'conf_loss']
 
         return _outputs
 
     def get_outputs_trainval():
-        _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box', 'conf_loss']
-        # _outputs = ['loss', 'iou_soft_box', 'wt_iou_soft_box',
-        #             'box_ctr_norm_gt', 'box_size_log_gt',
-        #             'box_top_left_gt', 'box_bot_right_gt', 'match_box']
+        _outputs = ['loss', 'box_loss', 'conf_loss']
 
         return _outputs
 
@@ -555,44 +549,15 @@ if __name__ == '__main__':
 
     def write_log_valid(step, loggers, r):
         loggers['loss'].add(step, ['', r['loss']])
-        loggers['iou'].add(step, ['', r['iou_soft_box']])
-        loggers['wt_iou'].add(step, ['', r['wt_iou_soft_box']])
+        loggers['box_loss'].add(step, ['', r['box_loss']])
         loggers['conf_loss'].add(step, ['', r['conf_loss']])
-        # print 'iou', r['iou_soft_box']
-        # print 'wt_iou', r['wt_iou_soft_box']
-        # print 'center norm:'
-        # print r['box_ctr_norm_gt'][0]
-        # print 'size log:'
-        # print r['box_size_log_gt'][0]
-        # print 'top left:'
-        # print r['box_top_left_gt'][0]
-        # print 'bot right:'
-        # print r['box_bot_right_gt'][0]
-        # print 'match box:'
-        # print r['match_box'][0]
 
         pass
 
     def write_log_trainval(step, loggers, r, bn=False):
         loggers['loss'].add(step, [r['loss'], ''])
-        loggers['iou'].add(step, [r['iou_soft_box'], ''])
-        loggers['wt_iou'].add(step, [r['wt_iou_soft_box'], ''])
+        loggers['box_loss'].add(step, [r['box_loss'], ''])
         loggers['conf_loss'].add(step, [r['conf_loss'], ''])
-        # print 'iou', r['iou_soft_box']
-        # print 'wt_iou', r['wt_iou_soft_box']
-
-        # for ii in xrange(r['match_box'].shape[0]):
-        #     print 'Ex', ii
-        #     print 'center norm:'
-        #     print r['box_ctr_norm_gt'][ii]
-        #     print 'size log:'
-        #     print r['box_size_log_gt'][ii]
-        #     print 'top left:'
-        #     print r['box_top_left_gt'][ii]
-        #     print 'bot right:'
-        #     print r['box_bot_right_gt'][ii]
-        #     print 'match box:'
-        #     print r['match_box'][ii]
 
         pass
 
