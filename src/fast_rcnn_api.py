@@ -56,7 +56,6 @@ Interface to evaluate Fast R-CNN network
     >> dets = api.threshold(dets, conf_thresh=0.8, nms_thresh=0.3)
 
 """
-from data_api import MSCOCO
 from fast_rcnn.test import im_detect
 from fast_rcnn_model import FastRCNN_Model
 from fast_rcnn_utils.nms import nms
@@ -92,7 +91,11 @@ class FastRCNN_API(object):
     def __init__(self, model_def_fname, weights_fname,
                  dataset_name, dataset_dir, gpu=True, gpu_id=0):
         if args.dataset == 'mscoco':
+            from data_api import MSCOCO
             self.dataset = MSCOCO(base_dir=dataset_dir, set_name='valid')
+        elif args.dataset == 'pascal':
+            self.dataset = None
+            # self.dataset = PASCAL(base_dir=dataset_dir, set_name='test')
         else:
             raise Exception('Unknown dataset: {}.'.format(dataset))
 
@@ -260,7 +263,7 @@ class FastRCNN_API(object):
 
 
 def parse_args():
-    """Parse input arguments."""
+    #"""Parse input arguments."""
     parser = argparse.ArgumentParser(description='Train a Fast R-CNN network')
     parser.add_argument('-gpu', dest='gpu_id', help='GPU device id to use [0]',
                         default=0, type=int)
@@ -273,7 +276,14 @@ def parse_args():
     parser.add_argument('-weights', help='Path to weights file',
                         default=('../lib/fast-rcnn/data/fast_rcnn_models/'
                                  'coco_vgg16_fast_rcnn_iter_240000.caffemodel'))
+    # parser.add_argument('-net', help='Path to network definition',
+    #                     default=('../lib/fast-rcnn/'
+    #                              'models/VGG16/test.prototxt'))
+    # parser.add_argument('-weights', help='Path to weights file',
+    #                     default=('../lib/fast-rcnn/data/fast_rcnn_models/'
+    #                              'vgg16_fast_rcnn_iter_40000.caffemodel'))
     parser.add_argument('-dataset', default='mscoco', help='Dataset to use')
+    # parser.add_argument('-dataset', default='pascal', help='Dataset to use')
     parser.add_argument('-datadir', default='../data/mscoco',
                         help='Dataset directory')
     parser.add_argument('-image', help='Image')
@@ -323,8 +333,9 @@ def assemble_boxes(boxes, thresh, local_feat=None):
     feats = {}
 
     # Copy feature layer names.
-    for key in local_feat.iterkeys():
-        feats[key] = []
+    if local_feat:
+        for key in local_feat.iterkeys():
+            feats[key] = []
 
     # Extract for each class.
     for cls_id in xrange(K):
@@ -333,8 +344,10 @@ def assemble_boxes(boxes, thresh, local_feat=None):
         num_boxes = cls_boxes.shape[0]
         categories.append(np.array([cls_id] * num_boxes, dtype='int64'))
         scores.append(cls_boxes[:, 4].astype('float32'))
-        for key in local_feat.iterkeys():
-            feats[key].append(local_feat[key][thresh[:, cls_id]])
+        
+        if local_feat:
+            for key in local_feat.iterkeys():
+                feats[key].append(local_feat[key][thresh[:, cls_id]])
 
     # Concatenate matrices
     boxes_remain = np.concatenate(boxes_remain, axis=0)
@@ -610,5 +623,8 @@ if __name__ == '__main__':
                     raise e
 
         # Close writer and flush to file.
-        proposal_reader.close()
-        writer.close()
+        if args.proposal:
+            proposal_reader.close()
+
+        if args.output:
+            writer.close()
