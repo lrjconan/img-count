@@ -1,11 +1,13 @@
 import cslab_environ
 
-import ris_base as base
 from utils import logger
 from utils.grad_clip_optim import GradientClipOptimizer
+
+import h5py
 import image_ops as img
 import nnlib as nn
 import numpy as np
+import ris_base as base
 import tensorflow as tf
 
 log = logger.get()
