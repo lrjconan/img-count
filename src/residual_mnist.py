@@ -55,6 +55,8 @@ def get_model(opt, device='/cpu:0'):
         y_out = tf.nn.softmax(tf.matmul(h, w) + b)
         num_ex_f = tf.to_float(tf.shape(x)[0])
         ce = -tf.reduce_sum(y_gt * tf.log(y_out + 1e-5)) / num_ex_f
+        correct = tf.equal(tf.argmax(y_gt, 1), tf.argmax(y_out, 1))
+        acc = tf.reduce_sum(tf.to_float(correct)) / num_ex_f
 
         lr = 1e-3
         eps = 1e-7
@@ -66,7 +68,8 @@ def get_model(opt, device='/cpu:0'):
         'y_out': y_out,
         'phase_train': phase_train,
         'train_step': train_step,
-        'ce': ce
+        'ce': ce,
+        'acc': acc
     }
 
     return m
