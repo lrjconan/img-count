@@ -1,6 +1,6 @@
 import cslab_environ
 
-from ris_base import *
+import ris_base as base
 from utils import logger
 from utils.grad_clip_optim import GradientClipOptimizer
 import image_ops as img
@@ -38,6 +38,8 @@ def get_model(opt, device='/:cpu:0'):
     learn_rate_decay = opt['learn_rate_decay']
     steps_per_learn_rate_decay = opt['steps_per_learn_rate_decay']
     gt_selector = opt['gt_selector']
+    pretrain_cnn = opt['pretrain_cnn']
+    use_iou_box = opt['use_iou_box']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -84,8 +86,25 @@ def get_model(opt, device='/:cpu:0'):
         ccnn_pool = ctrl_cnn_pool
         ccnn_act = [tf.nn.relu] * ccnn_nlayers
         ccnn_use_bn = [use_bn] * ccnn_nlayers
-        ccnn_init_w = None
-        ccnn_frozen = False
+
+        if pretrain_cnn:
+            h5f = h5py.File(pretrain_cnn, 'r')
+            acnn_nlayers = 0
+            # Assuming acnn_nlayers is smaller than ccnn_nlayers.
+            for ii in xrange(ccnn_nlayers):
+                if 'attn_cnn_w_{}'.format(ii) in h5f:
+                    acnn_nlayers += 1
+            ccnn_init_w = [{'w': h5f['attn_cnn_w_{}'.format(ii)][:],
+                            'b': h5f['attn_cnn_b_{}'.format(ii)][:]}
+                           for ii in xrange(acnn_nlayers)]
+            ccnn_frozen = [True] * acnn_nlayers
+            for ii in xrange(acnn_nlayers, ccnn_nlayers):
+                ccnn_init_w.append(None)
+                ccnn_frozen.append(True)
+        else:
+            ccnn_init_w = None
+            ccnn_frozen = None
+
         ccnn = nn.cnn(ccnn_filters, ccnn_channels, ccnn_pool, ccnn_act,
                       ccnn_use_bn, phase_train=phase_train, wd=wd,
                       scope='ctrl_cnn', model=model, init_weights=ccnn_init_w,
@@ -147,11 +166,6 @@ def get_model(opt, device='/:cpu:0'):
 
         # Groundtruth mix.
         grd_match_cum = tf.zeros(tf.pack([num_ex, timespan]))
-        # Add a bias on every entry so there is no duplicate match
-        # [1, N]
-        iou_bias_eps = 1e-7
-        iou_bias = tf.expand_dims(tf.to_float(
-            tf.reverse(tf.range(timespan), [True])) * iou_bias_eps, 0)
 
         for tt in xrange(timespan):
             # Controller CNN [B, H, W, D] => [B, RH1, RW1, RD1]
@@ -174,24 +188,44 @@ def get_model(opt, device='/:cpu:0'):
             box_size_log[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
             box_ctr[tt], box_size[tt] = get_unnormalized_attn(
                 box_ctr_norm[tt], box_size_log[tt], inp_height, inp_width)
-            box_top_left[tt], box_bot_right[tt] = get_box_coord(
-                box_ctr[tt], box_size[tt])
-            _idx_map = get_idx_map(tf.pack([num_ex, inp_height, inp_width]))
+            attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
+            filter_y = get_gaussian_filter(
+                attn_ctr[tt][:, 0], attn_size[tt][:, 0],
+                attn_lg_var[tt][:, 0], inp_height, filter_height)
+            filter_x = get_gaussian_filter(
+                attn_ctr[tt][:, 1], attn_size[tt][:, 1],
+                attn_lg_var[tt][:, 1], inp_width, filter_width)
+            filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
+            filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
-            # [B, H, W]
-            box_map[tt] = get_filled_box_idx(
-                _idx_map, box_top_left[tt], box_bot_right[tt])
-            # [B, 1, H, W]
-            box_map[tt] = tf.expand_dims(box_map[tt], 1)
+            # Attention box
+            if use_iou_box:
+                _idx_map = get_idx_map(
+                    tf.pack([num_ex, inp_height, inp_width]))
+                box_top_left[tt], box_bot_right[tt] = base.get_box_coord(
+                    box_ctr[tt], box_size[tt])
+                box_map[tt] = base.get_filled_box_idx(
+                    _idx_map, box_top_left[tt], box_bot_right[tt])
+                box_map[tt] = tf.reshape(box_map[tt],
+                                         [-1, 1, inp_height, inp_width])
+            else:
+                box_map[tt] = extract_patch(const_ones * attn_box_gamma[tt],
+                                            filter_y_inv, filter_x_inv, 1)
+                box_map[tt] = tf.sigmoid(box_map[tt] + box_map_beta)
+                box_map[tt] = tf.reshape(box_map[tt],
+                                         [-1, 1, inp_height, inp_width])
 
             # [B, 1, H, W] * [B, T, H, W] = [B, T]
-            # box_iou_soft[tt] = f_inter(box_map[tt], box_map_gt) / \
-            #     f_union(box_map[tt], box_map_gt, eps=1e-5)
-            _top_left = tf.expand_dims(box_top_left[tt], 1)
-            _bot_right = tf.expand_dims(box_bot_right[tt], 1)
-            box_iou_soft[tt] = f_iou_box(
-                _top_left, _bot_right, box_top_left_gt, box_bot_right_gt)
-            box_iou_soft[tt] += iou_bias
+            if use_iou_box:
+                _top_left = tf.expand_dims(attn_top_left[tt], 1)
+                _bot_right = tf.expand_dims(attn_bot_right[tt], 1)
+                iou_soft_box[tt] = f_iou_box(
+                    _top_left, _bot_right, attn_top_left_gt,
+                    attn_bot_right_gt)
+            else:
+                iou_soft_box[tt] = f_inter(attn_box[tt], attn_box_gt) / \
+                    f_union(attn_box[tt], attn_box_gt, eps=1e-5)
+
             grd_match = f_greedy_match(box_iou_soft[tt], grd_match_cum)
 
             if gt_selector == 'greedy_match':

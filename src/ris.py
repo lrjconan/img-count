@@ -34,6 +34,7 @@ from utils.saver import Saver
 from utils.time_series_logger import TimeSeriesLogger
 from utils import plot_utils as pu
 
+import ris_base as base
 import ris_vanilla_model as vanilla_model
 # import ris_attn_model_old as attention_model
 import ris_attn_model as attention_model
@@ -49,23 +50,6 @@ kCvpppNumObj = 20
 kKittiInpHeight = 128
 kKittiInpWidth = 448
 kKittiNumObj = 19
-
-
-def sort_by_segm_size(y):
-    """Sort the input/output sequence by the groundtruth size.
-
-    Args:
-        y: [B, T, H, W]
-    """
-    # [B, T]
-    y_size = np.sum(np.sum(y, 3), 2)
-    # [B, T, H, W]
-    y_sort = np.zeros(y.shape, dtype=y.dtype)
-    for ii in xrange(y.shape[0]):
-        idx = np.argsort(y_size[ii])[::-1]
-        y_sort[ii, :, :, :] = y[ii, idx, :, :]
-
-    return y_sort
 
 
 def get_model(opt, device='/cpu:0'):
@@ -1200,9 +1184,9 @@ if __name__ == '__main__':
     dataset = get_dataset(args.dataset, data_opt)
 
     if model_opt['fixed_order']:
-        dataset['train']['label_segmentation'] = sort_by_segm_size(
+        dataset['train']['label_segmentation'] = base.sort_by_segm_size(
             dataset['train']['label_segmentation'])
-        dataset['valid']['label_segmentation'] = sort_by_segm_size(
+        dataset['valid']['label_segmentation'] = base.sort_by_segm_size(
             dataset['valid']['label_segmentation'])
 
     sess = tf.Session()

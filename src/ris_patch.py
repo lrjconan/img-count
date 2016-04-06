@@ -49,23 +49,6 @@ kKittiInpWidth = 448
 kKittiNumObj = 19
 
 
-def sort_by_segm_size(y):
-    """Sort the input/output sequence by the groundtruth size.
-
-    Args:
-        y: [B, T, H, W]
-    """
-    # [B, T]
-    y_size = np.sum(np.sum(y, 3), 2)
-    # [B, T, H, W]
-    y_sort = np.zeros(y.shape, dtype=y.dtype)
-    for ii in xrange(y.shape[0]):
-        idx = np.argsort(y_size[ii])[::-1]
-        y_sort[ii, :, :, :] = y[ii, idx, :, :]
-
-    return y_sort
-
-
 def get_model(opt, device='/cpu:0'):
     """Model router."""
     return patch_model.get_model(opt, device)
@@ -576,7 +559,7 @@ def _add_model_args(parser):
                         type=float, help='Groundtruth segmentation noise')
     parser.add_argument('-downsample_canvas', action='store_true',
                         help='Whether downsample canvas to feed to Ctrl RNN')
-    parser.add_argument('-fg_cnn', default=None,
+    parser.add_argument('-pretrain_cnn', default=None,
                         help='Use pre-trained foreground segmentation CNN')
     parser.add_argument('-cnn_share_weights', action='store_true',
                         help='Whether to share weights between CCNN and ACNN')
@@ -756,7 +739,7 @@ def _make_model_opt(args):
             'gt_box_pad_noise': args.gt_box_pad_noise,
             'gt_segm_noise': args.gt_segm_noise,
             'downsample_canvas': args.downsample_canvas,
-            'pretrain_ccnn': args.fg_cnn,
+            'pretrain_cnn': args.pretrain_cnn,
             'cnn_share_weights': args.cnn_share_weights,
             'squash_ctrl_params': args.squash_ctrl_params,
             'use_iou_box': args.use_iou_box,
@@ -1099,9 +1082,9 @@ if __name__ == '__main__':
     dataset = get_dataset(args.dataset, data_opt)
 
     if model_opt['fixed_order']:
-        dataset['train']['label_segmentation'] = sort_by_segm_size(
+        dataset['train']['label_segmentation'] = base.sort_by_segm_size(
             dataset['train']['label_segmentation'])
-        dataset['valid']['label_segmentation'] = sort_by_segm_size(
+        dataset['valid']['label_segmentation'] = base.sort_by_segm_size(
             dataset['valid']['label_segmentation'])
 
     sess = tf.Session()

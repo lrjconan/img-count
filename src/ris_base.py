@@ -28,6 +28,23 @@ def get_device_fn(device):
     return _device_fn
 
 
+def sort_by_segm_size(y):
+    """Sort the input/output sequence by the groundtruth size.
+
+    Args:
+        y: [B, T, H, W]
+    """
+    # [B, T]
+    y_size = np.sum(np.sum(y, 3), 2)
+    # [B, T, H, W]
+    y_sort = np.zeros(y.shape, dtype=y.dtype)
+    for ii in xrange(y.shape[0]):
+        idx = np.argsort(y_size[ii])[::-1]
+        y_sort[ii, :, :, :] = y[ii, idx, :, :]
+
+    return y_sort
+
+
 def f_cum_min(s, d):
     """Calculates cumulative minimum.
 
@@ -584,7 +601,8 @@ def get_gaussian_filter(center, size, lg_var, image_size, filter_size):
 
     # [B, 1, 1] + [B, 1, 1] * [1, F, 1] = [B, 1, F]
     # mu = center + size / filter_size * (span_filter - (filter_size - 1) / 2.0)
-    mu = center + (size + 1) / filter_size * (span_filter - (filter_size - 1) / 2.0)
+    mu = center + (size + 1) / filter_size * \
+        (span_filter - (filter_size - 1) / 2.0)
 
     # [B, 1, 1]
     lg_var = tf.reshape(lg_var, [-1, 1, 1])

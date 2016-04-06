@@ -116,7 +116,10 @@ def _add_model_args(parser):
     kCtrlCnnFilterSize = '3,3,3,3,3,3,3,3,3,3'
     kCtrlCnnDepth = '4,4,8,8,16,16,32,32,64,64'
     kCtrlCnnPool = '1,2,1,2,1,2,1,2,1,2'
-    kBoxLossFn = 'mse'
+    kBoxLossFn = 'iou'
+    kCtrlMlpDim = 256
+    kNumCtrlMlpLayers = 2
+    kCtrlRnnHiddenDim = 256
 
     parser.add_argument('-ctrl_cnn_filter_size', default=kCtrlCnnFilterSize,
                         help='Comma delimited integers')
@@ -126,7 +129,18 @@ def _add_model_args(parser):
                         help='Comma delimited integers')
     parser.add_argument('-box_loss_fn', default=kBoxLossFn,
                         help='Loss function for box regressor')
-    parser.add_argument('-fixed_order', action='store_true')
+    parser.add_argument('-fixed_order', action='store_true',
+                        help='Train with fixed order labels')
+    parser.add_argument('-pretrain_cnn', default=None,
+                        help='Pretrained CNN weights')
+    parser.add_argument('-ctrl_rnn_hid_dim', default=kCtrlRnnHiddenDim,
+                        type=int, help='RNN hidden dimension')
+    parser.add_argument('-num_ctrl_mlp_layers', default=kNumCtrlMlpLayers,
+                        type=int, help='Number of controller MLP layers')
+    parser.add_argument('-ctrl_mlp_dim', default=kCtrlMlpDim,
+                        type=int, help='Controller MLP dimension')
+    parser.add_argument('-use_iou_box', action='store_true',
+                        help='Use hard box IOU')
 
     pass
 
@@ -223,6 +237,8 @@ def _make_model_opt(args):
         # 'gt_selector': 'greedy_match',
         'gt_selector': 'greedy',
         'fixed_order': args.fixed_order,
+        'pretrain_cnn': args.pretrain_cnn,
+        'use_iou_box': args.use_iou_box,
         'rnd_hflip': True,
         'rnd_vflip': False,
         'rnd_transpose': False,
