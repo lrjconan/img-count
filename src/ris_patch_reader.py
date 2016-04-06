@@ -59,6 +59,7 @@ def save(fname, folder):
     for key in weights:
         h5f[key] = weights[key]
     h5f.close()
+    log.info('Saved weights to {}'.format(fname))
 
     pass
 

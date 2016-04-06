@@ -245,7 +245,8 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                 # h[ii], bm, bv, em, ev = bn[ii](h[ii], phase_train)
                 h[ii], bm, bv, em, ev = batch_norm(
                     h[ii], out_ch, phase_train,
-                    scope='{}_bn_{}_{}'.format(scope, ii, copy[0]))
+                    scope='{}_bn_{}_{}'.format(scope, ii, copy[0]),
+                    model=model)
 
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
@@ -375,7 +376,8 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
             if use_bn[ii]:
                 h[ii], bm, bv, em, ev = batch_norm(
                     h[ii], out_ch, phase_train,
-                    scope='{}_bn_{}_{}'.format(scope, ii, copy[0]))
+                    scope='{}_bn_{}_{}'.format(scope, ii, copy[0]),
+                    model=model)
 
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
