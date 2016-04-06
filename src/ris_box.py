@@ -80,9 +80,6 @@ def plot_output(fname, y_out, s_out, match, attn=None, max_items_per_row=9):
         attn_top_left_x = attn[0][:, :, 1]
         attn_bot_right_y = attn[1][:, :, 0]
         attn_bot_right_x = attn[1][:, :, 1]
-        # print 'plot coord'
-        # print attn[0][0, :, :]
-        # print attn[1][0, :, :]
 
     pu.set_axis_off(axarr, num_row, num_col)
 
@@ -120,7 +117,15 @@ def _add_model_args(parser):
     kCtrlMlpDim = 256
     kNumCtrlMlpLayers = 2
     kCtrlRnnHiddenDim = 256
+    kLearnRateDecay = 0.96
+    kStepsPerLearnRateDecay = 5000
+    kFilterHeight = 48
+    kFilterWidth = 48
 
+    parser.add_argument('-filter_height', default=kFilterHeight, type=int,
+                        help='Attention filter width')
+    parser.add_argument('-filter_width', default=kFilterWidth, type=int,
+                        help='Attention filter size')
     parser.add_argument('-ctrl_cnn_filter_size', default=kCtrlCnnFilterSize,
                         help='Comma delimited integers')
     parser.add_argument('-ctrl_cnn_depth', default=kCtrlCnnDepth,
@@ -141,6 +146,13 @@ def _add_model_args(parser):
                         type=int, help='Controller MLP dimension')
     parser.add_argument('-use_iou_box', action='store_true',
                         help='Use hard box IOU')
+    parser.add_argument('-learn_rate_decay', default=kLearnRateDecay,
+                        type=float, help='Model learning rate decay')
+    parser.add_argument('-steps_per_learn_rate_decay',
+                        default=kStepsPerLearnRateDecay, type=int,
+                        help='Steps every learning rate decay')
+    parser.add_argument('-squash_ctrl_params', action='store_true',
+                        help='Whether to squash control parameters.')
 
     pass
 
@@ -221,6 +233,8 @@ def _make_model_opt(args):
         'inp_width': inp_width,
         'inp_depth': 3,
         'padding': 16,
+        'filter_height': args.filter_height,
+        'filter_width': args.filter_width,
         'ctrl_cnn_filter_size': ccnn_fsize_list,
         'ctrl_cnn_depth': ccnn_depth_list,
         'ctrl_cnn_pool': ccnn_pool_list,
@@ -232,13 +246,15 @@ def _make_model_opt(args):
         'use_bn': True,
         'box_loss_fn': args.box_loss_fn,
         'base_learn_rate': 1e-3,
-        'learn_rate_decay': 0.96,
+        'learn_rate_decay': args.learn_rate_decay,
         'steps_per_learn_rate_decay': args.steps_per_learn_rate_decay,
         # 'gt_selector': 'greedy_match',
         'gt_selector': 'greedy',
         'fixed_order': args.fixed_order,
         'pretrain_cnn': args.pretrain_cnn,
         'use_iou_box': args.use_iou_box,
+        'squash_ctrl_params': args.squash_ctrl_params,
+
         'rnd_hflip': True,
         'rnd_vflip': False,
         'rnd_transpose': False,

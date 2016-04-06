@@ -307,6 +307,16 @@ def get_model(opt, device='/cpu:0'):
 ##########################
 # Attention box
 ##########################
+        attn_ctr_norm = [None] * timespan
+        attn_lg_size = [None] * timespan
+        attn_ctr = [None] * timespan
+        attn_size = [None] * timespan
+        attn_lg_var = [None] * timespan
+        attn_lg_gamma = [None] * timespan
+        attn_gamma = [None] * timespan
+        attn_box_lg_gamma = [None] * timespan
+        attn_top_left = [None] * timespan
+        attn_bot_right = [None] * timespan
         attn_box = [None] * timespan
         iou_soft_box = [None] * timespan
         const_ones = tf.ones(tf.pack([num_ex, filter_height, filter_width, 1]))
@@ -333,16 +343,6 @@ def get_model(opt, device='/cpu:0'):
                              center_shift_ratio=tf.random_uniform(
                                  tf.pack([num_ex, timespan, 2]),
                                  -gt_box_ctr_noise, gt_box_ctr_noise))
-        attn_ctr_norm = [None] * timespan
-        attn_lg_size = [None] * timespan
-        attn_ctr = [None] * timespan
-        attn_size = [None] * timespan
-        attn_lg_var = [None] * timespan
-        attn_lg_gamma = [None] * timespan
-        attn_gamma = [None] * timespan
-        attn_box_lg_gamma = [None] * timespan
-        attn_top_left = [None] * timespan
-        attn_bot_right = [None] * timespan
 
 ##########################
 # Groundtruth mix
@@ -429,7 +429,6 @@ def get_model(opt, device='/cpu:0'):
             attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
             attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
             y_out_lg_gamma[tt] = tf.slice(ctrl_out, [0, 8], [-1, 1])
-
             attn_gamma[tt] = tf.reshape(
                 tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
             attn_box_gamma[tt] = tf.reshape(tf.exp(
@@ -457,8 +456,9 @@ def get_model(opt, device='/cpu:0'):
                 attn_box[tt] = tf.reshape(attn_box[tt],
                                           [-1, 1, inp_height, inp_width])
             else:
-                attn_box[tt] = base.extract_patch(const_ones * attn_box_gamma[tt],
-                                                  filter_y_inv, filter_x_inv, 1)
+                attn_box[tt] = base.extract_patch(
+                    const_ones * attn_box_gamma[tt],
+                    filter_y_inv, filter_x_inv, 1)
                 attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
                 attn_box[tt] = tf.reshape(attn_box[tt],
                                           [-1, 1, inp_height, inp_width])
@@ -497,14 +497,13 @@ def get_model(opt, device='/cpu:0'):
                     attn_size_gtm = tf.reduce_sum(
                         grd_match * attn_size_gt_noise, 1)
 
-                _gt_knob_box = gt_knob_box
-                attn_ctr[tt] = phase_train_f * _gt_knob_box[:, tt, 0: 1] * \
+                attn_ctr[tt] = phase_train_f * gt_knob_box[:, tt, 0: 1] * \
                     attn_ctr_gtm + \
-                    (1 - phase_train_f * _gt_knob_box[:, tt, 0: 1]) * \
+                    (1 - phase_train_f * gt_knob_box[:, tt, 0: 1]) * \
                     attn_ctr[tt]
-                attn_size[tt] = phase_train_f * _gt_knob_box[:, tt, 0: 1] * \
+                attn_size[tt] = phase_train_f * gt_knob_box[:, tt, 0: 1] * \
                     attn_size_gtm + \
-                    (1 - phase_train_f * _gt_knob_box[:, tt, 0: 1]) * \
+                    (1 - phase_train_f * gt_knob_box[:, tt, 0: 1]) * \
                     attn_size[tt]
 
             attn_top_left[tt], attn_bot_right[tt] = base.get_box_coord(
@@ -631,8 +630,7 @@ def get_model(opt, device='/cpu:0'):
 ############################
         if fixed_order:
             # [B, T] for fixed order.
-            iou_soft_box = base.f_iou(
-                attn_box, attn_box_gt, pairwise=False)
+            iou_soft_box = base.f_iou(attn_box, attn_box_gt, pairwise=False)
         else:
             if use_knob:
                 # [B, T, T] for matching.
@@ -658,8 +656,7 @@ def get_model(opt, device='/cpu:0'):
         if fixed_order:
             iou_soft_box_mask = iou_soft_box
         else:
-            iou_soft_box_mask = tf.reduce_sum(
-                iou_soft_box * match_box, [1])
+            iou_soft_box_mask = tf.reduce_sum(iou_soft_box * match_box, [1])
         iou_soft_box = tf.reduce_sum(iou_soft_box_mask, [1])
         iou_soft_box = tf.reduce_sum(
             iou_soft_box / match_count_box) / num_ex_f
@@ -737,8 +734,7 @@ def get_model(opt, device='/cpu:0'):
 ####################
 # Total loss
 ####################
-        total_loss = tf.add_n(tf.get_collection(
-            'losses'), name='total_loss')
+        total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
         model['loss'] = total_loss
 
 ####################

@@ -392,8 +392,8 @@ def _add_model_args(parser):
     kScoreMaxpool = 1
 
     # Attention-based model options
-    kAttnWidth = 48
-    kAttnHeight = 48
+    kFilterWidth = 48
+    kFilterHeight = 48
     kAttnBoxPaddingRatio = 0.2
 
     kCtrlCnnFilterSize = '3,3,3,3,3'
@@ -501,11 +501,9 @@ def _add_model_args(parser):
     parser.add_argument('-fixed_order', action='store_true')
 
     # Attention-based model options
-    # parser.add_argument('-filter_size', default=kAttnSize, type=int,
-    #                     help='Attention filter size')
-    parser.add_argument('-filter_height', default=kAttnHeight, type=int,
+    parser.add_argument('-filter_height', default=kFilterHeight, type=int,
                         help='Attention filter width')
-    parser.add_argument('-filter_width', default=kAttnWidth, type=int,
+    parser.add_argument('-filter_width', default=kFilterWidth, type=int,
                         help='Attention filter size')
     parser.add_argument('-ctrl_cnn_filter_size', default=kCtrlCnnFilterSize,
                         help='Comma delimited integers')
@@ -580,14 +578,14 @@ def _add_model_args(parser):
                         help='Whether to use box to calculate IoU')
     parser.add_argument('-clip_gradient', default=kClipGradient, type=float,
                         help='Largest gradient norm size')
+    parser.add_argument('-squash_ctrl_params', action='store_true',
+                        help='Whether to squash control parameters.')
 
     # Double attention arguments
     parser.add_argument('-num_ctrl_rnn_iter', default=kNumCtrlRNNIter,
                         type=int, help='Number of control RNN iterations')
     parser.add_argument('-num_glimpse_mlp_layers', default=kNumGlimpseMlpLayers,
                         type=int, help='Number of glimpse MLP layers')
-    parser.add_argument('-squash_ctrl_params', action='store_true',
-                        help='Whether to squash control parameters.')
     pass
 
 
@@ -700,7 +698,6 @@ def _make_model_opt(args):
             'inp_width': inp_width,
             'inp_depth': 3,
             'padding': args.padding,
-            # 'filter_size': args.filter_size,
             'filter_height': args.filter_height,
             'filter_width': args.filter_width,
             'timespan': timespan,
