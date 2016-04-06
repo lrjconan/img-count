@@ -669,8 +669,7 @@ def get_model(opt, device='/cpu:0'):
         else:
             iou_soft_box_mask = tf.reduce_sum(iou_soft_box * match_box, [1])
         iou_soft_box = tf.reduce_sum(iou_soft_box_mask, [1])
-        iou_soft_box = tf.reduce_sum(
-            iou_soft_box / match_count_box) / num_ex_f
+        iou_soft_box = tf.reduce_sum(iou_soft_box / match_count_box) / num_ex_f
 
         if box_loss_fn == 'iou':
             box_loss = -iou_soft_box
