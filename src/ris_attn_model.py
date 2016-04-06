@@ -138,7 +138,7 @@ def get_model(opt, device='/cpu:0'):
         ccnn_channels = [ccnn_inp_depth] + ctrl_cnn_depth
         ccnn_pool = ctrl_cnn_pool
         ccnn_act = [tf.nn.relu] * ccnn_nlayers
-        ccnn_usei_bn = [use_bn] * ccnn_nlayers
+        ccnn_use_bn = [use_bn] * ccnn_nlayers
 
         if pretrain_cnn:
             log.info('Loading pretrained weights from {}'.format(pretrain_cnn))
