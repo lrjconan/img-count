@@ -145,7 +145,7 @@ def get_model(opt, device='/cpu:0'):
             ccnn_frozen = [True] * acnn_nlayers
             for ii in xrange(acnn_nlayers, ccnn_nlayers):
                 ccnn_init_w.append(None)
-                ccnn_frozen.append(True)
+                ccnn_frozen.append(False)
         else:
             ccnn_init_w = None
             ccnn_frozen = None
