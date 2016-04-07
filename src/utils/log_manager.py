@@ -21,6 +21,8 @@ class LogManager(object):
                 for line in lines:
                     parts = line.strip('\n').split(',')
                     self.filelist.append((parts[0], parts[1], parts[2]))
+                    
+            log.fatal(self.filelist)
 
     def register(self, filename, typ, name):
         basename = os.path.basename(filename)

@@ -441,7 +441,7 @@ def get_model(opt, device='/cpu:0'):
 
             if fixed_gamma:
                 attn_lg_gamma[tt] = tf.zeros(tf.pack([num_ex, 1]))
-                y_out_lg_gamma[tt] = tf.zeros(tf.pack([num_ex, 1])
+                y_out_lg_gamma[tt] = tf.zeros(tf.pack([num_ex, 1]))
             else:
                 attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
                 y_out_lg_gamma[tt] = tf.slice(ctrl_out, [0, 8], [-1, 1])
