@@ -420,10 +420,21 @@ if __name__ == '__main__':
     model_opt = _make_model_opt(args)
     data_opt = _make_data_opt(args)
 
-    model_id = _get_model_id('ris_box')
-    step = 0
-    exp_folder = os.path.join(train_opt['results'], model_id)
-    saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
+    # Restore previously saved checkpoints.
+    if train_opt['restore']:
+        saver = Saver(train_opt['restore'])
+        ckpt_info = saver.get_ckpt_info()
+        model_opt = ckpt_info['model_opt']
+        data_opt = ckpt_info['data_opt']
+        ckpt_fname = ckpt_info['ckpt_fname']
+        step = ckpt_info['step']
+        model_id = ckpt_info['model_id']
+        exp_folder = train_opt['restore']
+    else:
+        model_id = _get_model_id('ris_box')
+        step = 0
+        exp_folder = os.path.join(train_opt['results'], model_id)
+        saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
 
     if not train_opt['save_ckpt']:
         log.warning(
@@ -459,7 +470,12 @@ if __name__ == '__main__':
             dataset['valid']['label_segmentation'])
 
     sess = tf.Session()
-    sess.run(tf.initialize_all_variables())
+
+    # Restore/intialize weights
+    if args.restore:
+        saver.restore(sess, ckpt_fname)
+    else:
+        sess.run(tf.initialize_all_variables())
 
     # Create time series loggers
     if train_opt['logs']:
