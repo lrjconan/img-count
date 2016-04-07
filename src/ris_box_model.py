@@ -47,20 +47,31 @@ def get_model(opt, device='/:cpu:0'):
     squash_ctrl_params = opt['squash_ctrl_params']
     fixed_order = opt['fixed_order']
 
+    # New parameters for double attention.
+    ctrl_rnn_inp = opt['ctrl_rnn_inp']
+    num_ctrl_rnn_iter = opt['num_ctrl_rnn_iter']
+    num_glimpse_mlp_layers = opt['num_glimpse_mlp_layers']
+
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
     rnd_transpose = opt['rnd_transpose']
     rnd_colour = opt['rnd_colour']
 
+############################
+# Input definition
+############################
     with tf.device(base.get_device_fn(device)):
-        # Input definition
         # Input image, [B, H, W, D]
         x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
         x_shape = tf.shape(x)
         num_ex = x_shape[0]
+
+        # Groundtruth segmentation, [B, T, H, W]
         y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
+
         # Groundtruth confidence score, [B, T]
         s_gt = tf.placeholder('float', [None, timespan])
+        
         # Whether in training stage.
         phase_train = tf.placeholder('bool')
         phase_train_f = tf.to_float(phase_train)
@@ -134,7 +145,14 @@ def get_model(opt, device='/:cpu:0'):
         crnn_w = inp_width / ccnn_subsample
         crnn_dim = ctrl_rnn_hid_dim
         canvas_dim = inp_height * inp_width / (ccnn_subsample ** 2)
-        crnn_inp_dim = crnn_h * crnn_w * ccnn_channels[-1]
+
+        glimpse_map_dim = crnn_h * crnn_w
+        glimpse_feat_dim = ccnn_channels[-1]
+        if ctrl_rnn_inp == 'dense':
+            crnn_inp_dim = crnn_h * crnn_w * ccnn_channels[-1]
+        elif ctrl_rnn_inp == 'attn':
+            crnn_inp_dim = glimpse_feat_dim
+
         crnn_state = [None] * (timespan + 1)
         crnn_g_i = [None] * timespan
         crnn_g_f = [None] * timespan
@@ -143,6 +161,18 @@ def get_model(opt, device='/:cpu:0'):
         crnn_state[-1] = tf.zeros(tf.pack([num_ex, crnn_dim * 2]))
         crnn_cell = nn.lstm(crnn_inp_dim, crnn_dim, wd=wd, scope='ctrl_lstm',
                             model=model)
+
+############################
+# Glimpse MLP definition
+############################
+        gmlp_dims = [crnn_dim] * num_glimpse_mlp_layers + [glimpse_map_dim]
+        gmlp_act = [tf.nn.relu] * \
+            (num_glimpse_mlp_layers - 1) + [tf.nn.softmax]
+        gmlp_dropout = None
+        gmlp = nn.mlp(gmlp_dims, gmlp_act, add_bias=True,
+                      dropout_keep=gmlp_dropout,
+                      phase_train=phase_train, wd=wd, scope='glimpse_mlp',
+                      model=model)
 
 ############################
 # Controller MLP definition

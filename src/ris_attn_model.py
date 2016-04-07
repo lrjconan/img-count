@@ -397,12 +397,12 @@ def get_model(opt, device='/cpu:0'):
         y_out_lg_gamma = [None] * timespan
         y_out_beta = tf.constant([-5.0])
 
-        if not use_canvas:
-            h_ccnn = ccnn(x)
-
 ##########################
 # Computation graph
 ##########################
+        if not use_canvas:
+            h_ccnn = ccnn(x)
+
         for tt in xrange(timespan):
             # Controller CNN
             if use_canvas:
@@ -594,7 +594,7 @@ def get_model(opt, device='/cpu:0'):
                 else:
                     _y_out = tf.reshape(y_out[tt],
                                         [-1, inp_height, inp_width, 1])
-                canvas = tf.maximum(_y_out, canvas)
+                canvas = tf.stop_gradient(tf.maximum(_y_out, canvas))
                 # canvas += tf.stop_gradient(_y_out)
 
 #########################

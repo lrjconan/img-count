@@ -1,6 +1,6 @@
 import cslab_environ
 
-from ris_base import *
+import ris_base as base
 from utils import logger
 from utils.grad_clip_optim import GradientClipOptimizer
 import fg_segm_reader
@@ -85,15 +85,21 @@ def get_model(opt, device='/cpu:0'):
     rnd_transpose = opt['rnd_transpose']
     rnd_colour = opt['rnd_colour']
 
+############################
+# Input definition
+############################
     with tf.device(get_device_fn(device)):
-        # Input definition
         # Input image, [B, H, W, D]
         x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
         x_shape = tf.shape(x)
         num_ex = x_shape[0]
+
+        # Groundtruth segmentation, [B, T, H, W]
         y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
+
         # Groundtruth confidence score, [B, T]
         s_gt = tf.placeholder('float', [None, timespan])
+
         # Whether in training stage.
         phase_train = tf.placeholder('bool')
         phase_train_f = tf.to_float(phase_train)
@@ -105,7 +111,9 @@ def get_model(opt, device='/cpu:0'):
         # Global step
         global_step = tf.Variable(0.0)
 
-        # Random image transformation
+###############################
+# Random input transformation
+###############################
         x, y_gt = img.random_transformation(
             x, y_gt, padding, phase_train,
             rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip,
@@ -113,20 +121,20 @@ def get_model(opt, device='/cpu:0'):
         model['x_trans'] = x
         model['y_gt_trans'] = y_gt
 
-        # Canvas
+############################
+# Canvas: external memory
+############################
         if use_canvas:
             canvas = tf.zeros(tf.pack([num_ex, inp_height, inp_width, 1]))
-            if downsample_canvas:
-                ccnn_inp_depth = inp_depth
-            else:
-                ccnn_inp_depth = inp_depth + 1
+            ccnn_inp_depth = inp_depth + 1
             acnn_inp_depth = inp_depth + 1
         else:
             ccnn_inp_depth = inp_depth
             acnn_inp_depth = inp_depth
 
-
-        # Controller CNN definition
+############################
+# Controller CNN definition
+############################
         ccnn_filters = ctrl_cnn_filter_size
         ccnn_nlayers = len(ccnn_filters)
         ccnn_channels = [ccnn_inp_depth] + ctrl_cnn_depth
@@ -149,7 +157,9 @@ def get_model(opt, device='/cpu:0'):
                       frozen=ccnn_frozen)
         h_ccnn = [None] * timespan
 
-        # Controller RNN definition
+############################
+# Controller RNN definition
+############################
         ccnn_subsample = np.array(ccnn_pool).prod()
         crnn_h = inp_height / ccnn_subsample
         crnn_w = inp_width / ccnn_subsample
@@ -167,7 +177,9 @@ def get_model(opt, device='/cpu:0'):
         crnn_cell = nn.lstm(glimpse_feat_dim, crnn_dim,
                             wd=wd, scope='ctrl_lstm', model=model)
 
-        # Glimpse MLP definition
+############################
+# Glimpse MLP definition
+############################
         gmlp_dims = [crnn_dim] * num_glimpse_mlp_layers + [glimpse_map_dim]
         gmlp_act = [tf.nn.relu] * \
             (num_glimpse_mlp_layers - 1) + [tf.nn.softmax]
@@ -177,7 +189,9 @@ def get_model(opt, device='/cpu:0'):
                       phase_train=phase_train, wd=wd, scope='glimpse_mlp',
                       model=model)
 
-        # Controller MLP definition
+############################
+# Controller MLP definition
+############################
         cmlp_dims = [crnn_dim] + [ctrl_mlp_dim] * \
             (num_ctrl_mlp_layers - 1) + [9]
         cmlp_act = [tf.nn.relu] * (num_ctrl_mlp_layers - 1) + [None]
@@ -188,40 +202,9 @@ def get_model(opt, device='/cpu:0'):
                       phase_train=phase_train, wd=wd, scope='ctrl_mlp',
                       model=model)
 
-        # Score MLP definition
-        smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd,
-                      scope='score_mlp', model=model)
-        s_out = [None] * timespan
-
-        # Groundtruth bounding box, [B, T, 2]
-        attn_ctr_gt, attn_size_gt, attn_lg_var_gt, attn_box_gt, \
-            attn_top_left_gt, attn_bot_right_gt = \
-            get_gt_attn(y_gt,
-                        padding_ratio=attn_box_padding_ratio,
-                        center_shift_ratio=0.0)
-        attn_ctr_gt_noise, attn_size_gt_noise, attn_lg_var_gt_noise, \
-            attn_box_gt_noise, \
-            attn_top_left_gt_noise, attn_bot_right_gt_noise = \
-            get_gt_attn(y_gt,
-                        padding_ratio=tf.random_uniform(
-                            tf.pack([num_ex, timespan, 1]),
-                            attn_box_padding_ratio - gt_box_pad_noise,
-                            attn_box_padding_ratio + gt_box_pad_noise),
-                        center_shift_ratio=tf.random_uniform(
-                            tf.pack([num_ex, timespan, 2]),
-                            -gt_box_ctr_noise, gt_box_ctr_noise))
-        attn_ctr_norm = [None] * timespan
-        attn_lg_size = [None] * timespan
-        attn_ctr = [None] * timespan
-        attn_size = [None] * timespan
-        attn_lg_var = [None] * timespan
-        attn_lg_gamma = [None] * timespan
-        attn_gamma = [None] * timespan
-        attn_box_lg_gamma = [None] * timespan
-        attn_top_left = [None] * timespan
-        attn_bot_right = [None] * timespan
-
-        # Attention CNN definition
+############################
+# Attention CNN definition
+############################
         acnn_filters = attn_cnn_filter_size
         acnn_nlayers = len(acnn_filters)
         acnn_channels = [acnn_inp_depth] + attn_cnn_depth
@@ -245,7 +228,9 @@ def get_model(opt, device='/cpu:0'):
         h_acnn = [None] * timespan
         h_acnn_last = [None] * timespan
 
-        # Attention RNN definition
+############################
+# Attention RNN definition
+############################
         acnn_subsample = np.array(acnn_pool).prod()
         arnn_h = filter_height / acnn_subsample
         arnn_w = filter_width / acnn_subsample
@@ -264,7 +249,9 @@ def get_model(opt, device='/cpu:0'):
         else:
             amlp_inp_dim = arnn_h * arnn_w * acnn_channels[-1]
 
-        # Attention MLP definition
+############################
+# Attention MLP definition
+############################
         core_depth = attn_mlp_depth
         core_dim = arnn_h * arnn_w * core_depth
         amlp_dims = [amlp_inp_dim] + [core_dim] * num_attn_mlp_layers
@@ -289,7 +276,26 @@ def get_model(opt, device='/cpu:0'):
                         scope='attn_dcnn')
         h_adcnn = [None] * timespan
 
-        # Attention box
+##########################
+# Score MLP definition
+##########################
+        smlp = nn.mlp([crnn_dim, 1], [tf.sigmoid], wd=wd,
+                      scope='score_mlp', model=model)
+        s_out = [None] * timespan
+
+##########################
+# Attention box
+##########################
+        attn_ctr_norm = [None] * timespan
+        attn_lg_size = [None] * timespan
+        attn_ctr = [None] * timespan
+        attn_size = [None] * timespan
+        attn_lg_var = [None] * timespan
+        attn_lg_gamma = [None] * timespan
+        attn_gamma = [None] * timespan
+        attn_box_lg_gamma = [None] * timespan
+        attn_top_left = [None] * timespan
+        attn_bot_right = [None] * timespan
         attn_box = [None] * timespan
         iou_soft_box = [None] * timespan
         const_ones = tf.ones(
@@ -297,7 +303,30 @@ def get_model(opt, device='/cpu:0'):
         attn_box_beta = tf.constant([-5.0])
         attn_box_gamma = [None] * timespan
 
-        # Groundtruth mix.
+#############################
+# Groundtruth attention box
+#############################
+        # [B, T, 2]
+        attn_ctr_gt, attn_size_gt, attn_lg_var_gt, attn_box_gt, \
+            attn_top_left_gt, attn_bot_right_gt = \
+            base.get_gt_attn(y_gt,
+                             padding_ratio=attn_box_padding_ratio,
+                             center_shift_ratio=0.0)
+        attn_ctr_gt_noise, attn_size_gt_noise, attn_lg_var_gt_noise, \
+            attn_box_gt_noise, \
+            attn_top_left_gt_noise, attn_bot_right_gt_noise = \
+            base.get_gt_attn(y_gt,
+                             padding_ratio=tf.random_uniform(
+                                 tf.pack([num_ex, timespan, 1]),
+                                 attn_box_padding_ratio - gt_box_pad_noise,
+                                 attn_box_padding_ratio + gt_box_pad_noise),
+                             center_shift_ratio=tf.random_uniform(
+                                 tf.pack([num_ex, timespan, 2]),
+                                 -gt_box_ctr_noise, gt_box_ctr_noise))
+
+##########################
+# Groundtruth mix
+##########################
         grd_match_cum = tf.zeros(tf.pack([num_ex, timespan]))
         # Add a bias on every entry so there is no duplicate match
         # [1, N]
@@ -332,11 +361,16 @@ def get_model(opt, device='/cpu:0'):
             tf.pack([num_ex, timespan, 1]), 0, 1.0) <= gt_knob_prob_segm)
         model['gt_knob_prob_segm'] = gt_knob_prob_segm[0, 0, 0]
 
-        # Y out
+##########################
+# Segmentation output
+##########################
         y_out = [None] * timespan
         y_out_lg_gamma = [None] * timespan
         y_out_beta = tf.constant([-5.0])
 
+##########################
+# Computation graph
+##########################
         if not use_canvas:
             h_ccnn = ccnn(x)
 
@@ -352,11 +386,6 @@ def get_model(opt, device='/cpu:0'):
                 acnn_inp = x
                 _h_ccnn = h_ccnn
 
-            ###########################
-            # Warning!! Stop gradient #
-            ###########################
-            acnn_inp = tf.stop_gradient(acnn_inp)
-            
             h_ccnn_last = _h_ccnn[-1]
             # crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
             crnn_inp = tf.reshape(
@@ -486,7 +515,7 @@ def get_model(opt, device='/cpu:0'):
 
             attn_top_left[tt], attn_bot_right[tt] = get_box_coord(
                 attn_ctr[tt], attn_size[tt])
-            
+
             ###########################
             # Warning!! Stop gradient #
             ###########################
