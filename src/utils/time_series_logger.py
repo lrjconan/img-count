@@ -28,11 +28,11 @@ class TimeSeriesLogger():
 
         self.labels = labels
         self.buffer_size = buffer_size
+        self.buffer = []
 
         if restore_step > 0:
             if not os.path.exists(self.filename):
                 log.error('Cannot restore from file: {}'.format(self.filename))
-                self.buffer = []
                 self.buffer.append(
                     'step,time,{}\n'.format(','.join(self.labels)))
             else:
