@@ -1,5 +1,7 @@
 import os
+import logger
 
+log = logger.get()
 
 class LogManager(object):
 
