@@ -421,21 +421,17 @@ def get_model(opt, device='/cpu:0'):
 
             ctrl_out = cmlp(h_crnn[tt][-1])[-1]
 
-            if squash_ctrl_params:
-                # Restrict to (-1, 1)
-                attn_ctr_norm[tt] = tf.tanh(
-                    tf.slice(ctrl_out, [0, 0], [-1, 2]))
-                # Restrict to (-inf, 0)
-                attn_lg_size[tt] = -tf.nn.softplus(
-                    tf.slice(ctrl_out, [0, 2], [-1, 2]))
-            else:
-                attn_ctr_norm[tt] = tf.slice(ctrl_out, [0, 0], [-1, 2])
-                attn_lg_size[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
+            attn_ctr_norm[tt] = tf.slice(ctrl_out, [0, 0], [-1, 2])
+            attn_lg_size[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
 
-            attn_ctr[tt], attn_size[tt] = get_unnormalized_attn(
+            # Restrict to (-1, 1), (-inf, 0)
+            if squash_ctrl_params:
+                attn_ctr_norm[tt] = tf.tanh(attn_ctr_norm[tt])
+                attn_lg_size[tt] = -tf.nn.softplus(attn_lg_size[tt])
+
+            attn_ctr[tt], attn_size[tt] = base.get_unnormalized_attn(
                 attn_ctr_norm[tt], attn_lg_size[tt], inp_height, inp_width)
             attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
-            # attn_lg_var[tt] = tf.slice(ctrl_out, [0, 4], [-1, 2])
             attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
             attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
             y_out_lg_gamma[tt] = tf.slice(ctrl_out, [0, 8], [-1, 1])
@@ -453,8 +449,6 @@ def get_model(opt, device='/cpu:0'):
             filter_x = get_gaussian_filter(
                 attn_ctr[tt][:, 1], attn_size[tt][:, 1],
                 attn_lg_var[tt][:, 1], inp_width, filter_width)
-            if tt == 0:
-                model['filter_y'] = filter_y
             filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
             filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
@@ -516,25 +510,13 @@ def get_model(opt, device='/cpu:0'):
             attn_top_left[tt], attn_bot_right[tt] = get_box_coord(
                 attn_ctr[tt], attn_size[tt])
 
-            ###########################
-            # Warning!! Stop gradient #
-            ###########################
-            # [B, H, A]
             filter_y = get_gaussian_filter(
                 attn_ctr[tt][:, 0], attn_size[tt][:, 0],
                 attn_lg_var[tt][:, 0], inp_height, filter_height)
-            filter_y = tf.stop_gradient(filter_y)
-
-            # [B, W, A]
             filter_x = get_gaussian_filter(
                 attn_ctr[tt][:, 1], attn_size[tt][:, 1],
                 attn_lg_var[tt][:, 1], inp_width, filter_width)
-            filter_x = tf.stop_gradient(filter_x)
-
-            # [B, A, H]
             filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
-
-            # [B, A, W]
             filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
             # Attended patch [B, A, A, D]
@@ -599,6 +581,9 @@ def get_model(opt, device='/cpu:0'):
                                         [-1, inp_height, inp_width, 1])
                 canvas += tf.stop_gradient(_y_out)
 
+#########################
+# Model outputs
+#########################
         s_out = tf.concat(1, s_out)
         model['s_out'] = s_out
         y_out = tf.concat(1, y_out)
@@ -609,25 +594,16 @@ def get_model(opt, device='/cpu:0'):
                                 for tt in xrange(timespan)])
         model['x_patch'] = x_patch
 
-        # for layer in ['ctrl_cnn', 'attn_cnn', 'attn_dcnn']:
-        #     for ii in xrange(len(opt['{}_filter_size'.format(layer)])):
-        #         for stat in ['bm', 'bv', 'em', 'ev']:
-        #             model['{}_{}_{}'.format(layer, ii, stat)] = tf.add_n(
-        #                 [model['{}_{}_{}_{}'.format(layer, ii, stat, tt)]
-        #                  for tt in xrange(timespan)]) / timespan
-
-        # Loss function
-        learn_rate = tf.train.exponential_decay(
-            base_learn_rate, global_step, steps_per_learn_rate_decay,
-            learn_rate_decay, staircase=True)
-        model['learn_rate'] = learn_rate
-        eps = 1e-7
-
+#########################
+# Loss function
+#########################
         y_gt_shape = tf.shape(y_gt)
-        num_ex = tf.to_float(y_gt_shape[0])
+        num_ex_f = tf.to_float(y_gt_shape[0])
         max_num_obj = tf.to_float(y_gt_shape[1])
 
-        # Loss for attnention box
+############################
+# Box loss
+############################
         if use_knob:
             iou_soft_box = tf.concat(1, [tf.expand_dims(iou_soft_box[tt], 1)
                                          for tt in xrange(timespan)])
@@ -645,11 +621,11 @@ def get_model(opt, device='/cpu:0'):
         match_count_box = tf.maximum(1.0, match_count_box)
         iou_soft_box_mask = tf.reduce_sum(iou_soft_box * match_box, [1])
         iou_soft_box = tf.reduce_sum(tf.reduce_sum(iou_soft_box_mask, [1])
-                                     / match_count_box) / num_ex
+                                     / match_count_box) / num_ex_f
         gt_wt_box = f_coverage_weight(attn_box_gt)
         wt_iou_soft_box = tf.reduce_sum(tf.reduce_sum(
             iou_soft_box_mask * gt_wt_box, [1])
-            / match_count_box) / num_ex
+            / match_count_box) / num_ex_f
         if box_loss_fn == 'iou':
             box_loss = -iou_soft_box
         elif box_loss_fn == 'wt_iou':
@@ -665,7 +641,10 @@ def get_model(opt, device='/cpu:0'):
         box_loss_coeff = tf.constant(1.0)
         tf.add_to_collection('losses', box_loss_coeff * box_loss)
 
-        # Loss for fine segmentation
+##############################
+# Segmentation loss
+##############################
+        # IoU (soft)
         iou_soft = f_iou(y_out, y_gt, timespan, pairwise=True)
         match = f_segm_match(iou_soft, s_gt)
         model['match'] = match
@@ -682,11 +661,11 @@ def get_model(opt, device='/cpu:0'):
         # IOU (soft)
         iou_soft_mask = tf.reduce_sum(iou_soft * match, [1])
         iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask, [1]) /
-                                 match_count) / num_ex
+                                 match_count) / num_ex_f
         model['iou_soft'] = iou_soft
         gt_wt = f_coverage_weight(y_gt)
         wt_iou_soft = tf.reduce_sum(tf.reduce_sum(iou_soft_mask * gt_wt, [1]) /
-                                    match_count) / num_ex
+                                    match_count) / num_ex_f
         model['wt_iou_soft'] = wt_iou_soft
 
         if segm_loss_fn == 'iou':
@@ -703,21 +682,37 @@ def get_model(opt, device='/cpu:0'):
         segm_loss_coeff = tf.constant(1.0)
         tf.add_to_collection('losses', segm_loss_coeff * segm_loss)
 
-        # Score loss
+####################
+# Score loss
+####################
         conf_loss = f_conf_loss(s_out, match, timespan, use_cum_min=True)
         model['conf_loss'] = conf_loss
         tf.add_to_collection('losses', loss_mix_ratio * conf_loss)
 
+####################
+# Total loss
+####################
         total_loss = tf.add_n(tf.get_collection(
             'losses'), name='total_loss')
         model['loss'] = total_loss
+
+####################
+# Optimizer
+####################
+        learn_rate = tf.train.exponential_decay(
+            base_learn_rate, global_step, steps_per_learn_rate_decay,
+            learn_rate_decay, staircase=True)
+        model['learn_rate'] = learn_rate
+        eps = 1e-7
 
         train_step = GradientClipOptimizer(
             tf.train.AdamOptimizer(learn_rate, epsilon=eps),
             clip=clip_gradient).minimize(total_loss, global_step=global_step)
         model['train_step'] = train_step
 
-        # Statistics
+####################
+# Statistics
+####################
         # [B, M, N] * [B, M, N] => [B] * [B] => [1]
         y_out_hard = tf.to_float(y_out > 0.5)
         iou_hard = f_iou(y_out_hard, y_gt, timespan, pairwise=True)
@@ -728,22 +723,24 @@ def get_model(opt, device='/cpu:0'):
         # [B, T]
         iou_hard_mask = tf.reduce_sum(iou_hard * match, [1])
         iou_hard = tf.reduce_sum(tf.reduce_sum(iou_hard_mask, [1]) /
-                                 match_count) / num_ex
+                                 match_count) / num_ex_f
         model['iou_hard'] = iou_hard
         wt_iou_hard = tf.reduce_sum(tf.reduce_sum(iou_hard_mask * gt_wt, [1]) /
-                                    match_count) / num_ex
+                                    match_count) / num_ex_f
         model['wt_iou_hard'] = wt_iou_hard
 
         dice = f_dice(y_out_hard, y_gt, timespan, pairwise=True)
         dice = tf.reduce_sum(tf.reduce_sum(dice * match, [1, 2]) /
-                             match_count) / num_ex
+                             match_count) / num_ex_f
         model['dice'] = dice
 
         model['count_acc'] = f_count_acc(s_out, s_gt)
         model['dic'] = f_dic(s_out, s_gt, abs=False)
         model['dic_abs'] = f_dic(s_out, s_gt, abs=True)
 
-        # Attention coordinate for debugging [B, T, 2]
+################################
+# Controller output statistics
+################################
         attn_top_left = tf.concat(1, [tf.expand_dims(tmp, 1)
                                       for tmp in attn_top_left])
         attn_bot_right = tf.concat(1, [tf.expand_dims(tmp, 1)
@@ -758,10 +755,11 @@ def get_model(opt, device='/cpu:0'):
                                           for tmp in attn_box_lg_gamma])
         y_out_lg_gamma = tf.concat(1, [tf.expand_dims(tmp, 1)
                                        for tmp in y_out_lg_gamma])
-        attn_lg_gamma_mean = tf.reduce_sum(attn_lg_gamma) / num_ex / timespan
+        attn_lg_gamma_mean = tf.reduce_sum(attn_lg_gamma) / num_ex_f / timespan
         attn_box_lg_gamma_mean = tf.reduce_sum(
-            attn_box_lg_gamma) / num_ex / timespan
-        y_out_lg_gamma_mean = tf.reduce_sum(y_out_lg_gamma) / num_ex / timespan
+            attn_box_lg_gamma) / num_ex_f / timespan
+        y_out_lg_gamma_mean = tf.reduce_sum(
+            y_out_lg_gamma) / num_ex_f / timespan
         model['attn_ctr'] = attn_ctr
         model['attn_size'] = attn_size
         model['attn_top_left'] = attn_top_left
@@ -769,19 +767,5 @@ def get_model(opt, device='/cpu:0'):
         model['attn_lg_gamma_mean'] = attn_lg_gamma_mean
         model['attn_box_lg_gamma_mean'] = attn_box_lg_gamma_mean
         model['y_out_lg_gamma_mean'] = y_out_lg_gamma_mean
-
-        # # Ctrl RNN gate statistics
-        # crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
-        # crnn_g_f = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_f])
-        # crnn_g_o = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_o])
-        # crnn_g_i_avg = tf.reduce_sum(
-        #     crnn_g_i) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
-        # crnn_g_f_avg = tf.reduce_sum(
-        #     crnn_g_f) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
-        # crnn_g_o_avg = tf.reduce_sum(
-        #     crnn_g_o) / tf.to_float(num_ex) / timespan / ctrl_rnn_hid_dim
-        # model['crnn_g_i_avg'] = crnn_g_i_avg
-        # model['crnn_g_f_avg'] = crnn_g_f_avg
-        # model['crnn_g_o_avg'] = crnn_g_o_avg
 
     return model

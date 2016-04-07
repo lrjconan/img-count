@@ -48,7 +48,7 @@ def get_model(opt, device='/:cpu:0'):
     fixed_order = opt['fixed_order']
 
     # New parameters for double attention.
-    ctrl_rnn_inp = opt['ctrl_rnn_inp']
+    ctrl_rnn_inp_struct = opt['ctrl_rnn_inp_struct']  # dense or attn
     num_ctrl_rnn_iter = opt['num_ctrl_rnn_iter']
     num_glimpse_mlp_layers = opt['num_glimpse_mlp_layers']
 
@@ -71,7 +71,7 @@ def get_model(opt, device='/:cpu:0'):
 
         # Groundtruth confidence score, [B, T]
         s_gt = tf.placeholder('float', [None, timespan])
-        
+
         # Whether in training stage.
         phase_train = tf.placeholder('bool')
         phase_train_f = tf.to_float(phase_train)
@@ -148,12 +148,13 @@ def get_model(opt, device='/:cpu:0'):
 
         glimpse_map_dim = crnn_h * crnn_w
         glimpse_feat_dim = ccnn_channels[-1]
-        if ctrl_rnn_inp == 'dense':
+        if ctrl_rnn_inp_struct == 'dense':
             crnn_inp_dim = crnn_h * crnn_w * ccnn_channels[-1]
-        elif ctrl_rnn_inp == 'attn':
+        elif ctrl_rnn_inp_struct == 'attn':
             crnn_inp_dim = glimpse_feat_dim
 
         crnn_state = [None] * (timespan + 1)
+        crnn_glimpse_map = [None] * timespan
         crnn_g_i = [None] * timespan
         crnn_g_f = [None] * timespan
         crnn_g_o = [None] * timespan
@@ -239,12 +240,43 @@ def get_model(opt, device='/:cpu:0'):
             crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
 
             # Controller RNN [B, R1]
-            crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[tt] = \
-                crnn_cell(crnn_inp, crnn_state[tt - 1])
-            h_crnn[tt] = tf.slice(
-                crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
+            if ctrl_rnn_inp_struct == 'dense':
+                crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[tt] = \
+                    crnn_cell(crnn_inp, crnn_state[tt - 1])
+                h_crnn[tt] = tf.slice(
+                    crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
 
-            ctrl_out = cmlp(h_crnn[tt])[-1]
+                ctrl_out = cmlp(h_crnn[tt])[-1]
+
+            elif ctrl_rnn_inp_struct == 'attn':
+                crnn_state[tt] = [None] * (num_ctrl_rnn_iter + 1)
+                crnn_g_i[tt] = [None] * num_ctrl_rnn_iter
+                crnn_g_f[tt] = [None] * num_ctrl_rnn_iter
+                crnn_g_o[tt] = [None] * num_ctrl_rnn_iter
+                h_crnn[tt] = [None] * num_ctrl_rnn_iter
+
+                crnn_state[tt][-1] = tf.zeros(tf.pack([num_ex, crnn_dim * 2]))
+
+                crnn_glimpse_map[tt] = [None] * num_ctrl_rnn_iter
+                crnn_glimpse_map[tt][0] = tf.ones(
+                    tf.pack([num_ex, glimpse_map_dim, 1])) / glimpse_map_dim
+
+                # Inner glimpse RNN
+                for tt2 in xrange(num_ctrl_rnn_iter):
+                    crnn_glimpse = tf.reduce_sum(
+                        crnn_inp * crnn_glimpse_map[tt][tt2], [1])
+                    crnn_state[tt][tt2], crnn_g_i[tt][tt2], crnn_g_f[tt][tt2], \
+                        crnn_g_o[tt][tt2] = \
+                        crnn_cell(crnn_glimpse, crnn_state[tt][tt2 - 1])
+                    h_crnn[tt][tt2] = tf.slice(
+                        crnn_state[tt][tt2], [0, crnn_dim], [-1, crnn_dim])
+                    h_gmlp = gmlp(h_crnn[tt][tt2])
+                    if tt2 < num_ctrl_rnn_iter - 1:
+                        crnn_glimpse_map[tt][
+                            tt2 + 1] = tf.expand_dims(h_gmlp[-1], 2)
+
+                ctrl_out = cmlp(h_crnn[tt][-1])[-1]
+
             attn_ctr_norm[tt] = tf.slice(ctrl_out, [0, 0], [-1, 2])
             attn_lg_size[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
 
@@ -255,7 +287,6 @@ def get_model(opt, device='/:cpu:0'):
 
             attn_ctr[tt], attn_size[tt] = base.get_unnormalized_attn(
                 attn_ctr_norm[tt], attn_lg_size[tt], inp_height, inp_width)
-
             attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
             attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
             attn_box_gamma[tt] = tf.reshape(tf.exp(
@@ -326,10 +357,14 @@ def get_model(opt, device='/:cpu:0'):
             _noise = tf.random_uniform(
                 tf.pack([num_ex, inp_height, inp_width, 1]), 0, 0.3)
             _y_out = _y_out - _y_out * _noise
-            canvas += tf.stop_gradient(_y_out)
+            canvas = tf.stop_gradient(tf.maximum(_y_out, canvas))
+            # canvas += tf.stop_gradient(_y_out)
 
             # Scoring network
-            s_out[tt] = smlp(h_crnn[tt])[-1]
+            if ctrl_rnn_inp_struct == 'dense':
+                s_out[tt] = smlp(h_crnn[tt])[-1]
+            elif ctrl_rnn_inp_struct == 'attn':
+                s_out[tt] = smlp(h_crnn[tt][-1])[-1]
 
 #########################
 # Model outputs
@@ -363,7 +398,6 @@ def get_model(opt, device='/:cpu:0'):
 #########################
 # Loss function
 #########################
-
         y_gt_shape = tf.shape(y_gt)
         num_ex_f = tf.to_float(y_gt_shape[0])
         max_num_obj = tf.to_float(y_gt_shape[1])
@@ -451,21 +485,5 @@ def get_model(opt, device='/:cpu:0'):
             tf.train.AdamOptimizer(learn_rate, epsilon=eps),
             clip=1.0).minimize(total_loss, global_step=global_step)
         model['train_step'] = train_step
-
-################################
-# Controller output statistics
-################################
-        crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
-        crnn_g_f = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_f])
-        crnn_g_o = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_o])
-        crnn_g_i_avg = tf.reduce_sum(
-            crnn_g_i) / num_ex_f / timespan / ctrl_rnn_hid_dim
-        crnn_g_f_avg = tf.reduce_sum(
-            crnn_g_f) / num_ex_f / timespan / ctrl_rnn_hid_dim
-        crnn_g_o_avg = tf.reduce_sum(
-            crnn_g_o) / num_ex_f / timespan / ctrl_rnn_hid_dim
-        model['crnn_g_i_avg'] = crnn_g_i_avg
-        model['crnn_g_f_avg'] = crnn_g_f_avg
-        model['crnn_g_o_avg'] = crnn_g_o_avg
 
     return model

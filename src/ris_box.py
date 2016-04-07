@@ -124,6 +124,9 @@ def _add_model_args(parser):
     kStepsPerLearnRateDecay = 5000
     kFilterHeight = 48
     kFilterWidth = 48
+    kCtrlRnnInpStruct = 'dense'
+    kNumCtrlRNNIter = 5
+    kNumGlimpseMlpLayers = 2
 
     parser.add_argument('-filter_height', default=kFilterHeight, type=int,
                         help='Attention filter width')
@@ -156,6 +159,12 @@ def _add_model_args(parser):
                         help='Steps every learning rate decay')
     parser.add_argument('-squash_ctrl_params', action='store_true',
                         help='Whether to squash control parameters.')
+    parser.add_argument('-ctrl_rnn_inp_struct', default=kCtrlRnnInpStruct,
+                        help='Dense or attn')
+    parser.add_argument('-num_ctrl_rnn_iter', default=kNumCtrlRNNIter,
+                        type=int, help='Number of control RNN iterations')
+    parser.add_argument('-num_glimpse_mlp_layers', default=kNumGlimpseMlpLayers,
+                        type=int, help='Number of glimpse MLP layers')
 
     pass
 
@@ -257,6 +266,9 @@ def _make_model_opt(args):
         'pretrain_cnn': args.pretrain_cnn,
         'use_iou_box': args.use_iou_box,
         'squash_ctrl_params': args.squash_ctrl_params,
+        'ctrl_rnn_inp_struct': args.ctrl_rnn_inp_struct,
+        'num_ctrl_rnn_iter': args.num_ctrl_rnn_iter,
+        'num_glimpse_mlp_layers': args.num_glimpse_mlp_layers,
 
         'rnd_hflip': True,
         'rnd_vflip': False,
