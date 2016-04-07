@@ -26,13 +26,13 @@ from data_api import synth_shape
 from data_api import cvppp
 from data_api import kitti
 
-from utils import log_manager
 from utils import logger
+from utils import plot_utils as pu
 from utils.batch_iter import BatchIterator
 from utils.lazy_registerer import LazyRegisterer
+from utils.log_manager import LogManager
 from utils.saver import Saver
 from utils.time_series_logger import TimeSeriesLogger
-from utils import plot_utils as pu
 
 import ris_base as base
 import ris_vanilla_model as vanilla_model
@@ -65,6 +65,23 @@ def get_model(opt, device='/cpu:0'):
         raise Exception('Unknown model name "{}"'.format(name))
 
     pass
+
+
+def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
+    """Plot double attention.
+
+    Args:
+        fname: str, image output filename.
+        x: [B, H, W, 3], input image.
+        glimpse_map: [B, T, T2, H', W']: glimpse attention map.
+    """
+    num_ex = y_out.shape[0]
+    timespan = glimpse_map.shape[1]
+    num_glimpse = glimpse_map.shape[2]
+    num_items = timespan * num_glimpse
+    num_row, num_col, calc = pu.calc_row_col(
+        num_ex, num_items, max_items_per_row=max_items_per_row)
+
 
 
 def plot_total_instances(fname, y_out, s_out, max_items_per_row=9):
@@ -939,79 +956,89 @@ def _get_model_id(task_name):
     return model_id
 
 
-def _get_ts_loggers(model_opt, debug_bn=False, debug_weights=False):
+def _get_ts_loggers(model_opt, restore_step=0, debug_bn=False, debug_weights=False):
     loggers = {}
     loggers['loss'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'loss.csv'), ['train', 'valid'],
         name='Loss',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['conf_loss'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'conf_loss.csv'), ['train', 'valid'],
         name='Confidence Loss',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['segm_loss'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'segm_loss.csv'), ['train', 'valid'],
         name='Segmentation Loss',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['iou'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'iou.csv'),
         ['train soft', 'valid soft', 'train hard', 'valid hard'],
         name='IoU',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['wt_cov'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'wt_cov.csv'), ['train', 'valid'],
         name='Weighted Coverage',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['unwt_cov'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'unwt_cov.csv'), ['train', 'valid'],
         name='Unweighted Coverage',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['dice'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'dice.csv'), ['train', 'valid'],
         name='Dice',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['dic'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'dic.csv'), ['train', 'valid'],
         name='DiC',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['dic_abs'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'dic_abs.csv'), ['train', 'valid'],
         name='|DiC|',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['learn_rate'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'learn_rate.csv'), 'learning rate',
         name='Learning rate',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['count_acc'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'count_acc.csv'), ['train', 'valid'],
         name='Count acc',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['step_time'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
         name='Step time',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
 
     if model_opt['type'] == 'attention' or \
             model_opt['type'] == 'double_attention':
         loggers['box_loss'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'box_loss.csv'), ['train', 'valid'],
             name='Box Loss',
-            buffer_size=1)
-        # loggers['crnn'] = TimeSeriesLogger(
-        #     os.path.join(logs_folder, 'crnn.csv'),
-        #     ['input gate', 'forget gate', 'output gate'],
-        #     name='Ctrl RNN',
-        #     buffer_size=1)
+            buffer_size=1,
+            restore_step=restore_step)
         loggers['gt_knob'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'gt_knob.csv'),
             ['box', 'segmentation'],
             name='GT mix',
-            buffer_size=1)
+            buffer_size=1,
+            restore_step=restore_step)
         loggers['attn_params'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'attn_params.csv'),
             ['attn log gamma', 'box log gamma', 'out log gamma'],
             name='Attn params',
-            buffer_size=1)
+            buffer_size=1,
+            restore_step=restore_step)
 
     if debug_weights:
         for layer_name, nlayers in zip(['glimpse_mlp', 'ctrl_mlp'],
@@ -1095,7 +1122,7 @@ def _get_plot_loggers(model_opt, train_opt):
 
 def _register_raw_logs(log_manager, log, model_opt, saver):
     log_manager.register(log.filename, 'plain', 'Raw logs')
-    cmd_fname = os.path.join(logs_folder, 'cmd.txt')
+    cmd_fname = os.path.join(logs_folder, 'cmd.log')
     with open(cmd_fname, 'w') as f:
         f.write(' '.join(sys.argv))
     log_manager.register(cmd_fname, 'plain', 'Command-line arguments')
@@ -1162,7 +1189,7 @@ if __name__ == '__main__':
     if train_opt['logs']:
         logs_folder = train_opt['logs']
         logs_folder = os.path.join(logs_folder, model_id)
-        log = logger.get(os.path.join(logs_folder, 'raw'))
+        log = logger.get(os.path.join(logs_folder, 'raw.log'))
     else:
         log = logger.get()
 
@@ -1198,6 +1225,7 @@ if __name__ == '__main__':
     # Create time series loggers
     loggers = {}
     if train_opt['logs']:
+        log_manager = LogManager(logs_folder)
         loggers = _get_ts_loggers(model_opt, debug_bn=train_opt['debug_bn'],
                                   debug_weights=train_opt['debug_weights'])
         _register_raw_logs(log_manager, log, model_opt, saver)

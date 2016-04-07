@@ -1,7 +1,8 @@
-import log_manager
+from log_manager import LogManager
 import logger
 
 log = logger.get()
+
 
 class LazyRegisterer():
 
@@ -15,15 +16,14 @@ class LazyRegisterer():
         pass
 
     def is_registered(self):
-
         return self._registered
 
     def get_fname(self):
-
         return self._fname
 
     def register(self):
         self._registered = True
-        log_manager.register(self._fname, self._typ, self._name)
+        LogManager(os.dirname(self._fname)).register(
+            self._fname, self._typ, self._name)
 
         pass

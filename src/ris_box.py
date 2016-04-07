@@ -25,13 +25,13 @@ from data_api import synth_shape
 from data_api import cvppp
 from data_api import kitti
 
-from utils import log_manager
 from utils import logger
+from utils import plot_utils as pu
 from utils.batch_iter import BatchIterator
 from utils.lazy_registerer import LazyRegisterer
+from utils.log_manager import LogManager
 from utils.saver import Saver
 from utils.time_series_logger import TimeSeriesLogger
-from utils import plot_utils as pu
 
 import ris_base as base
 import ris_box_model as model
@@ -322,24 +322,28 @@ def _get_model_id(task_name):
     return model_id
 
 
-def _get_ts_loggers(model_opt):
+def _get_ts_loggers(model_opt, restore_step=0):
     loggers = {}
     loggers['loss'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'loss.csv'), ['train', 'valid'],
         name='Loss',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['box_loss'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'box_loss.csv'), ['train', 'valid'],
         name='Box Loss',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['conf_loss'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'conf_loss.csv'), ['train', 'valid'],
         name='Confidence Loss',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['step_time'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
         name='Step time',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
 
     return loggers
 
@@ -360,7 +364,7 @@ def _get_plot_loggers(model_opt, train_opt):
 
 def _register_raw_logs(log_manager, log, model_opt, saver):
     log_manager.register(log.filename, 'plain', 'Raw logs')
-    cmd_fname = os.path.join(logs_folder, 'cmd.txt')
+    cmd_fname = os.path.join(logs_folder, 'cmd.log')
     with open(cmd_fname, 'w') as f:
         f.write(' '.join(sys.argv))
     log_manager.register(cmd_fname, 'plain', 'Command-line arguments')
@@ -444,7 +448,7 @@ if __name__ == '__main__':
     if train_opt['logs']:
         logs_folder = train_opt['logs']
         logs_folder = os.path.join(logs_folder, model_id)
-        log = logger.get(os.path.join(logs_folder, 'raw'))
+        log = logger.get(os.path.join(logs_folder, 'raw.log'))
     else:
         log = logger.get()
 
@@ -479,7 +483,8 @@ if __name__ == '__main__':
 
     # Create time series loggers
     if train_opt['logs']:
-        loggers = _get_ts_loggers(model_opt)
+        log_manager = LogManager(logs_folder)
+        loggers = _get_ts_loggers(model_opt, restore_step=step)
         _register_raw_logs(log_manager, log, model_opt, saver)
         samples = _get_plot_loggers(model_opt, train_opt)
         _log_url = 'http://{}/deep-dashboard?id={}'.format(

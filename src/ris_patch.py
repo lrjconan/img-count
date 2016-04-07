@@ -25,7 +25,7 @@ from data_api import synth_shape
 from data_api import cvppp
 from data_api import kitti
 
-from utils import log_manager
+from utils.log_manager import LogManager
 from utils import logger
 from utils.batch_iter import BatchIterator
 from utils.lazy_registerer import LazyRegisterer
@@ -993,7 +993,7 @@ def _get_plot_loggers(model_opt, train_opt):
 
 def _register_raw_logs(log_manager, log, model_opt, saver):
     log_manager.register(log.filename, 'plain', 'Raw logs')
-    cmd_fname = os.path.join(logs_folder, 'cmd.txt')
+    cmd_fname = os.path.join(logs_folder, 'cmd.log')
     with open(cmd_fname, 'w') as f:
         f.write(' '.join(sys.argv))
     log_manager.register(cmd_fname, 'plain', 'Command-line arguments')
@@ -1061,7 +1061,7 @@ if __name__ == '__main__':
     if train_opt['logs']:
         logs_folder = train_opt['logs']
         logs_folder = os.path.join(logs_folder, model_id)
-        log = logger.get(os.path.join(logs_folder, 'raw'))
+        log = logger.get(os.path.join(logs_folder, 'raw.log'))
     else:
         log = logger.get()
 
@@ -1097,6 +1097,7 @@ if __name__ == '__main__':
     # Create time series loggers
     loggers = {}
     if train_opt['logs']:
+        log_manager = LogManager(logs_folder)
         loggers = _get_ts_loggers(model_opt, debug_bn=train_opt['debug_bn'],
                                   debug_weights=train_opt['debug_weights'])
         _register_raw_logs(log_manager, log, model_opt, saver)

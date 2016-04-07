@@ -72,11 +72,7 @@ class Logger(object):
         self.verbose_thresh = int(os.environ.get('VERBOSE', 0))
         self.default_verbose = default_verbose
         if filename is not None:
-            self.filename = \
-                '{}-{:04d}{:02d}{:02d}-{:02d}{:02d}{:02d}.log'.format(
-                    filename,
-                    now.year, now.month, now.day,
-                    now.hour, now.minute, now.second)
+            self.filename = filename
             dirname = os.path.dirname(self.filename)
             if not os.path.exists(dirname):
                 os.makedirs(dirname)

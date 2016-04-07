@@ -1,5 +1,6 @@
+from log_manager import LogManager
+
 import datetime
-import log_manager
 import logger
 import os
 
@@ -9,7 +10,7 @@ log = logger.get()
 class TimeSeriesLogger():
     """Log time series data to CSV file."""
 
-    def __init__(self, filename, labels, name=None, buffer_size=100):
+    def __init__(self, filename, labels, name=None, buffer_size=100, restore_step=0):
         """
         Args:
             label: list of string
@@ -17,16 +18,42 @@ class TimeSeriesLogger():
         """
         self.filename = filename
         self.written_catalog = False
+
         if type(labels) != list:
             labels = [labels]
         if name is None:
             self.name = labels[0]
         else:
             self.name = name
+
         self.labels = labels
-        self.buffer = []
-        self.buffer.append('step,time,{}\n'.format(','.join(self.labels)))
         self.buffer_size = buffer_size
+
+        if restore_step > 0:
+            if not os.path.exists(self.filename):
+                log.error('Cannot restore from file: {}'.format(self.filename))
+                self.buffer = []
+                self.buffer.append(
+                    'step,time,{}\n'.format(','.join(self.labels)))
+            else:
+                with open(self.filename, 'r') as f:
+                    lines = f.readlines()
+                    for line in lines:
+                        parts = line.split(',')
+                        if parts[0].isdigit():
+                            step = int(parts[0])
+                            if step > restore_step:
+                                break
+                        self.buffer.append(line)
+                t = datetime.datetime.now()
+                os.rename(self.filename, self.filename +
+                          '.{:04d}{:02d}{:02d}-{:02d}{:02d}{:02d}.bak'.format(
+                              t.year, t.month, t.day, t.hour, t.minute,
+                              t.second))
+                self.written_catalog = True
+        else:
+            self.buffer = []
+            self.buffer.append('step,time,{}\n'.format(','.join(self.labels)))
         log.info('Time series data "{}" log to "{}"'.format(labels, filename))
         pass
 
@@ -51,7 +78,7 @@ class TimeSeriesLogger():
         """Write the buffer to file."""
 
         if not self.written_catalog:
-            log_manager.register(self.filename, 'csv', self.name)
+            LogManager(self.folder).register(self.filename, 'csv', self.name)
             self.written_catalog = True
 
         if not os.path.exists(self.filename):
