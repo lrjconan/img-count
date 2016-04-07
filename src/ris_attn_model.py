@@ -467,7 +467,7 @@ def get_model(opt, device='/cpu:0'):
             if use_iou_box:
                 _idx_map = base.get_idx_map(
                     tf.pack([num_ex, inp_height, inp_width]))
-                attn_top_left[tt], attn_bot_right[tt] = get_box_coord(
+                attn_top_left[tt], attn_bot_right[tt] = base.get_box_coord(
                     attn_ctr[tt], attn_size[tt])
                 attn_box[tt] = base.get_filled_box_idx(
                     _idx_map, attn_top_left[tt], attn_bot_right[tt])
