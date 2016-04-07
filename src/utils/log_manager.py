@@ -11,6 +11,7 @@ class LogManager(object):
         self.catalog = os.path.join(folder, 'catalog')
         self.filelist = []
 
+        log.fatal(self.catalog)
         if not os.path.exists(self.catalog):
             with open(self.catalog, 'w') as f:
                 f.write('filename,type,name\n')
