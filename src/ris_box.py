@@ -475,12 +475,6 @@ if __name__ == '__main__':
 
     sess = tf.Session()
 
-    # Restore/intialize weights
-    if args.restore:
-        saver.restore(sess, ckpt_fname)
-    else:
-        sess.run(tf.initialize_all_variables())
-
     # Create time series loggers
     if train_opt['logs']:
         log_manager = LogManager(logs_folder)
@@ -490,6 +484,12 @@ if __name__ == '__main__':
         _log_url = 'http://{}/deep-dashboard?id={}'.format(
             train_opt['localhost'], model_id)
         log.info('Visualization can be viewed at: {}'.format(_log_url))
+
+    # Restore/intialize weights
+    if args.restore:
+        saver.restore(sess, ckpt_fname)
+    else:
+        sess.run(tf.initialize_all_variables())
 
     batch_size = args.batch_size
     log.info('Batch size: {}'.format(batch_size))
