@@ -83,7 +83,6 @@ def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
         num_ex, num_items, max_items_per_row=max_items_per_row)
 
 
-
 def plot_total_instances(fname, y_out, s_out, max_items_per_row=9):
     """Plot cumulative image with different colour at each timestep.
 
@@ -415,7 +414,6 @@ def _add_model_args(parser):
 
     kCtrlCnnFilterSize = '3,3,3,3,3'
     kCtrlCnnDepth = '4,8,16,16,32'
-    # kCtrlCnnDepth = '4,8,8,12,16'
     kCtrlCnnPool = '2,2,2,2,2'
     kAttnCnnFilterSize = '3,3,3'
     kAttnCnnDepth = '4,8,16'
@@ -423,16 +421,6 @@ def _add_model_args(parser):
     kAttnDcnnFilterSize = '3,3,3,3'
     kAttnDcnnDepth = '16,8,4,1'
     kAttnDcnnPool = '2,2,2,1'
-
-    # kCtrlCnnFilterSize = '3,3,3,3,3'
-    # kCtrlCnnDepth = '4,8,16,16,32'
-    # kCtrlCnnPool = '2,2,2,2,2'
-    # kAttnCnnFilterSize = '3,3,3,3,3'
-    # kAttnCnnDepth = '4,8,16,16,32'
-    # kAttnCnnPool = '2,1,2,1,2'
-    # kAttnDcnnFilterSize = '3,3,3,3,3,3'
-    # kAttnDcnnDepth = '16,16,8,4,4,1'
-    # kAttnDcnnPool = '2,1,2,1,2,1'
 
     kCtrlMlpDim = 256
     kNumCtrlMlpLayers = 2
@@ -515,7 +503,8 @@ def _add_model_args(parser):
                         help='Whether to use batch normalization.')
     parser.add_argument('-no_cum_min', action='store_true',
                         help='Whether cumulative minimum. Default yes.')
-    parser.add_argument('-fixed_order', action='store_true')
+    parser.add_argument('-fixed_order', action='store_true',
+                        help='Fix the groundtruth order.')
 
     # Attention-based model options
     parser.add_argument('-filter_height', default=kFilterHeight, type=int,
@@ -597,6 +586,8 @@ def _add_model_args(parser):
                         help='Largest gradient norm size')
     parser.add_argument('-squash_ctrl_params', action='store_true',
                         help='Whether to squash control parameters.')
+    parser.add_argument('-fixed_gamma', action='store_true',
+                        help='Fix the value of gamma.')
 
     # Double attention arguments
     parser.add_argument('-num_ctrl_rnn_iter', default=kNumCtrlRNNIter,
@@ -774,6 +765,7 @@ def _make_model_opt(args):
             'use_iou_box': args.use_iou_box,
             'clip_gradient': args.clip_gradient,
             'fixed_order': args.fixed_order,
+            'fixed_gamma': args.fixed_gamma,
 
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,
@@ -783,8 +775,6 @@ def _make_model_opt(args):
         if args.model == 'double_attention':
             model_opt['num_ctrl_rnn_iter'] = args.num_ctrl_rnn_iter
             model_opt['num_glimpse_mlp_layers'] = args.num_glimpse_mlp_layers
-            # model_opt['num_ctrl_rnn_iter'] = 5
-            # model_opt['num_glimpse_mlp_layers'] = 1
 
     elif args.model == 'vanilla':
         cnn_fsize_list = args.cnn_filter_size.split(',')
@@ -1609,7 +1599,6 @@ if __name__ == '__main__':
                                                           _step_time))
             loggers['loss'].add(step, [r['loss'], ''])
             loggers['step_time'].add(step, _step_time)
-
 
         pass
 

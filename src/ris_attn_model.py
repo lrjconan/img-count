@@ -76,6 +76,7 @@ def get_model(opt, device='/cpu:0'):
     use_iou_box = opt['use_iou_box']
     fixed_order = opt['fixed_order']
     clip_gradient = opt['clip_gradient']
+    fixed_gamma = opt['fixed_gamma']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -437,9 +438,15 @@ def get_model(opt, device='/cpu:0'):
                 attn_ctr_norm[tt], attn_lg_size[tt], inp_height, inp_width)
 
             attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
-            attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
+
+            if fixed_gamma:
+                attn_lg_gamma[tt] = tf.zeros(tf.pack([num_ex, 1]))
+                y_out_lg_gamma[tt] = tf.zeros(tf.pack([num_ex, 1])
+            else:
+                attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
+                y_out_lg_gamma[tt] = tf.slice(ctrl_out, [0, 8], [-1, 1])
+
             attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
-            y_out_lg_gamma[tt] = tf.slice(ctrl_out, [0, 8], [-1, 1])
             attn_gamma[tt] = tf.reshape(
                 tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
             attn_box_gamma[tt] = tf.reshape(tf.exp(
