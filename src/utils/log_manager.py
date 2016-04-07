@@ -28,7 +28,7 @@ class LogManager(object):
     def register(self, filename, typ, name):
         basename = os.path.basename(filename)
         for pair in self.filelist:
-            if pair[0] == filename:
+            if pair[0] == basename:
                 log.info('File {} is already registered.'.format(basename))
                 return
 
