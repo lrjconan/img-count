@@ -48,9 +48,14 @@ def get_model(opt, device='/:cpu:0'):
     fixed_order = opt['fixed_order']
 
     # New parameters for double attention.
-    ctrl_rnn_inp_struct = opt['ctrl_rnn_inp_struct']  # dense or attn
-    num_ctrl_rnn_iter = opt['num_ctrl_rnn_iter']
-    num_glimpse_mlp_layers = opt['num_glimpse_mlp_layers']
+    if 'ctrl_rnn_inp_struct' in opt:
+        ctrl_rnn_inp_struct = opt['ctrl_rnn_inp_struct']  # dense or attn
+        num_ctrl_rnn_iter = opt['num_ctrl_rnn_iter']
+        num_glimpse_mlp_layers = opt['num_glimpse_mlp_layers']
+    else:
+        ctrl_rnn_inp_struct = 'dense'
+        num_ctrl_rnn_iter = 5
+        num_glimpse_mlp_layers = 1
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
