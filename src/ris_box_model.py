@@ -407,7 +407,7 @@ def get_model(opt, device='/:cpu:0'):
 ############################
 # Box loss
 ############################
-        if fixed_order:
+        if not use_iou_box and fixed_order:
             # [B, T] for fixed order.
             iou_soft_box = base.f_iou(attn_box, attn_box_gt, pairwise=False)
         else:
