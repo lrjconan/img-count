@@ -237,10 +237,10 @@ def get_model(opt, device='/:cpu:0'):
             h_ccnn[tt] = ccnn(ccnn_inp)
             _h_ccnn = h_ccnn[tt]
             h_ccnn_last = _h_ccnn[-1]
-            crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
 
             # Controller RNN [B, R1]
             if ctrl_rnn_inp_struct == 'dense':
+                crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
                 crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[tt] = \
                     crnn_cell(crnn_inp, crnn_state[tt - 1])
                 h_crnn[tt] = tf.slice(
@@ -249,6 +249,8 @@ def get_model(opt, device='/:cpu:0'):
                 ctrl_out = cmlp(h_crnn[tt])[-1]
 
             elif ctrl_rnn_inp_struct == 'attn':
+                crnn_inp = tf.reshape(
+                    h_ccnn_last, [-1, glimpse_map_dim, glimpse_feat_dim])
                 crnn_state[tt] = [None] * (num_ctrl_rnn_iter + 1)
                 crnn_g_i[tt] = [None] * num_ctrl_rnn_iter
                 crnn_g_f[tt] = [None] * num_ctrl_rnn_iter
