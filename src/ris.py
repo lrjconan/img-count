@@ -636,6 +636,7 @@ def _add_training_args(parser):
                         help='Use the whole training set.')
     parser.add_argument('-debug_weights', action='store_true',
                         help='Plot the weights')
+    parser.add_argument('-debug_nan', action='store_true', help='Debug NaN')
 
     pass
 
@@ -907,7 +908,8 @@ def _make_train_opt(args):
         'logs': args.logs,
         'gpu': args.gpu,
         'localhost': args.localhost,
-        'debug_weights': args.debug_weights
+        'debug_weights': args.debug_weights,
+        'debug_nan': args.debug_nan
     }
 
     return train_opt
@@ -1361,7 +1363,7 @@ if __name__ == '__main__':
 
     def get_outputs_valid():
         _outputs = ['loss', 'conf_loss', 'segm_loss', 'iou_soft', 'iou_hard',
-                    'count_acc', 'dice', 'dic', 'dic_abs', 'wt_cov_hard', 
+                    'count_acc', 'dice', 'dic', 'dic_abs', 'wt_cov_hard',
                     'unwt_cov_hard']
 
         if model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention':
@@ -1371,7 +1373,7 @@ if __name__ == '__main__':
 
     def get_outputs_trainval():
         _outputs = ['loss', 'conf_loss', 'segm_loss', 'iou_soft', 'iou_hard',
-                    'count_acc', 'dice', 'dic', 'dic_abs', 'wt_cov_hard', 
+                    'count_acc', 'dice', 'dic', 'dic_abs', 'wt_cov_hard',
                     'unwt_cov_hard', 'learn_rate']
 
         if train_opt['debug_weights']:
@@ -1535,14 +1537,43 @@ if __name__ == '__main__':
 
         pass
 
-    def train_step(step, x, y, s):
+    def train_step(step, x, y, s, debug_nan=False):
         """Train step"""
-        _outputs = ['loss', 'train_step']
-        _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
-                      m['s_gt']: s}
-        _start_time = time.time()
-        r = _run_model(m, _outputs, _feed_dict)
-        _step_time = (time.time() - _start_time) * 1000
+
+        def check_nan(r):
+            # Check NaN.
+            if np.isnan(r['loss']):
+                log.error('NaN occurred. Saving last step.')
+                saver.save(sess, global_step=step)
+                input_file = h5py.File(
+                    os.path.join(exp_folder, 'nan_input.h5'))
+                input_file['x'] = x
+                input_file['y'] = y
+                input_file['s'] = s
+                raise Exception('NaN')
+
+        if debug_nan:
+            _start_time = time.time()
+            _outputs = ['loss']
+            _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
+                          m['s_gt']: s}
+            r = _run_model(m, _outputs, _feed_dict)
+            check_nan(r)
+
+            _outputs = ['train_step']
+            _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
+                          m['s_gt']: s}
+            _start_time = time.time()
+            r = _run_model(m, _outputs, _feed_dict)
+            _step_time = (time.time() - _start_time) * 1000
+        else:
+            _start_time = time.time()
+            _outputs = ['loss', 'train_step']
+            _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
+                          m['s_gt']: s}
+            r = _run_model(m, _outputs, _feed_dict)
+            _step_time = (time.time() - _start_time) * 1000
+            check_nan(r)
 
         # Print statistics.
         if step % train_opt['steps_per_log'] == 0:
@@ -1551,15 +1582,6 @@ if __name__ == '__main__':
             loggers['loss'].add(step, [r['loss'], ''])
             loggers['step_time'].add(step, _step_time)
 
-        # Check NaN.
-        if np.isnan(r['loss']):
-            log.error('NaN occurred. Saving last step.')
-            saver.save(sess, global_step=step)
-            input_file = h5py.File(os.path.join(exp_folder, 'nan_input.h5'))
-            input_file['x'] = x
-            input_file['y'] = y
-            input_file['s'] = s
-            raise Exception('NaN')
 
         pass
 
@@ -1610,7 +1632,7 @@ if __name__ == '__main__':
                 pass
 
             # Train step
-            train_step(step, _x, _y, _s)
+            train_step(step, _x, _y, _s, debug_nan=train_opt['debug_nan'])
 
             # Model ID reminder
             if step % (10 * train_opt['steps_per_log']) == 0:
