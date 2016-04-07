@@ -17,6 +17,7 @@ class TimeSeriesLogger():
             name: string
         """
         self.filename = filename
+        self.folder = os.path.dirname(filename)
         self.written_catalog = False
 
         if type(labels) != list:
