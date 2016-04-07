@@ -25,7 +25,7 @@ class LazyRegisterer():
 
     def register(self):
         self._registered = True
-        LogManager(os.dirname(self._fname)).register(
+        LogManager(os.path.dirname(self._fname)).register(
             self._fname, self._typ, self._name)
 
         pass
