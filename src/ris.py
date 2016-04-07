@@ -1576,6 +1576,7 @@ if __name__ == '__main__':
             _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
                           m['s_gt']: s}
             r = _run_model(m, _outputs, _feed_dict)
+            loss = r['loss']
             check_nan(r)
 
             _outputs = ['train_step']
@@ -1584,6 +1585,13 @@ if __name__ == '__main__':
             _start_time = time.time()
             r = _run_model(m, _outputs, _feed_dict)
             _step_time = (time.time() - _start_time) * 1000
+
+            # Print statistics.
+            if step % train_opt['steps_per_log'] == 0:
+                log.info('{:d} loss {:.4f} t {:.2f}ms'.format(step, loss,
+                                                              _step_time))
+                loggers['loss'].add(step, [loss, ''])
+                loggers['step_time'].add(step, _step_time)
         else:
             _start_time = time.time()
             _outputs = ['loss', 'train_step']
@@ -1593,12 +1601,12 @@ if __name__ == '__main__':
             _step_time = (time.time() - _start_time) * 1000
             check_nan(r)
 
-        # Print statistics.
-        if step % train_opt['steps_per_log'] == 0:
-            log.info('{:d} loss {:.4f} t {:.2f}ms'.format(step, r['loss'],
-                                                          _step_time))
-            loggers['loss'].add(step, [r['loss'], ''])
-            loggers['step_time'].add(step, _step_time)
+            # Print statistics.
+            if step % train_opt['steps_per_log'] == 0:
+                log.info('{:d} loss {:.4f} t {:.2f}ms'.format(step, r['loss'],
+                                                              _step_time))
+                loggers['loss'].add(step, [r['loss'], ''])
+                loggers['step_time'].add(step, _step_time)
 
         pass
 
