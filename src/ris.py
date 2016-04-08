@@ -1667,7 +1667,7 @@ if __name__ == '__main__':
                           m['s_gt']: s}
             r = _run_model(m, _outputs, _feed_dict)
             _step_time = (time.time() - _start_time) * 1000
-            check_nan(r)
+            check_nan(r['loss'])
 
             # Print statistics.
             if step % train_opt['steps_per_log'] == 0:
