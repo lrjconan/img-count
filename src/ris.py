@@ -76,11 +76,33 @@ def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
         glimpse_map: [B, T, T2, H', W']: glimpse attention map.
     """
     num_ex = y_out.shape[0]
+    im_height = x.shape[1]
+    im_width = x.shape[2]
     timespan = glimpse_map.shape[1]
     num_glimpse = glimpse_map.shape[2]
-    num_items = timespan * num_glimpse
+    num_items = num_glimpse
     num_row, num_col, calc = pu.calc_row_col(
-        num_ex, num_items, max_items_per_row=max_items_per_row)
+        num_ex * timespan, num_items, max_items_per_row=max_items_per_row)
+
+    f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
+    pu.set_axis_off(axarr, num_row, num_col)
+
+    for ii in xrange(num_ex):
+        for tt in xrange(timespan):
+            for jj in xrange(num_glimpse):
+                row, col = calc(ii * tt, jj)
+                total_img = np.zeros([im_height, im_width, 3])
+                total_img += x[ii] * 0.5
+                glimpse = np.expand_dims(glimpse_map[ii, tt, jj], 2)
+                glimpse = cv2.resize(glimpse, (im_height, im_width))
+                total_img += glimpse
+                axarr[row, col].imshow(total_img)
+
+    plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
+    plt.savefig(fname, dpi=150)
+    plt.close('all')
+
+    pass
 
 
 def plot_total_instances(fname, y_out, s_out, max_items_per_row=9):
@@ -1204,9 +1226,9 @@ if __name__ == '__main__':
             dataset['train']['label_segmentation'])
         dataset['valid']['label_segmentation'] = base.sort_by_segm_size(
             dataset['valid']['label_segmentation'])
-    
-    sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
-    # sess = tf.Session()
+
+    # sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+    sess = tf.Session()
 
     if args.restore:
         saver.restore(sess, ckpt_fname)
@@ -1654,10 +1676,10 @@ if __name__ == '__main__':
             #               outputs_trainval, write_log_trainval, True)
             #     pass
 
-            # # Plot samples
-            # if step % train_opt['steps_per_plot'] == 0:
-            #     run_samples()
-            #     pass
+            # Plot samples
+            if step % train_opt['steps_per_plot'] == 0:
+                run_samples()
+                pass
 
             # Train step
             train_step(step, _x, _y, _s, debug_nan=train_opt['debug_nan'])

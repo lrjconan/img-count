@@ -493,4 +493,11 @@ def get_model(opt, device='/:cpu:0'):
             clip=1.0).minimize(total_loss, global_step=global_step)
         model['train_step'] = train_step
 
+        # T * T2 * [H', W'] => [T, T2, H', W']
+        crnn_glimpse_map = tf.concat(
+            0, [tf.expand_dims(tf.concat(
+                0, [tf.expand_dims(crnn_glimpse_map[tt][tt2], 0)
+                    for tt2 in xrange(num_ctrl_rnn_iter)]), 0)
+                for tt in xrange(timespan)])
+        model['ctrl_rnn_glimpse_map'] = crnn_glimpse_map
     return model

@@ -59,6 +59,44 @@ def get_dataset(opt):
     return dataset
 
 
+def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
+    """Plot double attention.
+
+    Args:
+        fname: str, image output filename.
+        x: [B, H, W, 3], input image.
+        glimpse_map: [B, T, T2, H', W']: glimpse attention map.
+    """
+    num_ex = y_out.shape[0]
+    im_height = x.shape[1]
+    im_width = x.shape[2]
+    timespan = glimpse_map.shape[1]
+    num_glimpse = glimpse_map.shape[2]
+    num_items = num_glimpse
+    num_row, num_col, calc = pu.calc_row_col(
+        num_ex * timespan, num_items, max_items_per_row=max_items_per_row)
+
+    f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
+    pu.set_axis_off(axarr, num_row, num_col)
+
+    for ii in xrange(num_ex):
+        for tt in xrange(timespan):
+            for jj in xrange(num_glimpse):
+                row, col = calc(ii * tt, jj)
+                total_img = np.zeros([im_height, im_width, 3])
+                total_img += x[ii] * 0.5
+                glimpse = np.expand_dims(glimpse_map[ii, tt, jj], 2)
+                glimpse = cv2.resize(glimpse, (im_height, im_width))
+                total_img += glimpse
+                axarr[row, col].imshow(total_img)
+
+    plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
+    plt.savefig(fname, dpi=150)
+    plt.close('all')
+
+    pass
+
+
 def plot_output(fname, y_out, s_out, match, attn=None, max_items_per_row=9):
     """Plot some test samples.
 
@@ -353,6 +391,8 @@ def _get_plot_loggers(model_opt, train_opt):
     _ssets = ['train', 'valid']
     for _set in _ssets:
         labels = ['input', 'output']
+        if model_opt['ctrl_rnn_inp_struct'] == 'attn':
+            labels.append('attn')
         for name in labels:
             key = '{}_{}'.format(name, _set)
             samples[key] = LazyRegisterer(
@@ -504,10 +544,13 @@ if __name__ == '__main__':
 
     def run_samples():
         """Samples"""
-        def _run_samples(x, y, s, phase_train, fname_input, fname_output):
+        def _run_samples(x, y, s, phase_train, fname_input, fname_output, fname_attn=None):
             _outputs = ['x_trans', 'y_gt_trans', 'attn_top_left',
                         'attn_bot_right', 'attn_top_left_gt',
                         'attn_bot_right_gt', 'match_box', 's_out']
+
+            if fname_attn:
+                _outputs.append('ctrl_rnn_glimpse_map')
             _max_items = _get_max_items_per_row(x.shape[1], x.shape[2])
 
             _feed_dict = {m['x']: x, m['phase_train']: phase_train,
@@ -529,6 +572,10 @@ if __name__ == '__main__':
                         attn=(_r['attn_top_left'], _r['attn_bot_right']),
                         max_items_per_row=_max_items)
 
+            if fname_attn:
+                plot_double_attention(fname_attn, _x,
+                                      r['ctrl_rnn_glimpse_map'],
+                                      max_items_per_row=_max_items)
             pass
 
         # Plot some samples.
@@ -544,13 +591,20 @@ if __name__ == '__main__':
             _x, _y, _s = _get_batch(
                 np.arange(min(_num_ex, args.num_samples_plot)))
 
-            _run_samples(
-                _x, _y, _s, _is_train,
-                fname_input=samples['input_{}'.format(_set)].get_fname(),
-                fname_output=samples['output_{}'.format(_set)].get_fname())
+            labels = ['input', 'output']
+            fname_input = samples['input_{}'.format(_set)].get_fname()
+            fname_output = samples['output_{}'.format(_set)].get_fname()
+            if model_opt['ctrl_rnn_inp_struct'] == 'attn':
+                fname_attn = samples['attn_{}'.format(_set)].get_fname()
+                labels.append('attn')
+
+            _run_samples(_x, _y, _s, _is_train,
+                         fname_input=fname_input,
+                         fname_output=fname_output,
+                         fname_attn=fname_attn)
 
             if not samples['output_{}'.format(_set)].is_registered():
-                for _name in ['input', 'output']:
+                for _name in labels:
                     samples['{}_{}'.format(_name, _set)].register()
 
         pass
