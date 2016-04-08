@@ -72,13 +72,13 @@ def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
 
     Args:
         fname: str, image output filename.
-        x: [B, H, W, 3], input image.
+        x: [B, T, H, W, 3], input image.
         glimpse_map: [B, T, T2, H', W']: glimpse attention map.
     """
-    num_ex = y_out.shape[0]
-    im_height = x.shape[1]
-    im_width = x.shape[2]
-    timespan = glimpse_map.shape[1]
+    num_ex = x.shape[0]
+    timespan = x.shape[1]
+    im_height = x.shape[2]
+    im_width = x.shape[3]
     num_glimpse = glimpse_map.shape[2]
     num_items = num_glimpse
     num_row, num_col, calc = pu.calc_row_col(
@@ -92,11 +92,16 @@ def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
             for jj in xrange(num_glimpse):
                 row, col = calc(ii * tt, jj)
                 total_img = np.zeros([im_height, im_width, 3])
-                total_img += x[ii] * 0.5
-                glimpse = np.expand_dims(glimpse_map[ii, tt, jj], 2)
-                glimpse = cv2.resize(glimpse, (im_height, im_width))
-                total_img += glimpse
+                total_img += x[ii, tt] * 0.5
+                # glimpse = np.expand_dims(glimpse_map[ii, tt, jj], 2)
+                glimpse = glimpse_map[ii, tt, jj]
+                glimpse = cv2.resize(glimpse, (im_width, im_height))
+                glimpse = np.expand_dims(glimpse, 2)
+                glimpse_norm = glimpse / glimpse.max() * 0.5
+                total_img += glimpse_norm
                 axarr[row, col].imshow(total_img)
+                ax.text(0, -0.5, '[{:.2g}, {:.2g}]'.format(
+                    glimpse.min(), glimpse.max()), color=(0, 0, 0), size=8)
 
     plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=150)

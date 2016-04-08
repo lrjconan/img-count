@@ -5,6 +5,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 def calc_row_col(num_ex, num_items, max_items_per_row=9):
     num_rows_per_ex = int(np.ceil(num_items / max_items_per_row))
     if num_items > max_items_per_row:
@@ -60,8 +61,8 @@ def plot_thumbnails(fname, img, axis, max_items_per_row=9):
             else:
                 ax = axarr[row]
             ax.imshow(x)
-            ax.text(0, -0.5, '[{:.2g}, {:.2g}]'.format(
-                np.min(x), np.max(x)), color=(0, 0, 0), size=8)
+            ax.text(0, -0.5, '[{:.2g}, {:.2g}]'.format(x.min(), x.max()),
+                    color=(0, 0, 0), size=8)
 
     plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=150)
