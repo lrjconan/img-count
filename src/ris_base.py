@@ -194,14 +194,14 @@ def f_inter_box(top_left_a, bot_right_a, top_left_b, bot_right_b):
     Returns:
         area: [B, T]
     """
-    top_left = tf.maximum(top_left_a, top_left_b)
-    bot_right = tf.minimum(bot_right_a, bot_right_b)
+    top_left_max = tf.maximum(top_left_a, top_left_b)
+    bot_right_min = tf.minimum(bot_right_a, bot_right_b)
     ndims = tf.shape(tf.shape(top_left_a))
 
     # Check if the resulting box is valid.
     overlap = tf.to_float(top_left < bot_right)
     overlap = tf.reduce_prod(overlap, ndims - 1)
-    area = tf.reduce_prod(bot_right - top_left, ndims - 1)
+    area = tf.reduce_prod(bot_right_min - top_left_max, ndims - 1)
     area = overlap * tf.abs(area)
 
     return area

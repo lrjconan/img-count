@@ -296,7 +296,8 @@ def get_model(opt, device='/cpu:0'):
         adcnn_unpool = attn_dcnn_pool
         adcnn_act = [tf.nn.relu] * adcnn_nlayers
         adcnn_channels = [attn_mlp_depth] + attn_dcnn_depth
-        adcnn_use_bn = [use_bn] * (adcnn_nlayers - 1) + [False]
+        # adcnn_use_bn = [use_bn] * (adcnn_nlayers - 1) + [False]
+        adcnn_use_bn = [use_bn] * adcnn_nlayers
         adcnn_skip_ch = [0] + acnn_channels[::-1][1:]
 
         if pretrain_cnn:

@@ -16,23 +16,13 @@ log = logger.get()
 
 if __name__ == '__main__':
     model_folder = sys.argv[1]
-    # model_folder = '/ais/gobi3/u/mren/results/img-count/rec_ins_segm-20160329234848'
-    # model_folder = '../results/rec_ins_segm-20160330212049'
-    # model_type = 'double_attention'
-
-    # model_folder = '../results/rec_ins_segm-20160331003617'
-    # model_folder = '../results/rec_ins_segm-20160331203421'
     data_folder = '/ais/gobi3/u/mren/data/lsc/A1'
-    # model_folder = '../results/rec_ins_segm-20160329195154'
 
     saver = Saver(model_folder)
     ckpt_info = saver.get_ckpt_info()
 
     ckpt_fname = ckpt_info['ckpt_fname']
     step = ckpt_info['step']
-    # ckpt_id = 8000
-    # ckpt_id = 1200
-    # ckpt_fname = '{}/model.ckpt-{}'.format(model_folder, ckpt_id)
 
     model_opt = ckpt_info['model_opt']
     data_opt = ckpt_info['data_opt']
@@ -48,9 +38,9 @@ if __name__ == '__main__':
     elif model_opt['type'] == 'attention':
         model = attention.get_model(model_opt)
 
-    ############
-    # Run data #
-    ############
+#############
+# Run data 
+#############
     data = h5py.File(os.path.join(model_folder, 'nan_input.h5'), 'r')
     x = data['x'][:]
     y = data['y'][:]
@@ -145,3 +135,10 @@ if __name__ == '__main__':
             'Max', key, val.max(), np.abs(val).max()))
         log.info('{:6s} {:15s} {:10.4f} {:10.4f}'.format(
             'Min', key, val.min(), np.abs(val).min()))
+
+    print 'ctrl_mlp_b_0'
+    print model_val['ctrl_mlp_b_0']
+    print 'ctrl_mlp_w_0'
+    print model_val['ctrl_mlp_w_0']
+    print 'ctrl_cnn_w_0'
+    print model_val['ctrl_cnn_w_0']
