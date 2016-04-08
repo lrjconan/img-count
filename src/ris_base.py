@@ -659,10 +659,12 @@ def extract_patch(x, f_y, f_x, nchannels):
     return tf.concat(3, patch)
 
 
-def get_gt_attn(y_gt, padding_ratio=0.0, center_shift_ratio=0.0):
+def get_gt_attn(y_gt, padding_ratio=0.0, center_shift_ratio=0.0,
+        min_padding=10.0):
     """Get groundtruth attention box given segmentation."""
-    top_left, bot_right, box = get_gt_box(y_gt, padding_ratio,
-                                          center_shift_ratio)
+    top_left, bot_right, box = get_gt_box(y_gt, padding_ratio=padding_ratio,
+                                          center_shift_ratio=center_shift_ratio,
+                                          min_padding=min_padding)
 
     ctr, size = get_box_ctr_size(top_left, bot_right)
     lg_var = tf.zeros(tf.shape(ctr)) + 1.0
@@ -670,7 +672,7 @@ def get_gt_attn(y_gt, padding_ratio=0.0, center_shift_ratio=0.0):
     return ctr, size, lg_var, box, top_left, bot_right
 
 
-def get_gt_box(y_gt, padding_ratio=0.0, center_shift_ratio=0.0):
+def get_gt_box(y_gt, padding_ratio=0.0, center_shift_ratio=0.0, min_padding=10.0):
     """Get groundtruth bounding box given segmentation.
     Current only support [B, T, H, W] as input!!!
 
@@ -691,7 +693,6 @@ def get_gt_box(y_gt, padding_ratio=0.0, center_shift_ratio=0.0):
     # [B, T, 2]
     top_left = tf.reduce_min(idx_min, reduction_indices=[2, 3])
     bot_right = tf.reduce_max(idx_max, reduction_indices=[2, 3])
-    min_padding = 10
 
     # Enlarge the groundtruth box by some padding.
     size = bot_right - top_left

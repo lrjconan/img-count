@@ -296,7 +296,7 @@ def get_model(opt, device='/cpu:0'):
         adcnn_unpool = attn_dcnn_pool
         adcnn_act = [tf.nn.relu] * adcnn_nlayers
         adcnn_channels = [attn_mlp_depth] + attn_dcnn_depth
-        adcnn_use_bn = [use_bn] * adcnn_nlayers
+        adcnn_use_bn = [use_bn] * (adcnn_nlayers - 1) + [False]
         adcnn_skip_ch = [0] + acnn_channels[::-1][1:]
 
         if pretrain_cnn:
@@ -440,13 +440,14 @@ def get_model(opt, device='/cpu:0'):
             attn_lg_var[tt] = tf.zeros(tf.pack([num_ex, 2]))
 
             if fixed_gamma:
-                attn_lg_gamma[tt] = tf.zeros(tf.pack([num_ex, 1]))
-                y_out_lg_gamma[tt] = tf.zeros(tf.pack([num_ex, 1]))
+                attn_lg_gamma[tt] = tf.constant([0.0])
+                attn_box_lg_gamma[tt] = tf.constant([2.0])
+                y_out_lg_gamma[tt] = tf.constant([2.0])
             else:
                 attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
+                attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
                 y_out_lg_gamma[tt] = tf.slice(ctrl_out, [0, 8], [-1, 1])
 
-            attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
             attn_gamma[tt] = tf.reshape(
                 tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
             attn_box_gamma[tt] = tf.reshape(tf.exp(
@@ -797,11 +798,16 @@ def get_model(opt, device='/cpu:0'):
 ################################
 # Controller output statistics
 ################################
-        attn_lg_gamma_mean = tf.reduce_sum(attn_lg_gamma) / num_ex_f / timespan
-        attn_box_lg_gamma_mean = tf.reduce_sum(
-            attn_box_lg_gamma) / num_ex_f / timespan
-        y_out_lg_gamma_mean = tf.reduce_sum(
-            y_out_lg_gamma) / num_ex_f / timespan
+        if fixed_gamma:
+            attn_lg_gamma_mean = tf.constant([0.0])
+            attn_box_lg_gamma_mean = tf.constant([2.0])
+            y_out_lg_gamma_mean = tf.constant([2.0])
+        else:
+            attn_lg_gamma_mean = tf.reduce_sum(attn_lg_gamma) / num_ex_f / timespan
+            attn_box_lg_gamma_mean = tf.reduce_sum(
+                attn_box_lg_gamma) / num_ex_f / timespan
+            y_out_lg_gamma_mean = tf.reduce_sum(
+                y_out_lg_gamma) / num_ex_f / timespan
         model['attn_lg_gamma_mean'] = attn_lg_gamma_mean
         model['attn_box_lg_gamma_mean'] = attn_box_lg_gamma_mean
         model['y_out_lg_gamma_mean'] = y_out_lg_gamma_mean
