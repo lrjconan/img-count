@@ -391,16 +391,19 @@ def get_model(opt, device='/:cpu:0'):
         model['attn_ctr'] = attn_ctr
         model['attn_size'] = attn_size
         model['attn_ctr_norm_gt'] = attn_ctr_norm_gt
-        model['attn_lg_size_log_gt'] = attn_lg_size_gt
+        model['attn_lg_size_gt'] = attn_lg_size_gt
         model['attn_top_left_gt'] = attn_top_left_gt
         model['attn_bot_right_gt'] = attn_bot_right_gt
         model['attn_box_gt'] = attn_box_gt
         attn_ctr_norm = tf.concat(1, [tf.expand_dims(tmp, 1)
                                       for tmp in attn_ctr_norm])
-        attn_lg_size_log = tf.concat(1, [tf.expand_dims(tmp, 1)
-                                         for tmp in attn_lg_size])
+        attn_lg_size = tf.concat(1, [tf.expand_dims(tmp, 1)
+                                     for tmp in attn_lg_size])
         model['attn_ctr_norm'] = attn_ctr_norm
         model['attn_lg_size'] = attn_lg_size
+
+        attn_params = tf.concat(2, [attn_ctr_norm, attn_lg_size])
+        attn_params_gt = tf.concat(2, [attn_ctr_norm_gt, attn_lg_size_gt])
 
 #########################
 # Loss function
@@ -441,22 +444,22 @@ def get_model(opt, device='/:cpu:0'):
         iou_soft_box = tf.reduce_sum(
             iou_soft_box / match_count_box) / num_ex_f
 
-        # if box_loss_fn == 'mse':
-        #     box_loss = f_match_loss(
-        #         box_params, box_params_gt, match_box, timespan, f_squared_err,
-        #         model=model)
-        # elif box_loss_fn == 'huber':
-        #     box_loss = f_match_loss(
-        #         box_params, box_params_gt, match_box, timespan, f_huber)
+        if box_loss_fn == 'mse':
+            box_loss = base.f_match_loss(
+                attn_params, attn_params_gt, match_box, timespan, 
+                base.f_squared_err, model=model)
+        elif box_loss_fn == 'huber':
+            box_loss = base.f_match_loss(
+                attn_params, attn_params_gt, match_box, timespan, base.f_huber)
         if box_loss_fn == 'iou':
             box_loss = -iou_soft_box
         elif box_loss_fn == 'wt_iou':
             box_loss = -wt_iou_soft_box
         elif box_loss_fn == 'wt_cov':
-            box_loss = -f_weighted_coverage(iou_soft_box, box_map_gt)
+            box_loss = -base.f_weighted_coverage(iou_soft_box, box_map_gt)
         elif box_loss_fn == 'bce':
-            box_loss = f_match_loss(
-                box_map, box_map_gt, match_box, timespan, f_bce)
+            box_loss = base.f_match_loss(
+                box_map, box_map_gt, match_box, timespan, base.f_bce)
         else:
             raise Exception('Unknown box_loss_fn: {}'.format(box_loss_fn))
         model['box_loss'] = box_loss
@@ -497,14 +500,15 @@ def get_model(opt, device='/:cpu:0'):
 # Glimpse
 ####################
         # T * T2 * [B, H' * W'] => [B, T, T2, H', W']
-        crnn_glimpse_map = tf.concat(
-            1, [tf.expand_dims(tf.concat(
-                1, [tf.expand_dims(crnn_glimpse_map[tt][tt2], 1)
-                    for tt2 in xrange(num_ctrl_rnn_iter)]), 1)
-                for tt in xrange(timespan)])
-        crnn_glimpse_map = tf.reshape(
-            crnn_glimpse_map, [-1, timespan, num_ctrl_rnn_iter, crnn_h,
-                               crnn_w])
-        model['ctrl_rnn_glimpse_map'] = crnn_glimpse_map
-            
+        if ctrl_rnn_inp_struct == 'attn':
+            crnn_glimpse_map = tf.concat(
+                1, [tf.expand_dims(tf.concat(
+                    1, [tf.expand_dims(crnn_glimpse_map[tt][tt2], 1)
+                        for tt2 in xrange(num_ctrl_rnn_iter)]), 1)
+                    for tt in xrange(timespan)])
+            crnn_glimpse_map = tf.reshape(
+                crnn_glimpse_map, [-1, timespan, num_ctrl_rnn_iter, crnn_h,
+                                   crnn_w])
+            model['ctrl_rnn_glimpse_map'] = crnn_glimpse_map
+
         return model
