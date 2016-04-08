@@ -745,6 +745,7 @@ def _make_model_opt(args):
             'use_iou_box': args.use_iou_box,
             'clip_gradient': args.clip_gradient,
             'fixed_order': args.fixed_order,
+            'add_skip_conn': args.add_skip_conn,
 
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,
