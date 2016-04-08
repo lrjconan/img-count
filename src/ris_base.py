@@ -199,7 +199,7 @@ def f_inter_box(top_left_a, bot_right_a, top_left_b, bot_right_b):
     ndims = tf.shape(tf.shape(top_left_a))
 
     # Check if the resulting box is valid.
-    overlap = tf.to_float(top_left < bot_right)
+    overlap = tf.to_float(top_left_max < bot_right_min)
     overlap = tf.reduce_prod(overlap, ndims - 1)
     area = tf.reduce_prod(bot_right_min - top_left_max, ndims - 1)
     area = overlap * tf.abs(area)
@@ -220,13 +220,14 @@ def f_iou_box(top_left_a, bot_right_a, top_left_b, bot_right_b):
         iou: [B, T]
     """
     inter_area = f_inter_box(top_left_a, bot_right_a, top_left_b, bot_right_b)
+    inter_area = tf.maximum(inter_area, 1e-6)
     ndims = tf.shape(tf.shape(top_left_a))
-    area_a = tf.reduce_prod(bot_right_a - top_left_a, ndims - 1)
-    area_b = tf.reduce_prod(bot_right_b - top_left_b, ndims - 1)
-    # area_a = tf.to_float(top_left_a < bot_right_a) * \
-    #     tf.reduce_prod(bot_right_a - top_left_a, ndims - 1)
-    # area_b = tf.to_float(top_left_b < bot_right_b) * \
-    #     tf.reduce_prod(bot_right_b - top_left_b, ndims - 1)
+    # area_a = tf.reduce_prod(bot_right_a - top_left_a, ndims - 1)
+    # area_b = tf.reduce_prod(bot_right_b - top_left_b, ndims - 1)
+    check_a = tf.reduce_prod(tf.to_float(top_left_a < bot_right_a), ndims - 1)
+    area_a = check_a * tf.reduce_prod(bot_right_a - top_left_a, ndims - 1)
+    check_b = tf.reduce_prod(tf.to_float(top_left_b < bot_right_b), ndims - 1)
+    area_b = check_b * tf.reduce_prod(bot_right_b - top_left_b, ndims - 1)
     union_area = (area_a + area_b - inter_area + 1e-5)
     union_area = tf.maximum(union_area, 1e-5)
     iou = inter_area / union_area
@@ -660,7 +661,7 @@ def extract_patch(x, f_y, f_x, nchannels):
 
 
 def get_gt_attn(y_gt, padding_ratio=0.0, center_shift_ratio=0.0,
-        min_padding=10.0):
+                min_padding=10.0):
     """Get groundtruth attention box given segmentation."""
     top_left, bot_right, box = get_gt_box(y_gt, padding_ratio=padding_ratio,
                                           center_shift_ratio=center_shift_ratio,
