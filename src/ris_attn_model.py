@@ -804,7 +804,8 @@ def get_model(opt, device='/cpu:0'):
             attn_box_lg_gamma_mean = tf.constant([2.0])
             y_out_lg_gamma_mean = tf.constant([2.0])
         else:
-            attn_lg_gamma_mean = tf.reduce_sum(attn_lg_gamma) / num_ex_f / timespan
+            attn_lg_gamma_mean = tf.reduce_sum(
+                attn_lg_gamma) / num_ex_f / timespan
             attn_box_lg_gamma_mean = tf.reduce_sum(
                 attn_box_lg_gamma) / num_ex_f / timespan
             y_out_lg_gamma_mean = tf.reduce_sum(
@@ -828,5 +829,12 @@ def get_model(opt, device='/cpu:0'):
         model['crnn_g_i_avg'] = crnn_g_i_avg
         model['crnn_g_f_avg'] = crnn_g_f_avg
         model['crnn_g_o_avg'] = crnn_g_o_avg
+
+##################################
+# Debug gradients
+##################################
+        ctrl_mlp_b_grad = tf.gradients(total_loss, model['ctrl_mlp_b_0'])
+        model['ctrl_mlp_b_grad'] = ctrl_mlp_b_grad[0]
+        # ctrl_mlp_w_grad = tf.gradients(total_loss, model['ctrl_mlp_w_0'])
 
     return model

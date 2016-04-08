@@ -1204,8 +1204,9 @@ if __name__ == '__main__':
             dataset['train']['label_segmentation'])
         dataset['valid']['label_segmentation'] = base.sort_by_segm_size(
             dataset['valid']['label_segmentation'])
-
-    sess = tf.Session()
+    
+    sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+    # sess = tf.Session()
 
     if args.restore:
         saver.restore(sess, ckpt_fname)
@@ -1558,9 +1559,9 @@ if __name__ == '__main__':
     def train_step(step, x, y, s, debug_nan=False):
         """Train step"""
 
-        def check_nan(r):
+        def check_nan(var):
             # Check NaN.
-            if np.isnan(r['loss']):
+            if np.isnan(var):
                 log.error('NaN occurred. Saving last step.')
                 saver.save(sess, global_step=step)
                 input_file = h5py.File(
@@ -1572,12 +1573,14 @@ if __name__ == '__main__':
 
         if debug_nan:
             _start_time = time.time()
-            _outputs = ['loss']
+            _outputs = ['loss', 'ctrl_mlp_b_grad']
             _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
                           m['s_gt']: s}
             r = _run_model(m, _outputs, _feed_dict)
             loss = r['loss']
-            check_nan(r)
+            print r['ctrl_mlp_b_grad']
+            check_nan(r['ctrl_mlp_b_grad'].mean())
+            check_nan(r['loss'])
 
             _outputs = ['train_step']
             _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
@@ -1636,25 +1639,25 @@ if __name__ == '__main__':
                                         get_fn=get_batch_train,
                                         cycle=True,
                                         progress_bar=False):
-            # Run validation stats
-            if train_opt['has_valid']:
-                if step % train_opt['steps_per_valid'] == 0:
-                    log.info('Running validation')
-                    run_stats(step, num_batch_valid, batch_iter_valid,
-                              outputs_valid, write_log_valid, False)
-                    pass
+            # # Run validation stats
+            # if train_opt['has_valid']:
+            #     if step % train_opt['steps_per_valid'] == 0:
+            #         log.info('Running validation')
+            #         run_stats(step, num_batch_valid, batch_iter_valid,
+            #                   outputs_valid, write_log_valid, False)
+            #         pass
 
-            # Train stats
-            if step % train_opt['steps_per_trainval'] == 0:
-                log.info('Running train validation')
-                run_stats(step, num_batch_valid, batch_iter_trainval,
-                          outputs_trainval, write_log_trainval, True)
-                pass
+            # # Train stats
+            # if step % train_opt['steps_per_trainval'] == 0:
+            #     log.info('Running train validation')
+            #     run_stats(step, num_batch_valid, batch_iter_trainval,
+            #               outputs_trainval, write_log_trainval, True)
+            #     pass
 
-            # Plot samples
-            if step % train_opt['steps_per_plot'] == 0:
-                run_samples()
-                pass
+            # # Plot samples
+            # if step % train_opt['steps_per_plot'] == 0:
+            #     run_samples()
+            #     pass
 
             # Train step
             train_step(step, _x, _y, _s, debug_nan=train_opt['debug_nan'])
