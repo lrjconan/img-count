@@ -15,13 +15,13 @@ import h5py
 log = logger.get()
 
 if __name__ == '__main__':
-    # model_folder = sys.argv[1]
+    model_folder = sys.argv[1]
     # model_folder = '/ais/gobi3/u/mren/results/img-count/rec_ins_segm-20160329234848'
     # model_folder = '../results/rec_ins_segm-20160330212049'
     # model_type = 'double_attention'
 
     # model_folder = '../results/rec_ins_segm-20160331003617'
-    model_folder = '../results/rec_ins_segm-20160331203421'
+    # model_folder = '../results/rec_ins_segm-20160331203421'
     data_folder = '/ais/gobi3/u/mren/data/lsc/A1'
     # model_folder = '../results/rec_ins_segm-20160329195154'
 
