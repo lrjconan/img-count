@@ -1134,7 +1134,7 @@ def _get_num_batch_valid(dataset_name):
     if dataset_name == 'synth_shape':
         return 5
     elif dataset_name == 'cvppp':
-        return 2
+        return 5
     elif dataset_name == 'kitti':
         return 10
     else:

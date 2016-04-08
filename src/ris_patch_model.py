@@ -76,6 +76,7 @@ def get_model(opt, device='/cpu:0'):
     gt_segm_noise = opt['gt_segm_noise']
     clip_gradient = opt['clip_gradient']
     fixed_order = opt['fixed_order']
+    add_skip_conn = opt['add_skip_conn']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -173,7 +174,10 @@ def get_model(opt, device='/cpu:0'):
         adcnn_act = [tf.nn.relu] * adcnn_nlayers
         adcnn_channels = [attn_mlp_depth] + attn_dcnn_depth
         adcnn_use_bn = [use_bn] * adcnn_nlayers
-        adcnn_skip_ch = [0] + acnn_channels[::-1][1:]
+        if add_skip_conn:
+            adcnn_skip_ch = [0] + acnn_channels[::-1][1:]
+        else:
+            adcnn_skip_ch = None
         adcnn = nn.dcnn(adcnn_filters, adcnn_channels, adcnn_unpool,
                         adcnn_act, use_bn=adcnn_use_bn, skip_ch=adcnn_skip_ch,
                         phase_train=phase_train, wd=wd, model=model,
@@ -239,7 +243,10 @@ def get_model(opt, device='/cpu:0'):
             h_core = tf.reshape(h_core, [-1, arnn_h, arnn_w, attn_mlp_depth])
 
             # DCNN
-            skip = [None] + h_acnn[tt][::-1][1:] + [x_patch[tt]]
+            if add_skip_conn:
+                skip = [None] + h_acnn[tt][::-1][1:] + [x_patch[tt]]
+            else:
+                skip = None
             h_adcnn[tt] = adcnn(h_core, skip=skip)
 
             # Output
