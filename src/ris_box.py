@@ -93,7 +93,7 @@ def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
                 glimpse_norm = glimpse / glimpse.max() * 0.5
                 total_img += glimpse_norm
                 axarr[row, col].imshow(total_img)
-                ax.text(0, -0.5, '[{:.2g}, {:.2g}]'.format(
+                axarr[row, col].text(0, -0.5, '[{:.2g}, {:.2g}]'.format(
                     glimpse.min(), glimpse.max()), color=(0, 0, 0), size=8)
 
     plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
