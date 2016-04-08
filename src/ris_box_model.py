@@ -233,7 +233,7 @@ def get_model(opt, device='/:cpu:0'):
         grd_match_cum = tf.zeros(tf.pack([num_ex, timespan]))
 
 ##########################
-# Segmentation output
+# Computation graph
 ##########################
         for tt in xrange(timespan):
             # Controller CNN
@@ -493,6 +493,9 @@ def get_model(opt, device='/:cpu:0'):
             clip=1.0).minimize(total_loss, global_step=global_step)
         model['train_step'] = train_step
 
+####################
+# Glimpse
+####################
         # T * T2 * [H', W'] => [T, T2, H', W']
         crnn_glimpse_map = tf.concat(
             0, [tf.expand_dims(tf.concat(

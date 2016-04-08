@@ -78,6 +78,16 @@ def get_model(opt, device='/cpu:0'):
     clip_gradient = opt['clip_gradient']
     fixed_gamma = opt['fixed_gamma']
 
+    # New parameters for double attention.
+    if 'ctrl_rnn_inp_struct' in opt:
+        ctrl_rnn_inp_struct = opt['ctrl_rnn_inp_struct']  # dense or attn
+        num_ctrl_rnn_iter = opt['num_ctrl_rnn_iter']
+        num_glimpse_mlp_layers = opt['num_glimpse_mlp_layers']
+    else:
+        ctrl_rnn_inp_struct = 'dense'
+        num_ctrl_rnn_iter = 5
+        num_glimpse_mlp_layers = 1
+
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
     rnd_transpose = opt['rnd_transpose']
@@ -176,8 +186,16 @@ def get_model(opt, device='/cpu:0'):
         crnn_w = inp_width / ccnn_subsample
         crnn_dim = ctrl_rnn_hid_dim
         canvas_dim = inp_height * inp_width / (ccnn_subsample ** 2)
-        crnn_inp_dim = crnn_h * crnn_w * ccnn_channels[-1]
+
+        glimpse_map_dim = crnn_h * crnn_w
+        glimpse_feat_dim = ccnn_channels[-1]
+        if ctrl_rnn_inp_struct == 'dense':
+            crnn_inp_dim = crnn_h * crnn_w * ccnn_channels[-1]
+        elif ctrl_rnn_inp_struct == 'attn':
+            crnn_inp_dim = glimpse_feat_dim
+
         crnn_state = [None] * (timespan + 1)
+        crnn_glimpse_map = [None] * timespan
         crnn_g_i = [None] * timespan
         crnn_g_f = [None] * timespan
         crnn_g_o = [None] * timespan
@@ -185,6 +203,18 @@ def get_model(opt, device='/cpu:0'):
         crnn_state[-1] = tf.zeros(tf.pack([num_ex, crnn_dim * 2]))
         crnn_cell = nn.lstm(crnn_inp_dim, crnn_dim, wd=wd, scope='ctrl_lstm',
                             model=model)
+
+############################
+# Glimpse MLP definition
+############################
+        gmlp_dims = [crnn_dim] * num_glimpse_mlp_layers + [glimpse_map_dim]
+        gmlp_act = [tf.nn.relu] * \
+            (num_glimpse_mlp_layers - 1) + [tf.nn.softmax]
+        gmlp_dropout = None
+        gmlp = nn.mlp(gmlp_dims, gmlp_act, add_bias=True,
+                      dropout_keep=gmlp_dropout,
+                      phase_train=phase_train, wd=wd, scope='glimpse_mlp',
+                      model=model)
 
 ############################
 # Controller MLP definition
@@ -418,15 +448,48 @@ def get_model(opt, device='/cpu:0'):
                 _h_ccnn = h_ccnn
 
             h_ccnn_last = _h_ccnn[-1]
-            crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
 
             # Controller RNN [B, R1]
-            crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[tt] = \
-                crnn_cell(crnn_inp, crnn_state[tt - 1])
-            h_crnn[tt] = tf.slice(
-                crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
+            if ctrl_rnn_inp_struct == 'dense':
+                crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
+                crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[tt] = \
+                    crnn_cell(crnn_inp, crnn_state[tt - 1])
+                h_crnn[tt] = tf.slice(
+                    crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
 
-            ctrl_out = cmlp(h_crnn[tt])[-1]
+                ctrl_out = cmlp(h_crnn[tt])[-1]
+
+            elif ctrl_rnn_inp_struct == 'attn':
+                crnn_inp = tf.reshape(
+                    h_ccnn_last, [-1, glimpse_map_dim, glimpse_feat_dim])
+                crnn_state[tt] = [None] * (num_ctrl_rnn_iter + 1)
+                crnn_g_i[tt] = [None] * num_ctrl_rnn_iter
+                crnn_g_f[tt] = [None] * num_ctrl_rnn_iter
+                crnn_g_o[tt] = [None] * num_ctrl_rnn_iter
+                h_crnn[tt] = [None] * num_ctrl_rnn_iter
+
+                crnn_state[tt][-1] = tf.zeros(tf.pack([num_ex, crnn_dim * 2]))
+
+                crnn_glimpse_map[tt] = [None] * num_ctrl_rnn_iter
+                crnn_glimpse_map[tt][0] = tf.ones(
+                    tf.pack([num_ex, glimpse_map_dim, 1])) / glimpse_map_dim
+
+                # Inner glimpse RNN
+                for tt2 in xrange(num_ctrl_rnn_iter):
+                    crnn_glimpse = tf.reduce_sum(
+                        crnn_inp * crnn_glimpse_map[tt][tt2], [1])
+                    crnn_state[tt][tt2], crnn_g_i[tt][tt2], crnn_g_f[tt][tt2], \
+                        crnn_g_o[tt][tt2] = \
+                        crnn_cell(crnn_glimpse, crnn_state[tt][tt2 - 1])
+                    h_crnn[tt][tt2] = tf.slice(
+                        crnn_state[tt][tt2], [0, crnn_dim], [-1, crnn_dim])
+                    h_gmlp = gmlp(h_crnn[tt][tt2])
+                    if tt2 < num_ctrl_rnn_iter - 1:
+                        crnn_glimpse_map[tt][
+                            tt2 + 1] = tf.expand_dims(h_gmlp[-1], 2)
+
+                ctrl_out = cmlp(h_crnn[tt][-1])[-1]
+
             attn_ctr_norm[tt] = tf.slice(ctrl_out, [0, 0], [-1, 2])
             attn_lg_size[tt] = tf.slice(ctrl_out, [0, 2], [-1, 2])
 
@@ -830,11 +893,21 @@ def get_model(opt, device='/cpu:0'):
         model['crnn_g_f_avg'] = crnn_g_f_avg
         model['crnn_g_o_avg'] = crnn_g_o_avg
 
-##################################
+####################
 # Debug gradients
-##################################
+####################
         ctrl_mlp_b_grad = tf.gradients(total_loss, model['ctrl_mlp_b_0'])
         model['ctrl_mlp_b_grad'] = ctrl_mlp_b_grad[0]
-        # ctrl_mlp_w_grad = tf.gradients(total_loss, model['ctrl_mlp_w_0'])
+
+####################
+# Glimpse
+####################
+        # T * T2 * [H', W'] => [T, T2, H', W']
+        crnn_glimpse_map = tf.concat(
+            0, [tf.expand_dims(tf.concat(
+                0, [tf.expand_dims(crnn_glimpse_map[tt][tt2], 0)
+                    for tt2 in xrange(num_ctrl_rnn_iter)]), 0)
+                for tt in xrange(timespan)])
+        model['ctrl_rnn_glimpse_map'] = crnn_glimpse_map
 
     return model

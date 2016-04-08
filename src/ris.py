@@ -38,7 +38,7 @@ import ris_base as base
 import ris_vanilla_model as vanilla_model
 # import ris_attn_model_old as attention_model
 import ris_attn_model as attention_model
-import ris_double_attn_model as double_attention_model
+# import ris_double_attn_model as double_attention_model
 
 log = logger.get()
 
@@ -59,8 +59,8 @@ def get_model(opt, device='/cpu:0'):
         return vanilla_model.get_model(opt, device=device)
     elif name == 'attention':
         return attention_model.get_model(opt, device=device)
-    elif name == 'double_attention':
-        return double_attention_model.get_model(opt, device=device)
+    # elif name == 'double_attention':
+    #     return double_attention_model.get_model(opt, device=device)
     else:
         raise Exception('Unknown model name "{}"'.format(name))
 
@@ -701,7 +701,8 @@ def _make_model_opt(args):
     else:
         raise Exception('Unknown dataset name')
 
-    if args.model == 'attention' or args.model == 'double_attention':
+    # if args.model == 'attention' or args.model == 'double_attention':
+    if args.model == 'attention':
         ccnn_fsize_list = args.ctrl_cnn_filter_size.split(',')
         ccnn_fsize_list = [int(fsize) for fsize in ccnn_fsize_list]
         ccnn_depth_list = args.ctrl_cnn_depth.split(',')
@@ -789,14 +790,15 @@ def _make_model_opt(args):
             'fixed_order': args.fixed_order,
             'fixed_gamma': args.fixed_gamma,
 
+            'ctrl_rnn_inp_struct': args.ctrl_rnn_inp_struct,
+            'num_ctrl_rnn_iter': args.num_ctrl_rnn_iter,
+            'num_glimpse_mlp_layers': args.num_glimpse_mlp_layers,
+
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,
             'rnd_transpose': rnd_transpose,
             'rnd_colour': rnd_colour,
         }
-        if args.model == 'double_attention':
-            model_opt['num_ctrl_rnn_iter'] = args.num_ctrl_rnn_iter
-            model_opt['num_glimpse_mlp_layers'] = args.num_glimpse_mlp_layers
 
     elif args.model == 'vanilla':
         cnn_fsize_list = args.cnn_filter_size.split(',')
@@ -1032,8 +1034,9 @@ def _get_ts_loggers(model_opt, restore_step=0, debug_bn=False, debug_weights=Fal
         buffer_size=1,
         restore_step=restore_step)
 
-    if model_opt['type'] == 'attention' or \
-            model_opt['type'] == 'double_attention':
+    # if model_opt['type'] == 'attention' or \
+    #         model_opt['type'] == 'double_attention':
+    if model_opt['type'] == 'attention':
         loggers['box_loss'] = TimeSeriesLogger(
             os.path.join(logs_folder, 'box_loss.csv'), ['train', 'valid'],
             name='Box Loss',
@@ -1112,18 +1115,23 @@ def _get_plot_loggers(model_opt, train_opt):
         _ssets.append('valid')
     for _set in _ssets:
         labels = ['input', 'output', 'total']
-        if model_opt['type'] == 'attention' or \
-                model_opt['type'] == 'double_attention':
+        # if model_opt['type'] == 'attention' or \
+        #         model_opt['type'] == 'double_attention':
+        if model_opt['type'] == 'attention':
             num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
             num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
             num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
             labels.extend(['box', 'patch'])
+            if model_opt['ctrl_rnn_inp_struct'] == 'attn':
+                labels.append('attn')
+
         if args.debug_act:
             for _layer, _num in zip(
                     ['ccnn', 'acnn', 'adcnn'],
                     [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
                 for ii in xrange(_num):
                     labels.append('{}_{}'.format(_layer, ii))
+
         for name in labels:
             key = '{}_{}'.format(name, _set)
             samples[key] = LazyRegisterer(
@@ -1188,7 +1196,9 @@ if __name__ == '__main__':
         exp_folder = os.path.join(train_opt['results'], model_id)
         saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
 
-    if model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention':
+    # if model_opt['type'] == 'attention' or model_opt['type'] ==
+    # 'double_attention':
+    if model_opt['type'] == 'attention':
         num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
         num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
         num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
@@ -1260,12 +1270,14 @@ if __name__ == '__main__':
 
     def run_samples():
         """Samples"""
-        attn = model_opt['type'] == 'attention' or model_opt[
-            'type'] == 'double_attention'
+        # attn = model_opt['type'] == 'attention' or model_opt[
+        #     'type'] == 'double_attention'
+        attn = model_opt['type'] == 'attention'
 
         def _run_samples(x, y, s, phase_train, fname_input, fname_output,
                          fname_total=None, fname_box=None, fname_patch=None,
-                         fname_ccnn=None, fname_acnn=None, fname_attn_dcnn=None):
+                         fname_ccnn=None, fname_acnn=None,
+                         fname_attn_dcnn=None, fname_attn=None):
 
             _outputs = ['x_trans', 'y_gt_trans', 'y_out',
                         's_out', 'match']
@@ -1273,6 +1285,8 @@ if __name__ == '__main__':
             if attn:
                 _outputs.extend(['attn_top_left', 'attn_bot_right',
                                  'attn_box', 'attn_box_gt', 'match_box'])
+            if fname_attn:
+                _outputs.append('ctrl_rnn_glimpse_map')
 
             _max_items = _get_max_items_per_row(x.shape[1], x.shape[2])
 
@@ -1342,6 +1356,10 @@ if __name__ == '__main__':
                                        axis=3,
                                        max_items_per_row=8)
 
+            if fname_attn:
+                plot_double_attention(fname_attn, _x,
+                                      _r['ctrl_rnn_glimpse_map'],
+                                      max_items_per_row=_max_items)
             pass
 
         # Plot some samples.
@@ -1356,6 +1374,10 @@ if __name__ == '__main__':
             log.info('Plotting {} samples'.format(_set))
             _x, _y, _s = _get_batch(
                 np.arange(min(_num_ex, args.num_samples_plot)))
+
+            fname_input = samples['input_{}'.format(_set)].get_fname()
+            fname_output = samples['output_{}'.format(_set)].get_fname()
+            fname_total = samples['total_{}'.format(_set)].get_fname()
 
             if args.debug_act:
                 fname_ccnn = [samples['ccnn_{}_{}'.format(
@@ -1378,16 +1400,23 @@ if __name__ == '__main__':
                 fname_patch = None
                 names = ['input', 'output', 'total']
 
-            _run_samples(
-                _x, _y, _s, _is_train,
-                fname_input=samples['input_{}'.format(_set)].get_fname(),
-                fname_output=samples['output_{}'.format(_set)].get_fname(),
-                fname_total=samples['total_{}'.format(_set)].get_fname(),
-                fname_box=fname_box,
-                fname_patch=fname_patch,
-                fname_ccnn=fname_ccnn,
-                fname_acnn=fname_acnn,
-                fname_attn_dcnn=fname_attn_dcnn)
+            if attn and model_opt['ctrl_rnn_inp_struct'] == 'attn':
+                fname_attn = samples['attn_{}'.format(_set)].get_fname()
+                labels.append('attn')
+                names.append('attn')
+            else:
+                fname_attn = None
+
+            _run_samples(_x, _y, _s, _is_train,
+                         fname_input=fname_input,
+                         fname_output=fname_output,
+                         fname_total=fname_total,
+                         fname_box=fname_box,
+                         fname_patch=fname_patch,
+                         fname_ccnn=fname_ccnn,
+                         fname_acnn=fname_acnn,
+                         fname_attn_dcnn=fname_attn_dcnn,
+                         fname_attn=fname_attn)
 
             if not samples['output_{}'.format(_set)].is_registered():
                 for _name in names:
@@ -1407,7 +1436,9 @@ if __name__ == '__main__':
                     'count_acc', 'dice', 'dic', 'dic_abs', 'wt_cov_hard',
                     'unwt_cov_hard']
 
-        if model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention':
+        # if model_opt['type'] == 'attention' or model_opt['type'] ==
+        # 'double_attention':
+        if model_opt['type'] == 'attention':
             _outputs.extend(['box_loss'])
 
         return _outputs
@@ -1430,7 +1461,9 @@ if __name__ == '__main__':
                 _outputs.append('{}_w_h_mean'.format(layer_name))
                 _outputs.append('{}_b_mean'.format(layer_name))
 
-        if model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention':
+        # if model_opt['type'] == 'attention' or model_opt['type'] ==
+        # 'double_attention':
+        if model_opt['type'] == 'attention':
             _outputs.extend(['box_loss', 'gt_knob_prob_box',
                              'gt_knob_prob_segm', 'attn_lg_gamma_mean',
                              'attn_box_lg_gamma_mean', 'y_out_lg_gamma_mean'])
@@ -1478,8 +1511,9 @@ if __name__ == '__main__':
         pass
 
     def write_log_valid(step, loggers, r):
-        attn = model_opt['type'] == 'attention' or model_opt[
-            'type'] == 'double_attention'
+        # attn = model_opt['type'] == 'attention' or model_opt[
+        #     'type'] == 'double_attention'
+        attn = model_opt['type'] == 'attention'
 
         loggers['loss'].add(step, ['', r['loss']])
         loggers['conf_loss'].add(step, ['', r['conf_loss']])
@@ -1514,8 +1548,9 @@ if __name__ == '__main__':
         pass
 
     def write_log_trainval(step, loggers, r):
-        attn = model_opt['type'] == 'attention' or model_opt[
-            'type'] == 'double_attention'
+        # attn = model_opt['type'] == 'attention' or model_opt[
+        #     'type'] == 'double_attention'
+        attn = model_opt['type'] == 'attention'
 
         loggers['loss'].add(step, [r['loss'], ''])
         loggers['conf_loss'].add(step, [r['conf_loss'], ''])
@@ -1661,20 +1696,20 @@ if __name__ == '__main__':
                                         get_fn=get_batch_train,
                                         cycle=True,
                                         progress_bar=False):
-            # # Run validation stats
-            # if train_opt['has_valid']:
-            #     if step % train_opt['steps_per_valid'] == 0:
-            #         log.info('Running validation')
-            #         run_stats(step, num_batch_valid, batch_iter_valid,
-            #                   outputs_valid, write_log_valid, False)
-            #         pass
+            # Run validation stats
+            if train_opt['has_valid']:
+                if step % train_opt['steps_per_valid'] == 0:
+                    log.info('Running validation')
+                    run_stats(step, num_batch_valid, batch_iter_valid,
+                              outputs_valid, write_log_valid, False)
+                    pass
 
-            # # Train stats
-            # if step % train_opt['steps_per_trainval'] == 0:
-            #     log.info('Running train validation')
-            #     run_stats(step, num_batch_valid, batch_iter_trainval,
-            #               outputs_trainval, write_log_trainval, True)
-            #     pass
+            # Train stats
+            if step % train_opt['steps_per_trainval'] == 0:
+                log.info('Running train validation')
+                run_stats(step, num_batch_valid, batch_iter_trainval,
+                          outputs_trainval, write_log_trainval, True)
+                pass
 
             # Plot samples
             if step % train_opt['steps_per_plot'] == 0:
