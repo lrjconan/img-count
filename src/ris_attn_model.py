@@ -122,12 +122,12 @@ def get_model(opt, device='/cpu:0'):
 ###############################
 # Random input transformation
 ###############################
-        # x, y_gt = img.random_transformation(
-        #     x, y_gt, padding, phase_train,
-        #     rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip,
-        #     rnd_transpose=rnd_transpose, rnd_colour=rnd_colour)
-        # model['x_trans'] = x
-        # model['y_gt_trans'] = y_gt
+        x, y_gt = img.random_transformation(
+            x, y_gt, padding, phase_train,
+            rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip,
+            rnd_transpose=rnd_transpose, rnd_colour=rnd_colour)
+        model['x_trans'] = x
+        model['y_gt_trans'] = y_gt
 
 ############################
 # Canvas: external memory
@@ -374,8 +374,8 @@ def get_model(opt, device='/cpu:0'):
             attn_top_left_gt, attn_bot_right_gt = \
             base.get_gt_attn(y_gt,
                              padding_ratio=attn_box_padding_ratio,
-                             center_shift_ratio=0.0)
-                             #min_padding=padding + 4)
+                             center_shift_ratio=0.0,
+                             min_padding=padding + 4)
         attn_ctr_gt_noise, attn_size_gt_noise, attn_lg_var_gt_noise, \
             attn_box_gt_noise, \
             attn_top_left_gt_noise, attn_bot_right_gt_noise = \
@@ -386,8 +386,8 @@ def get_model(opt, device='/cpu:0'):
                                  attn_box_padding_ratio + gt_box_pad_noise),
                              center_shift_ratio=tf.random_uniform(
                                  tf.pack([num_ex, timespan, 2]),
-                                 -gt_box_ctr_noise, gt_box_ctr_noise))
-                             # min_padding=padding + 4)
+                                 -gt_box_ctr_noise, gt_box_ctr_noise),
+                             min_padding=padding + 4)
         attn_ctr_norm_gt = base.get_normalized_center(
             attn_ctr_gt, inp_height, inp_width)
         attn_lg_size_gt = base.get_normalized_size(

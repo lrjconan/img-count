@@ -1624,28 +1624,40 @@ if __name__ == '__main__':
     def train_step(step, x, y, s, debug_nan=False):
         """Train step"""
 
+        def save_inp():
+            log.error('Saving last step.')
+            saver.save(sess, global_step=step)
+            input_file = h5py.File(
+                os.path.join(exp_folder, 'nan_input.h5'))
+            input_file['x'] = x
+            input_file['y'] = y
+            input_file['s'] = s
+            input_file.close()
+
         def check_nan(var):
             # Check NaN.
             if np.isnan(var):
-                log.error('NaN occurred. Saving last step.')
-                saver.save(sess, global_step=step)
-                input_file = h5py.File(
-                    os.path.join(exp_folder, 'nan_input.h5'))
-                input_file['x'] = x
-                input_file['y'] = y
-                input_file['s'] = s
-                raise Exception('NaN')
+                log.error('NaN occurred.')
+                return False
+            else:
+                return True
 
         if debug_nan:
             _start_time = time.time()
             _outputs = ['loss', 'ctrl_mlp_b_grad']
-            _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
-                          m['s_gt']: s}
-            r = _run_model(m, _outputs, _feed_dict)
-            loss = r['loss']
-            print r['ctrl_mlp_b_grad']
-            check_nan(r['ctrl_mlp_b_grad'].mean())
-            check_nan(r['loss'])
+
+            for retry in xrange(10):
+                _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
+                              m['s_gt']: s}
+                r = _run_model(m, _outputs, _feed_dict)
+                print r['ctrl_mlp_b_grad']
+                if check_nan(r['ctrl_mlp_b_grad'].mean()):
+                    break
+                log.error('Retry {}'.format(retry))
+
+            if retry == 10:
+                save_inp()
+                raise Exception('NaN')
 
             _outputs = ['train_step']
             _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
