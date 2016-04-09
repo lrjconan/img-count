@@ -122,12 +122,12 @@ def get_model(opt, device='/cpu:0'):
 ###############################
 # Random input transformation
 ###############################
-        x, y_gt = img.random_transformation(
-            x, y_gt, padding, phase_train,
-            rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip,
-            rnd_transpose=rnd_transpose, rnd_colour=rnd_colour)
-        model['x_trans'] = x
-        model['y_gt_trans'] = y_gt
+        # x, y_gt = img.random_transformation(
+        #     x, y_gt, padding, phase_train,
+        #     rnd_hflip=rnd_hflip, rnd_vflip=rnd_vflip,
+        #     rnd_transpose=rnd_transpose, rnd_colour=rnd_colour)
+        # model['x_trans'] = x
+        # model['y_gt_trans'] = y_gt
 
 ############################
 # Canvas: external memory
@@ -204,7 +204,7 @@ def get_model(opt, device='/cpu:0'):
         crnn_cell = nn.lstm(crnn_inp_dim, crnn_dim, wd=wd, scope='ctrl_lstm',
                             model=model)
 
-############################
+        ############################
 # Glimpse MLP definition
 ############################
         gmlp_dims = [crnn_dim] * num_glimpse_mlp_layers + [glimpse_map_dim]
@@ -216,7 +216,7 @@ def get_model(opt, device='/cpu:0'):
                       phase_train=phase_train, wd=wd, scope='glimpse_mlp',
                       model=model)
 
-############################
+        ############################
 # Controller MLP definition
 ############################
         cmlp_dims = [crnn_dim] + [ctrl_mlp_dim] * \
@@ -228,7 +228,7 @@ def get_model(opt, device='/cpu:0'):
                       phase_train=phase_train, wd=wd, scope='ctrl_mlp',
                       model=model)
 
-###########################
+        ###########################
 # Attention CNN definition
 ###########################
         acnn_filters = attn_cnn_filter_size
@@ -311,7 +311,7 @@ def get_model(opt, device='/cpu:0'):
                       frozen=amlp_frozen,
                       model=model)
 
-##########################
+        ##########################
 # Score MLP definition
 ##########################
         smlp = nn.mlp([crnn_dim + core_dim, 1], [tf.sigmoid], wd=wd,
@@ -375,6 +375,7 @@ def get_model(opt, device='/cpu:0'):
             base.get_gt_attn(y_gt,
                              padding_ratio=attn_box_padding_ratio,
                              center_shift_ratio=0.0)
+                             #min_padding=padding + 4)
         attn_ctr_gt_noise, attn_size_gt_noise, attn_lg_var_gt_noise, \
             attn_box_gt_noise, \
             attn_top_left_gt_noise, attn_bot_right_gt_noise = \
@@ -386,6 +387,7 @@ def get_model(opt, device='/cpu:0'):
                              center_shift_ratio=tf.random_uniform(
                                  tf.pack([num_ex, timespan, 2]),
                                  -gt_box_ctr_noise, gt_box_ctr_noise))
+                             # min_padding=padding + 4)
         attn_ctr_norm_gt = base.get_normalized_center(
             attn_ctr_gt, inp_height, inp_width)
         attn_lg_size_gt = base.get_normalized_size(
@@ -554,9 +556,10 @@ def get_model(opt, device='/cpu:0'):
             if use_knob:
                 # IOU [B, 1, T]
                 if use_iou_box:
+
                     _top_left = tf.expand_dims(attn_top_left[tt], 1)
                     _bot_right = tf.expand_dims(attn_bot_right[tt], 1)
-
+                    
                     if not fixed_order:
                         iou_soft_box[tt] = base.f_iou_box(
                             _top_left, _bot_right, attn_top_left_gt,
@@ -609,7 +612,8 @@ def get_model(opt, device='/cpu:0'):
                 attn_lg_var[tt][:, 1], inp_width, filter_width)
             filter_y_inv = tf.transpose(filter_y, [0, 2, 1])
             filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
-
+            tf.stop_gradient(filter_y)
+            tf.stop_gradient(filter_x)
             # Attended patch [B, A, A, D]
             x_patch[tt] = attn_gamma[tt] * base.extract_patch(
                 acnn_inp, filter_y, filter_x, acnn_inp_depth)
