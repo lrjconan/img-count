@@ -603,6 +603,8 @@ if __name__ == '__main__':
             if model_opt['ctrl_rnn_inp_struct'] == 'attn':
                 fname_attn = samples['attn_{}'.format(_set)].get_fname()
                 labels.append('attn')
+            else:
+                fname_attn = None
 
             _run_samples(_x, _y, _s, _is_train,
                          fname_input=fname_input,
