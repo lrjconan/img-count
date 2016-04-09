@@ -33,10 +33,7 @@ if __name__ == '__main__':
     if 'clip_gradient' not in model_opt:
         model_opt['clip_gradient'] = 1.0
 
-    if model_opt['type'] == 'double_attention':
-        model = double_attention.get_model(model_opt)
-    elif model_opt['type'] == 'attention':
-        model = attention.get_model(model_opt)
+    model = attention.get_model(model_opt)
 
 #############
 # Run data 
@@ -68,14 +65,37 @@ if __name__ == '__main__':
     # y_bat = dataset['train']['label_segmentation'][batch_start: batch_end]
     # s_bat = dataset['train']['label_score'][batch_start: batch_end]
 
+    for ii in xrange(y.shape[0]):
+        for jj in xrange(y.shape[1]):
+            nz = y[ii, jj].nonzero()
+            if nz[0].size > 0:
+                top_left_x = nz[1].min()
+                top_left_y = nz[0].min()
+                bot_right_x = nz[1].max() + 1
+                bot_right_y = nz[0].max() + 1
+                print ii, jj, top_left_x, top_left_y, bot_right_x, bot_right_y
+
     sess = tf.Session()
     saver.restore(sess, ckpt_fname)
 
-    # loss = sess.run(model['loss'], feed_dict={model['x']: x_bat,
-    #                                           model['y_gt']: y_bat,
-    #                                           model['s_gt']: s_bat,
-    #                                           model['phase_train']: True})
-    # log.info('loss: {:6.4f}'.format(loss))
+    output_list = ['loss', 'ctrl_mlp_b_grad', 'match_box']
+    output_var = []
+    for key in output_list:
+        output_var.append(model[key])
+
+    output_val = sess.run(output_var, feed_dict={model['x']: x,
+                                                 model['y_gt']: y,
+                                                 model['s_gt']: s,
+                                                 model['phase_train']: True})
+    
+    model_val = {}
+    for kk, key in enumerate(output_list):
+        model_val[key] = output_val[kk]
+    
+    log.info('loss: {:6.4f}'.format(model_val['loss']))
+    log.info('mlp grad: {}'.format(model_val['ctrl_mlp_b_grad']))
+    np.set_printoptions(threshold='nan')
+    log.info('match box: {}'.format(model_val['match_box']))
 
     model_val = {}
     output_list = []
