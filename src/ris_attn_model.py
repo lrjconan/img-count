@@ -592,6 +592,11 @@ def get_model(opt, device='/cpu:0'):
                     attn_size_gtm + \
                     (1 - phase_train_f * gt_knob_box[:, tt, 0: 1]) * \
                     attn_size[tt]
+                # #########################
+                # # Warning stop gradient
+                # #########################
+                # attn_ctr[tt] = tf.stop_gradient(attn_ctr[tt])
+                # attn_size[tt] = tf.stop_gradient(attn_size[tt])
 
             attn_top_left[tt], attn_bot_right[tt] = base.get_box_coord(
                 attn_ctr[tt], attn_size[tt])
@@ -767,9 +772,6 @@ def get_model(opt, device='/cpu:0'):
             box_loss = -iou_soft_box
         elif box_loss_fn == 'wt_cov':
             box_loss = -base.f_weighted_coverage(iou_soft_box, attn_box_gt)
-        elif box_loss_fn == 'mse':
-            box_loss_fn = base.f_match_loss(
-                y_out, y_gt, match_box, timespan, f_mse)
         elif box_loss_fn == 'bce':
             box_loss_fn = base.f_match_loss(
                 y_out, y_gt, match_box, timespan, f_bce)
