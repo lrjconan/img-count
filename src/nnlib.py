@@ -247,44 +247,44 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
 
     with tf.variable_scope(scope):
         for ii in xrange(nlayers):
-            with tf.variable_scope('layer_{}'.format(ii)):
-                if init_weights:
-                    init = tf.constant_initializer
-                else:
-                    init = None
+            # with tf.variable_scope('layer_{}'.format(ii)):
+            if init_weights:
+                init = tf.constant_initializer
+            else:
+                init = None
 
-                if init_weights is not None and init_weights[ii] is not None:
-                    init_val_w = init_weights[ii]['w']
-                    init_val_b = init_weights[ii]['b']
-                else:
-                    init_val_w = None
-                    init_val_b = None
+            if init_weights is not None and init_weights[ii] is not None:
+                init_val_w = init_weights[ii]['w']
+                init_val_b = init_weights[ii]['b']
+            else:
+                init_val_w = None
+                init_val_b = None
 
-                if frozen is not None and frozen[ii]:
-                    trainable = False
-                else:
-                    trainable = True
+            if frozen is not None and frozen[ii]:
+                trainable = False
+            else:
+                trainable = True
 
-                if shared_weights:
-                    w[ii] = shared_weights[ii]['w']
-                    b[ii] = shared_weights[ii]['b']
-                else:
-                    w[ii] = weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]],
-                                            # name='w',
-                                            init_val=init_val_w, wd=wd,
-                                            trainable=trainable)
-                    b[ii] = weight_variable([ch[ii + 1]], init_val=init_val_b,
-                                            # name='b',
-                                            trainable=trainable)
-                log.info('Filter: {}, Trainable: {}'.format(
-                    [f[ii], f[ii], ch[ii], ch[ii + 1]], trainable))
+            if shared_weights:
+                w[ii] = shared_weights[ii]['w']
+                b[ii] = shared_weights[ii]['b']
+            else:
+                w[ii] = weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]],
+                                        # name='w',
+                                        init_val=init_val_w, wd=wd,
+                                        trainable=trainable)
+                b[ii] = weight_variable([ch[ii + 1]], init_val=init_val_b,
+                                        # name='b',
+                                        trainable=trainable)
+            log.info('Filter: {}, Trainable: {}'.format(
+                [f[ii], f[ii], ch[ii], ch[ii + 1]], trainable))
 
-                if model:
-                    for name, param in zip(['w', 'b'], [w[ii], b[ii]]):
-                        key = '{}_{}_{}'.format(scope, name, ii)
-                        if key in model:
-                            raise Exception('Key exists: {}'.format(key))
-                        model[key] = param
+            if model:
+                for name, param in zip(['w', 'b'], [w[ii], b[ii]]):
+                    key = '{}_{}_{}'.format(scope, name, ii)
+                    if key in model:
+                        raise Exception('Key exists: {}'.format(key))
+                    model[key] = param
     copy = [0]
 
     def run_cnn(x):
@@ -365,40 +365,40 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
 
     with tf.variable_scope(scope):
         for ii in xrange(nlayers):
-            with tf.variable_scope('layer_{}'.format(ii)):
-                out_ch = ch[ii + 1]
+            # with tf.variable_scope('layer_{}'.format(ii)):
+            out_ch = ch[ii + 1]
 
-                if skip_ch is not None:
-                    if skip_ch[ii] is not None:
-                        in_ch += skip_ch[ii]
+            if skip_ch is not None:
+                if skip_ch[ii] is not None:
+                    in_ch += skip_ch[ii]
 
-                if init_weights is not None and init_weights[ii] is not None:
-                    init_val_w = init_weights[ii]['w']
-                    init_val_b = init_weights[ii]['b']
-                else:
-                    init_val_w = None
-                    init_val_b = None
+            if init_weights is not None and init_weights[ii] is not None:
+                init_val_w = init_weights[ii]['w']
+                init_val_b = init_weights[ii]['b']
+            else:
+                init_val_w = None
+                init_val_b = None
 
-                if frozen is not None and frozen[ii]:
-                    trainable = False
-                else:
-                    trainable = True
+            if frozen is not None and frozen[ii]:
+                trainable = False
+            else:
+                trainable = True
 
-                w[ii] = weight_variable([f[ii], f[ii], out_ch, in_ch],
-                                        name='w',
-                                        init_val=init_val_w, wd=wd,
-                                        trainable=trainable)
-                b[ii] = weight_variable([out_ch], init_val=init_val_b,
-                                        name='b',
-                                        trainable=trainable)
-                log.info('Filter: {}, Trainable: {}'.format(
-                    [f[ii], f[ii], out_ch, in_ch], trainable))
+            w[ii] = weight_variable([f[ii], f[ii], out_ch, in_ch],
+                                    name='w',
+                                    init_val=init_val_w, wd=wd,
+                                    trainable=trainable)
+            b[ii] = weight_variable([out_ch], init_val=init_val_b,
+                                    name='b',
+                                    trainable=trainable)
+            log.info('Filter: {}, Trainable: {}'.format(
+                [f[ii], f[ii], out_ch, in_ch], trainable))
 
-                in_ch = out_ch
+            in_ch = out_ch
 
-                if model:
-                    model['{}_w_{}'.format(scope, ii)] = w[ii]
-                    model['{}_b_{}'.format(scope, ii)] = b[ii]
+            if model:
+                model['{}_w_{}'.format(scope, ii)] = w[ii]
+                model['{}_b_{}'.format(scope, ii)] = b[ii]
 
     copy = [0]
 
