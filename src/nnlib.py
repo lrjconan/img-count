@@ -270,11 +270,11 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                     b[ii] = shared_weights[ii]['b']
                 else:
                     w[ii] = weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]],
-                                            # name='w',
+                                            name='w',
                                             init_val=init_val_w, wd=wd,
                                             trainable=trainable)
                     b[ii] = weight_variable([ch[ii + 1]], init_val=init_val_b,
-                                            # name='b',
+                                            name='b',
                                             trainable=trainable)
                 log.info('Filter: {}, Trainable: {}'.format(
                     [f[ii], f[ii], ch[ii], ch[ii + 1]], trainable))
@@ -511,13 +511,13 @@ def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, 
                 trainable = True
 
             w[ii] = weight_variable([nin, nout], init_val=init_val_w, wd=wd,
-                                    # name='w',
+                                    name='w',
                                     trainable=trainable)
             log.info('Weights: {} Trainable: {}'.format(
                 [nin, nout], trainable))
             if add_bias:
                 b[ii] = weight_variable([nout], init_val=init_val_b,
-                                        # name='b',
+                                        name='b',
                                         trainable=trainable)
                 log.info('Bias: {} Trainable: {}'.format([nout], trainable))
 
@@ -614,7 +614,7 @@ def conv_lstm(inp_depth, hid_depth, filter_size, wd=None, scope='conv_lstm'):
     return unroll
 
 
-def lstm(inp_dim, hid_dim, wd=None, scope='lstm', model=None):
+def lstm(inp_dim, hid_dim, wd=None, scope='lstm', model=None, init_weights=None, frozen=False):
     """Adds an LSTM component.
 
     Args:
@@ -627,30 +627,63 @@ def lstm(inp_dim, hid_dim, wd=None, scope='lstm', model=None):
     log.info('Input dim: {}'.format(inp_dim))
     log.info('Hidden dim: {}'.format(hid_dim))
 
+    if init_weights is None:
+        init_weights = {}
+        for w in ['w_xi', 'w_hi', 'b_i', 'w_xf', 'w_hf', 'b_f', 'w_xu',
+                  'w_hu', 'b_u', 'w_xo', 'w_ho', 'b_o']:
+            init_weights[w] = None
+
+    trainable = not frozen
+    log.info('Trainable: {}'.format(trainable))
+
     with tf.variable_scope(scope):
         # Input gate
-        w_xi = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xi')
-        w_hi = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hi')
-        b_i = weight_variable([hid_dim], initializer=tf.constant_initializer(0.0),
-                              name='b_i')
+        w_xi = weight_variable(
+            [inp_dim, hid_dim], init_val=init_weights['w_xi'], wd=wd,
+            name='w_xi', trainable=trainable)
+        w_hi = weight_variable(
+            [hid_dim, hid_dim], init_val=init_weights['w_hi'], wd=wd,
+            name='w_hi', trainable=trainable)
+        b_i = weight_variable(
+            [hid_dim], init_val=init_weights['b_i'],
+            initializer=tf.constant_initializer(0.0),
+            name='b_i', trainable=trainable)
 
         # Forget gate
-        w_xf = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xf')
-        w_hf = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hf')
-        b_f = weight_variable([hid_dim], initializer=tf.constant_initializer(1.0),
-                              name='b_f')
+        w_xf = weight_variable(
+            [inp_dim, hid_dim], init_val=init_weights['w_xf'], wd=wd,
+            name='w_xf', trainable=trainable)
+        w_hf = weight_variable(
+            [hid_dim, hid_dim], init_val=init_weights['w_hf'], wd=wd,
+            name='w_hf', trainable=trainable)
+        b_f = weight_variable(
+            [hid_dim], init_val=init_weights['b_f'],
+            initializer=tf.constant_initializer(1.0),
+            name='b_f', trainable=trainable)
 
         # Input activation
-        w_xu = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xu')
-        w_hu = weight_variable([hid_dim, hid_dim], wd=wd, name='w_hu')
-        b_u = weight_variable([hid_dim], initializer=tf.constant_initializer(0.0),
-                              name='b_u')
+        w_xu = weight_variable(
+            [inp_dim, hid_dim], init_val=init_weights['w_xu'], wd=wd,
+            name='w_xu', trainable=trainable)
+        w_hu = weight_variable(
+            [hid_dim, hid_dim], init_val=init_weights['w_hu'], wd=wd,
+            name='w_hu', trainable=trainable)
+        b_u = weight_variable(
+            [hid_dim], init_val=init_weights['b_u'],
+            initializer=tf.constant_initializer(0.0),
+            name='b_u', trainable=trainable)
 
         # Output gate
-        w_xo = weight_variable([inp_dim, hid_dim], wd=wd, name='w_xo')
-        w_ho = weight_variable([hid_dim, hid_dim], wd=wd, name='w_ho')
-        b_o = weight_variable([hid_dim], initializer=tf.constant_initializer(0.0),
-                              name='b_o')
+        w_xo = weight_variable(
+            [inp_dim, hid_dim], init_val=init_weights['w_xo'], wd=wd,
+            name='w_xo', trainable=trainable)
+        w_ho = weight_variable(
+            [hid_dim, hid_dim], init_val=init_weights['w_ho'], wd=wd,
+            name='w_ho', trainable=trainable)
+        b_o = weight_variable(
+            [hid_dim], init_val=init_weights['b_o']
+            initializer=tf.constant_initializer(0.0),
+            name='b_o', trainable=trainable)
 
         if model:
             model['{}_w_xi'.format(scope)] = w_xi

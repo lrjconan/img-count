@@ -190,6 +190,20 @@ def get_model(opt, device='/cpu:0'):
         elif ctrl_rnn_inp_struct == 'attn':
             crnn_inp_dim = glimpse_feat_dim
 
+        if pretrain_ctrl_net:
+            log.info('Loading pretrained controller RNN weights from {}'.format(
+                pretrain_ctrl_net))
+            h5f = h5py.File(pretrain_ctrl_net, 'r')
+            crnn_init_w = {}
+            for w in ['w_xi', 'w_hi', 'b_i', 'w_xf', 'w_hf', 'b_f', 'w_xu',
+                      'w_hu', 'b_u', 'w_xo', 'w_ho', 'b_o']:
+                key = 'ctrl_lstm_{}'.format(w)
+                crnn_init_w[w] = h5f[key][:]
+            crnn_frozen = False
+        else:
+            crnn_init_w = None
+            crnn_frozen = False
+
         crnn_state = [None] * (timespan + 1)
         crnn_glimpse_map = [None] * timespan
         crnn_g_i = [None] * timespan
@@ -198,6 +212,7 @@ def get_model(opt, device='/cpu:0'):
         h_crnn = [None] * timespan
         crnn_state[-1] = tf.zeros(tf.pack([num_ex, crnn_dim * 2]))
         crnn_cell = nn.lstm(crnn_inp_dim, crnn_dim, wd=wd, scope='ctrl_lstm',
+                            init_weights=crnn_init_w, frozen=crnn_frozen,
                             model=model)
 
 ############################
@@ -207,9 +222,23 @@ def get_model(opt, device='/cpu:0'):
         gmlp_act = [tf.nn.relu] * \
             (num_glimpse_mlp_layers - 1) + [tf.nn.softmax]
         gmlp_dropout = None
+
+        if pretrain_ctrl_net:
+            log.info('Loading pretrained glimpse MLP weights from {}'.format(
+                pretrain_ctrl_net))
+            h5f = h5py.File(pretrain_ctrl_net, 'r')
+            gmlp_init_w = [{'w': h5f['glimpse_mlp_w_{}'.format(ii)][:],
+                            'b': h5f['glimpse_mlp_b_{}'.format(ii)][:]}
+                           for ii in xrange(num_glimpse_mlp_layers)]
+            gmlp_frozen = [False] * num_glimpse_mlp_layers
+        else:
+            gmlp_init_w = None
+            gmlp_frozen = None
+
         gmlp = nn.mlp(gmlp_dims, gmlp_act, add_bias=True,
                       dropout_keep=gmlp_dropout,
                       phase_train=phase_train, wd=wd, scope='glimpse_mlp',
+                      init_weights=gmlp_init_w, frozen=gmlp_frozen,
                       model=model)
 
 ############################
@@ -217,7 +246,6 @@ def get_model(opt, device='/cpu:0'):
 ############################
         cmlp_dims = [crnn_dim] + [ctrl_mlp_dim] * \
             (num_ctrl_mlp_layers - 1) + [9]
-        cmlp_nlayers = num_ctrl_mlp_layers
         cmlp_act = [tf.nn.relu] * (num_ctrl_mlp_layers - 1) + [None]
         cmlp_dropout = None
 
@@ -227,8 +255,8 @@ def get_model(opt, device='/cpu:0'):
             h5f = h5py.File(pretrain_ctrl_net, 'r')
             cmlp_init_w = [{'w': h5f['ctrl_mlp_w_{}'.format(ii)][:],
                             'b': h5f['ctrl_mlp_b_{}'.format(ii)][:]}
-                           for ii in xrange(cmlp_nlayers)]
-            cmlp_frozen = [False] * cmlp_nlayers
+                           for ii in xrange(num_ctrl_mlp_layers)]
+            cmlp_frozen = [False] * num_ctrl_mlp_layers
         else:
             cmlp_init_w = None
             cmlp_frozen = None
@@ -249,29 +277,31 @@ def get_model(opt, device='/cpu:0'):
         acnn_act = [tf.nn.relu] * acnn_nlayers
         acnn_use_bn = [use_bn] * acnn_nlayers
 
-        if pretrain_cnn:
+        if pretrain_attn_net:
+            log.info('Loading pretrained attention CNN weights from {}'.format(
+                pretrain_attn_net))
+            h5f = h5py.File(pretrain_attn_net, 'r')
             acnn_init_w = [{'w': h5f['attn_cnn_w_{}'.format(ii)][:],
                             'b': h5f['attn_cnn_b_{}'.format(ii)][:]}
                            for ii in xrange(acnn_nlayers)]
-            acnn_frozen = None
+            acnn_frozen = [False] * acnn_nlayers
         else:
             acnn_init_w = None
             acnn_frozen = None
 
-        if cnn_share_weights:
-            ccnn_shared_weights = []
-            for ii in xrange(ccnn_nlayers):
-                ccnn_shared_weights.append(
-                    {'w': model['ctrl_cnn_w_{}'.format(ii)],
-                     'b': model['ctrl_cnn_b_{}'.format(ii)]})
-        else:
-            ccnn_shared_weights = None
+        # if cnn_share_weights:
+        #     ccnn_shared_weights = []
+        #     for ii in xrange(ccnn_nlayers):
+        #         ccnn_shared_weights.append(
+        #             {'w': model['ctrl_cnn_w_{}'.format(ii)],
+        #              'b': model['ctrl_cnn_b_{}'.format(ii)]})
+        # else:
+        #     ccnn_shared_weights = None
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
                       acnn_use_bn, phase_train=phase_train, wd=wd,
                       scope='attn_cnn', model=model,
                       init_weights=acnn_init_w,
-                      frozen=acnn_frozen,
-                      shared_weights=ccnn_shared_weights)
+                      frozen=acnn_frozen)
 
         x_patch = [None] * timespan
         h_acnn = [None] * timespan
@@ -307,11 +337,14 @@ def get_model(opt, device='/cpu:0'):
         amlp_act = [tf.nn.relu] * num_attn_mlp_layers
         amlp_dropout = None
 
-        if pretrain_cnn:
+        if pretrain_attn_net:
+            log.info('Loading pretrained attention MLP weights from {}'.format(
+                pretrain_attn_net))
+            h5f = h5py.File(pretrain_attn_net, 'r')
             amlp_init_w = [{'w': h5f['attn_mlp_w_{}'.format(ii)][:],
                             'b': h5f['attn_mlp_b_{}'.format(ii)][:]}
                            for ii in xrange(num_attn_mlp_layers)]
-            amlp_frozen = True
+            amlp_frozen = [False] * num_attn_mlp_layers
         else:
             amlp_init_w = None
             amlp_frozen = None
@@ -341,11 +374,14 @@ def get_model(opt, device='/cpu:0'):
         # adcnn_use_bn = [use_bn] * adcnn_nlayers
         adcnn_skip_ch = [0] + acnn_channels[::-1][1:]
 
-        if pretrain_cnn:
+        if pretrain_attn_net:
+            log.info('Loading pretrained attention DCNN weights from {}'.format(
+                pretrain_attn_net))
+            h5f = h5py.File(pretrain_attn_net, 'r')
             adcnn_init_w = [{'w': h5f['attn_dcnn_w_{}'.format(ii)][:],
                              'b': h5f['attn_dcnn_b_{}'.format(ii)][:]}
                             for ii in xrange(adcnn_nlayers)]
-            adcnn_frozen = None
+            adcnn_frozen = [False] * adcnn_nlayers
         else:
             adcnn_init_w = None
             adcnn_frozen = None
