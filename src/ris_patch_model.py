@@ -76,7 +76,7 @@ def get_model(opt, device='/cpu:0'):
     gt_segm_noise = opt['gt_segm_noise']
     clip_gradient = opt['clip_gradient']
     fixed_order = opt['fixed_order']
-    if add_skip_conn not in opt:
+    if 'add_skip_conn' not in opt:
         add_skip_conn = True
     else:
         add_skip_conn = opt['add_skip_conn']
