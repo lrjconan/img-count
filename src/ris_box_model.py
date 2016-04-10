@@ -13,7 +13,7 @@ import tensorflow as tf
 log = logger.get()
 
 
-def get_model(opt, device='/:cpu:0'):
+def get_model(opt, device='/cpu:0'):
     """The box model"""
     model = {}
 

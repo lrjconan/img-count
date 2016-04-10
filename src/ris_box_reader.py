@@ -22,17 +22,17 @@ def read(folder):
 
     ckpt_fname = ckpt_info['ckpt_fname']
     model_id = ckpt_info['model_id']
-    model = patch_model.get_model(model_opt)
-    ctrl_cnn_nlayers = len(model_opt['attn_cnn_filter_size'])
-    ctrl_mlp_nlayers = model_opt['num_attn_mlp_layers']
+    model = box_model.get_model(model_opt)
+    log.info(model_opt)
+    ctrl_cnn_nlayers = len(model_opt['ctrl_cnn_filter_size'])
+    ctrl_mlp_nlayers = model_opt['num_ctrl_mlp_layers']
     weights = {}
     sess = tf.Session()
     saver.restore(sess, ckpt_fname)
 
     output_list = []
     for net, nlayers in zip(['ctrl_cnn', 'ctrl_mlp'],
-                            [attn_cnn_nlayers, attn_mlp_nlayers,
-                             attn_dcnn_nlayers]):
+                            [ctrl_cnn_nlayers, ctrl_mlp_nlayers]):
         for ii in xrange(nlayers):
             for w in ['w', 'b']:
                 key = '{}_{}_{}'.format(net, w, ii)
@@ -41,7 +41,7 @@ def read(folder):
 
     for net in ['ctrl_lstm']:
         for w in ['w_xi', 'w_hi', 'b_i', 'w_xf', 'w_hf', 'b_f', 'w_xu',
-                  'w_hu', 'b_u', 'w_xo', 'w_ho', 'w_bo']:
+                  'w_hu', 'b_u', 'w_xo', 'w_ho', 'b_o']:
             key = '{}_{}'.format(net, w)
             log.info(key)
             output_list.append(key)

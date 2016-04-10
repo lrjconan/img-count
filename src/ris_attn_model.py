@@ -652,7 +652,10 @@ def get_model(opt, device='/cpu:0'):
             y_out[tt] = tf.reshape(y_out[tt], [-1, 1, inp_height, inp_width])
 
             # Scoring network
-            smlp_inp = tf.concat(1, [h_crnn[tt], h_core])
+            if ctrl_rnn_inp_struct == 'dense':
+                smlp_inp = tf.concat(1, [h_crnn[tt], h_core])
+            elif ctrl_rnn_inp_struct == 'attn':
+                smlp_inp = tf.concat(1, [h_crnn[tt][-1], h_core])
             s_out[tt] = smlp(smlp_inp)[-1]
 
             # Here is the knob kick in GT segmentations at this timestep.
@@ -905,18 +908,18 @@ def get_model(opt, device='/cpu:0'):
 ##################################
 # Controller RNN gate statistics
 ##################################
-        crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
-        crnn_g_f = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_f])
-        crnn_g_o = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_o])
-        crnn_g_i_avg = tf.reduce_sum(
-            crnn_g_i) / num_ex_f / timespan / ctrl_rnn_hid_dim
-        crnn_g_f_avg = tf.reduce_sum(
-            crnn_g_f) / num_ex_f / timespan / ctrl_rnn_hid_dim
-        crnn_g_o_avg = tf.reduce_sum(
-            crnn_g_o) / num_ex_f / timespan / ctrl_rnn_hid_dim
-        model['crnn_g_i_avg'] = crnn_g_i_avg
-        model['crnn_g_f_avg'] = crnn_g_f_avg
-        model['crnn_g_o_avg'] = crnn_g_o_avg
+        # crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
+        # crnn_g_f = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_f])
+        # crnn_g_o = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_o])
+        # crnn_g_i_avg = tf.reduce_sum(
+        #     crnn_g_i) / num_ex_f / timespan / ctrl_rnn_hid_dim
+        # crnn_g_f_avg = tf.reduce_sum(
+        #     crnn_g_f) / num_ex_f / timespan / ctrl_rnn_hid_dim
+        # crnn_g_o_avg = tf.reduce_sum(
+        #     crnn_g_o) / num_ex_f / timespan / ctrl_rnn_hid_dim
+        # model['crnn_g_i_avg'] = crnn_g_i_avg
+        # model['crnn_g_f_avg'] = crnn_g_f_avg
+        # model['crnn_g_o_avg'] = crnn_g_o_avg
 
 ####################
 # Debug gradients

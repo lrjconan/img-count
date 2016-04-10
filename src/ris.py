@@ -9,6 +9,7 @@ from __future__ import division
 import cslab_environ
 
 import argparse
+import cv2
 import datetime
 import h5py
 import matplotlib
@@ -36,9 +37,7 @@ from utils.time_series_logger import TimeSeriesLogger
 
 import ris_base as base
 import ris_vanilla_model as vanilla_model
-# import ris_attn_model_old as attention_model
 import ris_attn_model as attention_model
-# import ris_double_attn_model as double_attention_model
 
 log = logger.get()
 
@@ -72,13 +71,13 @@ def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
 
     Args:
         fname: str, image output filename.
-        x: [B, T, H, W, 3], input image.
+        x: [B, H, W, 3], input image.
         glimpse_map: [B, T, T2, H', W']: glimpse attention map.
     """
     num_ex = x.shape[0]
-    timespan = x.shape[1]
-    im_height = x.shape[2]
-    im_width = x.shape[3]
+    timespan = glimpse_map.shape[1]
+    im_height = x.shape[1]
+    im_width = x.shape[2]
     num_glimpse = glimpse_map.shape[2]
     num_items = num_glimpse
     num_row, num_col, calc = pu.calc_row_col(
@@ -92,7 +91,7 @@ def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
             for jj in xrange(num_glimpse):
                 row, col = calc(ii * timespan + tt, jj)
                 total_img = np.zeros([im_height, im_width, 3])
-                total_img += x[ii, tt] * 0.5
+                total_img += x[ii] * 0.5
                 # glimpse = np.expand_dims(glimpse_map[ii, tt, jj], 2)
                 glimpse = glimpse_map[ii, tt, jj]
                 glimpse = cv2.resize(glimpse, (im_width, im_height))
@@ -1410,7 +1409,6 @@ if __name__ == '__main__':
 
             if attn and model_opt['ctrl_rnn_inp_struct'] == 'attn':
                 fname_attn = samples['attn_{}'.format(_set)].get_fname()
-                labels.append('attn')
                 names.append('attn')
             else:
                 fname_attn = None
