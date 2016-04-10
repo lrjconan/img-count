@@ -270,11 +270,11 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                     b[ii] = shared_weights[ii]['b']
                 else:
                     w[ii] = weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]],
-                                            name='w',
+                                            # name='w',
                                             init_val=init_val_w, wd=wd,
                                             trainable=trainable)
                     b[ii] = weight_variable([ch[ii + 1]], init_val=init_val_b,
-                                            name='b',
+                                            # name='b',
                                             trainable=trainable)
                 log.info('Filter: {}, Trainable: {}'.format(
                     [f[ii], f[ii], ch[ii], ch[ii + 1]], trainable))
@@ -385,11 +385,11 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
                     trainable = True
 
                 w[ii] = weight_variable([f[ii], f[ii], out_ch, in_ch],
-                                        name='w',
+                                        # name='w',
                                         init_val=init_val_w, wd=wd,
                                         trainable=trainable)
                 b[ii] = weight_variable([out_ch], init_val=init_val_b,
-                                        name='b',
+                                        # name='b',
                                         trainable=trainable)
                 log.info('Filter: {}, Trainable: {}'.format(
                     [f[ii], f[ii], out_ch, in_ch], trainable))
