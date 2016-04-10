@@ -71,7 +71,7 @@ def get_model(opt, device='/cpu:0'):
 
     # downsample_canvas = opt['downsample_canvas']
     # pretrain_cnn = opt['pretrain_cnn']
-    log.fatal(opt)
+    # log.fatal(opt)
     pretrain_ctrl_net = opt['pretrain_ctrl_net']
     pretrain_attn_net = opt['pretrain_attn_net']
     # pretrain_ctrl_net = None

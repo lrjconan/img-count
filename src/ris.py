@@ -812,7 +812,7 @@ def _make_model_opt(args):
             'rnd_transpose': rnd_transpose,
             'rnd_colour': rnd_colour,
         }
-        log.fatal(model_opt)
+        # log.fatal(model_opt)
     elif args.model == 'vanilla':
         cnn_fsize_list = args.cnn_filter_size.split(',')
         cnn_fsize_list = [int(fsize) for fsize in cnn_fsize_list]
