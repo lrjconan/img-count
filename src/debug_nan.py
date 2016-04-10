@@ -86,7 +86,7 @@ if __name__ == '__main__':
     output_val = sess.run(output_var, feed_dict={model['x']: x,
                                                  model['y_gt']: y,
                                                  model['s_gt']: s,
-                                                 model['phase_train']: True})
+                                                 model['phase_train']: False})
     
     model_val = {}
     for kk, key in enumerate(output_list):

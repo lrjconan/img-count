@@ -1658,6 +1658,7 @@ if __name__ == '__main__':
             if retry == 10:
                 save_inp()
                 raise Exception('NaN')
+            loss = r['loss']
 
             _outputs = ['train_step']
             _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
