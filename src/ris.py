@@ -614,7 +614,7 @@ def _add_model_args(parser):
                         help='Whether to squash control parameters.')
     parser.add_argument('-fixed_gamma', action='store_true',
                         help='Fix the value of gamma.')
-    parser.add_argument('-pretrain_ctrl_net', defualt=None,
+    parser.add_argument('-pretrain_ctrl_net', default=None,
                         help='Use pre-trained controller network')
     parser.add_argument('-pretrain_attn_net', default=None,
                         help='Use pre-trained attention network')
