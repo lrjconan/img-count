@@ -92,7 +92,6 @@ def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
                 row, col = calc(ii * timespan + tt, jj)
                 total_img = np.zeros([im_height, im_width, 3])
                 total_img += x[ii] * 0.5
-                # glimpse = np.expand_dims(glimpse_map[ii, tt, jj], 2)
                 glimpse = glimpse_map[ii, tt, jj]
                 glimpse = cv2.resize(glimpse, (im_width, im_height))
                 glimpse = np.expand_dims(glimpse, 2)

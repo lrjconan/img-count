@@ -71,11 +71,11 @@ def get_model(opt, device='/cpu:0'):
 
     # downsample_canvas = opt['downsample_canvas']
     # pretrain_cnn = opt['pretrain_cnn']
-    # pretrain_ctrl_net = opt['pretrain_ctrl_net']
-    # pretrain_attn_net = opt['pretrain_attn_net']
-    pretrain_ctrl_net = None
-    pretrain_attn_net = None
-    pretrain_cnn = None
+    pretrain_ctrl_net = opt['pretrain_ctrl_net']
+    pretrain_attn_net = opt['pretrain_attn_net']
+    # pretrain_ctrl_net = None
+    # pretrain_attn_net = None
+    # pretrain_cnn = None
     cnn_share_weights = opt['cnn_share_weights']
     squash_ctrl_params = opt['squash_ctrl_params']
     use_iou_box = opt['use_iou_box']

@@ -26,13 +26,15 @@ def read(folder):
     log.info(model_opt)
     ctrl_cnn_nlayers = len(model_opt['ctrl_cnn_filter_size'])
     ctrl_mlp_nlayers = model_opt['num_ctrl_mlp_layers']
+    glimpse_mlp_nlayers = model_opt['num_glimpse_mlp_layers']
     weights = {}
     sess = tf.Session()
     saver.restore(sess, ckpt_fname)
 
     output_list = []
-    for net, nlayers in zip(['ctrl_cnn', 'ctrl_mlp'],
-                            [ctrl_cnn_nlayers, ctrl_mlp_nlayers]):
+    for net, nlayers in zip(['ctrl_cnn', 'ctrl_mlp', 'glimpse_mlp'],
+                            [ctrl_cnn_nlayers, ctrl_mlp_nlayers,
+                             glimpse_mlp_nlayers]):
         for ii in xrange(nlayers):
             for w in ['w', 'b']:
                 key = '{}_{}_{}'.format(net, w, ii)
