@@ -70,7 +70,12 @@ def get_model(opt, device='/cpu:0'):
     gt_segm_noise = opt['gt_segm_noise']
 
     # downsample_canvas = opt['downsample_canvas']
-    pretrain_cnn = opt['pretrain_cnn']
+    # pretrain_cnn = opt['pretrain_cnn']
+    # pretrain_ctrl_net = opt['pretrain_ctrl_net']
+    # pretrain_attn_net = opt['pretrain_attn_net']
+    pretrain_ctrl_net = None
+    pretrain_attn_net = None
+    pretrain_cnn = None
     cnn_share_weights = opt['cnn_share_weights']
     squash_ctrl_params = opt['squash_ctrl_params']
     use_iou_box = opt['use_iou_box']
@@ -151,23 +156,14 @@ def get_model(opt, device='/cpu:0'):
         ccnn_act = [tf.nn.relu] * ccnn_nlayers
         ccnn_use_bn = [use_bn] * ccnn_nlayers
 
-        if pretrain_cnn:
-            log.info('Loading pretrained weights from {}'.format(pretrain_cnn))
-            h5f = h5py.File(pretrain_cnn, 'r')
-            acnn_nlayers = 0
-            # Assuming acnn_nlayers is smaller than ccnn_nlayers.
-            for ii in xrange(ccnn_nlayers):
-                if 'attn_cnn_w_{}'.format(ii) in h5f:
-                    log.info('Loading attn_cnn_w_{}'.format(ii))
-                    log.info('Loading attn_cnn_b_{}'.format(ii))
-                    acnn_nlayers += 1
-            ccnn_init_w = [{'w': h5f['attn_cnn_w_{}'.format(ii)][:],
-                            'b': h5f['attn_cnn_b_{}'.format(ii)][:]}
-                           for ii in xrange(acnn_nlayers)]
-            ccnn_frozen = [True] * acnn_nlayers
-            for ii in xrange(acnn_nlayers, ccnn_nlayers):
-                ccnn_init_w.append(None)
-                ccnn_frozen.append(False)
+        if pretrain_ctrl_net:
+            log.info('Loading pretrained controller CNN weights from {}'.format(
+                pretrain_ctrl_net))
+            h5f = h5py.File(pretrain_ctrl_net, 'r')
+            ccnn_init_w = [{'w': h5f['ctrl_cnn_w_{}'.format(ii)][:],
+                            'b': h5f['ctrl_cnn_b_{}'.format(ii)][:]}
+                           for ii in xrange(ccnn_nlayers)]
+            ccnn_frozen = [False] * ccnn_nlayers
         else:
             ccnn_init_w = None
             ccnn_frozen = None
@@ -204,7 +200,7 @@ def get_model(opt, device='/cpu:0'):
         crnn_cell = nn.lstm(crnn_inp_dim, crnn_dim, wd=wd, scope='ctrl_lstm',
                             model=model)
 
-        ############################
+############################
 # Glimpse MLP definition
 ############################
         gmlp_dims = [crnn_dim] * num_glimpse_mlp_layers + [glimpse_map_dim]
@@ -216,19 +212,34 @@ def get_model(opt, device='/cpu:0'):
                       phase_train=phase_train, wd=wd, scope='glimpse_mlp',
                       model=model)
 
-        ############################
+############################
 # Controller MLP definition
 ############################
         cmlp_dims = [crnn_dim] + [ctrl_mlp_dim] * \
             (num_ctrl_mlp_layers - 1) + [9]
+        cmlp_nlayers = num_ctrl_mlp_layers
         cmlp_act = [tf.nn.relu] * (num_ctrl_mlp_layers - 1) + [None]
         cmlp_dropout = None
+
+        if pretrain_ctrl_net:
+            log.info('Loading pretrained controller MLP weights from {}'.format(
+                pretrain_ctrl_net))
+            h5f = h5py.File(pretrain_ctrl_net, 'r')
+            cmlp_init_w = [{'w': h5f['ctrl_mlp_w_{}'.format(ii)][:],
+                            'b': h5f['ctrl_mlp_b_{}'.format(ii)][:]}
+                           for ii in xrange(cmlp_nlayers)]
+            cmlp_frozen = [False] * cmlp_nlayers
+        else:
+            cmlp_init_w = None
+            cmlp_frozen = None
+
         cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=True,
                       dropout_keep=cmlp_dropout,
                       phase_train=phase_train, wd=wd, scope='ctrl_mlp',
+                      init_weights=cmlp_init_w, frozen=cmlp_frozen,
                       model=model)
 
-        ###########################
+###########################
 # Attention CNN definition
 ###########################
         acnn_filters = attn_cnn_filter_size
@@ -311,7 +322,7 @@ def get_model(opt, device='/cpu:0'):
                       frozen=amlp_frozen,
                       model=model)
 
-        ##########################
+##########################
 # Score MLP definition
 ##########################
         smlp = nn.mlp([crnn_dim + core_dim, 1], [tf.sigmoid], wd=wd,
@@ -559,7 +570,7 @@ def get_model(opt, device='/cpu:0'):
 
                     _top_left = tf.expand_dims(attn_top_left[tt], 1)
                     _bot_right = tf.expand_dims(attn_bot_right[tt], 1)
-                    
+
                     if not fixed_order:
                         iou_soft_box[tt] = base.f_iou_box(
                             _top_left, _bot_right, attn_top_left_gt,
@@ -933,9 +944,9 @@ def get_model(opt, device='/cpu:0'):
         # T * T2 * [H', W'] => [T, T2, H', W']
         if ctrl_rnn_inp_struct == 'attn':
             crnn_glimpse_map = tf.concat(
-                0, [tf.expand_dims(tf.concat(
-                    0, [tf.expand_dims(crnn_glimpse_map[tt][tt2], 0)
-                        for tt2 in xrange(num_ctrl_rnn_iter)]), 0)
+                1, [tf.expand_dims(tf.concat(
+                    1, [tf.expand_dims(crnn_glimpse_map[tt][tt2], 1)
+                        for tt2 in xrange(num_ctrl_rnn_iter)]), 1)
                     for tt in xrange(timespan)])
             model['ctrl_rnn_glimpse_map'] = crnn_glimpse_map
 

@@ -69,7 +69,7 @@ def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
         glimpse_map: [B, T, T2, H', W']: glimpse attention map.
     """
     num_ex = x.shape[0]
-    timespan = x.shape[1]
+    timespan = glimpse_map.shape[1]
     im_height = x.shape[2]
     im_width = x.shape[3]
     num_glimpse = glimpse_map.shape[2]
@@ -85,8 +85,7 @@ def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
             for jj in xrange(num_glimpse):
                 row, col = calc(ii * timespan + tt, jj)
                 total_img = np.zeros([im_height, im_width, 3])
-                total_img += x[ii, tt] * 0.5
-                # glimpse = np.expand_dims(glimpse_map[ii, tt, jj], 2)
+                total_img += x[ii] * 0.5
                 glimpse = glimpse_map[ii, tt, jj]
                 glimpse = cv2.resize(glimpse, (im_width, im_height))
                 glimpse = np.expand_dims(glimpse, 2)
@@ -579,7 +578,7 @@ if __name__ == '__main__':
                         max_items_per_row=_max_items)
 
             if fname_attn:
-                plot_double_attention(fname_attn, _x,
+                plot_double_attention(fname_attn, _r['x_trans'],
                                       _r['ctrl_rnn_glimpse_map'],
                                       max_items_per_row=_max_items)
             pass
