@@ -984,6 +984,9 @@ def get_model(opt, device='/cpu:0'):
                     1, [tf.expand_dims(crnn_glimpse_map[tt][tt2], 1)
                         for tt2 in xrange(num_ctrl_rnn_iter)]), 1)
                     for tt in xrange(timespan)])
+            crnn_glimpse_map = tf.reshape(
+                crnn_glimpse_map, [-1, timespan, num_ctrl_rnn_iter, crnn_h,
+                                   crnn_w])
             model['ctrl_rnn_glimpse_map'] = crnn_glimpse_map
 
     return model
