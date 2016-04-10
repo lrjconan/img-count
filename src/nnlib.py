@@ -113,7 +113,7 @@ def weight_variable(shape, initializer=None, init_val=None, wd=None, name=None, 
 #     return run_bn
 
 
-def batch_norm(x, n_out, phase_train, scope='bn', affine=True, model=None):
+def batch_norm(x, n_out, phase_train, scope='bn', scope2='bn', affine=True, model=None):
     """
     Batch normalization on convolutional maps.
     Args:
@@ -149,12 +149,12 @@ def batch_norm(x, n_out, phase_train, scope='bn', affine=True, model=None):
 
         normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
 
-        # if model is not None:
-        #     for name, param in zip(['beta', 'gamma'], [beta, gamma]):
-        #         key = '{}_{}'.format(scope, name)
-        #         if key in model:
-        #             raise Exception('Key exists: {}'.format(key))
-        #         model[key] = param
+        if model is not None:
+            for name, param in zip(['beta', 'gamma'], [beta, gamma]):
+                key = '{}_{}'.format(scope2, name)
+                if key in model:
+                    raise Exception('Key exists: {}'.format(key))
+                model[key] = param
 
     return normed, batch_mean, batch_var, ema_mean, ema_var
 
@@ -307,6 +307,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
             if use_bn[ii]:
                 h[ii], bm, bv, em, ev = batch_norm(
                     h[ii], out_ch, phase_train,
+                    scope2='{}_{}_{}'.format(scope, ii, copy[0]),
                     model=model)
 
                 if model:

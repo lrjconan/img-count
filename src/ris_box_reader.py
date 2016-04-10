@@ -26,6 +26,7 @@ def read(folder):
     log.info(model_opt)
     ctrl_cnn_nlayers = len(model_opt['ctrl_cnn_filter_size'])
     ctrl_mlp_nlayers = model_opt['num_ctrl_mlp_layers']
+    timespan = model_opt['timespan']
     glimpse_mlp_nlayers = model_opt['num_glimpse_mlp_layers']
     weights = {}
     sess = tf.Session()
@@ -40,6 +41,12 @@ def read(folder):
                 key = '{}_{}_{}'.format(net, w, ii)
                 log.info(key)
                 output_list.append(key)
+            if net == 'ctrl_cnn':
+                for tt in xrange(timespan):
+                    for w in ['beta', 'gamma']:
+                        key = '{}_{}_{}_{}'.format(net, ii, tt, w)
+                        log.info(key)
+                        output_list.append(key)
 
     for net in ['ctrl_lstm']:
         for w in ['w_xi', 'w_hi', 'b_i', 'w_xf', 'w_hf', 'b_f', 'w_xu',

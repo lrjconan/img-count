@@ -74,6 +74,7 @@ def get_model(opt, device='/cpu:0'):
     # log.fatal(opt)
     pretrain_ctrl_net = opt['pretrain_ctrl_net']
     pretrain_attn_net = opt['pretrain_attn_net']
+    freeze_pretrain_net = opt['freeze_pretrain_net']
     # pretrain_ctrl_net = None
     # pretrain_attn_net = None
     # pretrain_cnn = None
@@ -164,7 +165,7 @@ def get_model(opt, device='/cpu:0'):
             ccnn_init_w = [{'w': h5f['ctrl_cnn_w_{}'.format(ii)][:],
                             'b': h5f['ctrl_cnn_b_{}'.format(ii)][:]}
                            for ii in xrange(ccnn_nlayers)]
-            ccnn_frozen = [False] * ccnn_nlayers
+            ccnn_frozen = [freeze_pretrain_net] * ccnn_nlayers
         else:
             ccnn_init_w = None
             ccnn_frozen = None
@@ -200,7 +201,7 @@ def get_model(opt, device='/cpu:0'):
                       'w_hu', 'b_u', 'w_xo', 'w_ho', 'b_o']:
                 key = 'ctrl_lstm_{}'.format(w)
                 crnn_init_w[w] = h5f[key][:]
-            crnn_frozen = False
+            crnn_frozen = freeze_pretrain_net
         else:
             crnn_init_w = None
             crnn_frozen = False
@@ -231,7 +232,7 @@ def get_model(opt, device='/cpu:0'):
             gmlp_init_w = [{'w': h5f['glimpse_mlp_w_{}'.format(ii)][:],
                             'b': h5f['glimpse_mlp_b_{}'.format(ii)][:]}
                            for ii in xrange(num_glimpse_mlp_layers)]
-            gmlp_frozen = [False] * num_glimpse_mlp_layers
+            gmlp_frozen = [freeze_pretrain_net] * num_glimpse_mlp_layers
         else:
             gmlp_init_w = None
             gmlp_frozen = None
@@ -257,7 +258,7 @@ def get_model(opt, device='/cpu:0'):
             cmlp_init_w = [{'w': h5f['ctrl_mlp_w_{}'.format(ii)][:],
                             'b': h5f['ctrl_mlp_b_{}'.format(ii)][:]}
                            for ii in xrange(num_ctrl_mlp_layers)]
-            cmlp_frozen = [False] * num_ctrl_mlp_layers
+            cmlp_frozen = [freeze_pretrain_net] * num_ctrl_mlp_layers
         else:
             cmlp_init_w = None
             cmlp_frozen = None
@@ -285,7 +286,7 @@ def get_model(opt, device='/cpu:0'):
             acnn_init_w = [{'w': h5f['attn_cnn_w_{}'.format(ii)][:],
                             'b': h5f['attn_cnn_b_{}'.format(ii)][:]}
                            for ii in xrange(acnn_nlayers)]
-            acnn_frozen = [False] * acnn_nlayers
+            acnn_frozen = [freeze_pretrain_net] * acnn_nlayers
         else:
             acnn_init_w = None
             acnn_frozen = None
@@ -345,7 +346,7 @@ def get_model(opt, device='/cpu:0'):
             amlp_init_w = [{'w': h5f['attn_mlp_w_{}'.format(ii)][:],
                             'b': h5f['attn_mlp_b_{}'.format(ii)][:]}
                            for ii in xrange(num_attn_mlp_layers)]
-            amlp_frozen = [False] * num_attn_mlp_layers
+            amlp_frozen = [freeze_pretrain_net] * num_attn_mlp_layers
         else:
             amlp_init_w = None
             amlp_frozen = None
@@ -382,7 +383,7 @@ def get_model(opt, device='/cpu:0'):
             adcnn_init_w = [{'w': h5f['attn_dcnn_w_{}'.format(ii)][:],
                              'b': h5f['attn_dcnn_b_{}'.format(ii)][:]}
                             for ii in xrange(adcnn_nlayers)]
-            adcnn_frozen = [False] * adcnn_nlayers
+            adcnn_frozen = [freeze_pretrain_net] * adcnn_nlayers
         else:
             adcnn_init_w = None
             adcnn_frozen = None
