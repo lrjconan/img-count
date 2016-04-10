@@ -443,10 +443,15 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
                 #     h[ii], out_ch, phase_train,
                 #     scope='{}_bn_{}_{}'.format(scope, ii, copy[0]),
                 #     model=model)
+                # h[ii], bm, bv, em, ev = batch_norm(
+                #     h[ii], out_ch, phase_train,
+                #     model=model)
+
                 h[ii], bm, bv, em, ev = batch_norm(
                     h[ii], out_ch, phase_train,
+                    scope2='{}_{}_{}'.format(scope, ii, copy[0]),
                     model=model)
-
+                
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
                         tf.reduce_sum(bm) / out_ch

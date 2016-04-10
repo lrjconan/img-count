@@ -26,6 +26,7 @@ def read(folder):
     attn_cnn_nlayers = len(model_opt['attn_cnn_filter_size'])
     attn_mlp_nlayers = model_opt['num_attn_mlp_layers']
     attn_dcnn_nlayers = len(model_opt['attn_dcnn_filter_size'])
+    timespan = model_opt['timespan']
     weights = {}
     sess = tf.Session()
     saver.restore(sess, ckpt_fname)
@@ -39,6 +40,12 @@ def read(folder):
                 key = '{}_{}_{}'.format(net, w, ii)
                 log.info(key)
                 output_list.append(key)
+            if net == 'ctrl_cnn' or net == 'attn_dcnn':
+                for tt in xrange(timespan):
+                    for w in ['beta', 'gamma']:
+                        key = '{}_{}_{}_{}'.format(net, ii, tt, w)
+                        log.info(key)
+                        output_list.append(key)
 
     output_var = []
     for key in output_list:
