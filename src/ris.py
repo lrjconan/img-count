@@ -602,8 +602,8 @@ def _add_model_args(parser):
                         type=float, help='Groundtruth segmentation noise')
     parser.add_argument('-downsample_canvas', action='store_true',
                         help='Whether downsample canvas to feed to Ctrl RNN')
-    parser.add_argument('-pretrain_cnn', default=None,
-                        help='Use pre-trained segmentation CNN')
+    # parser.add_argument('-pretrain_cnn', default=None,
+    #                     help='Use pre-trained segmentation CNN')
     parser.add_argument('-cnn_share_weights', action='store_true',
                         help='Whether to share weights between CCNN and ACNN')
     parser.add_argument('-use_iou_box', action='store_true',
@@ -614,6 +614,10 @@ def _add_model_args(parser):
                         help='Whether to squash control parameters.')
     parser.add_argument('-fixed_gamma', action='store_true',
                         help='Fix the value of gamma.')
+    parser.add_argument('-pretrain_ctrl_net', defualt=None,
+                        help='Use pre-trained controller network')
+    parser.add_argument('-pretrain_attn_net', default=None,
+                        help='Use pre-trained attention network')
 
     # Double attention arguments
     parser.add_argument('-ctrl_rnn_inp_struct', default=kCtrlRnnInpStruct,
@@ -788,13 +792,16 @@ def _make_model_opt(args):
             'gt_box_pad_noise': args.gt_box_pad_noise,
             'gt_segm_noise': args.gt_segm_noise,
             'downsample_canvas': args.downsample_canvas,
-            'pretrain_cnn': args.pretrain_cnn,
+            # 'pretrain_cnn': args.pretrain_cnn,
             'cnn_share_weights': args.cnn_share_weights,
             'squash_ctrl_params': args.squash_ctrl_params,
             'use_iou_box': args.use_iou_box,
             'clip_gradient': args.clip_gradient,
             'fixed_order': args.fixed_order,
             'fixed_gamma': args.fixed_gamma,
+
+            'pretrain_ctrl_net': args.pretrain_ctrl_net,
+            'pretrain_attn_net': args.pretrain_attn_net,
 
             'ctrl_rnn_inp_struct': args.ctrl_rnn_inp_struct,
             'num_ctrl_rnn_iter': args.num_ctrl_rnn_iter,
