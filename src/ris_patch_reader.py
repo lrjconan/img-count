@@ -40,8 +40,8 @@ def read(folder):
                 key = '{}_{}_{}'.format(net, w, ii)
                 log.info(key)
                 output_list.append(key)
-            TT = timespan if net == 'ctrl_cnn' else timespan - 1
-            if net == 'ctrl_cnn' or net == 'attn_dcnn':
+            # TT = timespan if net == 'ctrl_cnn' else timespan - 1
+            if net == 'ctrl_cnn' or (ii < nlayers - 1 and net == 'attn_dcnn'):
                 for tt in xrange(timespan):
                     for w in ['beta', 'gamma']:
                         key = '{}_{}_{}_{}'.format(net, ii, tt, w)
