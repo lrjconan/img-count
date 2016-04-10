@@ -681,7 +681,7 @@ def lstm(inp_dim, hid_dim, wd=None, scope='lstm', model=None, init_weights=None,
             [hid_dim, hid_dim], init_val=init_weights['w_ho'], wd=wd,
             name='w_ho', trainable=trainable)
         b_o = weight_variable(
-            [hid_dim], init_val=init_weights['b_o']
+            [hid_dim], init_val=init_weights['b_o'],
             initializer=tf.constant_initializer(0.0),
             name='b_o', trainable=trainable)
 
