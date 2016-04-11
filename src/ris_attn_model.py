@@ -393,7 +393,7 @@ def get_model(opt, device='/cpu:0'):
             adcnn_init_w = [{'w': h5f['attn_dcnn_w_{}'.format(ii)][:],
                              'b': h5f['attn_dcnn_b_{}'.format(ii)][:]}
                             for ii in xrange(adcnn_nlayers)]
-            for ii in xrange(adcnn_nlayers - 1):
+            for ii in xrange(adcnn_nlayers):
                 for tt in xrange(timespan):
                     for w in ['beta', 'gamma']:
                         adcnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[
