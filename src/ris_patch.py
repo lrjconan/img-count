@@ -283,7 +283,6 @@ def _make_model_opt(args):
             'gt_box_ctr_noise': args.gt_box_ctr_noise,
             'gt_box_pad_noise': args.gt_box_pad_noise,
             'gt_segm_noise': args.gt_segm_noise,
-            'squash_ctrl_params': args.squash_ctrl_params,
             'clip_gradient': args.clip_gradient,
             'fixed_order': args.fixed_order,
             'add_skip_conn': args.add_skip_conn,
