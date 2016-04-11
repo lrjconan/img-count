@@ -53,9 +53,7 @@ def get_model(opt, device='/cpu:0'):
 
     wd = opt['weight_decay']
     use_bn = opt['use_bn']
-    use_gt_attn = opt['use_gt_attn']
     segm_loss_fn = opt['segm_loss_fn']
-    loss_mix_ratio = opt['loss_mix_ratio']
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
     steps_per_learn_rate_decay = opt['steps_per_learn_rate_decay']
