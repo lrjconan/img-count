@@ -424,18 +424,6 @@ def _get_plot_loggers(model_opt, train_opt):
         _ssets.append('valid')
     for _set in _ssets:
         labels = ['input', 'output', 'total']
-        if model_opt['type'] == 'attention' or \
-                model_opt['type'] == 'double_attention':
-            num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
-            num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
-            num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
-            labels.extend(['box', 'patch'])
-        if args.debug_act:
-            for _layer, _num in zip(
-                    ['ccnn', 'acnn', 'attn_dcnn'],
-                    [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
-                for ii in xrange(_num):
-                    labels.append('{}_{}'.format(_layer, ii))
         for name in labels:
             key = '{}_{}'.format(name, _set)
             samples[key] = LazyRegisterer(
@@ -469,11 +457,6 @@ if __name__ == '__main__':
         step = 0
         exp_folder = os.path.join(train_opt['results'], model_id)
         saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
-
-    if model_opt['type'] == 'attention' or model_opt['type'] == 'double_attention':
-        num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
-        num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
-        num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
 
     if not train_opt['save_ckpt']:
         log.warning(
