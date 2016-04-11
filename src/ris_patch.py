@@ -77,7 +77,6 @@ def _add_dataset_args(parser):
 
 
 def _add_model_args(parser):
-    # Shared options
     kWeightDecay = 5e-5
     kBaseLearnRate = 1e-3
     kLearnRateDecay = 0.96
@@ -85,9 +84,8 @@ def _add_model_args(parser):
     kLossMixRatio = 1.0
     kMlpDropout = 0.5
 
-    # Attention-based model options
-    kAttnHeight = 48
-    kAttnWidth = 96
+    kFilterHeight = 48
+    kFilterWidth = 48
     kAttnBoxPaddingRatio = 0.2
 
     kAttnCnnFilterSize = '3,3,3'
@@ -141,9 +139,9 @@ def _add_model_args(parser):
                         help='Whether to train in fixed order.')
 
     # Attention-based model options
-    parser.add_argument('-filter_height', default=kAttnHeight, type=int,
+    parser.add_argument('-filter_height', default=kFilterHeight, type=int,
                         help='Attention filter height')
-    parser.add_argument('-filter_width', default=kAttnWidth, type=int,
+    parser.add_argument('-filter_width', default=kFilterWidth, type=int,
                         help='Attention filter width')
     parser.add_argument('-attn_cnn_filter_size', default=kAttnCnnFilterSize,
                         help='Comma delimited integers')
@@ -172,6 +170,8 @@ def _add_model_args(parser):
                         type=float, help='Groundtruth segmentation noise')
     parser.add_argument('-clip_gradient', default=kClipGradient, type=float,
                         help='Largest gradient norm size')
+    parser.add_argument('-add_skip_conn', action='store_true'
+                        help='Add skip connection')
     pass
 
 
