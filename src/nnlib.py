@@ -540,7 +540,7 @@ def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, 
 
     with tf.variable_scope(scope):
         for ii in xrange(nlayers):
-            with tf.variable_scope('layer_{}'.format(ii)):
+            # with tf.variable_scope('layer_{}'.format(ii)):
                 nin = dims[ii]
                 nout = dims[ii + 1]
 
