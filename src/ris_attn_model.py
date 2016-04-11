@@ -165,6 +165,11 @@ def get_model(opt, device='/cpu:0'):
             ccnn_init_w = [{'w': h5f['ctrl_cnn_w_{}'.format(ii)][:],
                             'b': h5f['ctrl_cnn_b_{}'.format(ii)][:]}
                            for ii in xrange(ccnn_nlayers)]
+            for ii in xrange(ccnn_nlayers):
+                for tt in xrange(timespan):
+                    for w in ['beta', 'gamma']:
+                        ccnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[
+                            'ctrl_cnn_{}_{}_{}'.format(ii, tt, w)][:]
             ccnn_frozen = [freeze_pretrain_net] * ccnn_nlayers
         else:
             ccnn_init_w = None
@@ -286,6 +291,11 @@ def get_model(opt, device='/cpu:0'):
             acnn_init_w = [{'w': h5f['attn_cnn_w_{}'.format(ii)][:],
                             'b': h5f['attn_cnn_b_{}'.format(ii)][:]}
                            for ii in xrange(acnn_nlayers)]
+            for ii in xrange(acnn_nlayers):
+                for tt in xrange(timespan):
+                    for w in ['beta', 'gamma']:
+                        acnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[
+                            'attn_cnn_{}_{}_{}'.format(ii, tt, w)][:]
             acnn_frozen = [freeze_pretrain_net] * acnn_nlayers
         else:
             acnn_init_w = None
@@ -383,6 +393,11 @@ def get_model(opt, device='/cpu:0'):
             adcnn_init_w = [{'w': h5f['attn_dcnn_w_{}'.format(ii)][:],
                              'b': h5f['attn_dcnn_b_{}'.format(ii)][:]}
                             for ii in xrange(adcnn_nlayers)]
+            for ii in xrange(adcnn_nlayers - 1):
+                for tt in xrange(timespan):
+                    for w in ['beta', 'gamma']:
+                        adcnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[
+                            'attn_dcnn_{}_{}_{}'.format(ii, tt, w)][:]
             adcnn_frozen = [freeze_pretrain_net] * adcnn_nlayers
         else:
             adcnn_init_w = None

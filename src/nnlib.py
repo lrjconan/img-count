@@ -113,7 +113,7 @@ def weight_variable(shape, initializer=None, init_val=None, wd=None, name=None, 
 #     return run_bn
 
 
-def batch_norm(x, n_out, phase_train, scope='bn', scope2='bn', affine=True, model=None):
+def batch_norm(x, n_out, phase_train, scope='bn', scope2='bn', affine=True, init_beta=None, init_gamma=None, frozen=False, model=None):
     """
     Batch normalization on convolutional maps.
     Args:
@@ -125,11 +125,21 @@ def batch_norm(x, n_out, phase_train, scope='bn', scope2='bn', affine=True, mode
     Return:
         normed: batch-normalized maps
     """
+    trainable = not frozen
     with tf.variable_scope(scope):
-        beta = tf.Variable(tf.constant(0.0, shape=[n_out]),
-                           name='beta', trainable=True)
-        gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
-                            name='gamma', trainable=affine)
+        if init_beta is None:
+            init_beta = tf.constant(0.0, shape=[n_out])
+        if init_gamma is None:
+            init_gamma = tf.constant(1.0, shape=[n_out])
+
+        beta = nn.weight_variable(
+            [n_out], init_val=init_beta, name='beta', trainable=trainable)
+        gamma = weight_variable(
+            [n_out], init_val=init_gamma, name='gamma', trainable=trainable)
+        # beta = tf.Variable(tf.constant(0.0, shape=[n_out]),
+        #                    name='beta', trainable=True)
+        # gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
+        #                     name='gamma', trainable=affine)
 
         batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2], name='moments')
         batch_mean.set_shape([n_out])
@@ -270,11 +280,11 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                     b[ii] = shared_weights[ii]['b']
                 else:
                     w[ii] = weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]],
-                                            # name='w',
+                                            name='w',
                                             init_val=init_val_w, wd=wd,
                                             trainable=trainable)
                     b[ii] = weight_variable([ch[ii + 1]], init_val=init_val_b,
-                                            # name='b',
+                                            name='b',
                                             trainable=trainable)
                 log.info('Filter: {}, Trainable: {}'.format(
                     [f[ii], f[ii], ch[ii], ch[ii + 1]], trainable))
@@ -305,10 +315,31 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
             h[ii] = conv2d(prev_inp, w[ii]) + b[ii]
 
             if use_bn[ii]:
-                h[ii], bm, bv, em, ev = batch_norm(
-                    h[ii], out_ch, phase_train,
-                    scope2='{}_{}_{}'.format(scope, ii, copy[0]),
-                    model=model)
+                # h[ii], bm, bv, em, ev = batch_norm(
+                #     h[ii], out_ch, phase_train,
+                #     scope2='{}_{}_{}'.format(scope, ii, copy[0]),
+                #     model=model)
+
+                if frozen is not None and frozen[ii]:
+                    bn_frozen = True
+                else:
+                    bn_frozen = False
+
+                if init_weights is not None and init_weights[ii] is not None:
+                    init_beta = init_weights[ii]['beta_{}'.format(copy[0])]
+                    init_gamma = init_weights[ii]['gamma_{}'.format(copy[0])]
+                else:
+                    init_beta = None
+                    init_gamma = None
+
+                with tf.variable_scope('layer_{}'.format(ii)):
+                    with tf.variable_scope('copy_{}'.format(copy[0])):
+                        h[ii], bm, bv, em, ev = batch_norm(
+                            h[ii], out_ch, phase_train,
+                            scope2='{}_{}_{}'.format(scope, ii, copy[0]),
+                            init_beta=init_beta,
+                            init_gamma=init_gamma,
+                            model=model)
 
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
@@ -385,11 +416,11 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
                     trainable = True
 
                 w[ii] = weight_variable([f[ii], f[ii], out_ch, in_ch],
-                                        # name='w',
+                                        name='w',
                                         init_val=init_val_w, wd=wd,
                                         trainable=trainable)
                 b[ii] = weight_variable([out_ch], init_val=init_val_b,
-                                        # name='b',
+                                        name='b',
                                         trainable=trainable)
                 log.info('Filter: {}, Trainable: {}'.format(
                     [f[ii], f[ii], out_ch, in_ch], trainable))
@@ -439,11 +470,31 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
                 strides=[1, pool[ii], pool[ii], 1]) + b[ii]
 
             if use_bn[ii]:
-                h[ii], bm, bv, em, ev = batch_norm(
-                    h[ii], out_ch, phase_train,
-                    scope2='{}_{}_{}'.format(scope, ii, copy[0]),
-                    model=model)
+                # h[ii], bm, bv, em, ev = batch_norm(
+                #     h[ii], out_ch, phase_train,
+                #     scope2='{}_{}_{}'.format(scope, ii, copy[0]),
+                #     model=model)
+                if frozen is not None and frozen[ii]:
+                    bn_frozen = True
+                else:
+                    bn_frozen = False
 
+                if init_weights is not None and init_weights[ii] is not None:
+                    init_beta = init_weights[ii]['beta_{}'.format(copy[0])]
+                    init_gamma = init_weights[ii]['gamma_{}'.format(copy[0])]
+                else:
+                    init_beta = None
+                    init_gamma = None
+
+                with tf.variable_scope('layer_{}'.format(ii)):
+                    with tf.variable_scope('copy_{}'.format(copy[0])):
+                        h[ii], bm, bv, em, ev = batch_norm(
+                            h[ii], out_ch, phase_train,
+                            scope2='{}_{}_{}'.format(scope, ii, copy[0]),
+                            init_beta=init_beta,
+                            init_gamma=init_gamma,
+                            model=model)
+                        
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
                         tf.reduce_sum(bm) / out_ch
@@ -493,40 +544,38 @@ def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, 
 
     with tf.variable_scope(scope):
         for ii in xrange(nlayers):
-            nin = dims[ii]
-            nout = dims[ii + 1]
+            with tf.variable_scope('layer_{}'.format(ii)):
+                nin = dims[ii]
+                nout = dims[ii + 1]
 
-            if init_weights is not None and init_weights[ii] is not None:
-                init_val_w = init_weights[ii]['w']
-                init_val_b = init_weights[ii]['b']
-            else:
-                init_val_w = None
-                init_val_b = None
+                if init_weights is not None and init_weights[ii] is not None:
+                    init_val_w = init_weights[ii]['w']
+                    init_val_b = init_weights[ii]['b']
+                else:
+                    init_val_w = None
+                    init_val_b = None
 
-            if frozen is not None and frozen[ii]:
-                trainable = False
-            else:
-                trainable = True
+                if frozen is not None and frozen[ii]:
+                    trainable = False
+                else:
+                    trainable = True
 
-            w[ii] = weight_variable([nin, nout], init_val=init_val_w, wd=wd,
-                                    # name='w',
-                                    trainable=trainable)
-            log.info('Weights: {} Trainable: {}'.format(
-                [nin, nout], trainable))
-            if add_bias:
-                b[ii] = weight_variable([nout], init_val=init_val_b,
-                                        # name='b',
+                w[ii] = weight_variable([nin, nout], init_val=init_val_w, wd=wd,
+                                        name='w',
                                         trainable=trainable)
-                log.info('Bias: {} Trainable: {}'.format([nout], trainable))
-
-            if model:
-                model['{}_w_{}'.format(scope, ii)] = w[ii]
-                model['{}_w_{}_mean'.format(scope, ii)] = tf.reduce_sum(
-                    tf.abs(w[ii])) / nin / nout
+                log.info('Weights: {} Trainable: {}'.format(
+                    [nin, nout], trainable))
                 if add_bias:
-                    model['{}_b_{}'.format(scope, ii)] = b[ii]
-                    model['{}_b_{}_mean'.format(scope, ii)] = tf.reduce_sum(
-                        tf.abs(b[ii])) / nout
+                    b[ii] = weight_variable([nout], init_val=init_val_b,
+                                            name='b',
+                                            trainable=trainable)
+                    log.info('Bias: {} Trainable: {}'.format(
+                        [nout], trainable))
+
+                if model:
+                    model['{}_w_{}'.format(scope, ii)] = w[ii]
+                    if add_bias:
+                        model['{}_b_{}'.format(scope, ii)] = b[ii]
 
     def run_mlp(x):
         h = [None] * nlayers
