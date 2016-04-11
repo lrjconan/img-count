@@ -146,6 +146,7 @@ def get_model(opt, device='/cpu:0'):
         acnn_w = filter_width / acnn_subsample
         core_depth = attn_mlp_depth
         core_dim = acnn_h * acnn_w * core_depth
+        amlp_inp_dim = acnn_h * acnn_w * acnn_channels[-1]
         amlp_dims = [amlp_inp_dim] + [core_dim] * num_attn_mlp_layers
         amlp_act = [tf.nn.relu] * num_attn_mlp_layers
         amlp_dropout = None
