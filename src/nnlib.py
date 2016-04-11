@@ -257,7 +257,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
 
     with tf.variable_scope(scope):
         for ii in xrange(nlayers):
-            with tf.variable_scope('layer_{}'.format(ii)):
+            # with tf.variable_scope('layer_{}'.format(ii)):
                 if init_weights:
                     init = tf.constant_initializer
                 else:
@@ -280,11 +280,11 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                     b[ii] = shared_weights[ii]['b']
                 else:
                     w[ii] = weight_variable([f[ii], f[ii], ch[ii], ch[ii + 1]],
-                                            name='w',
+                                            # name='w',
                                             init_val=init_val_w, wd=wd,
                                             trainable=trainable)
                     b[ii] = weight_variable([ch[ii + 1]], init_val=init_val_b,
-                                            name='b',
+                                            # name='b',
                                             trainable=trainable)
                 log.info('Filter: {}, Trainable: {}'.format(
                     [f[ii], f[ii], ch[ii], ch[ii + 1]], trainable))
@@ -332,14 +332,14 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                     init_beta = None
                     init_gamma = None
 
-                with tf.variable_scope('layer_{}'.format(ii)):
-                    with tf.variable_scope('copy_{}'.format(copy[0])):
-                        h[ii], bm, bv, em, ev = batch_norm(
-                            h[ii], out_ch, phase_train,
-                            scope2='{}_{}_{}'.format(scope, ii, copy[0]),
-                            init_beta=init_beta,
-                            init_gamma=init_gamma,
-                            model=model)
+                # with tf.variable_scope('layer_{}'.format(ii)):
+                #     with tf.variable_scope('copy_{}'.format(copy[0])):
+                h[ii], bm, bv, em, ev = batch_norm(
+                    h[ii], out_ch, phase_train,
+                    scope2='{}_{}_{}'.format(scope, ii, copy[0]),
+                    init_beta=init_beta,
+                    init_gamma=init_gamma,
+                    model=model)
 
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
@@ -396,7 +396,7 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
 
     with tf.variable_scope(scope):
         for ii in xrange(nlayers):
-            with tf.variable_scope('layer_{}'.format(ii)):
+            # with tf.variable_scope('layer_{}'.format(ii)):
                 out_ch = ch[ii + 1]
 
                 if skip_ch is not None:
@@ -470,10 +470,6 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
                 strides=[1, pool[ii], pool[ii], 1]) + b[ii]
 
             if use_bn[ii]:
-                # h[ii], bm, bv, em, ev = batch_norm(
-                #     h[ii], out_ch, phase_train,
-                #     scope2='{}_{}_{}'.format(scope, ii, copy[0]),
-                #     model=model)
                 if frozen is not None and frozen[ii]:
                     bn_frozen = True
                 else:
@@ -486,15 +482,15 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
                     init_beta = None
                     init_gamma = None
 
-                with tf.variable_scope('layer_{}'.format(ii)):
-                    with tf.variable_scope('copy_{}'.format(copy[0])):
-                        h[ii], bm, bv, em, ev = batch_norm(
-                            h[ii], out_ch, phase_train,
-                            scope2='{}_{}_{}'.format(scope, ii, copy[0]),
-                            init_beta=init_beta,
-                            init_gamma=init_gamma,
-                            model=model)
-                        
+                # with tf.variable_scope('layer_{}'.format(ii)):
+                #     with tf.variable_scope('copy_{}'.format(copy[0])):
+                h[ii], bm, bv, em, ev = batch_norm(
+                    h[ii], out_ch, phase_train,
+                    scope2='{}_{}_{}'.format(scope, ii, copy[0]),
+                    init_beta=init_beta,
+                    init_gamma=init_gamma,
+                    model=model)
+
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
                         tf.reduce_sum(bm) / out_ch

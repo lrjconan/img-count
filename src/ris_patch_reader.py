@@ -40,13 +40,13 @@ def read(folder):
                 key = '{}_{}_{}'.format(net, w, ii)
                 log.info(key)
                 output_list.append(key)
-            # TT = timespan if net == 'ctrl_cnn' else timespan - 1
-            if net == 'ctrl_cnn' or (ii < nlayers - 1 and net == 'attn_dcnn'):
+            if net == 'attn_cnn' or net == 'attn_dcnn':
                 for tt in xrange(timespan):
                     for w in ['beta', 'gamma']:
                         key = '{}_{}_{}_{}'.format(net, ii, tt, w)
-                        log.info(key)
-                        output_list.append(key)
+                        if key in model:
+                            log.info(key)
+                            output_list.append(key)
 
     output_var = []
     for key in output_list:
