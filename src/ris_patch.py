@@ -487,9 +487,9 @@ if __name__ == '__main__':
     dataset = trainer.get_dataset(args.dataset, data_opt)
 
     if model_opt['fixed_order']:
-        dataset['train']['label_segmentation'] = base.sort_by_segm_size(
+        dataset['train']['label_segmentation'] = trainer.sort_by_segm_size(
             dataset['train']['label_segmentation'])
-        dataset['valid']['label_segmentation'] = base.sort_by_segm_size(
+        dataset['valid']['label_segmentation'] = trainer.sort_by_segm_size(
             dataset['valid']['label_segmentation'])
 
     # gpu_options = tf.GPUOptions(per_procegss_gpu_memory_fraction=0.333)
