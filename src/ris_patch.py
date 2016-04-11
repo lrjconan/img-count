@@ -170,7 +170,7 @@ def _add_model_args(parser):
                         type=float, help='Groundtruth segmentation noise')
     parser.add_argument('-clip_gradient', default=kClipGradient, type=float,
                         help='Largest gradient norm size')
-    parser.add_argument('-add_skip_conn', action='store_true'
+    parser.add_argument('-add_skip_conn', action='store_true',
                         help='Add skip connection')
     pass
 
