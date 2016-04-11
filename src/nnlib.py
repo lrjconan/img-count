@@ -132,7 +132,7 @@ def batch_norm(x, n_out, phase_train, scope='bn', scope2='bn', affine=True, init
         if init_gamma is None:
             init_gamma = tf.constant(1.0, shape=[n_out])
 
-        beta = nn.weight_variable(
+        beta = weight_variable(
             [n_out], init_val=init_beta, name='beta', trainable=trainable)
         gamma = weight_variable(
             [n_out], init_val=init_gamma, name='gamma', trainable=trainable)
