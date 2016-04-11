@@ -295,9 +295,6 @@ def get_model(opt, device='/cpu:0'):
                 for tt in xrange(timespan):
                     for w in ['beta', 'gamma']:
                         key = 'attn_cnn_{}_{}_{}'.format(ii, tt, w)
-                        print key
-                        print key in h5f.keys()
-                        print h5f.keys()
                         acnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[key][:]
             acnn_frozen = [freeze_pretrain_net] * acnn_nlayers
         else:
@@ -385,8 +382,9 @@ def get_model(opt, device='/cpu:0'):
         adcnn_unpool = attn_dcnn_pool
         adcnn_act = [tf.nn.relu] * adcnn_nlayers
         adcnn_channels = [attn_mlp_depth] + attn_dcnn_depth
-        adcnn_use_bn = [use_bn] * (adcnn_nlayers - 1) + [False]
-        # adcnn_use_bn = [use_bn] * adcnn_nlayers
+
+        adcnn_bn_nlayers = adcnn_nlayers
+        adcnn_use_bn = [use_bn] * adcnn_bn_nlayers
         adcnn_skip_ch = [0] + acnn_channels[::-1][1:]
 
         if pretrain_attn_net:
@@ -396,10 +394,10 @@ def get_model(opt, device='/cpu:0'):
             adcnn_init_w = [{'w': h5f['attn_dcnn_w_{}'.format(ii)][:],
                              'b': h5f['attn_dcnn_b_{}'.format(ii)][:]}
                             for ii in xrange(adcnn_nlayers)]
-            for ii in xrange(adcnn_nlayers):
+            for ii in xrange(adcnn_bn_nlayers):
                 for tt in xrange(timespan):
                     for w in ['beta', 'gamma']:
-                        key = 'attn_cnn_{}_{}_{}'.format(ii, tt, w)
+                        key = 'attn_dcnn_{}_{}_{}'.format(ii, tt, w)
                         adcnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[key][:]
             adcnn_frozen = [freeze_pretrain_net] * adcnn_nlayers
         else:
@@ -578,13 +576,14 @@ def get_model(opt, device='/cpu:0'):
 
             if fixed_gamma:
                 attn_lg_gamma[tt] = tf.constant([0.0])
-                attn_box_lg_gamma[tt] = tf.constant([2.0])
+                # attn_box_lg_gamma[tt] = tf.constant([2.0])
                 y_out_lg_gamma[tt] = tf.constant([2.0])
             else:
                 attn_lg_gamma[tt] = tf.slice(ctrl_out, [0, 6], [-1, 1])
-                attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
+                # attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
                 y_out_lg_gamma[tt] = tf.slice(ctrl_out, [0, 8], [-1, 1])
 
+            attn_box_lg_gamma[tt] = tf.slice(ctrl_out, [0, 7], [-1, 1])
             attn_gamma[tt] = tf.reshape(
                 tf.exp(attn_lg_gamma[tt]), [-1, 1, 1, 1])
             attn_box_gamma[tt] = tf.reshape(tf.exp(
