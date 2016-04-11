@@ -2,7 +2,6 @@ import cslab_environ
 
 from utils import logger
 from utils.grad_clip_optim import GradientClipOptimizer
-import fg_segm_reader
 import h5py
 import image_ops as img
 import nnlib as nn
