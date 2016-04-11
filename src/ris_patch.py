@@ -631,7 +631,7 @@ if __name__ == '__main__':
             r[key] = r[key] / bat_sz_total
 
         log.info('{:d} loss {:.4f}'.format(step, r['loss']))
-        write_log(step, loggers, r)
+        write_log(step, r)
 
         pass
 
