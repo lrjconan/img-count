@@ -129,6 +129,11 @@ def get_model(opt, device='/cpu:0'):
             ccnn_init_w = [{'w': h5f['attn_cnn_w_{}'.format(ii)][:],
                             'b': h5f['attn_cnn_b_{}'.format(ii)][:]}
                            for ii in xrange(acnn_nlayers)]
+            for ii in xrange(acnn_nlayers):
+                for tt in xrange(timespan):
+                    for w in ['beta', 'gamma']:
+                        ccnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[
+                            'attn_cnn_{}_{}_{}'.format(ii, tt, w)][:]
             ccnn_frozen = [True] * acnn_nlayers
             for ii in xrange(acnn_nlayers, ccnn_nlayers):
                 ccnn_init_w.append(None)
