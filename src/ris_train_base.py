@@ -4,6 +4,7 @@ Trainer functions.
 
 from __future__ import division
 
+import cv2
 import datetime
 import matplotlib
 matplotlib.use('Agg')
@@ -156,7 +157,7 @@ def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
 
     f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
     pu.set_axis_off(axarr, num_row, num_col)
-    
+
     for ii in xrange(num_ex):
         for tt in xrange(timespan):
             for jj in xrange(num_glimpse):
