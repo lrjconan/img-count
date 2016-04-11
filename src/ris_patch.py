@@ -746,7 +746,7 @@ if __name__ == '__main__':
             if train_opt['has_valid']:
                 if step % train_opt['steps_per_valid'] == 0:
                     log.info('Running validation')
-                    run_stats(step, sess, model, num_batch_valid,
+                    run_stats(step, sess, m, num_batch_valid,
                               batch_iter_valid,
                               outputs_valid, write_log_valid(loggers), False)
                     pass
@@ -754,7 +754,7 @@ if __name__ == '__main__':
             # Train stats
             if step % train_opt['steps_per_trainval'] == 0:
                 log.info('Running train validation')
-                run_stats(step, sess, model, num_batch_valid,
+                run_stats(step, sess, m, num_batch_valid,
                           batch_iter_trainval,
                           outputs_trainval, write_log_trainval(loggers), True)
                 pass
