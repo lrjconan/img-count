@@ -416,11 +416,11 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
                     trainable = True
 
                 w[ii] = weight_variable([f[ii], f[ii], out_ch, in_ch],
-                                        name='w',
+                                        # name='w',
                                         init_val=init_val_w, wd=wd,
                                         trainable=trainable)
                 b[ii] = weight_variable([out_ch], init_val=init_val_b,
-                                        name='b',
+                                        # name='b',
                                         trainable=trainable)
                 log.info('Filter: {}, Trainable: {}'.format(
                     [f[ii], f[ii], out_ch, in_ch], trainable))
@@ -557,13 +557,13 @@ def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, 
                     trainable = True
 
                 w[ii] = weight_variable([nin, nout], init_val=init_val_w, wd=wd,
-                                        name='w',
+                                        # name='w',
                                         trainable=trainable)
                 log.info('Weights: {} Trainable: {}'.format(
                     [nin, nout], trainable))
                 if add_bias:
                     b[ii] = weight_variable([nout], init_val=init_val_b,
-                                            name='b',
+                                            # name='b',
                                             trainable=trainable)
                     log.info('Bias: {} Trainable: {}'.format(
                         [nout], trainable))
