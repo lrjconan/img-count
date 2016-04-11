@@ -158,6 +158,7 @@ def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
     pu.set_axis_off(axarr, num_row, num_col)
 
     log.error(x.shape)
+    log.error(glimpse_map.shape)
     for ii in xrange(num_ex):
         for tt in xrange(timespan):
             for jj in xrange(num_glimpse):
