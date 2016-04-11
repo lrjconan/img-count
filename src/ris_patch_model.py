@@ -141,6 +141,7 @@ def get_model(opt, device='/cpu:0'):
         h_acnn_last = [None] * timespan
 
         # Attention MLP definition
+        acnn_subsample = np.array(acnn_pool).prod()
         acnn_h = filter_height / acnn_subsample
         acnn_w = filter_width / acnn_subsample
         core_depth = attn_mlp_depth
