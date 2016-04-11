@@ -27,17 +27,6 @@ def _get_idx_mask(idx, timespan):
     return tf.gather(eye, idx)
 
 
-def _get_identity_match(num_ex, timespan, s_gt):
-    zeros = tf.zeros(tf.pack([num_ex, timespan, timespan]))
-    eye = tf.expand_dims(tf.constant(np.eye(timespan), dtype='float32'), 0)
-    mask_x = tf.expand_dims(s_gt, 1)
-    mask_y = tf.expand_dims(s_gt, 2)
-    match = zeros + eye
-    match = match * mask_x * mask_y
-
-    return match
-
-
 def get_model(opt, device='/cpu:0'):
     """The attention model"""
     model = {}
@@ -56,7 +45,6 @@ def get_model(opt, device='/cpu:0'):
     attn_dcnn_filter_size = opt['attn_dcnn_filter_size']
     attn_dcnn_depth = opt['attn_dcnn_depth']
     attn_dcnn_pool = opt['attn_dcnn_pool']
-    attn_rnn_hid_dim = opt['attn_rnn_hid_dim']
 
     mlp_dropout_ratio = opt['mlp_dropout']
 
@@ -155,15 +143,11 @@ def get_model(opt, device='/cpu:0'):
         h_acnn = [None] * timespan
         h_acnn_last = [None] * timespan
 
-        # Attention RNN definition
-        acnn_subsample = np.array(acnn_pool).prod()
-        arnn_h = filter_height / acnn_subsample
-        arnn_w = filter_width / acnn_subsample
-        amlp_inp_dim = arnn_h * arnn_w * acnn_channels[-1]
-
         # Attention MLP definition
+        acnn_h = filter_height / acnn_subsample
+        acnn_w = filter_width / acnn_subsample
         core_depth = attn_mlp_depth
-        core_dim = arnn_h * arnn_w * core_depth
+        core_dim = acnn_h * acnn_w * core_depth
         amlp_dims = [amlp_inp_dim] + [core_dim] * num_attn_mlp_layers
         amlp_act = [tf.nn.relu] * num_attn_mlp_layers
         amlp_dropout = None
@@ -235,18 +219,13 @@ def get_model(opt, device='/cpu:0'):
             x_patch[tt] = base.extract_patch(
                 acnn_inp, filter_y, filter_x, acnn_inp_depth)
 
-            if tt == 0:
-                model['filter_x'] = filter_x
-                model['filter_y'] = filter_y
-                model['x_patch'] = x_patch[tt]
-
             # CNN [B, A, A, D] => [B, RH2, RW2, RD2]
             h_acnn[tt] = acnn(x_patch[tt])
             h_acnn_last[tt] = h_acnn[tt][-1]
             amlp_inp = h_acnn_last[tt]
             amlp_inp = tf.reshape(amlp_inp, [-1, amlp_inp_dim])
             h_core = amlp(amlp_inp)[-1]
-            h_core = tf.reshape(h_core, [-1, arnn_h, arnn_w, attn_mlp_depth])
+            h_core = tf.reshape(h_core, [-1, acnn_h, acnn_w, attn_mlp_depth])
 
             # DCNN
             if add_skip_conn:
@@ -295,7 +274,7 @@ def get_model(opt, device='/cpu:0'):
         max_num_obj = tf.to_float(y_gt_shape[1])
 
         # Loss for fine segmentation
-        identity_match = _get_identity_match(num_ex, timespan, s_gt)
+        identity_match = base.get_identity_match(num_ex, timespan, s_gt)
         iou_soft_pairwise = base.f_iou(y_out, y_gt, timespan, pairwise=True)
         real_match = base.f_segm_match(iou_soft_pairwise, s_gt)
         if fixed_order:

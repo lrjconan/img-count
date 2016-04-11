@@ -161,29 +161,9 @@ def _add_model_args(parser):
                         type=int, help='Number of attention MLP layers')
     parser.add_argument('-attn_mlp_depth', default=kAttnMlpDepth,
                         type=int, help='Attention MLP depth')
-    parser.add_argument('-box_loss_fn', default='iou',
-                        help='Box loss function, "iou" or "bce"')
     parser.add_argument('-attn_box_padding_ratio',
                         default=kAttnBoxPaddingRatio, type=float,
                         help='Padding ratio of attention box')
-    parser.add_argument('-use_attn_rnn', action='store_true',
-                        help='Whether to use an inner RNN.')
-    parser.add_argument('-use_knob', action='store_true',
-                        help='Whether to use a knob.')
-    parser.add_argument('-knob_decay', default=kKnobDecay, type=float,
-                        help='Knob decay factor.')
-    parser.add_argument('-steps_per_knob_decay', default=kStepsPerKnobDecay,
-                        type=int, help='Number of steps to decay knob.')
-    parser.add_argument('-knob_base', default=kKnobBase, type=float,
-                        help='Knob start rate.')
-    parser.add_argument('-knob_box_offset', default=kKnobBoxOffset, type=int,
-                        help='Number of steps when it starts to decay.')
-    parser.add_argument('-knob_segm_offset', default=kKnobSegmOffset, type=int,
-                        help='Number of steps when it starts to decay.')
-    parser.add_argument('-knob_use_timescale', action='store_true',
-                        help='Use time scale curriculum.')
-    parser.add_argument('-gt_selector', default=kGtSelector,
-                        help='greedy_match or argmax')
     parser.add_argument('-gt_box_ctr_noise', default=kGtBoxCtrNoise,
                         type=float, help='Groundtruth box center noise')
     parser.add_argument('-gt_box_pad_noise', default=kGtBoxPadNoise,
@@ -300,25 +280,13 @@ def _make_model_opt(args):
             'learn_rate_decay': args.learn_rate_decay,
             'steps_per_learn_rate_decay': args.steps_per_learn_rate_decay,
 
-            # Test arguments
             'segm_loss_fn': args.segm_loss_fn,
-            'box_loss_fn': args.box_loss_fn,
             'use_bn': args.use_bn,
             'attn_box_padding_ratio': args.attn_box_padding_ratio,
-            'use_knob': args.use_knob,
-            'knob_decay': args.knob_decay,
-            'knob_base': args.knob_base,
-            'steps_per_knob_decay': args.steps_per_knob_decay,
-            'knob_box_offset': args.knob_box_offset,
-            'knob_segm_offset': args.knob_segm_offset,
-            'knob_use_timescale': args.knob_use_timescale,
-            'gt_selector': args.gt_selector,
             'gt_box_ctr_noise': args.gt_box_ctr_noise,
             'gt_box_pad_noise': args.gt_box_pad_noise,
             'gt_segm_noise': args.gt_segm_noise,
-            'pretrain_cnn': args.pretrain_cnn,
             'squash_ctrl_params': args.squash_ctrl_params,
-            'use_iou_box': args.use_iou_box,
             'clip_gradient': args.clip_gradient,
             'fixed_order': args.fixed_order,
             'add_skip_conn': args.add_skip_conn,
