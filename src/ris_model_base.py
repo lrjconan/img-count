@@ -28,23 +28,6 @@ def get_device_fn(device):
     return _device_fn
 
 
-def sort_by_segm_size(y):
-    """Sort the input/output sequence by the groundtruth size.
-
-    Args:
-        y: [B, T, H, W]
-    """
-    # [B, T]
-    y_size = np.sum(np.sum(y, 3), 2)
-    # [B, T, H, W]
-    y_sort = np.zeros(y.shape, dtype=y.dtype)
-    for ii in xrange(y.shape[0]):
-        idx = np.argsort(y_size[ii])[::-1]
-        y_sort[ii, :, :, :] = y[ii, idx, :, :]
-
-    return y_sort
-
-
 def get_identity_match(num_ex, timespan, s_gt):
     zeros = tf.zeros(tf.pack([num_ex, timespan, timespan]))
     eye = tf.expand_dims(tf.constant(np.eye(timespan), dtype='float32'), 0)

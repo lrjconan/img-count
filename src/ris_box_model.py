@@ -7,8 +7,9 @@ import h5py
 import image_ops as img
 import nnlib as nn
 import numpy as np
-import ris_base as base
 import tensorflow as tf
+
+import ris_model_base as base
 
 log = logger.get()
 

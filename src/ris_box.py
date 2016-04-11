@@ -8,148 +8,32 @@ from __future__ import division
 import cslab_environ
 
 import argparse
-import cv2
-import datetime
 import h5py
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 import numpy as np
 import os
-import pickle as pkl
-import sys
 import tensorflow as tf
 import time
 
-from data_api import synth_shape
-from data_api import cvppp
-from data_api import kitti
-
 from utils import logger
-from utils import plot_utils as pu
 from utils.batch_iter import BatchIterator
 from utils.lazy_registerer import LazyRegisterer
 from utils.log_manager import LogManager
 from utils.saver import Saver
 from utils.time_series_logger import TimeSeriesLogger
 
-import ris_base as base
-import ris_box_model as model
+import ris_box_model as box_model
+import ris_train_base as trainer
 
 log = logger.get()
 
-kKittiNumObj = 19
-kKittiInpHeight = 128
-kKittiInpWidth = 448
 
+def _add_dataset_args(parser):
+    # Default dataset options
+    kDataset = 'kitti'
 
-def get_dataset(opt):
-    if os.path.exists('/u/mren'):
-        dataset_folder = '/ais/gobi3/u/mren/data/kitti/object'
-    else:
-        dataset_folder = '/home/mren/data/kitti'
-    opt['timespan'] = 20
-    opt['num_examples'] = -1
-    dataset = {}
-    dataset['train'] = kitti.get_dataset(dataset_folder, opt,
-                                         split='train')
-    dataset['valid'] = kitti.get_dataset(dataset_folder, opt,
-                                         split='valid')
-
-    return dataset
-
-
-def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
-    """Plot double attention.
-
-    Args:
-        fname: str, image output filename.
-        x: [B, T, H, W, 3], input image.
-        glimpse_map: [B, T, T2, H', W']: glimpse attention map.
-    """
-    num_ex = x.shape[0]
-    timespan = glimpse_map.shape[1]
-    im_height = x.shape[2]
-    im_width = x.shape[3]
-    num_glimpse = glimpse_map.shape[2]
-    num_items = num_glimpse
-    num_row, num_col, calc = pu.calc_row_col(
-        num_ex * timespan, num_items, max_items_per_row=max_items_per_row)
-
-    f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
-    pu.set_axis_off(axarr, num_row, num_col)
-
-    for ii in xrange(num_ex):
-        for tt in xrange(timespan):
-            for jj in xrange(num_glimpse):
-                row, col = calc(ii * timespan + tt, jj)
-                total_img = np.zeros([im_height, im_width, 3])
-                total_img += x[ii] * 0.5
-                glimpse = glimpse_map[ii, tt, jj]
-                glimpse = cv2.resize(glimpse, (im_width, im_height))
-                glimpse = np.expand_dims(glimpse, 2)
-                glimpse_norm = glimpse / glimpse.max() * 0.5
-                total_img += glimpse_norm
-                axarr[row, col].imshow(total_img)
-                axarr[row, col].text(0, -0.5, '[{:.2g}, {:.2g}]'.format(
-                    glimpse.min(), glimpse.max()), color=(0, 0, 0), size=8)
-
-    plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
-    plt.savefig(fname, dpi=150)
-    plt.close('all')
-
-    pass
-
-
-def plot_output(fname, y_out, s_out, match, attn=None, max_items_per_row=9):
-    """Plot some test samples.
-
-    Args:
-        fname: str, image output filename.
-        y_out: [B, T, H, W, D], segmentation output of the model.
-        s_out: [B, T], confidence score output of the model.
-        match: [B, T, T], matching matrix.
-        attn: ([B, T, 2], [B, T, 2]), top left and bottom right coordinates of
-        the attention box.
-    """
-    num_ex = y_out.shape[0]
-    num_items = y_out.shape[1]
-    num_row, num_col, calc = pu.calc_row_col(
-        num_ex, num_items, max_items_per_row=max_items_per_row)
-
-    f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
-    cmap = ['r', 'y', 'c', 'g', 'm']
-
-    if attn:
-        attn_top_left_y = attn[0][:, :, 0]
-        attn_top_left_x = attn[0][:, :, 1]
-        attn_bot_right_y = attn[1][:, :, 0]
-        attn_bot_right_x = attn[1][:, :, 1]
-
-    pu.set_axis_off(axarr, num_row, num_col)
-
-    for ii in xrange(num_ex):
-        for jj in xrange(num_items):
-            row, col = calc(ii, jj)
-            axarr[row, col].imshow(y_out[ii, jj])
-            matched = match[ii, jj].nonzero()[0]
-            axarr[row, col].text(0, 0, '{:.2f} {}'.format(
-                s_out[ii, jj], matched),
-                color=(0, 0, 0), size=8)
-
-            if attn:
-                # Plot attention box.
-                axarr[row, col].add_patch(patches.Rectangle(
-                    (attn_top_left_x[ii, jj], attn_top_left_y[ii, jj]),
-                    attn_bot_right_x[ii, jj] - attn_top_left_x[ii, jj],
-                    attn_bot_right_y[ii, jj] - attn_top_left_y[ii, jj],
-                    fill=False,
-                    color='g'))
-
-    plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
-    plt.savefig(fname, dpi=150)
-    plt.close('all')
+    # Dataset options
+    parser.add_argument('-dataset', default=kDataset,
+                        help='Name of the dataset')
 
     pass
 
@@ -170,7 +54,10 @@ def _add_model_args(parser):
     kCtrlRnnInpStruct = 'dense'
     kNumCtrlRNNIter = 5
     kNumGlimpseMlpLayers = 2
+    kPadding = 16
 
+    parser.add_argument('-padding', default=kPadding, type=int,
+                        help='Apply additional padding for random cropping')
     parser.add_argument('-filter_height', default=kFilterHeight, type=int,
                         help='Attention filter width')
     parser.add_argument('-filter_width', default=kFilterWidth, type=int,
@@ -260,10 +147,12 @@ def _add_training_args(parser):
 def _parse_args():
     """Parse input arguments."""
 
-    parser = argparse.ArgumentParser(description='Foreground Segmentation')
+    parser = argparse.ArgumentParser(
+        description='Train a box proposal network')
 
     _add_training_args(parser)
     _add_model_args(parser)
+    _add_dataset_args(parser)
 
     args = parser.parse_args()
 
@@ -278,16 +167,14 @@ def _make_model_opt(args):
     ccnn_pool_list = args.ctrl_cnn_pool.split(',')
     ccnn_pool_list = [int(pool) for pool in ccnn_pool_list]
 
-    timespan = kKittiNumObj + 1
-    inp_height = kKittiInpHeight
-    inp_width = kKittiInpWidth
+    inp_height, inp_width, timespan = trainer.get_inp_dim(args.dataset)
 
     model_opt = {
         'timespan': timespan,
         'inp_height': inp_height,
         'inp_width': inp_width,
         'inp_depth': 3,
-        'padding': 16,
+        'padding': args.padding,
         'filter_height': args.filter_height,
         'filter_width': args.filter_width,
         'ctrl_cnn_filter_size': ccnn_fsize_list,
@@ -323,13 +210,14 @@ def _make_model_opt(args):
 
 
 def _make_data_opt(args):
+    inp_height, inp_width, timespan = trainer.get_inp_dim(args.dataset)
     data_opt = {
-        'height': 128,
-        'width': 448,
-        'timespan': 20,
+        'height': inp_height,
+        'width': inp_width,
+        'timespan': timespan,
         'num_train': -1,
         'num_valid': -1,
-        'has_valid': True
+        'has_valid': not args.no_valid
     }
 
     return data_opt
@@ -354,15 +242,6 @@ def _make_train_opt(args):
     }
 
     return train_opt
-
-
-def _get_model_id(task_name):
-    time_obj = datetime.datetime.now()
-    model_id = timestr = '{}-{:04d}{:02d}{:02d}{:02d}{:02d}{:02d}'.format(
-        task_name, time_obj.year, time_obj.month, time_obj.day,
-        time_obj.hour, time_obj.minute, time_obj.second)
-
-    return model_id
 
 
 def _get_ts_loggers(model_opt, restore_step=0):
@@ -407,59 +286,6 @@ def _get_plot_loggers(model_opt, train_opt):
     return samples
 
 
-def _register_raw_logs(log_manager, log, model_opt, saver):
-    log_manager.register(log.filename, 'plain', 'Raw logs')
-    cmd_fname = os.path.join(logs_folder, 'cmd.log')
-    with open(cmd_fname, 'w') as f:
-        f.write(' '.join(sys.argv))
-    log_manager.register(cmd_fname, 'plain', 'Command-line arguments')
-    model_opt_fname = os.path.join(logs_folder, 'model_opt.yaml')
-    saver.save_opt(model_opt_fname, model_opt)
-    log_manager.register(model_opt_fname, 'plain', 'Model hyperparameters')
-
-    pass
-
-
-def _get_max_items_per_row(inp_height, inp_width):
-    return 5
-
-
-def _get_num_batch_valid():
-    return 10
-
-
-def _get_batch_fn(dataset):
-    """
-    Preprocess mini-batch data given start and end indices.
-    """
-    def get_batch(idx):
-        x_bat = dataset['input'][idx]
-        y_bat = dataset['label_segmentation'][idx]
-        s_bat = dataset['label_score'][idx]
-        x_bat, y_bat, s_bat = preprocess(x_bat, y_bat, s_bat)
-
-        return x_bat, y_bat, s_bat
-
-    return get_batch
-
-
-def _run_model(m, names, feed_dict):
-    symbol_list = [m[r] for r in names]
-    results = sess.run(symbol_list, feed_dict=feed_dict)
-    results_dict = {}
-    for rr, name in zip(results, names):
-        results_dict[name] = rr
-
-    return results_dict
-
-
-def preprocess(inp, label_segmentation, label_score):
-    """Preprocess training data."""
-    return (inp.astype('float32') / 255,
-            label_segmentation.astype('float32'),
-            label_score.astype('float32'))
-
-
 if __name__ == '__main__':
     # Command-line arguments
     args = _parse_args()
@@ -480,7 +306,7 @@ if __name__ == '__main__':
         model_id = ckpt_info['model_id']
         exp_folder = train_opt['restore']
     else:
-        model_id = _get_model_id('ris_box')
+        model_id = trainer.get_model_id('ris_box')
         step = 0
         exp_folder = os.path.join(train_opt['results'], model_id)
         saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
@@ -508,14 +334,14 @@ if __name__ == '__main__':
 
     # Train loop options
     log.info('Building model')
-    m = model.get_model(model_opt, device=device)
+    m = box_model.get_model(model_opt, device=device)
 
     log.info('Loading dataset')
-    dataset = get_dataset(data_opt)
+    dataset = trainer.get_dataset(args.dataset, data_opt)
     if model_opt['fixed_order']:
-        dataset['train']['label_segmentation'] = base.sort_by_segm_size(
+        dataset['train']['label_segmentation'] = trainer.sort_by_segm_size(
             dataset['train']['label_segmentation'])
-        dataset['valid']['label_segmentation'] = base.sort_by_segm_size(
+        dataset['valid']['label_segmentation'] = trainer.sort_by_segm_size(
             dataset['valid']['label_segmentation'])
 
     sess = tf.Session()
@@ -524,7 +350,7 @@ if __name__ == '__main__':
     if train_opt['logs']:
         log_manager = LogManager(logs_folder)
         loggers = _get_ts_loggers(model_opt, restore_step=step)
-        _register_raw_logs(log_manager, log, model_opt, saver)
+        trainer.register_raw_logs(log_manager, log, model_opt, saver)
         samples = _get_plot_loggers(model_opt, train_opt)
         _log_url = 'http://{}/deep-dashboard?id={}'.format(
             train_opt['localhost'], model_id)
@@ -539,12 +365,12 @@ if __name__ == '__main__':
     batch_size = args.batch_size
     log.info('Batch size: {}'.format(batch_size))
     num_ex_train = dataset['train']['input'].shape[0]
-    get_batch_train = _get_batch_fn(dataset['train'])
+    get_batch_train = trainer.get_batch_fn(dataset['train'])
     log.info('Number of training examples: {}'.format(num_ex_train))
 
     if train_opt['has_valid']:
         num_ex_valid = dataset['valid']['input'].shape[0]
-        get_batch_valid = _get_batch_fn(dataset['valid'])
+        get_batch_valid = trainer.get_batch_fn(dataset['valid'])
         log.info('Number of validation examples: {}'.format(num_ex_valid))
 
     def run_samples():
@@ -556,31 +382,33 @@ if __name__ == '__main__':
 
             if fname_attn:
                 _outputs.append('ctrl_rnn_glimpse_map')
-            _max_items = _get_max_items_per_row(x.shape[1], x.shape[2])
+            _max_items = trainer.get_max_items_per_row(x.shape[1], x.shape[2])
 
             _feed_dict = {m['x']: x, m['phase_train']: phase_train,
                           m['y_gt']: y, m['s_gt']: s}
-            _r = _run_model(m, _outputs, _feed_dict)
+            _r = trainer.run_model(sess, m, _outputs, _feed_dict)
 
             _x = np.expand_dims(_r['x_trans'], 1)
             _x = np.tile(_x, [1, y.shape[1], 1, 1, 1])
 
-            plot_output(fname_input, _x,
-                        s_out=s,
-                        match=_r['match_box'],
-                        attn=(_r['attn_top_left_gt'], _r['attn_bot_right_gt']),
-                        max_items_per_row=_max_items)
+            trainer.plot_output(fname_input, _x,
+                                s_out=s,
+                                match=_r['match_box'],
+                                attn=(_r['attn_top_left_gt'],
+                                      _r['attn_bot_right_gt']),
+                                max_items_per_row=_max_items)
 
-            plot_output(fname_output, _x,
-                        s_out=_r['s_out'],
-                        match=_r['match_box'],
-                        attn=(_r['attn_top_left'], _r['attn_bot_right']),
-                        max_items_per_row=_max_items)
+            trainer.plot_output(fname_output, _x,
+                                s_out=_r['s_out'],
+                                match=_r['match_box'],
+                                attn=(_r['attn_top_left'],
+                                      _r['attn_bot_right']),
+                                max_items_per_row=_max_items)
 
             if fname_attn:
-                plot_double_attention(fname_attn, _r['x_trans'],
-                                      _r['ctrl_rnn_glimpse_map'],
-                                      max_items_per_row=_max_items)
+                trainer.plot_double_attention(fname_attn, _r['x_trans'],
+                                              _r['ctrl_rnn_glimpse_map'],
+                                              max_items_per_row=_max_items)
             pass
 
         # Plot some samples.
@@ -626,42 +454,27 @@ if __name__ == '__main__':
 
         return _outputs
 
-    def run_stats(step, num_batch, batch_iter, outputs, write_log, phase_train):
-        """Validation"""
-        nvalid = num_batch * batch_size
-        r = {}
+    def write_log_valid(loggers):
 
-        for bb in xrange(num_batch):
-            _x, _y, _s = batch_iter.next()
-            _feed_dict = {m['x']: _x, m['phase_train']: phase_train,
-                          m['y_gt']: _y, m['s_gt']: _s}
-            _r = _run_model(m, outputs, _feed_dict)
-            bat_sz = _x.shape[0]
+        def write(step, r):
+            loggers['loss'].add(step, ['', r['loss']])
+            loggers['box_loss'].add(step, ['', r['box_loss']])
+            loggers['conf_loss'].add(step, ['', r['conf_loss']])
 
-            for key in _r.iterkeys():
-                if key in r:
-                    r[key] += _r[key] * bat_sz / nvalid
-                else:
-                    r[key] = _r[key] * bat_sz / nvalid
+            pass
 
-        log.info('{:d} loss {:.4f}'.format(step, r['loss']))
-        write_log(step, loggers, r)
+        return write
 
-        pass
+    def write_log_trainval(loggers):
 
-    def write_log_valid(step, loggers, r):
-        loggers['loss'].add(step, ['', r['loss']])
-        loggers['box_loss'].add(step, ['', r['box_loss']])
-        loggers['conf_loss'].add(step, ['', r['conf_loss']])
+        def write(step, r):
+            loggers['loss'].add(step, [r['loss'], ''])
+            loggers['box_loss'].add(step, [r['box_loss'], ''])
+            loggers['conf_loss'].add(step, [r['conf_loss'], ''])
 
-        pass
+            pass
 
-    def write_log_trainval(step, loggers, r, bn=False):
-        loggers['loss'].add(step, [r['loss'], ''])
-        loggers['box_loss'].add(step, [r['box_loss'], ''])
-        loggers['conf_loss'].add(step, [r['conf_loss'], ''])
-
-        pass
+        return write
 
     def train_step(step, x, y, s):
         """Train step"""
@@ -669,7 +482,7 @@ if __name__ == '__main__':
         _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
                       m['s_gt']: s}
         _start_time = time.time()
-        r = _run_model(m, _outputs, _feed_dict)
+        r = trainer.run_model(sess, m, _outputs, _feed_dict)
         _step_time = (time.time() - _start_time) * 1000
 
         # Print statistics
@@ -700,7 +513,7 @@ if __name__ == '__main__':
                                              cycle=True,
                                              progress_bar=False)
             outputs_valid = get_outputs_valid()
-        num_batch_valid = _get_num_batch_valid()
+        num_batch_valid = trainer.get_num_batch_valid(args.dataset)
         batch_iter_trainval = BatchIterator(num_ex_train,
                                             batch_size=batch_size,
                                             get_fn=get_batch_train,
@@ -717,15 +530,18 @@ if __name__ == '__main__':
             if train_opt['has_valid']:
                 if step % train_opt['steps_per_valid'] == 0:
                     log.info('Running validation')
-                    run_stats(step, num_batch_valid, batch_iter_valid,
-                              outputs_valid, write_log_valid, False)
+                    trainer.run_stats(step, sess, m, num_batch_valid,
+                                      batch_iter_valid,
+                                      outputs_valid, write_log_valid(loggers),
+                                      False)
                     pass
 
             # Train stats
             if step % train_opt['steps_per_trainval'] == 0:
                 log.info('Running train validation')
-                run_stats(step, num_batch_valid, batch_iter_trainval,
-                          outputs_trainval, write_log_trainval, True)
+                trainer.run_stats(step, sess, m, num_batch_valid,
+                                  batch_iter_trainval, outputs_trainval,
+                                  write_log_trainval(loggers), True)
                 pass
 
             # Plot samples

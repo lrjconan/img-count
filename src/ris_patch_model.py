@@ -1,6 +1,5 @@
 import cslab_environ
 
-import ris_base as base
 from utils import logger
 from utils.grad_clip_optim import GradientClipOptimizer
 import fg_segm_reader
@@ -9,6 +8,8 @@ import image_ops as img
 import nnlib as nn
 import numpy as np
 import tensorflow as tf
+
+import ris_model_base as base
 
 log = logger.get()
 
@@ -126,14 +127,14 @@ def get_model(opt, device='/cpu:0'):
             attn_box_gt_noise, \
             attn_top_left_gt_noise, attn_bot_right_gt_noise = \
             base.get_gt_attn(y_gt,
-                        padding_ratio=tf.random_uniform(
-                            tf.pack([num_ex, timespan, 1]),
-                            attn_box_padding_ratio - gt_box_pad_noise,
-                            attn_box_padding_ratio + gt_box_pad_noise),
-                        center_shift_ratio=tf.random_uniform(
-                            tf.pack([num_ex, timespan, 2]),
-                            -gt_box_ctr_noise, gt_box_ctr_noise),
-                        min_padding=25.0)
+                             padding_ratio=tf.random_uniform(
+                                 tf.pack([num_ex, timespan, 1]),
+                                 attn_box_padding_ratio - gt_box_pad_noise,
+                                 attn_box_padding_ratio + gt_box_pad_noise),
+                             center_shift_ratio=tf.random_uniform(
+                                 tf.pack([num_ex, timespan, 2]),
+                                 -gt_box_ctr_noise, gt_box_ctr_noise),
+                             min_padding=25.0)
         attn_ctr = [None] * timespan
         attn_size = [None] * timespan
         attn_top_left = [None] * timespan
@@ -209,7 +210,7 @@ def get_model(opt, device='/cpu:0'):
                 mask = tf.expand_dims(mask, 2)
                 attn_ctr[tt] = tf.reduce_sum(mask * attn_ctr_gt_noise, 1)
                 attn_size[tt] = tf.reduce_sum(mask * attn_size_gt_noise, 1)
-                
+
             attn_top_left[tt], attn_bot_right[tt] = base.get_box_coord(
                 attn_ctr[tt], attn_size[tt])
 
@@ -312,7 +313,8 @@ def get_model(opt, device='/cpu:0'):
         # Weighted coverage (soft)
         wt_cov_soft = base.f_weighted_coverage(iou_soft_pairwise, y_gt)
         model['wt_cov_soft'] = wt_cov_soft
-        unwt_cov_soft = base.f_unweighted_coverage(iou_soft_pairwise, match_count)
+        unwt_cov_soft = base.f_unweighted_coverage(
+            iou_soft_pairwise, match_count)
         model['unwt_cov_soft'] = unwt_cov_soft
 
         # IOU (soft)
