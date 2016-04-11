@@ -142,13 +142,13 @@ def plot_double_attention(fname, x, glimpse_map, max_items_per_row=9):
 
     Args:
         fname: str, image output filename.
-        x: [B, T, H, W, 3], input image.
+        x: [B, H, W, 3], input image.
         glimpse_map: [B, T, T2, H', W']: glimpse attention map.
     """
     num_ex = x.shape[0]
     timespan = glimpse_map.shape[1]
-    im_height = x.shape[2]
-    im_width = x.shape[3]
+    im_height = x.shape[1]
+    im_width = x.shape[2]
     num_glimpse = glimpse_map.shape[2]
     num_items = num_glimpse
     num_row, num_col, calc = pu.calc_row_col(
