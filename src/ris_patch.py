@@ -268,9 +268,6 @@ def _make_model_opt(args):
             'attn_dcnn_depth': attn_dcnn_depth_list,
             'attn_dcnn_pool': attn_dcnn_pool_list,
 
-            'num_ctrl_mlp_layers': args.num_ctrl_mlp_layers,
-            'ctrl_mlp_dim': args.ctrl_mlp_dim,
-
             'attn_mlp_depth': args.attn_mlp_depth,
             'num_attn_mlp_layers': args.num_attn_mlp_layers,
             'mlp_dropout': args.mlp_dropout,
