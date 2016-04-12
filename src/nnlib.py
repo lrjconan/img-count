@@ -255,11 +255,15 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
     log.info('BN: {}'.format(use_bn))
     log.info('Shared weights: {}'.format(shared_weights))
 
-    net_scope = tf.variable_scope(scope)
+    net_scope = None
+    layer_scope = [None] * nlayers
 
-    with tf.variable_scope(net_scope):
+    with tf.variable_scope(scope) as _net_scope:
+        net_scope = _net_scope
         for ii in xrange(nlayers):
-            with tf.variable_scope('layer_{}'.format(ii)):
+            with tf.variable_scope('layer_{}'.format(ii)) as _layer_scope:
+                layer_scope[ii] = _layer_scope
+
                 if init_weights:
                     init = tf.constant_initializer
                 else:
@@ -337,7 +341,9 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                         init_beta = None
                         init_gamma = None
 
-                    with tf.variable_scope('layer_{}'.format(ii)):
+                    # with tf.variable_scope('layer_{}'.format(ii)):
+                        # with tf.variable_scope('copy_{}'.format(copy[0])) as ss:
+                    with tf.variable_scope(layer_scope[ii]):
                         with tf.variable_scope('copy_{}'.format(copy[0])) as ss:
                             print ss.name
                             h[ii], bm, bv, em, ev = batch_norm(
