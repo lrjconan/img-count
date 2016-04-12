@@ -65,7 +65,7 @@ def get_batch_fn(dataset):
     return get_batch
 
 
-def run_inference(sess, m, dataset):
+def run_inference(sess, m, dataset, phase_train):
     output_list = [m['y_out'], m['s_out']]
 
     num_ex = dataset['input'].shape[0]
@@ -81,7 +81,7 @@ def run_inference(sess, m, dataset):
     count = 0
     for x, y, s in batch_iter:
         r = sess.run(output_list, feed_dict={
-                     m['x']: x, m['phase_train']: False})
+                     m['x']: x, m['phase_train']: phase_train})
         _y_out = r[0]
         _s_out = r[1]
         bat_sz = _y_out.shape[0]
@@ -169,11 +169,11 @@ if __name__ == '__main__':
     sess = tf.Session()
 
     log.info('Running training set')
-    res = run_inference(sess, model, dataset['train'])
+    res = run_inference(sess, model, dataset['train'], True)
     run_eval(res['y_out'], res['s_out'])
 
     log.info('Running validation set')
-    res = run_inference(sess, model, dataset['valid'])
+    res = run_inference(sess, model, dataset['valid'], False)
     run_eval(res['y_out'], res['s_out'])
 
     pass
