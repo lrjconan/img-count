@@ -283,17 +283,16 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                     init_beta = None
                     init_gamma = None
 
-                # with tf.variable_scope('layer_{}'.format(ii)):
-                    # with tf.variable_scope('copy_{}'.format(copy[0])) as
-                    # ss:
-                with tf.variable_scope(layer_scope[ii]):
-                    h[ii], bm, bv, em, ev = batch_norm(
-                        h[ii], out_ch, phase_train,
-                        scope2='{}_{}_{}'.format(scope, ii, copy[0]),
-                        init_beta=init_beta,
-                        init_gamma=init_gamma,
-                        model=model)
-                    print bm.name
+                with tf.variable_scope('layer_{}'.format(ii)):
+                    with tf.variable_scope('copy_{}'.format(copy[0]))
+                # with tf.variable_scope(layer_scope[ii]):
+                        h[ii], bm, bv, em, ev = batch_norm(
+                            h[ii], out_ch, phase_train,
+                            scope2='{}_{}_{}'.format(scope, ii, copy[0]),
+                            init_beta=init_beta,
+                            init_gamma=init_gamma,
+                            model=model)
+                        print bm.name
 
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
