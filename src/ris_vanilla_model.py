@@ -1,6 +1,6 @@
 import cslab_environ
 
-from ris_base import *
+import ris_model_base as base
 from utils import logger
 from utils.grad_clip_optim import GradientClipOptimizer
 import image_ops as img
@@ -49,7 +49,7 @@ def get_model(opt, device='/cpu:0'):
     rnd_transpose = opt['rnd_transpose']
     rnd_colour = opt['rnd_colour']
 
-    with tf.device(get_device_fn(device)):
+    with tf.device(base.get_device_fn(device)):
         # Input image, [B, H, W, D]
         x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
 
@@ -236,18 +236,18 @@ def get_model(opt, device='/cpu:0'):
         max_num_obj = tf.to_float(y_gt_shape[1])
 
         # Pairwise IOU
-        iou_soft = f_iou(y_out, y_gt, timespan, pairwise=True)
+        iou_soft = base.f_iou(y_out, y_gt, timespan, pairwise=True)
 
         # Matching
-        match = f_segm_match(iou_soft, s_gt)
+        match = base.f_segm_match(iou_soft, s_gt)
         model['match'] = match
         match_sum = tf.reduce_sum(match, reduction_indices=[2])
         match_count = tf.reduce_sum(match_sum, reduction_indices=[1])
 
         # Weighted coverage (soft)
-        wt_cov_soft = f_weighted_coverage(iou_soft, y_gt)
+        wt_cov_soft = base.f_weighted_coverage(iou_soft, y_gt)
         model['wt_cov_soft'] = wt_cov_soft
-        unwt_cov_soft = f_unweighted_coverage(iou_soft, match_count)
+        unwt_cov_soft = base.f_unweighted_coverage(iou_soft, match_count)
         model['unwt_cov_soft'] = unwt_cov_soft
 
         # IOU (soft)
@@ -267,9 +267,10 @@ def get_model(opt, device='/cpu:0'):
         elif segm_loss_fn == 'wt_cov':
             segm_loss = -wt_cov_soft
         elif segm_loss_fn == 'bce':
-            segm_loss = f_match_bce(y_out, y_gt, match, timespan)
+            segm_loss = base.f_match_loss(
+                y_out, y_gt, match, timespan, base.f_bce)
         model['segm_loss'] = segm_loss
-        conf_loss = f_conf_loss(s_out, match, timespan, use_cum_min=True)
+        conf_loss = base.f_conf_loss(s_out, match, timespan, use_cum_min=True)
         model['conf_loss'] = conf_loss
         loss = loss_mix_ratio * conf_loss + segm_loss
         model['loss'] = loss
@@ -287,15 +288,15 @@ def get_model(opt, device='/cpu:0'):
         # Statistics
         # [B, M, N] * [B, M, N] => [B] * [B] => [1]
         y_out_hard = tf.to_float(y_out > 0.5)
-        iou_hard = f_iou(y_out_hard, y_gt, timespan, pairwise=True)
-        wt_cov_hard = f_weighted_coverage(iou_hard, y_gt)
+        iou_hard = base.f_iou(y_out_hard, y_gt, timespan, pairwise=True)
+        wt_cov_hard = base.f_weighted_coverage(iou_hard, y_gt)
         model['wt_cov_hard'] = wt_cov_hard
-        unwt_cov_hard = f_unweighted_coverage(iou_hard, match_count)
+        unwt_cov_hard = base.f_unweighted_coverage(iou_hard, match_count)
         model['unwt_cov_hard'] = unwt_cov_hard
         # [B, T]
         iou_hard_mask = tf.reduce_sum(iou_hard * match, [1])
-        iou_hard = f_iou(tf.to_float(y_out > 0.5),
-                         y_gt, timespan, pairwise=True)
+        iou_hard = base.f_iou(tf.to_float(y_out > 0.5),
+                              y_gt, timespan, pairwise=True)
         iou_hard = tf.reduce_sum(tf.reduce_sum(
             iou_hard * match, reduction_indices=[1, 2]) / match_count) / num_ex
         model['iou_hard'] = iou_hard
@@ -303,13 +304,13 @@ def get_model(opt, device='/cpu:0'):
                                     match_count) / num_ex
         model['wt_iou_hard'] = wt_iou_hard
 
-        dice = f_dice(y_out_hard, y_gt, timespan, pairwise=True)
+        dice = base.f_dice(y_out_hard, y_gt, timespan, pairwise=True)
         dice = tf.reduce_sum(tf.reduce_sum(dice * match, [1, 2]) /
                              match_count) / num_ex
         model['dice'] = dice
-        
-        model['count_acc'] = f_count_acc(s_out, s_gt)
-        model['dic'] = f_dic(s_out, s_gt, abs=False)
-        model['dic_abs'] = f_dic(s_out, s_gt, abs=True)
+
+        model['count_acc'] = base.f_count_acc(s_out, s_gt)
+        model['dic'] = base.f_dic(s_out, s_gt, abs=False)
+        model['dic_abs'] = base.f_dic(s_out, s_gt, abs=True)
 
     return model
