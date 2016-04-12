@@ -1,10 +1,19 @@
 import cslab_environ
 
-import tensorflow as tf
+import argparse
+import numpy as np
+import os
 import sys
+import tensorflow as tf
+
+from data_api import cvppp
 
 from utils import logger
+from utils.batch_iter import BatchIterator
+from utils.saver import Saver
+
 import ris_attn_model as attn_model
+import ris_train_base as trainer
 
 log = logger.get()
 
@@ -33,7 +42,8 @@ def get_dataset(dataset_name, opt):
                 test_dataset_folder, opt, split=None)
     else:
         raise Exception('Not supported')
-    pass
+
+    return dataset
 
 
 def preprocess(x, y, s):
@@ -142,8 +152,8 @@ if __name__ == '__main__':
     tf.set_random_seed(1234)
     saver = None
 
-    dataset = trainer.get_dataset(args.dataset)
-    model_folder = os.path.join(args.results, args.model_id)
+    model_folder = os.path.join(args.results, args.model)
+    log.info('Folder: {}'.format(model_folder))
 
     saver = Saver(model_folder)
     ckpt_info = saver.get_ckpt_info()
@@ -161,3 +171,9 @@ if __name__ == '__main__':
     log.info('Running training set')
     res = run_inference(sess, model, dataset['train'])
     run_eval(res['y_out'], res['s_out'])
+
+    log.info('Running validation set')
+    res = run_inference(sess, model, dataset['valid'])
+    run_eval(res['y_out'], res['s_out'])
+
+    pass

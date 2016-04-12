@@ -73,11 +73,11 @@ def get_model(opt, device='/cpu:0'):
     # downsample_canvas = opt['downsample_canvas']
     # pretrain_cnn = opt['pretrain_cnn']
     # log.fatal(opt)
-    pretrain_ctrl_net = opt['pretrain_ctrl_net']
-    pretrain_attn_net = opt['pretrain_attn_net']
+    # pretrain_ctrl_net = opt['pretrain_ctrl_net']
+    # pretrain_attn_net = opt['pretrain_attn_net']
     # freeze_pretrain_net = opt['freeze_pretrain_net']
-    freeze_ctrl_net = opt['freeze_ctrl_net']
-    freeze_attn_net = opt['freeze_attn_net']
+    # freeze_ctrl_net = opt['freeze_ctrl_net']
+    # freeze_attn_net = opt['freeze_attn_net']
     # pretrain_ctrl_net = None
     # pretrain_attn_net = None
     # pretrain_cnn = None
@@ -97,6 +97,20 @@ def get_model(opt, device='/cpu:0'):
         ctrl_rnn_inp_struct = 'dense'
         num_ctrl_rnn_iter = 5
         num_glimpse_mlp_layers = 1
+    
+    if 'pretrain_ctrl_net' in opt:
+        pretrain_ctrl_net = opt['pretrain_ctrl_net']
+        pretrain_attn_net = opt['pretrain_attn_net']
+    else:
+        pretrain_ctrl_net = None
+        pretrain_attn_net = None
+
+    if 'freeze_ctrl_net' in opt:
+        freeze_ctrl_net = opt['freeze_ctrl_net']
+        freeze_attn_net = opt['freeze_attn_net']
+    else:
+        freeze_ctrl_net = False
+        freeze_attn_net = False
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
