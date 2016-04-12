@@ -80,7 +80,12 @@ def get_dataset(folder, opt, split='train'):
     timespan = opt['timespan'] if 'timespan' in opt else -1
     inp_shape = (inp_width, inp_height)
     image_folder = os.path.join(folder, 'images')
-    gt_folder = os.path.join(folder, 'gt')
+
+    if split == 'train' or split == 'valid':
+        gt_folder = os.path.join(folder, 'gt')
+    elif split == 'valid_man' or split == 'test_man':
+        gt_folder = os.path.join(folder, 'gt_man')
+
     ids_fname = os.path.join(folder, '{}.txt'.format(split))
     inp_list = []
     segm_list = []
@@ -182,7 +187,7 @@ def get_separate_labels(label_img):
 
 if __name__ == '__main__':
     folder = '/ais/gobi3/u/mren/data/kitti/object'
-    for split in ['train', 'valid']:
+    for split in ['train', 'valid', 'valid_man', 'test_man']:
         dataset = get_dataset(
             folder,
             opt={
