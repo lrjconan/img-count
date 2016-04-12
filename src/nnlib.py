@@ -60,59 +60,6 @@ def weight_variable(shape, initializer=None, init_val=None, wd=None, name=None, 
     return var
 
 
-# def batch_norm_2(n_out, scope='bn', affine=True):
-#     """
-#     Batch normalization on convolutional maps.
-#     Args:
-#         x: input tensor, [B, H, W, D]
-#         n_out: integer, depth of input maps
-#         phase_train: boolean tf.Variable, true indicates training phase
-#         scope: string, variable scope
-#         affine: whether to affine-transform outputs
-#     Return:
-#         normed: batch-normalized maps
-#     """
-#     with tf.variable_scope(scope):
-#         beta = tf.Variable(tf.constant(0.0, shape=[n_out]),
-#                            name='beta', trainable=True)
-#         gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
-#                             name='gamma', trainable=affine)
-#         batch_mean = tf.Variable(tf.constant(
-#             0.0, shape=[n_out]), name='batch_mean')
-#         batch_var = tf.Variable(tf.constant(
-#             0.0, shape=[n_out]), name='batch_var')
-#         ema = tf.train.ExponentialMovingAverage(decay=0.999)
-#         ema_apply_op = ema.apply([batch_mean, batch_var])
-#         ema_mean, ema_var = ema.average(batch_mean), ema.average(batch_var)
-
-#         def run_bn(x, phase_train):
-#             _batch_mean, _batch_var = tf.nn.moments(
-#                 x, [0, 1, 2], name='moments')
-#             _batch_mean.set_shape([n_out])
-#             _batch_var.set_shape([n_out])
-#             batch_mean_2 = tf.assign(batch_mean, _batch_mean)
-#             batch_var_2 = tf.assign(batch_var, _batch_var)
-
-#             def mean_var_with_update():
-#                 with tf.control_dependencies([batch_mean_2, batch_var_2, ema_apply_op]):
-#                     return tf.identity(_batch_mean), tf.identity(_batch_var)
-
-#             def mean_var_without_update():
-#                 with tf.control_dependencies([batch_mean_2, batch_var_2]):
-#                     return tf.identity(ema_mean), tf.identity(ema_var)
-
-#             mean, var = control_flow_ops.cond(phase_train,
-#                                               mean_var_with_update,
-#                                               mean_var_without_update)
-#             # normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
-#             normed = tf.nn.batch_norm_with_global_normalization(x, mean, var,
-# beta, gamma, 1e-3, affine)
-
-#             return normed, batch_mean_2, batch_var_2, ema_mean, ema_var
-
-#     return run_bn
-
-
 def batch_norm(x, n_out, phase_train, scope='bn', scope2='bn', affine=True, init_beta=None, init_gamma=None, frozen=False, model=None):
     """
     Batch normalization on convolutional maps.
@@ -136,10 +83,8 @@ def batch_norm(x, n_out, phase_train, scope='bn', scope2='bn', affine=True, init
             [n_out], init_val=init_beta, name='beta', trainable=trainable)
         gamma = weight_variable(
             [n_out], init_val=init_gamma, name='gamma', trainable=trainable)
-        # beta = tf.Variable(tf.constant(0.0, shape=[n_out]),
-        #                    name='beta', trainable=True)
-        # gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
-        #                     name='gamma', trainable=affine)
+        print beta.name
+        print gamma.name
 
         # batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2], name='moments')
         batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2])
@@ -325,11 +270,6 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                 h[ii] = conv2d(prev_inp, w[ii]) + b[ii]
 
                 if use_bn[ii]:
-                    # h[ii], bm, bv, em, ev = batch_norm(
-                    #     h[ii], out_ch, phase_train,
-                    #     scope2='{}_{}_{}'.format(scope, ii, copy[0]),
-                    #     model=model)
-
                     if frozen is not None and frozen[ii]:
                         bn_frozen = True
                     else:
@@ -337,13 +277,15 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
 
                     if init_weights is not None and init_weights[ii] is not None:
                         init_beta = init_weights[ii]['beta_{}'.format(copy[0])]
-                        init_gamma = init_weights[ii]['gamma_{}'.format(copy[0])]
+                        init_gamma = init_weights[ii][
+                            'gamma_{}'.format(copy[0])]
                     else:
                         init_beta = None
                         init_gamma = None
 
                     # with tf.variable_scope('layer_{}'.format(ii)):
-                        # with tf.variable_scope('copy_{}'.format(copy[0])) as ss:
+                        # with tf.variable_scope('copy_{}'.format(copy[0])) as
+                        # ss:
                     with tf.variable_scope(layer_scope[ii]):
                         h[ii], bm, bv, em, ev = batch_norm(
                             h[ii], out_ch, phase_train,
