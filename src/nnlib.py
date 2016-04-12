@@ -334,12 +334,12 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
 
                 # with tf.variable_scope('layer_{}'.format(ii)):
                 #     with tf.variable_scope('copy_{}'.format(copy[0])):
-                        h[ii], bm, bv, em, ev = batch_norm(
-                            h[ii], out_ch, phase_train,
-                            scope2='{}_{}_{}'.format(scope, ii, copy[0]),
-                            init_beta=init_beta,
-                            init_gamma=init_gamma,
-                            model=model)
+                h[ii], bm, bv, em, ev = batch_norm(
+                    h[ii], out_ch, phase_train,
+                    scope2='{}_{}_{}'.format(scope, ii, copy[0]),
+                    init_beta=init_beta,
+                    init_gamma=init_gamma,
+                    model=model)
 
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
@@ -484,12 +484,12 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
 
                 # with tf.variable_scope('layer_{}'.format(ii)):
                 #     with tf.variable_scope('copy_{}'.format(copy[0])):
-                        h[ii], bm, bv, em, ev = batch_norm(
-                            h[ii], out_ch, phase_train,
-                            scope2='{}_{}_{}'.format(scope, ii, copy[0]),
-                            init_beta=init_beta,
-                            init_gamma=init_gamma,
-                            model=model)
+                h[ii], bm, bv, em, ev = batch_norm(
+                    h[ii], out_ch, phase_train,
+                    scope2='{}_{}_{}'.format(scope, ii, copy[0]),
+                    init_beta=init_beta,
+                    init_gamma=init_gamma,
+                    model=model)
 
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
