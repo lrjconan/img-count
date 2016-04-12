@@ -854,7 +854,7 @@ if __name__ == '__main__':
     m = get_model(model_opt, device=device)
 
     log.info('Loading dataset')
-    dataset = get_dataset(args.dataset, data_opt)
+    dataset = trainer.get_dataset(args.dataset, data_opt)
 
     if model_opt['fixed_order']:
         dataset['train']['label_segmentation'] = trainer.sort_by_segm_size(
