@@ -307,62 +307,62 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
         Args:
             x: input image, [B, H, W, D]
         """
-        with tf.variable_scope(net_scope):
         h = [None] * nlayers
-        for ii in xrange(nlayers):
-            out_ch = ch[ii + 1]
+        with tf.variable_scope(net_scope):
+            for ii in xrange(nlayers):
+                out_ch = ch[ii + 1]
 
-            if ii == 0:
-                prev_inp = x
-            else:
-                prev_inp = h[ii - 1]
-
-            h[ii] = conv2d(prev_inp, w[ii]) + b[ii]
-
-            if use_bn[ii]:
-                # h[ii], bm, bv, em, ev = batch_norm(
-                #     h[ii], out_ch, phase_train,
-                #     scope2='{}_{}_{}'.format(scope, ii, copy[0]),
-                #     model=model)
-
-                if frozen is not None and frozen[ii]:
-                    bn_frozen = True
+                if ii == 0:
+                    prev_inp = x
                 else:
-                    bn_frozen = False
+                    prev_inp = h[ii - 1]
 
-                if init_weights is not None and init_weights[ii] is not None:
-                    init_beta = init_weights[ii]['beta_{}'.format(copy[0])]
-                    init_gamma = init_weights[ii]['gamma_{}'.format(copy[0])]
-                else:
-                    init_beta = None
-                    init_gamma = None
+                h[ii] = conv2d(prev_inp, w[ii]) + b[ii]
 
-                with tf.variable_scope('layer_{}'.format(ii)):
-                    with tf.variable_scope('copy_{}'.format(copy[0])) as ss:
-                        print ss.name
-                        h[ii], bm, bv, em, ev = batch_norm(
-                            h[ii], out_ch, phase_train,
-                            scope2='{}_{}_{}'.format(scope, ii, copy[0]),
-                            init_beta=init_beta,
-                            init_gamma=init_gamma,
-                            model=model)
-                        print bm.name
+                if use_bn[ii]:
+                    # h[ii], bm, bv, em, ev = batch_norm(
+                    #     h[ii], out_ch, phase_train,
+                    #     scope2='{}_{}_{}'.format(scope, ii, copy[0]),
+                    #     model=model)
 
-                if model:
-                    model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
-                        tf.reduce_sum(bm) / out_ch
-                    model['{}_{}_bv_{}'.format(scope, ii, copy[0])] = \
-                        tf.reduce_sum(bv) / out_ch
-                    model['{}_{}_em_{}'.format(scope, ii, copy[0])] = \
-                        tf.reduce_sum(em) / out_ch
-                    model['{}_{}_ev_{}'.format(scope, ii, copy[0])] = \
-                        tf.reduce_sum(ev) / out_ch
+                    if frozen is not None and frozen[ii]:
+                        bn_frozen = True
+                    else:
+                        bn_frozen = False
 
-            if act[ii] is not None:
-                h[ii] = act[ii](h[ii])
+                    if init_weights is not None and init_weights[ii] is not None:
+                        init_beta = init_weights[ii]['beta_{}'.format(copy[0])]
+                        init_gamma = init_weights[ii]['gamma_{}'.format(copy[0])]
+                    else:
+                        init_beta = None
+                        init_gamma = None
 
-            if pool[ii] > 1:
-                h[ii] = max_pool(h[ii], pool[ii])
+                    with tf.variable_scope('layer_{}'.format(ii)):
+                        with tf.variable_scope('copy_{}'.format(copy[0])) as ss:
+                            print ss.name
+                            h[ii], bm, bv, em, ev = batch_norm(
+                                h[ii], out_ch, phase_train,
+                                scope2='{}_{}_{}'.format(scope, ii, copy[0]),
+                                init_beta=init_beta,
+                                init_gamma=init_gamma,
+                                model=model)
+                            print bm.name
+
+                    if model:
+                        model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
+                            tf.reduce_sum(bm) / out_ch
+                        model['{}_{}_bv_{}'.format(scope, ii, copy[0])] = \
+                            tf.reduce_sum(bv) / out_ch
+                        model['{}_{}_em_{}'.format(scope, ii, copy[0])] = \
+                            tf.reduce_sum(em) / out_ch
+                        model['{}_{}_ev_{}'.format(scope, ii, copy[0])] = \
+                            tf.reduce_sum(ev) / out_ch
+
+                if act[ii] is not None:
+                    h[ii] = act[ii](h[ii])
+
+                if pool[ii] > 1:
+                    h[ii] = max_pool(h[ii], pool[ii])
 
         copy[0] += 1
 
