@@ -164,9 +164,8 @@ def write_split(folder):
 
 
 if __name__ == '__main__':
-    # for subset in ['A1', 'A2', 'A3']:
-    #     write_split('/home/mren/data/LSCData/{}'.format(subset))
-
+    for subset in ['A1', 'A2', 'A3']:
+        write_split('/home/mren/data/LSCData/{}'.format(subset))
     d = get_dataset('/home/mren/data/LSCData/A1',
                     {'height': 224, 'width': 224},
                     split='train')
