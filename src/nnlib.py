@@ -312,7 +312,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
             x: input image, [B, H, W, D]
         """
         h = [None] * nlayers
-        with tf.variable_scope(net_scope):
+        with tf.variable_scope(net_scope, reuse=True):
             for ii in xrange(nlayers):
                 out_ch = ch[ii + 1]
 
