@@ -255,7 +255,9 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
     log.info('BN: {}'.format(use_bn))
     log.info('Shared weights: {}'.format(shared_weights))
 
-    with tf.variable_scope(scope):
+    net_scope = tf.variable_scope(scope)
+
+    with tf.variable_scope(net_scope):
         for ii in xrange(nlayers):
             with tf.variable_scope('layer_{}'.format(ii)):
                 if init_weights:
@@ -286,6 +288,8 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                     b[ii] = weight_variable([ch[ii + 1]], init_val=init_val_b,
                                             name='b',
                                             trainable=trainable)
+
+                    print w[ii].name
                 log.info('Filter: {}, Trainable: {}'.format(
                     [f[ii], f[ii], ch[ii], ch[ii + 1]], trainable))
 
@@ -303,6 +307,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
         Args:
             x: input image, [B, H, W, D]
         """
+        with tf.variable_scope(net_scope):
         h = [None] * nlayers
         for ii in xrange(nlayers):
             out_ch = ch[ii + 1]
