@@ -91,28 +91,14 @@ def get_dataset(dataset_name, opt):
             dataset_folder = '/ais/gobi3/u/mren/data/lsc/A1'
         else:
             dataset_folder = '/home/mren/data/LSCData/A1'
-        _all_data = cvppp.get_dataset(dataset_folder, opt)
 
         if opt['has_valid']:
-            split = 103
-            random = np.random.RandomState(2)
-            idx = np.arange(_all_data['input'].shape[0])
-            random.shuffle(idx)
-            train_idx = idx[: split]
-            valid_idx = idx[split:]
-            log.info('Train index: {}'.format(train_idx))
-            log.info('Valid index: {}'.format(valid_idx))
-            dataset['train'] = {
-                'input': _all_data['input'][train_idx],
-                'label_segmentation': _all_data['label_segmentation'][train_idx],
-                'label_score': _all_data['label_score'][train_idx]
-            }
-            dataset['valid'] = {
-                'input': _all_data['input'][valid_idx],
-                'label_segmentation': _all_data['label_segmentation'][valid_idx],
-                'label_score': _all_data['label_score'][valid_idx]
-            }
+            dataset['train'] = cvppp.get_dataset(
+                dataset_folder, opt, split='train')
+            dataset['valid'] = cvppp.get_dataset(
+                dataset_folder, opt, split='valid')
         else:
+            _all_data = cvppp.get_dataset(dataset_folder, opt, split=None)
             random = np.random.RandomState(2)
             idx = np.arange(_all_data['input'].shape[0])
             random.shuffle(idx)

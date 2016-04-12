@@ -12,7 +12,7 @@ image_regex = re.compile('plant(?P<imgid>[0-9]{3})_rgb.png')
 log = logger.get()
 
 
-def get_dataset(folder, opt):
+def get_dataset(folder, opt, split=None):
     """
     Get CVPPP dataset.
     Args:
@@ -20,6 +20,7 @@ def get_dataset(folder, opt):
         opt:
             height: resize the input image.
             width: resize the input image.
+        split: 'train' or 'valid' or None
 
     """
     inp_height = opt['height']
@@ -32,15 +33,32 @@ def get_dataset(folder, opt):
     max_num_obj = 0
     image_height = -1
     image_width = -1
+
+    split_ids = None
+    if split is not None:
+        with open(os.path.join(folder, '{}.txt'.format(split))) as f:
+            split_ids = set([int(ll.strip('\n')) for ll in f.readlines()])
+
     for fname in pb.get_iter(file_list):
         match = label_regex.search(fname)
         is_label = True
+        matched = False
         if match:
             imgid = int(match.group('imgid'))
+            matched = True
         else:
             match = image_regex.search(fname)
-            imgid = int(match.group('imgid'))
-            is_label = False
+            if match:
+                imgid = int(match.group('imgid'))
+                is_label = False
+                matched = True
+
+        if not matched:
+            continue
+
+        if matched:
+            if split_ids is not None and imgid not in split_ids:
+                continue
 
         img = cv2.imread(os.path.join(folder, fname))
         img = cv2.resize(img, inp_shape, interpolation=cv2.INTER_NEAREST)
@@ -69,19 +87,23 @@ def get_dataset(folder, opt):
     log.info('Input shape: {} label shape: {} {}'.format(
         inp.shape, label_segm.shape, label_score.shape))
     log.info('Assemble inputs')
+
+    idx_map = np.array(image_dict.keys())
     for ii, imgid in enumerate(image_dict.iterkeys()):
-        if imgid not in label_dict:
-            raise Exception('Image ID not match: {}'.format(imgid))
         inp[ii] = image_dict[imgid]
-        num_obj = len(label_dict[imgid])
-        for jj in xrange(num_obj):
-            label_segm[ii, jj] = label_dict[imgid][jj]
-        label_score[ii, :num_obj] = 1
+
+        if imgid in label_dict:
+            # For test set, it is not available.
+            num_obj = len(label_dict[imgid])
+            for jj in xrange(num_obj):
+                label_segm[ii, jj] = label_dict[imgid][jj]
+            label_score[ii, :num_obj] = 1
 
     return {
         'input': inp,
         'label_segmentation': label_segm,
-        'label_score': label_score
+        'label_score': label_score,
+        'index_map': idx_map
     }
 
 
@@ -101,5 +123,62 @@ def get_separate_labels(label_img):
 
     return segmentations
 
+
+def get_image(image_id):
+    pass
+
+
+def write_split(folder):
+    random = np.random.RandomState(2)
+    log.info('Reading images from {}'.format(folder))
+    file_list = os.listdir(folder)
+
+    image_id_dict = {}
+    for fname in pb.get_iter(file_list):
+        match = label_regex.search(fname)
+        if match:
+            imgid = int(match.group('imgid'))
+            image_id_dict[imgid] = True
+
+
+    image_ids = np.array(image_id_dict.keys())
+    num_train = np.ceil(image_ids.size * 0.8) # 103 for 128
+    idx = np.arange(len(image_ids))
+    random.shuffle(idx)
+    train_ids = image_ids[idx[: num_train]]
+    valid_ids = image_ids[idx[num_train:]]
+    log.info('Number of images: {}'.format(len(idx)))
+
+    log.info('Train indices: {}'.format(idx[: num_train]))
+    log.info('Valid indices: {}'.format(idx[num_train: ]))
+    log.info('Train image ids: {}'.format(train_ids))
+    log.info('Valid image ids: {}'.format(valid_ids))
+
+    with open(os.path.join(folder, 'train.txt'), 'w') as f:
+        for ii in train_ids:
+            f.write('{}\n'.format(ii))
+
+    with open(os.path.join(folder, 'valid.txt'), 'w') as f:
+        for ii in valid_ids:
+            f.write('{}\n'.format(ii))
+
+
 if __name__ == '__main__':
-    get_dataset('/home/mren/data/LSCData/A1', {'height': 224, 'width': 224})
+    # for subset in ['A1', 'A2', 'A3']:
+    #     write_split('/home/mren/data/LSCData/{}'.format(subset))
+
+    d = get_dataset('/home/mren/data/LSCData/A1',
+                    {'height': 224, 'width': 224},
+                    split='train')
+    print d['input'].shape
+    print d['label_segmentation'].shape
+    d = get_dataset('/home/mren/data/LSCData/A1',
+                    {'height': 224, 'width': 224},
+                    split='valid')
+    print d['input'].shape
+    print d['label_segmentation'].shape
+    d = get_dataset('/home/mren/data/LSCDataTest/A1',
+                    {'height': 224, 'width': 224},
+                    split=None)
+    print d['input'].shape
+    print d['label_segmentation'].shape
