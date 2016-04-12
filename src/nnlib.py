@@ -141,7 +141,8 @@ def batch_norm(x, n_out, phase_train, scope='bn', scope2='bn', affine=True, init
         # gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
         #                     name='gamma', trainable=affine)
 
-        batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2], name='moments')
+        # batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2], name='moments')
+        batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2])
         batch_mean.set_shape([n_out])
         batch_var.set_shape([n_out])
 
@@ -312,7 +313,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
             x: input image, [B, H, W, D]
         """
         h = [None] * nlayers
-        with tf.variable_scope(net_scope, reuse=True):
+        with tf.variable_scope(net_scope):
             for ii in xrange(nlayers):
                 out_ch = ch[ii + 1]
 
@@ -343,16 +344,14 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
 
                     # with tf.variable_scope('layer_{}'.format(ii)):
                         # with tf.variable_scope('copy_{}'.format(copy[0])) as ss:
-                    with tf.variable_scope(layer_scope[ii], reuse=True):
-                        with tf.variable_scope('copy_{}'.format(copy[0])) as ss:
-                            print ss.name
-                            h[ii], bm, bv, em, ev = batch_norm(
-                                h[ii], out_ch, phase_train,
-                                scope2='{}_{}_{}'.format(scope, ii, copy[0]),
-                                init_beta=init_beta,
-                                init_gamma=init_gamma,
-                                model=model)
-                            print bm.name
+                    with tf.variable_scope(layer_scope[ii]):
+                        h[ii], bm, bv, em, ev = batch_norm(
+                            h[ii], out_ch, phase_train,
+                            scope2='{}_{}_{}'.format(scope, ii, copy[0]),
+                            init_beta=init_beta,
+                            init_gamma=init_gamma,
+                            model=model)
+                        print bm.name
 
                     if model:
                         model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
