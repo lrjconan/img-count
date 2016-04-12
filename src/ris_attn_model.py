@@ -403,7 +403,8 @@ def get_model(opt, device='/cpu:0'):
         adcnn_act = [tf.nn.relu] * adcnn_nlayers
         adcnn_channels = [attn_mlp_depth] + attn_dcnn_depth
 
-        adcnn_bn_nlayers = adcnn_nlayers
+        # adcnn_bn_nlayers = adcnn_nlayers
+        adcnn_bn_nlayers = adcnn_nlayers - 1
         adcnn_use_bn = [use_bn] * adcnn_bn_nlayers
         adcnn_skip_ch = [0] + acnn_channels[::-1][1:]
 
