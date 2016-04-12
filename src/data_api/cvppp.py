@@ -164,19 +164,27 @@ def write_split(folder):
 
 
 if __name__ == '__main__':
+    if os.path.exists('/u/mren'):
+        train_folder = '/ais/gobi3/u/mren/data/lsc'
+        test_folder = '/ais/gobi3/u/mren/data/lsc_test'
+    else:
+        train_folder = '/home/mren/data/LSCData'
+        test_folder = '/home/mren/data/LSCDataTest'
+
     for subset in ['A1', 'A2', 'A3']:
-        write_split('/home/mren/data/LSCData/{}'.format(subset))
-    d = get_dataset('/home/mren/data/LSCData/A1',
+        write_split(os.path.join(train_folder, subset))
+
+    d = get_dataset(os.path.join(train_folder, 'A1'),
                     {'height': 224, 'width': 224},
                     split='train')
     print d['input'].shape
     print d['label_segmentation'].shape
-    d = get_dataset('/home/mren/data/LSCData/A1',
+    d = get_dataset(os.path.join(train_folder, 'A1'),
                     {'height': 224, 'width': 224},
                     split='valid')
     print d['input'].shape
     print d['label_segmentation'].shape
-    d = get_dataset('/home/mren/data/LSCDataTest/A1',
+    d = get_dataset(os.path.join(test_folder, 'A1'),
                     {'height': 224, 'width': 224},
                     split=None)
     print d['input'].shape
