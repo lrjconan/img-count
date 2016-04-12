@@ -333,7 +333,8 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                     init_gamma = None
 
                 with tf.variable_scope('layer_{}'.format(ii)):
-                    with tf.variable_scope('copy_{}'.format(copy[0])):
+                    with tf.variable_scope('copy_{}'.format(copy[0])) as ss:
+                        print ss.name
                         h[ii], bm, bv, em, ev = batch_norm(
                             h[ii], out_ch, phase_train,
                             scope2='{}_{}_{}'.format(scope, ii, copy[0]),
