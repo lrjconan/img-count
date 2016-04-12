@@ -405,7 +405,8 @@ def get_model(opt, device='/cpu:0'):
 
         # adcnn_bn_nlayers = adcnn_nlayers
         adcnn_bn_nlayers = adcnn_nlayers - 1
-        adcnn_use_bn = [use_bn] * adcnn_bn_nlayers
+        adcnn_use_bn = [use_bn] * adcnn_bn_nlayers + \
+            [False] * (adcnn_nlayers - adcnn_bn_nlayers)
         adcnn_skip_ch = [0] + acnn_channels[::-1][1:]
 
         if pretrain_attn_net:
