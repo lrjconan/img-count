@@ -65,7 +65,9 @@ class Saver():
 
         latest_ckpt = os.path.join(self.folder,
                                    'model.ckpt-{}'.format(latest_step))
-        return (latest_ckpt, latest_step)
+        latest_graph = os.path.join(self.folder,
+                                    'model.ckpt-{}.meta'.format(latest_step))
+        return (latest_ckpt, latest_graph, latest_step)
 
     def get_ckpt_info(self):
         """Get info of the latest checkpoint."""
@@ -92,11 +94,12 @@ class Saver():
         else:
             data_opt = None
 
-        ckpt_fname, latest_step = self.get_latest_ckpt()
+        ckpt_fname, graph_fname, latest_step = self.get_latest_ckpt()
         log.info('Restoring at step {}'.format(latest_step))
 
         return {
             'ckpt_fname': ckpt_fname,
+            'graph_fname': graph_fname,
             'model_opt': model_opt,
             'data_opt': data_opt,
             'step': latest_step,

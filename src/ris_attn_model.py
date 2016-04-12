@@ -97,7 +97,7 @@ def get_model(opt, device='/cpu:0'):
         ctrl_rnn_inp_struct = 'dense'
         num_ctrl_rnn_iter = 5
         num_glimpse_mlp_layers = 1
-    
+
     if 'pretrain_ctrl_net' in opt:
         pretrain_ctrl_net = opt['pretrain_ctrl_net']
         pretrain_attn_net = opt['pretrain_attn_net']
@@ -122,18 +122,21 @@ def get_model(opt, device='/cpu:0'):
 ############################
     with tf.device(base.get_device_fn(device)):
         # Input image, [B, H, W, D]
-        x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
+        x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth],
+                           name='x')
         x_shape = tf.shape(x)
         num_ex = x_shape[0]
 
         # Groundtruth segmentation, [B, T, H, W]
-        y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
+        y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width],
+                              name='y_gt')
 
         # Groundtruth confidence score, [B, T]
-        s_gt = tf.placeholder('float', [None, timespan])
+        s_gt = tf.placeholder('float', [None, timespan],
+                              name='s_gt')
 
         # Whether in training stage.
-        phase_train = tf.placeholder('bool')
+        phase_train = tf.placeholder('bool', name='phase_train')
         phase_train_f = tf.to_float(phase_train)
         model['x'] = x
         model['y_gt'] = y_gt
