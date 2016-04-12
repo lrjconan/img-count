@@ -284,7 +284,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                     init_gamma = None
 
                 with tf.variable_scope('layer_{}'.format(ii)):
-                    with tf.variable_scope('copy_{}'.format(copy[0]))
+                    with tf.variable_scope('copy_{}'.format(copy[0])):
                 # with tf.variable_scope(layer_scope[ii]):
                         h[ii], bm, bv, em, ev = batch_norm(
                             h[ii], out_ch, phase_train,
