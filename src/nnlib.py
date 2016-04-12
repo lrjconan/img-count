@@ -341,6 +341,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                             init_beta=init_beta,
                             init_gamma=init_gamma,
                             model=model)
+                        print bm.name
 
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
