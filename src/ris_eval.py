@@ -153,7 +153,7 @@ def iou(a, b):
     inter = (a * b).sum(axis=3).sum(axis=2)
     union = (a + b).sum(axis=3).sum(axis=2) - inter
 
-    return inter / union
+    return inter / (union + 1e-5)
 
 
 def build_matching():
