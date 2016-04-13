@@ -126,19 +126,17 @@ def get_model(opt, device='/cpu:0'):
                     log.info('Loading attn_cnn_w_{}'.format(ii))
                     log.info('Loading attn_cnn_b_{}'.format(ii))
                     acnn_nlayers += 1
-            # print acnn_nlayers
-            # ccnn_init_w = [{'w': h5f['attn_cnn_w_{}'.format(ii)][:],
-            #                 'b': h5f['attn_cnn_b_{}'.format(ii)][:]}
-            #                for ii in xrange(acnn_nlayers)]
-            # for ii in xrange(acnn_nlayers):
-            #     for tt in xrange(timespan):
-            #         for w in ['beta', 'gamma']:
-            #             ccnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[
-            #                 'attn_cnn_{}_{}_{}'.format(ii, tt, w)][:]
+            ccnn_init_w = [{'w': h5f['attn_cnn_w_{}'.format(ii)][:],
+                            'b': h5f['attn_cnn_b_{}'.format(ii)][:]}
+                           for ii in xrange(acnn_nlayers)]
+            for ii in xrange(acnn_nlayers):
+                for tt in xrange(timespan):
+                    for w in ['beta', 'gamma']:
+                        ccnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[
+                            'attn_cnn_{}_{}_{}'.format(ii, tt, w)][:]
             ccnn_frozen = [True] * acnn_nlayers
-            ccnn_init_w = None
             for ii in xrange(acnn_nlayers, ccnn_nlayers):
-                #ccnn_init_w.append(None)
+                ccnn_init_w.append(None)
                 ccnn_frozen.append(False)
         else:
             ccnn_init_w = None
