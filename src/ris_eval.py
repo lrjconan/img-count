@@ -75,7 +75,7 @@ def run_inference(sess, m, dataset, phase_train):
                                batch_size=batch_size,
                                get_fn=get_batch_fn(dataset),
                                cycle=False,
-                               progress_bar=phase_train)
+                               progress_bar=True)
     y_out = None
     s_out = None
     y_gt = None
