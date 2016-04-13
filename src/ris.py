@@ -820,6 +820,7 @@ if __name__ == '__main__':
         model_opt['freeze_ctrl_net'] = model_opt_read['freeze_ctrl_net']
     else:
         model_id = trainer.get_model_id('rec_ins_segm')
+        model_opt = model_opt_read
         step = 0
         exp_folder = os.path.join(train_opt['results'], model_id)
         saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
@@ -867,7 +868,6 @@ if __name__ == '__main__':
     sess = tf.Session()
 
     if args.restore:
-        sess.run(tf.initialize_variables(m['adam_var']))
         saver.restore(sess, ckpt_fname)
     else:
         sess.run(tf.initialize_all_variables())

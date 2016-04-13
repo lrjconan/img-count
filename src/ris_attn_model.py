@@ -380,7 +380,7 @@ def get_model(opt, device='/cpu:0'):
         if pt:
             log.info('Loading pretrained attention MLP weights from {}'.format(
                 pt))
-            h5f = h5py.File(pretrain_attn_net, 'r')
+            h5f = h5py.File(pt, 'r')
             amlp_init_w = [{'w': h5f['attn_mlp_w_{}'.format(ii)][:],
                             'b': h5f['attn_mlp_b_{}'.format(ii)][:]}
                            for ii in xrange(num_attn_mlp_layers)]
@@ -966,13 +966,10 @@ def get_model(opt, device='/cpu:0'):
         model['learn_rate'] = learn_rate
         eps = 1e-7
 
-        temp = set(tf.all_variables())
         train_step = GradientClipOptimizer(
             tf.train.AdamOptimizer(learn_rate, epsilon=eps),
             clip=clip_gradient).minimize(total_loss, global_step=global_step)
         model['train_step'] = train_step
-        adam_var = set(tf.all_variables()) - temp
-        model['adam_var'] = adam_var
 
 ####################
 # Statistics
