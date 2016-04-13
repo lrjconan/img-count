@@ -112,7 +112,7 @@ def run_inference(sess, m, dataset, phase_train):
 
 
 def best_dice(a, b):
-    bd = np.zeros(a.shape[0], a.shape[1])
+    bd = np.zeros([a.shape[0], a.shape[1]])
 
     for ii in xrange(a.shape[1]):
         segm = a[:, ii: ii + 1, :, :]
