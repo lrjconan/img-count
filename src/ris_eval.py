@@ -134,12 +134,23 @@ def symmetric_best_dice(y_out, y_gt):
     return np.minimum(bd1, bd2)
 
 
-def coverage(y_out, y_gt, weights=None):
-    pass
+def coverage(y_out, y_gt, weighted=False):
+    cov = np.zeros(y_out.shape[0], y_out.shape[1])
+    for ii in xrange(y_gt.shape[1]):
+        segm_gt = y_gt[:, ii: ii + 1, :, :]
+        iou_ii = iou(y_out, segm_gt)
+        cov[:, ii] = iou_ii.max(axis=1)
+
+    # if weighted:
+    #     weights = y_gt.sum(axis=3).sum(axis=2) / y_gt.sum(axis=3)
+    return cov.mean()
 
 
-def iou():
-    pass
+def iou(a, b):
+    inter = (a * b).sum(axis=3).sum(axis=2)
+    union = (a + b).sum(axis=3).sum(axis=2) - inter
+
+    return inter / union
 
 
 def build_matching():
@@ -154,10 +165,10 @@ def run_eval(y_out, y_gt, s_out, s_gt):
     count_out = s_out.sum(axis=1)
     count_gt = s_gt.sum(axis=1)
 
-    count_acc = (count_out == count_gt).astype('float').mean()
-    dic = (count - count_gt).mean()
-    dic_abs = np.abs(count - count_gt).mean()
     sbd = symmetric_best_dice(y_out, y_gt).mean()
+    count_acc = (count_out == count_gt).astype('float').mean()
+    dic = (count_out - count_gt).mean()
+    dic_abs = np.abs(count_out - count_gt).mean()
     log.info('{:10s}{:.4f}'.format('SBD', sbd))
     log.info('{:10s}{:.4f}'.format('Count Acc', count_acc))
     log.info('{:10s}{:.4f}'.format('DiC', dic))
