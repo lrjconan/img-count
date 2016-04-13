@@ -119,7 +119,7 @@ def best_dice(a, b):
         card_a = a.sum(axis=3).sum(axis=2)
         card_b = b.sum(axis=3).sum(axis=2)
         card_ab = (a * b).sum(axis=3).sum(axis=2)
-        dice = card_ab / (card_a + card_b)
+        dice = card_ab / (card_a + card_b + 1e-5)
         bd[:, ii] = dice.max(axis=1)
 
     return bd.mean(axis=1)
@@ -135,7 +135,7 @@ def symmetric_best_dice(y_out, y_gt):
 
 
 def coverage(y_out, y_gt, weighted=False):
-    cov = np.zeros(y_out.shape[0], y_out.shape[1])
+    cov = np.zeros([y_out.shape[0], y_out.shape[1]])
     for ii in xrange(y_gt.shape[1]):
         segm_gt = y_gt[:, ii: ii + 1, :, :]
         iou_ii = iou(y_out, segm_gt)
