@@ -75,7 +75,8 @@ def get_model(opt, device='/cpu:0'):
     pretrain_ctrl_net = opt['pretrain_ctrl_net']
     pretrain_attn_net = opt['pretrain_attn_net']
     pretrain_net = opt['pretrain_net']
-    freeze_ctrl_net = opt['freeze_ctrl_net']
+    freeze_ctrl_cnn = opt['freeze_ctrl_cnn']
+    freeze_ctrl_rnn = opt['freeze_ctrl_rnn']
     freeze_attn_net = opt['freeze_attn_net']
 
     rnd_hflip = opt['rnd_hflip']
@@ -153,10 +154,10 @@ def get_model(opt, device='/cpu:0'):
                     for w in ['beta', 'gamma']:
                         ccnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[
                             'ctrl_cnn_{}_{}_{}'.format(ii, tt, w)][:]
-            ccnn_frozen = [freeze_ctrl_net] * ccnn_nlayers
+            ccnn_frozen = [freeze_ctrl_cnn] * ccnn_nlayers
         else:
             ccnn_init_w = None
-            ccnn_frozen = [freeze_ctrl_net] * ccnn_nlayers
+            ccnn_frozen = [freeze_ctrl_cnn] * ccnn_nlayers
 
         ccnn = nn.cnn(ccnn_filters, ccnn_channels, ccnn_pool, ccnn_act,
                       ccnn_use_bn, phase_train=phase_train, wd=wd,
@@ -190,10 +191,10 @@ def get_model(opt, device='/cpu:0'):
                       'w_hu', 'b_u', 'w_xo', 'w_ho', 'b_o']:
                 key = 'ctrl_lstm_{}'.format(w)
                 crnn_init_w[w] = h5f[key][:]
-            crnn_frozen = freeze_ctrl_net
+            crnn_frozen = freeze_ctrl_rnn
         else:
             crnn_init_w = None
-            crnn_frozen = freeze_ctrl_net
+            crnn_frozen = freeze_ctrl_rnn
 
         crnn_state = [None] * (timespan + 1)
         crnn_glimpse_map = [None] * timespan
@@ -222,10 +223,10 @@ def get_model(opt, device='/cpu:0'):
             gmlp_init_w = [{'w': h5f['glimpse_mlp_w_{}'.format(ii)][:],
                             'b': h5f['glimpse_mlp_b_{}'.format(ii)][:]}
                            for ii in xrange(num_glimpse_mlp_layers)]
-            gmlp_frozen = [freeze_ctrl_net] * num_glimpse_mlp_layers
+            gmlp_frozen = [freeze_ctrl_rnn] * num_glimpse_mlp_layers
         else:
             gmlp_init_w = None
-            gmlp_frozen = [freeze_ctrl_net] * num_glimpse_mlp_layers
+            gmlp_frozen = [freeze_ctrl_rnn] * num_glimpse_mlp_layers
 
         gmlp = nn.mlp(gmlp_dims, gmlp_act, add_bias=True,
                       dropout_keep=gmlp_dropout,
@@ -249,10 +250,10 @@ def get_model(opt, device='/cpu:0'):
             cmlp_init_w = [{'w': h5f['ctrl_mlp_w_{}'.format(ii)][:],
                             'b': h5f['ctrl_mlp_b_{}'.format(ii)][:]}
                            for ii in xrange(num_ctrl_mlp_layers)]
-            cmlp_frozen = [freeze_ctrl_net] * num_ctrl_mlp_layers
+            cmlp_frozen = [freeze_ctrl_rnn] * num_ctrl_mlp_layers
         else:
             cmlp_init_w = None
-            cmlp_frozen = [freeze_ctrl_net] * num_ctrl_mlp_layers
+            cmlp_frozen = [freeze_ctrl_rnn] * num_ctrl_mlp_layers
 
         cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=True,
                       dropout_keep=cmlp_dropout,

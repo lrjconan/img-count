@@ -16,6 +16,7 @@ GPU=$1
 
 ###############################################################################
 # Folder
+###############################################################################
 LOG_FOLDER="/u/mren/public_html/results/"
 SAVE_FOLDER="/ais/gobi3/u/mren/results/img-count-pipeline"
 LOCALHOST="www.cs.toronto.edu/~mren"
@@ -218,7 +219,8 @@ python src/ris.py \
 --filter_width $FILTER_WIDTH \
 --fixed_gamma \
 --pretrain_ctrl_net $BOX_WEIGHTS \
---freeze_ctrl_net \
+--freeze_ctrl_cnn \
+--freeze_ctrl_rnn \
 --pretrain_attn_net $PATCH_WEIGHTS \
 --batch_size $BATCH_SIZE \
 --save_ckpt \
@@ -275,6 +277,7 @@ python src/ris.py \
 --filter_height $FILTER_HEIGHT \
 --filter_width $FILTER_WIDTH \
 --fixed_gamma \
+--freeze_ctrl_cnn \
 --pretrain_net $FINETUNE_PATCH_WEIGHTS \
 --batch_size $BATCH_SIZE \
 --save_ckpt \

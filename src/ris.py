@@ -107,7 +107,8 @@ def add_model_args(parser):
     parser.add_argument('--pretrain_ctrl_net', default=None)
     parser.add_argument('--pretrain_attn_net', default=None)
     parser.add_argument('--pretrain_net', default=None)
-    parser.add_argument('--freeze_ctrl_net', action='store_true')
+    parser.add_argument('--freeze_ctrl_cnn', action='store_true')
+    parser.add_argument('--freeze_ctrl_rnn', action='store_true')
     parser.add_argument('--freeze_attn_net', action='store_true')
     parser.add_argument('--ctrl_rnn_inp_struct', default='dense')
     parser.add_argument('--num_ctrl_rnn_iter', default=5, type=int)
@@ -210,7 +211,8 @@ def make_model_opt(args):
             'pretrain_ctrl_net': args.pretrain_ctrl_net,
             'pretrain_attn_net': args.pretrain_attn_net,
             'pretrain_net': args.pretrain_net,
-            'freeze_ctrl_net': args.freeze_ctrl_net,
+            'freeze_ctrl_cnn': args.freeze_ctrl_cnn,
+            'freeze_ctrl_rnn': args.freeze_ctrl_rnn,
             'freeze_attn_net': args.freeze_attn_net,
 
             'rnd_hflip': rnd_hflip,
@@ -411,7 +413,8 @@ if __name__ == '__main__':
         model_opt['pretrain_attn_net'] = None
         model_opt['pretrain_ctrl_net'] = None
         model_opt['freeze_attn_net'] = model_opt_read['freeze_attn_net']
-        model_opt['freeze_ctrl_net'] = model_opt_read['freeze_ctrl_net']
+        model_opt['freeze_ctrl_cnn'] = model_opt_read['freeze_ctrl_cnn']
+        model_opt['freeze_ctrl_rnn'] = model_opt_read['freeze_ctrl_rnn']
     else:
         if train_opt['model_id']:
             model_id = train_opt['model_id']
