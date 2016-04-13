@@ -376,12 +376,11 @@ def get_model(opt, device='/cpu:0'):
                     for w in ['beta', 'gamma']:
                         key = 'attn_dcnn_{}_{}_{}'.format(ii, tt, w)
                         adcnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[key][:]
+            
             adcnn_frozen = [freeze_attn_net] * adcnn_nlayers
         else:
             adcnn_init_w = None
             adcnn_frozen = [freeze_attn_net] * adcnn_nlayers
-        adcnn_init_w = None
-        adcnn_frozen = None
 
         adcnn = nn.dcnn(adcnn_filters, adcnn_channels, adcnn_unpool,
                         adcnn_act, use_bn=adcnn_use_bn, skip_ch=adcnn_skip_ch,

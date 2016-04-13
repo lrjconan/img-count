@@ -54,6 +54,11 @@ def weight_variable(shape, initializer=None, init_val=None, wd=None, name=None, 
         var = tf.Variable(initializer(shape), name=name, trainable=trainable)
     else:
         var = tf.Variable(init_val, name=name, trainable=trainable)
+    
+    log.info(var.name)
+    if init_val is not None:
+        log.info('Initialized with shape {}'.format(init_val.shape))
+
     if wd:
         weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
         tf.add_to_collection('losses', weight_decay)
@@ -348,7 +353,7 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
                 if skip_ch is not None:
                     if skip_ch[ii] is not None:
                         in_ch += skip_ch[ii]
-
+                
                 if init_weights is not None and init_weights[ii] is not None:
                     init_val_w = init_weights[ii]['w']
                     init_val_b = init_weights[ii]['b']
