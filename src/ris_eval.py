@@ -1,6 +1,7 @@
 import cslab_environ
 
 import argparse
+import cv2
 import numpy as np
 import os
 import sys
@@ -142,6 +143,7 @@ def coverage(y_out, y_gt, num_obj, weighted=False):
         cov[:, ii] = iou_ii.max(axis=1)
 
     if weighted:
+        print y_gt.sum(axis=3).sum(axis=2).sum(axis=1)
         weights = y_gt.sum(axis=3).sum(axis=2) / \
             y_gt.sum(axis=3).sum(axis=2).sum(axis=1, keepdims=True)
         cov *= weights
@@ -169,6 +171,16 @@ def run_eval(y_out, y_gt, s_out, s_gt):
     count_gt = s_gt.sum(axis=1)
     num_obj = np.maximum(count_gt, 1)
 
+    # # Upsample the results
+    # height = y_out.shape[2]
+    # width = y_out.shape[3]
+    # y_out = y_out.reshape([-1, height, width])
+    # y_out_hi = np.zeros([y_out.shape[0], height, width])
+
+    # for ii in xrange(y_out.shape[0]):
+    #     y_out_hi[ii] = cv2.resize(
+    #         y_out[ii], (500, 530), interpolation=cv2.INTER_NEAREST)
+
     sbd = symmetric_best_dice(y_out, y_gt, num_obj).mean()
     unwt_cov = coverage(y_out, y_gt, num_obj, weighted=False).mean()
     wt_cov = coverage(y_out, y_gt, num_obj, weighted=True).mean()
@@ -176,7 +188,6 @@ def run_eval(y_out, y_gt, s_out, s_gt):
     count_acc = (count_out == count_gt).astype('float').mean()
     dic = (count_out - count_gt).mean()
     dic_abs = np.abs(count_out - count_gt).mean()
-
 
     log.info('{:10s}{:.4f}'.format('SBD', sbd))
     log.info('{:10s}{:.4f}'.format('Wt Cov', wt_cov))
