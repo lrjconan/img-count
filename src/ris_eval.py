@@ -81,7 +81,10 @@ def run_inference(sess, m, dataset, phase_train):
     count = 0
     for x, y, s in batch_iter:
         r = sess.run(output_list, feed_dict={
-                     m['x']: x, m['y_gt']: y, m['s_gt']: s, m['phase_train']: phase_train})
+                     m['x']: x, 
+                     # m['y_gt']: y, 
+                     # m['s_gt']: s, 
+                     m['phase_train']: phase_train})
         _y_out = r[0]
         _s_out = r[1]
         bat_sz = _y_out.shape[0]
@@ -167,9 +170,10 @@ if __name__ == '__main__':
     model = attn_model.get_model(model_opt)
     dataset = get_dataset(args.dataset, data_opt)
     sess = tf.Session()
+    saver.restore(sess, ckpt_fname)
 
     log.info('Running training set')
-    res = run_inference(sess, model, dataset['train'], True)
+    res = run_inference(sess, model, dataset['train'], False)
     run_eval(res['y_out'], res['s_out'])
 
     log.info('Running validation set')
