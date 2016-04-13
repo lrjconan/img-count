@@ -1,4 +1,15 @@
 ###############################################################################
+# This script will run recurrent instance segmentation on CVPPP dataset.
+# It contains 4 stages.
+# Stage 1: pretrain patch CNN model
+# Stage 2: pretrain box detector model
+# Stage 3: train entire network, with box net fixed
+# Stage 4: train entire network, finetune
+# Final stage: evaluate the results
+###############################################################################
+set -e
+
+###############################################################################
 # Device
 ###############################################################################
 GPU=$1
