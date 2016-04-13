@@ -81,6 +81,7 @@ def _add_model_args(parser):
 
 
 def _add_training_args(parser):
+    parser.add_argument('--model_id', default=None)
     parser.add_argument('--num_steps', default=500000, type=int)
     parser.add_argument('--steps_per_ckpt', default=1000, type=int)
     parser.add_argument('--steps_per_valid', default=250, type=int)
@@ -192,7 +193,8 @@ def _make_train_opt(args):
         'save_ckpt': args.save_ckpt,
         'logs': args.logs,
         'gpu': args.gpu,
-        'localhost': args.localhost
+        'localhost': args.localhost,
+        'model_id': args.model_id
     }
 
     return train_opt

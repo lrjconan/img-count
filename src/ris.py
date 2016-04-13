@@ -223,7 +223,7 @@ def _add_model_args(parser):
 
 
 def _add_training_args(parser):
-    # Training options
+    parser.add_argument('--model_id', default=None)
     parser.add_argument('--num_steps', default=500000, type=int)
     parser.add_argument('--steps_per_ckpt', default=1000, type=int)
     parser.add_argument('--steps_per_valid', default=250, type=int)
@@ -243,7 +243,6 @@ def _add_training_args(parser):
     parser.add_argument('--no_valid', action='store_true')
     parser.add_argument('--debug_weights', action='store_true')
     parser.add_argument('--debug_nan', action='store_true')
-    parser.add_argument('--model_id', default=None)
 
     pass
 
@@ -474,6 +473,7 @@ def _make_data_opt(args):
 def _make_train_opt(args):
     """Train opt"""
     train_opt = {
+        'model_id': args.model_id,
         'num_steps': args.num_steps,
         'steps_per_ckpt': args.steps_per_ckpt,
         'steps_per_valid': args.steps_per_valid,
@@ -490,8 +490,7 @@ def _make_train_opt(args):
         'gpu': args.gpu,
         'localhost': args.localhost,
         'debug_weights': args.debug_weights,
-        'debug_nan': args.debug_nan,
-        'model_id': args.model_id
+        'debug_nan': args.debug_nan
     }
 
     return train_opt
