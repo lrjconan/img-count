@@ -15,19 +15,13 @@ log = logger.get()
 
 
 def read(folder):
-    log.info('Reading pretrained box network from {}'.format(folder))
+    log.info('Reading pretrained network from {}'.format(folder))
     saver = Saver(folder)
     ckpt_info = saver.get_ckpt_info()
     model_opt = ckpt_info['model_opt']
-    #model_opt['pretrain_cnn'] = None
-    if 'filter_height' not in model_opt:
-        model_opt['filter_height'] = model_opt['filter_size']
-        model_opt['filter_width'] = model_opt['filter_size']
-
     ckpt_fname = ckpt_info['ckpt_fname']
     model_id = ckpt_info['model_id']
     model = attn_model.get_model(model_opt)
-    log.info(model_opt)
     ctrl_cnn_nlayers = len(model_opt['ctrl_cnn_filter_size'])
     ctrl_mlp_nlayers = model_opt['num_ctrl_mlp_layers']
     attn_cnn_nlayers = len(model_opt['attn_cnn_filter_size'])

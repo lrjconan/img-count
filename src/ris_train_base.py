@@ -1,7 +1,6 @@
 """
 Trainer functions.
 """
-
 from __future__ import division
 
 import cv2
@@ -24,6 +23,108 @@ from utils import plot_utils as pu
 import assign_model_id
 
 log = logger.get()
+
+
+def add_train_args(parser):
+    parser.add_argument('--model_id', default=None)
+    parser.add_argument('--num_steps', default=500000, type=int)
+    parser.add_argument('--steps_per_ckpt', default=1000, type=int)
+    parser.add_argument('--steps_per_valid', default=250, type=int)
+    parser.add_argument('--steps_per_trainval', default=100, type=int)
+    parser.add_argument('--steps_per_plot', default=50, type=int)
+    parser.add_argument('--steps_per_log', default=20, type=int)
+    parser.add_argument('--batch_size', default=32, type=int)
+    parser.add_argument('--results', default='../results')
+    parser.add_argument('--logs', default='../results')
+    parser.add_argument('--localhost', default='localhost')
+    parser.add_argument('--restore', default=None)
+    parser.add_argument('--gpu', default=-1, type=int)
+    parser.add_argument('--num_samples_plot', default=10, type=int)
+    parser.add_argument('--save_ckpt', action='store_true')
+    parser.add_argument('--no_valid', action='store_true')
+
+    pass
+
+
+def add_data_args(parser):
+    parser.add_argument('--dataset', default='synth_shape')
+    parser.add_argument('--dataset_folder', default=None)
+    parser.add_argument('--height', default=224, type=int)
+    parser.add_argument('--width', default=224, type=int)
+    parser.add_argument('--radius_upper', default=15, type=int)
+    parser.add_argument('--radius_lower', default=45, type=int)
+    parser.add_argument('--border_thickness', default=3)
+    parser.add_argument('--num_ex', default=1000, type=int)
+    parser.add_argument('--max_num_objects', default=6, type=int)
+    parser.add_argument('--num_object_types', default=1, type=int)
+    parser.add_argument('--center_var', default=20, type=float)
+    parser.add_argument('--size_var', default=20, type=float)
+
+    pass
+
+
+def make_train_opt(args):
+    return {
+        'model_id': args.model_id,
+        'num_steps': args.num_steps,
+        'steps_per_ckpt': args.steps_per_ckpt,
+        'steps_per_valid': args.steps_per_valid,
+        'steps_per_trainval': args.steps_per_trainval,
+        'steps_per_plot': args.steps_per_plot,
+        'steps_per_log': args.steps_per_log,
+        'has_valid': not args.no_valid,
+        'results': args.results,
+        'restore': args.restore,
+        'save_ckpt': args.save_ckpt,
+        'logs': args.logs,
+        'gpu': args.gpu,
+        'localhost': args.localhost
+    }
+
+
+def make_data_opt(args):
+    inp_height, inp_width, timespan = get_inp_dim(args.dataset)
+    if args.dataset == 'synth_shape':
+        timespan = args.max_num_objects + 1
+
+    if args.dataset == 'synth_shape':
+        data_opt = {
+            'height': inp_height,
+            'width': inp_width,
+            'timespan': timespan,
+            'radius_upper': args.radius_upper,
+            'radius_lower': args.radius_lower,
+            'border_thickness': args.border_thickness,
+            'max_num_objects': args.max_num_objects,
+            'num_object_types': args.num_object_types,
+            'center_var': args.center_var,
+            'size_var': args.size_var,
+            'num_train': args.num_ex,
+            'num_valid': int(args.num_ex / 10),
+            'has_valid': True
+        }
+    elif args.dataset == 'cvppp':
+        data_opt = {
+            'folder': args.dataset_folder,
+            'height': inp_height,
+            'width': inp_width,
+            'timespan': timespan,
+            'num_train': None,
+            'num_valid': None,
+            'has_valid': not args.no_valid
+        }
+    elif args.dataset == 'kitti':
+        data_opt = {
+            'folder': args.dataset_folder,
+            'height': inp_height,
+            'width': inp_width,
+            'timespan': timespan,
+            'num_train': args.num_ex,
+            'num_valid': args.num_ex,
+            'has_valid': True
+        }
+
+    return data_opt
 
 
 def get_inp_dim(dataset):
@@ -89,10 +190,12 @@ def get_dataset(dataset_name, opt):
         opt['num_examples'] = opt['num_valid']
         dataset['valid'] = synth_shape.get_dataset(opt, seed=3)
     elif dataset_name == 'cvppp':
-        if os.path.exists('/u/mren'):
-            dataset_folder = '/ais/gobi3/u/mren/data/lsc/A1'
-        else:
-            dataset_folder = '/home/mren/data/LSCData/A1'
+        dataset_folder = opt['folder']
+        if dataset_folder is None:
+            if os.path.exists('/u/mren'):
+                dataset_folder = '/ais/gobi3/u/mren/data/lsc/A1'
+            else:
+                dataset_folder = '/home/mren/data/LSCData/A1'
 
         if opt['has_valid']:
             dataset['train'] = cvppp.get_dataset(
@@ -110,10 +213,12 @@ def get_dataset(dataset_name, opt):
                 'label_score': _all_data['label_score'][idx]
             }
     elif dataset_name == 'kitti':
-        if os.path.exists('/u/mren'):
-            dataset_folder = '/ais/gobi3/u/mren/data/kitti/object'
-        else:
-            dataset_folder = '/home/mren/data/kitti'
+        dataset_folder = opt['folder']
+        if dataset_folder is None:
+            if os.path.exists('/u/mren'):
+                dataset_folder = '/ais/gobi3/u/mren/data/kitti/object'
+            else:
+                dataset_folder = '/home/mren/data/kitti'
         opt['timespan'] = 20
         opt['num_examples'] = -1
         dataset['train'] = kitti.get_dataset(
@@ -211,7 +316,7 @@ def plot_output(fname, y_out, s_out, match, attn=None, max_items_per_row=9):
                     attn_bot_right_x[ii, jj] - attn_top_left_x[ii, jj],
                     attn_bot_right_y[ii, jj] - attn_top_left_y[ii, jj],
                     fill=False,
-                    color='r'))
+                    color='m'))
 
     plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=150)

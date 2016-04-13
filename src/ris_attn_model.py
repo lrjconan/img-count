@@ -39,7 +39,6 @@ def get_model(opt, device='/cpu:0'):
     attn_dcnn_filter_size = opt['attn_dcnn_filter_size']
     attn_dcnn_depth = opt['attn_dcnn_depth']
     attn_dcnn_pool = opt['attn_dcnn_pool']
-    attn_rnn_hid_dim = opt['attn_rnn_hid_dim']
 
     mlp_dropout_ratio = opt['mlp_dropout']
 
@@ -49,70 +48,35 @@ def get_model(opt, device='/cpu:0'):
 
     wd = opt['weight_decay']
     use_bn = opt['use_bn']
-    use_gt_attn = opt['use_gt_attn']
     segm_loss_fn = opt['segm_loss_fn']
     box_loss_fn = opt['box_loss_fn']
     loss_mix_ratio = opt['loss_mix_ratio']
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
     steps_per_learn_rate_decay = opt['steps_per_learn_rate_decay']
-    use_attn_rnn = opt['use_attn_rnn']
     use_knob = opt['use_knob']
     knob_base = opt['knob_base']
     knob_decay = opt['knob_decay']
     steps_per_knob_decay = opt['steps_per_knob_decay']
-    use_canvas = opt['use_canvas']
     knob_box_offset = opt['knob_box_offset']
     knob_segm_offset = opt['knob_segm_offset']
     knob_use_timescale = opt['knob_use_timescale']
-    gt_selector = opt['gt_selector']
     gt_box_ctr_noise = opt['gt_box_ctr_noise']
     gt_box_pad_noise = opt['gt_box_pad_noise']
     gt_segm_noise = opt['gt_segm_noise']
 
-    # downsample_canvas = opt['downsample_canvas']
-    # pretrain_cnn = opt['pretrain_cnn']
-    # log.fatal(opt)
-    # pretrain_ctrl_net = opt['pretrain_ctrl_net']
-    # pretrain_attn_net = opt['pretrain_attn_net']
-    # freeze_pretrain_net = opt['freeze_pretrain_net']
-    # freeze_ctrl_net = opt['freeze_ctrl_net']
-    # freeze_attn_net = opt['freeze_attn_net']
-    # pretrain_ctrl_net = None
-    # pretrain_attn_net = None
-    # pretrain_cnn = None
-    cnn_share_weights = opt['cnn_share_weights']
     squash_ctrl_params = opt['squash_ctrl_params']
-    use_iou_box = opt['use_iou_box']
     fixed_order = opt['fixed_order']
     clip_gradient = opt['clip_gradient']
     fixed_gamma = opt['fixed_gamma']
-
-    # New parameters for double attention.
-    if 'ctrl_rnn_inp_struct' in opt:
-        ctrl_rnn_inp_struct = opt['ctrl_rnn_inp_struct']  # dense or attn
-        num_ctrl_rnn_iter = opt['num_ctrl_rnn_iter']
-        num_glimpse_mlp_layers = opt['num_glimpse_mlp_layers']
-    else:
-        ctrl_rnn_inp_struct = 'dense'
-        num_ctrl_rnn_iter = 5
-        num_glimpse_mlp_layers = 1
-
-    if 'pretrain_ctrl_net' in opt:
-        pretrain_ctrl_net = opt['pretrain_ctrl_net']
-        pretrain_attn_net = opt['pretrain_attn_net']
-        pretrain_net = opt['pretrain_net']
-    else:
-        pretrain_ctrl_net = None
-        pretrain_attn_net = None
-        pretrain_net = None
-
-    if 'freeze_ctrl_net' in opt:
-        freeze_ctrl_net = opt['freeze_ctrl_net']
-        freeze_attn_net = opt['freeze_attn_net']
-    else:
-        freeze_ctrl_net = False
-        freeze_attn_net = False
+    ctrl_rnn_inp_struct = opt['ctrl_rnn_inp_struct']  # dense or attn
+    num_ctrl_rnn_iter = opt['num_ctrl_rnn_iter']
+    num_glimpse_mlp_layers = opt['num_glimpse_mlp_layers']
+    pretrain_ctrl_net = opt['pretrain_ctrl_net']
+    pretrain_attn_net = opt['pretrain_attn_net']
+    pretrain_net = opt['pretrain_net']
+    freeze_ctrl_net = opt['freeze_ctrl_net']
+    freeze_attn_net = opt['freeze_attn_net']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -161,13 +125,9 @@ def get_model(opt, device='/cpu:0'):
 ############################
 # Canvas: external memory
 ############################
-        if use_canvas:
-            canvas = tf.zeros(tf.pack([num_ex, inp_height, inp_width, 1]))
-            ccnn_inp_depth = inp_depth + 1
-            acnn_inp_depth = inp_depth + 1
-        else:
-            ccnn_inp_depth = inp_depth
-            acnn_inp_depth = inp_depth
+        canvas = tf.zeros(tf.pack([num_ex, inp_height, inp_width, 1]))
+        ccnn_inp_depth = inp_depth + 1
+        acnn_inp_depth = inp_depth + 1
 
 ############################
 # Controller CNN definition
@@ -328,14 +288,6 @@ def get_model(opt, device='/cpu:0'):
             acnn_init_w = None
             acnn_frozen = [freeze_attn_net] * acnn_nlayers
 
-        # if cnn_share_weights:
-        #     ccnn_shared_weights = []
-        #     for ii in xrange(ccnn_nlayers):
-        #         ccnn_shared_weights.append(
-        #             {'w': model['ctrl_cnn_w_{}'.format(ii)],
-        #              'b': model['ctrl_cnn_b_{}'.format(ii)]})
-        # else:
-        #     ccnn_shared_weights = None
         acnn = nn.cnn(acnn_filters, acnn_channels, acnn_pool, acnn_act,
                       acnn_use_bn, phase_train=phase_train, wd=wd,
                       scope='attn_cnn', model=model,
@@ -347,31 +299,14 @@ def get_model(opt, device='/cpu:0'):
         h_acnn_last = [None] * timespan
 
 ############################
-# Attention RNN definition
-############################
-        acnn_subsample = np.array(acnn_pool).prod()
-        arnn_h = filter_height / acnn_subsample
-        arnn_w = filter_width / acnn_subsample
-
-        if use_attn_rnn:
-            arnn_dim = attn_rnn_hid_dim
-            arnn_inp_dim = arnn_h * arnn_w * acnn_channels[-1]
-            arnn_state = [None] * (timespan + 1)
-            arnn_g_i = [None] * timespan
-            arnn_g_f = [None] * timespan
-            arnn_g_o = [None] * timespan
-            arnn_state[-1] = tf.zeros(tf.pack([num_ex, arnn_dim * 2]))
-            arnn_cell = nn.lstm(arnn_inp_dim, arnn_dim,
-                                wd=wd, scope='attn_lstm')
-            amlp_inp_dim = arnn_dim
-        else:
-            amlp_inp_dim = arnn_h * arnn_w * acnn_channels[-1]
-
-############################
 # Attention MLP definition
 ############################
+        acnn_subsample = np.array(acnn_pool).prod()
+        acnn_h = filter_height / acnn_subsample
+        acnn_w = filter_width / acnn_subsample
+        amlp_inp_dim = acnn_h * acnn_w * acnn_channels[-1]
         core_depth = attn_mlp_depth
-        core_dim = arnn_h * arnn_w * core_depth
+        core_dim = acnn_h * acnn_w * core_depth
         amlp_dims = [amlp_inp_dim] + [core_dim] * num_attn_mlp_layers
         amlp_act = [tf.nn.relu] * num_attn_mlp_layers
         amlp_dropout = None
@@ -546,21 +481,12 @@ def get_model(opt, device='/cpu:0'):
 ##########################
 # Computation graph
 ##########################
-        if not use_canvas:
-            h_ccnn = ccnn(x)
-
         for tt in xrange(timespan):
             # Controller CNN
-            if use_canvas:
-                ccnn_inp = tf.concat(3, [x, canvas])
-                acnn_inp = ccnn_inp
-                h_ccnn[tt] = ccnn(ccnn_inp)
-                _h_ccnn = h_ccnn[tt]
-            else:
-                ccnn_inp = x
-                acnn_inp = x
-                _h_ccnn = h_ccnn
-
+            ccnn_inp = tf.concat(3, [x, canvas])
+            acnn_inp = ccnn_inp
+            h_ccnn[tt] = ccnn(ccnn_inp)
+            _h_ccnn = h_ccnn[tt]
             h_ccnn_last = _h_ccnn[-1]
 
             # Controller RNN [B, R1]
@@ -644,50 +570,25 @@ def get_model(opt, device='/cpu:0'):
             filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
             # Attention box
-            if use_iou_box:
-                _idx_map = base.get_idx_map(
-                    tf.pack([num_ex, inp_height, inp_width]))
-                attn_top_left[tt], attn_bot_right[tt] = base.get_box_coord(
-                    attn_ctr[tt], attn_size[tt])
-                attn_box[tt] = base.get_filled_box_idx(
-                    _idx_map, attn_top_left[tt], attn_bot_right[tt])
-                attn_box[tt] = tf.reshape(attn_box[tt],
-                                          [-1, 1, inp_height, inp_width])
-            else:
-                attn_box[tt] = base.extract_patch(
-                    const_ones * attn_box_gamma[tt],
-                    filter_y_inv, filter_x_inv, 1)
-                attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
-                attn_box[tt] = tf.reshape(attn_box[tt],
-                                          [-1, 1, inp_height, inp_width])
+            attn_box[tt] = base.extract_patch(
+                const_ones * attn_box_gamma[tt],
+                filter_y_inv, filter_x_inv, 1)
+            attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
+            attn_box[tt] = tf.reshape(attn_box[tt],
+                                      [-1, 1, inp_height, inp_width])
 
             # Kick in GT bbox.
             if use_knob:
-                # IOU [B, 1, T]
-                if use_iou_box:
-
-                    _top_left = tf.expand_dims(attn_top_left[tt], 1)
-                    _bot_right = tf.expand_dims(attn_bot_right[tt], 1)
-
-                    if not fixed_order:
-                        iou_soft_box[tt] = base.f_iou_box(
-                            _top_left, _bot_right, attn_top_left_gt,
-                            attn_bot_right_gt)
-                else:
-                    if not fixed_order:
-                        iou_soft_box[tt] = base.f_inter(
-                            attn_box[tt], attn_box_gt) / \
-                            base.f_union(attn_box[tt], attn_box_gt, eps=1e-5)
-
                 if fixed_order:
                     attn_ctr_gtm = attn_ctr_gt_noise[:, tt, :]
                     attn_delta_gtm = attn_delta_gt_noise[:, tt, :]
                     attn_size_gtm = attn_size_gt_noise[:, tt, :]
                 else:
+                    iou_soft_box[tt] = base.f_inter(
+                        attn_box[tt], attn_box_gt) / \
+                        base.f_union(attn_box[tt], attn_box_gt, eps=1e-5)
                     grd_match = base.f_greedy_match(
                         iou_soft_box[tt], grd_match_cum)
-                    # Let's try not using cumulative match.
-                    # grd_match_cum += grd_match
 
                     # [B, T, 1]
                     grd_match = tf.expand_dims(grd_match, 2)
@@ -704,11 +605,6 @@ def get_model(opt, device='/cpu:0'):
                     attn_size_gtm + \
                     (1 - phase_train_f * gt_knob_box[:, tt, 0: 1]) * \
                     attn_size[tt]
-                # #########################
-                # # Warning stop gradient
-                # #########################
-                # attn_ctr[tt] = tf.stop_gradient(attn_ctr[tt])
-                # attn_size[tt] = tf.stop_gradient(attn_size[tt])
 
             attn_top_left[tt], attn_bot_right[tt] = base.get_box_coord(
                 attn_ctr[tt], attn_size[tt])
@@ -731,23 +627,12 @@ def get_model(opt, device='/cpu:0'):
             h_acnn[tt] = acnn(x_patch[tt])
             h_acnn_last[tt] = h_acnn[tt][-1]
 
-            if use_attn_rnn:
-                # RNN [B, T, R2]
-                arnn_inp = tf.reshape(h_acnn_last[tt], [-1, arnn_inp_dim])
-                arnn_state[tt], arnn_g_i[tt], arnn_g_f[tt], arnn_g_o[
-                    tt] = arnn_cell(arnn_inp, arnn_state[tt - 1])
-
             # Dense segmentation network [B, R] => [B, M]
-            if use_attn_rnn:
-                h_arnn = tf.slice(
-                    arnn_state[tt], [0, arnn_dim], [-1, arnn_dim])
-                amlp_inp = h_arnn
-            else:
-                amlp_inp = h_acnn_last[tt]
+            amlp_inp = h_acnn_last[tt]
             amlp_inp = tf.reshape(amlp_inp, [-1, amlp_inp_dim])
             h_core = amlp(amlp_inp)[-1]
             h_core_img = tf.reshape(
-                h_core, [-1, arnn_h, arnn_w, attn_mlp_depth])
+                h_core, [-1, acnn_h, acnn_w, attn_mlp_depth])
 
             # DCNN
             skip = [None] + h_acnn[tt][::-1][1:] + [x_patch[tt]]
@@ -769,30 +654,28 @@ def get_model(opt, device='/cpu:0'):
 
             # Here is the knob kick in GT segmentations at this timestep.
             # [B, N, 1, 1]
-            if use_canvas:
-                if use_knob:
-                    _gt_knob_segm = tf.expand_dims(
-                        tf.expand_dims(gt_knob_segm[:, tt, 0: 1], 2), 3)
+            if use_knob:
+                _gt_knob_segm = tf.expand_dims(
+                    tf.expand_dims(gt_knob_segm[:, tt, 0: 1], 2), 3)
 
-                    if fixed_order:
-                        _y_out = tf.expand_dims(y_gt[:, tt, :, :], 3)
-                    else:
-                        grd_match = tf.expand_dims(grd_match, 3)
-                        _y_out = tf.expand_dims(tf.reduce_sum(
-                            grd_match * y_gt, 1), 3)
-                    # Add independent uniform noise to groundtruth.
-                    _noise = tf.random_uniform(
-                        tf.pack([num_ex, inp_height, inp_width, 1]), 0,
-                        gt_segm_noise)
-                    _y_out = _y_out - _y_out * _noise
-                    _y_out = phase_train_f * _gt_knob_segm * _y_out + \
-                        (1 - phase_train_f * _gt_knob_segm) * \
-                        tf.reshape(y_out[tt], [-1, inp_height, inp_width, 1])
+                if fixed_order:
+                    _y_out = tf.expand_dims(y_gt[:, tt, :, :], 3)
                 else:
-                    _y_out = tf.reshape(y_out[tt],
-                                        [-1, inp_height, inp_width, 1])
-                canvas = tf.stop_gradient(tf.maximum(_y_out, canvas))
-                # canvas += tf.stop_gradient(_y_out)
+                    grd_match = tf.expand_dims(grd_match, 3)
+                    _y_out = tf.expand_dims(tf.reduce_sum(
+                        grd_match * y_gt, 1), 3)
+                # Add independent uniform noise to groundtruth.
+                _noise = tf.random_uniform(
+                    tf.pack([num_ex, inp_height, inp_width, 1]), 0,
+                    gt_segm_noise)
+                _y_out = _y_out - _y_out * _noise
+                _y_out = phase_train_f * _gt_knob_segm * _y_out + \
+                    (1 - phase_train_f * _gt_knob_segm) * \
+                    tf.reshape(y_out[tt], [-1, inp_height, inp_width, 1])
+            else:
+                _y_out = tf.reshape(y_out[tt],
+                                    [-1, inp_height, inp_width, 1])
+            canvas = tf.stop_gradient(tf.maximum(_y_out, canvas))
 
 #########################
 # Model outputs

@@ -24,6 +24,7 @@ LOCALHOST="www.cs.toronto.edu/~mren"
 # Dataset
 ###############################################################################
 DATASET="cvppp"
+DATASET_FOLDER="/ais/gobi3/u/mren/data/lsc/A1"
 
 ###############################################################################
 # Hyper parameters
@@ -102,6 +103,7 @@ echo "Stage 1: training patch net"
 python src/ris_patch.py \
 --gpu $GPU \
 --dataset $DATASET \
+--dataset_folder $DATASET_FOLDER \
 --logs $LOG_FOLDER \
 --localhost $LOCALHOST \
 --results $SAVE_FOLDER \
@@ -146,6 +148,7 @@ echo "Stage 2: training box net"
 python src/ris_box.py \
 --gpu $GPU \
 --dataset $DATASET \
+--dataset_folder $DATASET_FOLDER \
 --logs $LOG_FOLDER \
 --localhost $LOCALHOST \
 --results $SAVE_FOLDER \
@@ -183,6 +186,7 @@ echo "Stage 3: training entire network, with box net fixed"
 python src/ris.py \
 --gpu $GPU \
 --dataset $DATASET \
+--dataset_folder $DATASET_FOLDER \
 --logs $LOG_FOLDER \
 --localhost $LOCALHOST \
 --results $SAVE_FOLDER \
@@ -242,6 +246,7 @@ echo "Stage 4: training entire network, finetune"
 python src/ris.py \
 --gpu $GPU \
 --dataset $DATASET \
+--dataset_folder $DATASET_FOLDER \
 --logs $LOG_FOLDER \
 --localhost $LOCALHOST \
 --results $SAVE_FOLDER \

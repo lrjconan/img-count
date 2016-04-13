@@ -1,5 +1,7 @@
 """
-Train a ris net. Usage: python ris.py --help
+Recurrent instance segmentation with attention.
+
+Usage: python rec_ins_segm_attn.py --help
 """
 from __future__ import division
 
@@ -40,7 +42,24 @@ def get_model(opt, device='/cpu:0'):
     pass
 
 
-def add_model_args(parser):
+def _add_dataset_args(parser):
+    # Dataset options
+    parser.add_argument('-dataset', default='synth_shape')
+    parser.add_argument('-height', default=224, type=int)
+    parser.add_argument('-width', default=224, type=int)
+    parser.add_argument('-radius_upper', default=45, type=int)
+    parser.add_argument('-radius_lower', default=15, type=int)
+    parser.add_argument('-border_thickness', default=3, type=int)
+    parser.add_argument('-num_ex', default=1000, type=int)
+    parser.add_argument('-max_num_objects', default=6, type=int)
+    parser.add_argument('-num_object_types', default=1, type=int)
+    parser.add_argument('-center_var', default=20, type=float)
+    parser.add_argument('-size_var', default=20, type=float)
+
+    pass
+
+
+def _add_model_args(parser):
     # Model type
     parser.add_argument('--model', default='attention')
 
@@ -116,7 +135,32 @@ def add_model_args(parser):
     pass
 
 
-def make_model_opt(args):
+def _add_training_args(parser):
+    parser.add_argument('--model_id', default=None)
+    parser.add_argument('--num_steps', default=500000, type=int)
+    parser.add_argument('--steps_per_ckpt', default=1000, type=int)
+    parser.add_argument('--steps_per_valid', default=250, type=int)
+    parser.add_argument('--steps_per_trainval', default=100, type=int)
+    parser.add_argument('--steps_per_plot', default=50, type=int)
+    parser.add_argument('--steps_per_log', default=20, type=int)
+    parser.add_argument('--batch_size', default=32, type=int)
+    parser.add_argument('--results', default='../results')
+    parser.add_argument('--logs', default='../results')
+    parser.add_argument('--localhost', default='localhost')
+    parser.add_argument('--restore', default=None)
+    parser.add_argument('--gpu', default=-1, type=int)
+    parser.add_argument('--num_samples_plot', default=10, type=int)
+    parser.add_argument('--save_ckpt', action='store_true')
+    parser.add_argument('--debug_bn', action='store_true')
+    parser.add_argument('--debug_act', action='store_true')
+    parser.add_argument('--no_valid', action='store_true')
+    parser.add_argument('--debug_weights', action='store_true')
+    parser.add_argument('--debug_nan', action='store_true')
+
+    pass
+
+
+def _make_model_opt(args):
     """Convert command-line arguments into model opt dict."""
     inp_height, inp_width, timespan = trainer.get_inp_dim(args.dataset)
     rnd_hflip, rnd_vflip, rnd_transpose, rnd_colour = \
@@ -275,7 +319,92 @@ def make_model_opt(args):
     return model_opt
 
 
-def get_ts_loggers(model_opt, restore_step=0):
+def _make_data_opt(args):
+    """Make command-line arguments into data opt dict."""
+    inp_height, inp_width, timespan = trainer.get_inp_dim(args.dataset)
+    if args.dataset == 'synth_shape':
+        timespan = args.max_num_objects + 1
+
+    if args.dataset == 'synth_shape':
+        data_opt = {
+            'height': inp_height,
+            'width': inp_width,
+            'timespan': timespan,
+            'radius_upper': args.radius_upper,
+            'radius_lower': args.radius_lower,
+            'border_thickness': args.border_thickness,
+            'max_num_objects': args.max_num_objects,
+            'num_object_types': args.num_object_types,
+            'center_var': args.center_var,
+            'size_var': args.size_var,
+            'num_train': args.num_ex,
+            'num_valid': int(args.num_ex / 10),
+            'has_valid': True
+        }
+    elif args.dataset == 'cvppp':
+        data_opt = {
+            'height': inp_height,
+            'width': inp_width,
+            'timespan': timespan,
+            'num_train': None,
+            'num_valid': None,
+            'has_valid': not args.no_valid
+        }
+    elif args.dataset == 'kitti':
+        data_opt = {
+            'height': inp_height,
+            'width': inp_width,
+            'timespan': timespan,
+            'num_train': args.num_ex,
+            'num_valid': args.num_ex,
+            'has_valid': True
+        }
+
+    return data_opt
+
+
+def _make_train_opt(args):
+    """Train opt"""
+    train_opt = {
+        'model_id': args.model_id,
+        'num_steps': args.num_steps,
+        'steps_per_ckpt': args.steps_per_ckpt,
+        'steps_per_valid': args.steps_per_valid,
+        'steps_per_trainval': args.steps_per_trainval,
+        'steps_per_plot': args.steps_per_plot,
+        'steps_per_log': args.steps_per_log,
+        'debug_bn': args.debug_bn,
+        'debug_act': args.debug_act,
+        'has_valid': not args.no_valid,
+        'results': args.results,
+        'restore': args.restore,
+        'save_ckpt': args.save_ckpt,
+        'logs': args.logs,
+        'gpu': args.gpu,
+        'localhost': args.localhost,
+        'debug_weights': args.debug_weights,
+        'debug_nan': args.debug_nan
+    }
+
+    return train_opt
+
+
+def _parse_args():
+    """Parse input arguments."""
+
+    parser = argparse.ArgumentParser(
+        description='Recurrent Instance Segmentation + Attention')
+
+    _add_dataset_args(parser)
+    _add_model_args(parser)
+    _add_training_args(parser)
+
+    args = parser.parse_args()
+
+    return args
+
+
+def _get_ts_loggers(model_opt, restore_step=0, debug_bn=False, debug_weights=False):
     loggers = {}
     loggers['loss'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'loss.csv'), ['train', 'valid'],
@@ -352,10 +481,60 @@ def get_ts_loggers(model_opt, restore_step=0):
             buffer_size=1,
             restore_step=restore_step)
 
+    if debug_weights:
+        for layer_name, nlayers in zip(['glimpse_mlp', 'ctrl_mlp'],
+                                       [model_opt['num_glimpse_mlp_layers'],
+                                        model_opt['num_ctrl_mlp_layers']]):
+            labels = []
+            for ii in xrange(nlayers):
+                labels.append('w_{}'.format(ii))
+                labels.append('b_{}'.format(ii))
+            loggers[layer_name] = TimeSeriesLogger(
+                os.path.join(logs_folder,
+                             '{}.csv'.format(layer_name)),
+                labels,
+                name='{} weights stats'.format(layer_name),
+                buffer_size=1)
+        for layer_name in ['ctrl_lstm']:
+            labels = ['w_x', 'w_h', 'b']
+            loggers[layer_name] = TimeSeriesLogger(
+                os.path.join(logs_folder,
+                             '{}.csv'.format(layer_name)),
+                labels,
+                name='{} weights stats'.format(layer_name),
+                buffer_size=1)
+
+    if debug_bn:
+        num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
+        num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
+        num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
+        for sname, fname, num_layers in zip(
+                ['ctrl_cnn', 'attn_cnn', 'attn_dcnn'],
+                ['Ctrl CNN', 'Attn CNN', 'D-CNN'],
+                [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
+            for ii in xrange(num_layers):
+                num_iter = model_opt['timespan']
+                if 'num_ctrl_rnn_iter' in model_opt and \
+                        sname == 'ctrl_cnn':
+                    num_iter = model_opt['num_ctrl_rnn_iter']
+                for tt in xrange(num_iter):
+                    _bn_logger = TimeSeriesLogger(
+                        os.path.join(
+                            logs_folder,
+                            '{}_{}_bn_{}.csv'.format(sname, ii, tt)),
+                        ['train batch mean', 'valid batch mean',
+                         'train batch var', 'valid batch var', 'ema mean',
+                         'ema var'],
+                        name='{} {} time {} batch norm stats'.format(
+                            fname, ii, tt),
+                        buffer_size=1)
+                    loggers['bn_{}_{}_{}'.format(sname, ii, tt)] = \
+                        _bn_logger
+
     return loggers
 
 
-def get_plot_loggers(model_opt, train_opt):
+def _get_plot_loggers(model_opt, train_opt):
     samples = {}
     _ssets = ['train']
     if train_opt['has_valid']:
@@ -370,33 +549,29 @@ def get_plot_loggers(model_opt, train_opt):
             if model_opt['ctrl_rnn_inp_struct'] == 'attn':
                 labels.append('attn')
 
+        if args.debug_act:
+            for _layer, _num in zip(
+                    ['ccnn', 'acnn', 'adcnn'],
+                    [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
+                for ii in xrange(_num):
+                    labels.append('{}_{}'.format(_layer, ii))
+
         for name in labels:
             key = '{}_{}'.format(name, _set)
             samples[key] = LazyRegisterer(
                 os.path.join(logs_folder, '{}.png'.format(key)),
                 'image', 'Samples {} {}'.format(name, _set))
-
     return samples
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description='Train a ris net')
-    trainer.add_train_args(parser)
-    trainer.add_data_args(parser)
-    add_model_args(parser)
-    args = parser.parse_args()
-
-    return args
 
 
 if __name__ == '__main__':
     # Command-line arguments
-    args = parse_args()
+    args = _parse_args()
     tf.set_random_seed(1234)
     saver = None
-    train_opt = trainer.make_train_opt(args)
-    data_opt = trainer.make_data_opt(args)
-    model_opt_read = make_model_opt(args)
+    train_opt = _make_train_opt(args)
+    model_opt_read = _make_model_opt(args)
+    data_opt = _make_data_opt(args)
 
     # Restore previously saved checkpoints.
     if train_opt['restore']:
@@ -422,14 +597,14 @@ if __name__ == '__main__':
         exp_folder = os.path.join(train_opt['results'], model_id)
         saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
 
-    if not train_opt['save_ckpt']:
-        log.warning(
-            'Checkpoints saving is turned off. Use --save_ckpt flag to save.')
-
     if model_opt['type'] == 'attention':
         num_ctrl_cnn = len(model_opt['ctrl_cnn_filter_size'])
         num_attn_cnn = len(model_opt['attn_cnn_filter_size'])
         num_attn_dcnn = len(model_opt['attn_dcnn_filter_size'])
+
+    if not train_opt['save_ckpt']:
+        log.warning(
+            'Checkpoints saving is turned off. Use -save_ckpt flag to save.')
 
     # Logger
     if train_opt['logs']:
@@ -473,9 +648,10 @@ if __name__ == '__main__':
     loggers = {}
     if train_opt['logs']:
         log_manager = LogManager(logs_folder)
-        loggers = get_ts_loggers(model_opt)
+        loggers = _get_ts_loggers(model_opt, debug_bn=train_opt['debug_bn'],
+                                  debug_weights=train_opt['debug_weights'])
         trainer.register_raw_logs(log_manager, log, model_opt, saver)
-        samples = get_plot_loggers(model_opt, train_opt)
+        samples = _get_plot_loggers(model_opt, train_opt)
         _log_url = 'http://{}/deep-dashboard?id={}'.format(
             train_opt['localhost'], model_id)
         log.info('Visualization can be viewed at: {}'.format(_log_url))
@@ -497,7 +673,8 @@ if __name__ == '__main__':
 
         def _run_samples(x, y, s, phase_train, fname_input, fname_output,
                          fname_total=None, fname_box=None, fname_patch=None,
-                         fname_attn=None):
+                         fname_ccnn=None, fname_acnn=None,
+                         fname_attn_dcnn=None, fname_attn=None):
 
             _outputs = ['x_trans', 'y_gt_trans', 'y_out',
                         's_out', 'match']
@@ -508,11 +685,22 @@ if __name__ == '__main__':
             if fname_attn:
                 _outputs.append('ctrl_rnn_glimpse_map')
 
-            if fname_patch:
-                _outputs.append('x_patch')
-
             _max_items = trainer.get_max_items_per_row(x.shape[1], x.shape[2])
 
+            if fname_patch:
+                _outputs.append('x_patch')
+            if fname_ccnn:
+                [_outputs.append('h_ccnn_{}'.format(ii))
+                 for ii in xrange(num_ctrl_cnn)]
+                h_ccnn = [None] * num_ctrl_cnn
+            if fname_acnn:
+                [_outputs.append('h_acnn_{}'.format(ii))
+                 for ii in xrange(num_attn_cnn)]
+                h_acnn = [None] * num_attn_cnn
+            if fname_attn_dcnn:
+                [_outputs.append('h_attn_dcnn_{}'.format(ii))
+                 for ii in xrange(num_attn_dcnn)]
+                h_attn_dcnn = [None] * num_attn_dcnn
 
             _feed_dict = {m['x']: x, m['phase_train']: phase_train,
                           m['y_gt']: y, m['s_gt']: s}
@@ -556,6 +744,25 @@ if __name__ == '__main__':
                                    _r['x_patch'][:, :, :, :, : 3],
                                    axis=1, max_items_per_row=8)
 
+            if fname_ccnn:
+                for ii in xrange(num_ctrl_cnn):
+                    _h = _r['h_ccnn_{}'.format(ii)]
+                    pu.plot_thumbnails(fname_ccnn[ii], _h[:, 0], axis=3,
+                                       max_items_per_row=_max_items)
+
+            if fname_acnn:
+                for ii in xrange(num_attn_cnn):
+                    _h = _r['h_acnn_{}'.format(ii)]
+                    pu.plot_thumbnails(fname_acnn[ii], _h[:, 0], axis=3,
+                                       max_items_per_row=8)
+
+            if fname_attn_dcnn:
+                for ii in xrange(num_attn_dcnn):
+                    _h = _r['h_attn_dcnn_{}'.format(ii)]
+                    pu.plot_thumbnails(fname_attn_dcnn[ii], _h[ii][:, 0],
+                                       axis=3,
+                                       max_items_per_row=8)
+
             if fname_attn:
                 trainer.plot_double_attention(fname_attn, _r['x_trans'],
                                               _r['ctrl_rnn_glimpse_map'],
@@ -579,6 +786,18 @@ if __name__ == '__main__':
             fname_output = samples['output_{}'.format(_set)].get_fname()
             fname_total = samples['total_{}'.format(_set)].get_fname()
 
+            if args.debug_act:
+                fname_ccnn = [samples['ccnn_{}_{}'.format(
+                    ii, _set)].get_fname() for ii in xrange(num_ctrl_cnn)]
+                fname_acnn = [samples['acnn_{}_{}'.format(
+                    ii, _set)].get_fname() for ii in xrange(num_attn_cnn)]
+                fname_attn_dcnn = [samples['adcnn_{}_{}'.format(
+                    ii, _set)].get_fname() for ii in xrange(num_attn_dcnn)]
+            else:
+                fname_ccnn = None
+                fname_acnn = None
+                fname_attn_dcnn = None
+
             if attn:
                 fname_box = samples['box_{}'.format(_set)].get_fname()
                 fname_patch = samples['patch_{}'.format(_set)].get_fname()
@@ -600,33 +819,69 @@ if __name__ == '__main__':
                          fname_total=fname_total,
                          fname_box=fname_box,
                          fname_patch=fname_patch,
+                         fname_ccnn=fname_ccnn,
+                         fname_acnn=fname_acnn,
+                         fname_attn_dcnn=fname_attn_dcnn,
                          fname_attn=fname_attn)
 
             if not samples['output_{}'.format(_set)].is_registered():
                 for _name in names:
                     samples['{}_{}'.format(_name, _set)].register()
 
+                if args.debug_act:
+                    for _name, _num in zip(
+                            ['ccnn', 'acnn', 'adcnn'],
+                            [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
+                        [samples[
+                            '{}_{}_{}'.format(_name, ii, _set)].register()
+                            for ii in xrange(_num)]
         pass
 
-    def get_outputs_valid(model):
+    def get_outputs_valid():
         _outputs = ['loss', 'conf_loss', 'segm_loss', 'iou_soft', 'iou_hard',
                     'count_acc', 'dice', 'dic', 'dic_abs', 'wt_cov_hard',
                     'unwt_cov_hard']
 
-        if 'box_loss' in model:
+        if model_opt['type'] == 'attention':
             _outputs.extend(['box_loss'])
 
         return _outputs
 
-    def get_outputs_trainval(model):
+    def get_outputs_trainval():
         _outputs = ['loss', 'conf_loss', 'segm_loss', 'iou_soft', 'iou_hard',
                     'count_acc', 'dice', 'dic', 'dic_abs', 'wt_cov_hard',
                     'unwt_cov_hard', 'learn_rate']
 
-        if 'box_loss' in model:
+        if train_opt['debug_weights']:
+            for layer_name, nlayers in zip(['glimpse_mlp', 'ctrl_mlp'],
+                                           [model_opt['num_glimpse_mlp_layers'],
+                                            model_opt['num_ctrl_mlp_layers']]):
+                for ii in xrange(nlayers):
+                    _outputs.append('{}_w_{}_mean'.format(layer_name, ii))
+                    _outputs.append('{}_b_{}_mean'.format(layer_name, ii))
+
+            for layer_name in ['ctrl_lstm']:
+                _outputs.append('{}_w_x_mean'.format(layer_name))
+                _outputs.append('{}_w_h_mean'.format(layer_name))
+                _outputs.append('{}_b_mean'.format(layer_name))
+
+        if model_opt['type'] == 'attention':
             _outputs.extend(['box_loss', 'gt_knob_prob_box',
                              'gt_knob_prob_segm', 'attn_lg_gamma_mean',
                              'attn_box_lg_gamma_mean', 'y_out_lg_gamma_mean'])
+
+        return _outputs
+
+    def get_outputs_bn():
+        _outputs = []
+        for _layer, _num in zip(
+                ['ctrl_cnn', 'attn_cnn', 'attn_dcnn'],
+                [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
+            for ii in xrange(_num):
+                for tt in xrange(model_opt['timespan']):
+                    for _stat in ['bm', 'bv', 'em', 'ev']:
+                        _outputs.append(
+                            '{}_{}_{}_{}'.format(_layer, ii, _stat, tt))
 
         return _outputs
 
@@ -645,6 +900,23 @@ if __name__ == '__main__':
             loggers['count_acc'].add(step, ['', r['count_acc']])
             loggers['dic'].add(step, ['', r['dic']])
             loggers['dic_abs'].add(step, ['', r['dic_abs']])
+
+            # Batch normalization stats.
+            if 'ctrl_cnn_0_0_bm' in r:
+                for _layer, _num in zip(
+                        ['ctrl_cnn', 'attn_cnn', 'attn_dcnn'],
+                        [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
+                    for ii in xrange(_num):
+                        num_iter = model_opt['timespan']
+                        if 'num_ctrl_rnn_iter' in model_opt and \
+                                _layer == 'ctrl_cnn':
+                            num_iter = model_opt['num_ctrl_rnn_iter']
+                        for tt in xrange(num_iter):
+                            _prefix = '{}_{}_{{}}_{}'.format(_layer, ii, tt)
+                            _output = ['', r[_prefix.format('bm')],
+                                       '', r[_prefix.format('bv')], '', '']
+                            loggers['bn_{}_{}_{}'.format(
+                                _layer, ii, tt)].add(step, _output)
 
             pass
 
@@ -671,32 +943,115 @@ if __name__ == '__main__':
                                               r['gt_knob_prob_segm']])
             loggers['learn_rate'].add(step, r['learn_rate'])
 
+            if 'ctrl_lstm_b_mean' in r:
+                for layer_name, nlayers in zip(['glimpse_mlp', 'ctrl_mlp'],
+                                               [model_opt['num_glimpse_mlp_layers'],
+                                                model_opt['num_ctrl_mlp_layers']]):
+                    _output = []
+                    for ii in xrange(nlayers):
+                        _output.append(
+                            r['{}_w_{}_mean'.format(layer_name, ii)])
+                        _output.append(
+                            r['{}_b_{}_mean'.format(layer_name, ii)])
+                    loggers[layer_name].add(step, _output)
+
+                for layer_name in ['ctrl_lstm']:
+                    _output = [r['{}_w_x_mean'.format(layer_name)],
+                               r['{}_w_h_mean'.format(layer_name)],
+                               r['{}_b_mean'.format(layer_name)]]
+                    loggers[layer_name].add(step, _output)
+
+            # Batch normalization stats.
+            if 'ctrl_cnn_0_0_bm' in r:
+                for _layer, _num in zip(
+                        ['ctrl_cnn', 'attn_cnn', 'attn_dcnn'],
+                        [num_ctrl_cnn, num_attn_cnn, num_attn_dcnn]):
+                    for ii in xrange(_num):
+                        num_iter = model_opt['timespan']
+                        if 'num_ctrl_rnn_iter' in model_opt and \
+                                _layer == 'ctrl_cnn':
+                            num_iter = model_opt['num_ctrl_rnn_iter']
+                        for tt in xrange(num_iter):
+                            _prefix = '{}_{}_{{}}_{}'.format(
+                                _layer, ii, tt)
+                            _output = [r[_prefix.format('bm')], '',
+                                       r[_prefix.format('bv')], '',
+                                       r[_prefix.format('em')],
+                                       r[_prefix.format('ev')]]
+                            loggers['bn_{}_{}_{}'.format(
+                                _layer, ii, tt)].add(step, _output)
+
             pass
 
         return write
 
-    def train_step(step, x, y, s):
+    def train_step(step, x, y, s, debug_nan=False):
         """Train step"""
+
+        def save_inp():
+            log.error('Saving last step.')
+            saver.save(sess, global_step=step)
+            input_file = h5py.File(
+                os.path.join(exp_folder, 'nan_input.h5'))
+            input_file['x'] = x
+            input_file['y'] = y
+            input_file['s'] = s
+            input_file.close()
+
         def check_nan(var):
             # Check NaN.
             if np.isnan(var):
                 log.error('NaN occurred.')
+                return False
+            else:
+                return True
+
+        if debug_nan:
+            _start_time = time.time()
+            _outputs = ['loss', 'ctrl_mlp_b_grad']
+
+            for retry in xrange(10):
+                _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
+                              m['s_gt']: s}
+                r = trainer.run_model(sess, m, _outputs, _feed_dict)
+                print r['ctrl_mlp_b_grad']
+                if check_nan(r['ctrl_mlp_b_grad'].mean()):
+                    break
+                log.error('Retry {}'.format(retry))
+
+            if retry == 10:
+                save_inp()
                 raise Exception('NaN')
+            loss = r['loss']
 
-        _start_time = time.time()
-        _outputs = ['loss', 'train_step']
-        _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
-                      m['s_gt']: s}
-        r = trainer.run_model(sess, m, _outputs, _feed_dict)
-        _step_time = (time.time() - _start_time) * 1000
-        check_nan(r['loss'])
+            _outputs = ['train_step']
+            _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
+                          m['s_gt']: s}
+            _start_time = time.time()
+            r = trainer.run_model(sess, m, _outputs, _feed_dict)
+            _step_time = (time.time() - _start_time) * 1000
 
-        # Print statistics.
-        if step % train_opt['steps_per_log'] == 0:
-            log.info('{:d} loss {:.4f} t {:.2f}ms'.format(step, r['loss'],
-                                                          _step_time))
-            loggers['loss'].add(step, [r['loss'], ''])
-            loggers['step_time'].add(step, _step_time)
+            # Print statistics.
+            if step % train_opt['steps_per_log'] == 0:
+                log.info('{:d} loss {:.4f} t {:.2f}ms'.format(step, loss,
+                                                              _step_time))
+                loggers['loss'].add(step, [loss, ''])
+                loggers['step_time'].add(step, _step_time)
+        else:
+            _start_time = time.time()
+            _outputs = ['loss', 'train_step']
+            _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
+                          m['s_gt']: s}
+            r = trainer.run_model(sess, m, _outputs, _feed_dict)
+            _step_time = (time.time() - _start_time) * 1000
+            check_nan(r['loss'])
+
+            # Print statistics.
+            if step % train_opt['steps_per_log'] == 0:
+                log.info('{:d} loss {:.4f} t {:.2f}ms'.format(step, r['loss'],
+                                                              _step_time))
+                loggers['loss'].add(step, [r['loss'], ''])
+                loggers['step_time'].add(step, _step_time)
 
         pass
 
@@ -708,14 +1063,18 @@ if __name__ == '__main__':
                                              get_fn=get_batch_valid,
                                              cycle=True,
                                              progress_bar=False)
-            outputs_valid = get_outputs_valid(m)
+            outputs_valid = get_outputs_valid()
         num_batch_valid = trainer.get_num_batch_valid(args.dataset)
         batch_iter_trainval = BatchIterator(num_ex_train,
                                             batch_size=batch_size,
                                             get_fn=get_batch_train,
                                             cycle=True,
                                             progress_bar=False)
-        outputs_trainval = get_outputs_trainval(m)
+        outputs_trainval = get_outputs_trainval()
+        if train_opt['debug_bn']:
+            if train_opt['has_valid']:
+                outputs_valid.extend(get_outputs_bn())
+            outputs_trainval.extend(get_outputs_bn())
 
         for _x, _y, _s in BatchIterator(num_ex_train,
                                         batch_size=batch_size,
@@ -746,7 +1105,7 @@ if __name__ == '__main__':
                 pass
 
             # Train step
-            train_step(step, _x, _y, _s)
+            train_step(step, _x, _y, _s, debug_nan=train_opt['debug_nan'])
 
             # Model ID reminder
             if step % (10 * train_opt['steps_per_log']) == 0:

@@ -1,7 +1,5 @@
 """
-Box proposal network
-
-Usage: python ris_box.py --help
+Train a box net. Usage: python ris_box.py --help
 """
 from __future__ import division
 
@@ -27,95 +25,31 @@ import ris_train_base as trainer
 log = logger.get()
 
 
-def _add_dataset_args(parser):
-    parser.add_argument('-dataset', default='kitti')
-
-    pass
-
-
-def _add_model_args(parser):
-    # Default model options
-    kCtrlCnnFilterSize = '3,3,3,3,3,3,3,3,3,3'
-    kCtrlCnnDepth = '4,4,8,8,16,16,32,32,64,64'
-    kCtrlCnnPool = '1,2,1,2,1,2,1,2,1,2'
-    kBoxLossFn = 'iou'
-    kCtrlMlpDim = 256
-    kNumCtrlMlpLayers = 2
-    kCtrlRnnHiddenDim = 256
-    kLearnRateDecay = 0.96
-    kStepsPerLearnRateDecay = 5000
-    kFilterHeight = 48
-    kFilterWidth = 48
-    kCtrlRnnInpStruct = 'dense'
-    kNumCtrlRNNIter = 5
-    kNumGlimpseMlpLayers = 2
-    kPadding = 16
-
-    parser.add_argument('--padding', default=kPadding, type=int)
-    parser.add_argument('--filter_height', default=kFilterHeight, type=int)
-    parser.add_argument('--filter_width', default=kFilterWidth, type=int)
-    parser.add_argument('--ctrl_cnn_filter_size', default=kCtrlCnnFilterSize)
-    parser.add_argument('--ctrl_cnn_depth', default=kCtrlCnnDepth)
-    parser.add_argument('--ctrl_cnn_pool', default=kCtrlCnnPool)
-    parser.add_argument('--box_loss_fn', default=kBoxLossFn)
+def add_model_args(parser):
+    parser.add_argument('--padding', default=16, type=int)
+    parser.add_argument('--filter_height', default=48, type=int)
+    parser.add_argument('--filter_width', default=48, type=int)
+    parser.add_argument('--ctrl_cnn_filter_size', default='3,3,3,3,3,3,3,3')
+    parser.add_argument('--ctrl_cnn_depth', default='4,4,8,8,16,16,32,64')
+    parser.add_argument('--ctrl_cnn_pool', default='1,2,1,2,1,2,2,2')
+    parser.add_argument('--box_loss_fn', default='iou')
     parser.add_argument('--fixed_order', action='store_true')
     parser.add_argument('--pretrain_cnn', default=None)
-    parser.add_argument('--ctrl_rnn_hid_dim',
-                        default=kCtrlRnnHiddenDim, type=int)
-    parser.add_argument('--num_ctrl_mlp_layers',
-                        default=kNumCtrlMlpLayers, type=int)
-    parser.add_argument('--ctrl_mlp_dim', default=kCtrlMlpDim, type=int)
+    parser.add_argument('--ctrl_rnn_hid_dim', default=256, type=int)
+    parser.add_argument('--num_ctrl_mlp_layers', default=2, type=int)
+    parser.add_argument('--ctrl_mlp_dim', default=256, type=int)
     parser.add_argument('--use_iou_box', action='store_true')
-    parser.add_argument('--learn_rate_decay',
-                        default=kLearnRateDecay, type=float)
-    parser.add_argument('--steps_per_learn_rate_decay',
-                        default=kStepsPerLearnRateDecay, type=int)
+    parser.add_argument('--learn_rate_decay', default=0.96, type=float)
+    parser.add_argument('--steps_per_learn_rate_decay', default=5000, type=int)
     parser.add_argument('--squash_ctrl_params', action='store_true')
-    parser.add_argument('--ctrl_rnn_inp_struct', default=kCtrlRnnInpStruct)
-    parser.add_argument('--num_ctrl_rnn_iter',
-                        default=kNumCtrlRNNIter, type=int)
-    parser.add_argument('--num_glimpse_mlp_layers',
-                        default=kNumGlimpseMlpLayers, type=int)
+    parser.add_argument('--ctrl_rnn_inp_struct', default='dense')
+    parser.add_argument('--num_ctrl_rnn_iter',  default=5, type=int)
+    parser.add_argument('--num_glimpse_mlp_layers', default=2, type=int)
 
     pass
 
 
-def _add_training_args(parser):
-    parser.add_argument('--model_id', default=None)
-    parser.add_argument('--num_steps', default=500000, type=int)
-    parser.add_argument('--steps_per_ckpt', default=1000, type=int)
-    parser.add_argument('--steps_per_valid', default=250, type=int)
-    parser.add_argument('--steps_per_trainval', default=100, type=int)
-    parser.add_argument('--steps_per_plot', default=50, type=int)
-    parser.add_argument('--steps_per_log', default=20, type=int)
-    parser.add_argument('--batch_size', default=32, type=int)
-    parser.add_argument('--results', default='../results')
-    parser.add_argument('--logs', default='../results')
-    parser.add_argument('--localhost', default='localhost')
-    parser.add_argument('--restore', default=None)
-    parser.add_argument('--gpu', default=-1, type=int)
-    parser.add_argument('--num_samples_plot', default=10, type=int)
-    parser.add_argument('--save_ckpt', action='store_true')
-    parser.add_argument('--no_valid', action='store_true')
-
-    pass
-
-
-def _parse_args():
-    """Parse input arguments."""
-
-    parser = argparse.ArgumentParser(description='Train box net')
-
-    _add_training_args(parser)
-    _add_model_args(parser)
-    _add_dataset_args(parser)
-
-    args = parser.parse_args()
-
-    return args
-
-
-def _make_model_opt(args):
+def make_model_opt(args):
     ccnn_fsize_list = args.ctrl_cnn_filter_size.split(',')
     ccnn_fsize_list = [int(fsize) for fsize in ccnn_fsize_list]
     ccnn_depth_list = args.ctrl_cnn_depth.split(',')
@@ -154,7 +88,6 @@ def _make_model_opt(args):
         'ctrl_rnn_inp_struct': args.ctrl_rnn_inp_struct,
         'num_ctrl_rnn_iter': args.num_ctrl_rnn_iter,
         'num_glimpse_mlp_layers': args.num_glimpse_mlp_layers,
-
         'rnd_hflip': True,
         'rnd_vflip': False,
         'rnd_transpose': False,
@@ -164,43 +97,7 @@ def _make_model_opt(args):
     return model_opt
 
 
-def _make_data_opt(args):
-    inp_height, inp_width, timespan = trainer.get_inp_dim(args.dataset)
-    data_opt = {
-        'height': inp_height,
-        'width': inp_width,
-        'timespan': timespan,
-        'num_train': -1,
-        'num_valid': -1,
-        'has_valid': not args.no_valid
-    }
-
-    return data_opt
-
-
-def _make_train_opt(args):
-    """Train opt"""
-    train_opt = {
-        'num_steps': args.num_steps,
-        'steps_per_ckpt': args.steps_per_ckpt,
-        'steps_per_valid': args.steps_per_valid,
-        'steps_per_trainval': args.steps_per_trainval,
-        'steps_per_plot': args.steps_per_plot,
-        'steps_per_log': args.steps_per_log,
-        'has_valid': not args.no_valid,
-        'results': args.results,
-        'restore': args.restore,
-        'save_ckpt': args.save_ckpt,
-        'logs': args.logs,
-        'gpu': args.gpu,
-        'localhost': args.localhost,
-        'model_id': args.model_id
-    }
-
-    return train_opt
-
-
-def _get_ts_loggers(model_opt, restore_step=0):
+def get_ts_loggers(model_opt, restore_step=0):
     loggers = {}
     loggers['loss'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'loss.csv'), ['train', 'valid'],
@@ -226,7 +123,7 @@ def _get_ts_loggers(model_opt, restore_step=0):
     return loggers
 
 
-def _get_plot_loggers(model_opt, train_opt):
+def get_plot_loggers(model_opt, train_opt):
     samples = {}
     _ssets = ['train', 'valid']
     for _set in _ssets:
@@ -242,14 +139,24 @@ def _get_plot_loggers(model_opt, train_opt):
     return samples
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description='Train a box net')
+    trainer.add_train_args(parser)
+    trainer.add_data_args(parser)
+    add_model_args(parser)
+    args = parser.parse_args()
+
+    return args
+
+
 if __name__ == '__main__':
     # Command-line arguments
-    args = _parse_args()
+    args = parse_args()
     tf.set_random_seed(1234)
     saver = None
-    train_opt = _make_train_opt(args)
-    model_opt = _make_model_opt(args)
-    data_opt = _make_data_opt(args)
+    train_opt = trainer.make_train_opt(args)
+    model_opt_read = make_model_opt(args)
+    data_opt = trainer.make_data_opt(args)
 
     # Restore previously saved checkpoints.
     if train_opt['restore']:
@@ -261,18 +168,20 @@ if __name__ == '__main__':
         step = ckpt_info['step']
         model_id = ckpt_info['model_id']
         exp_folder = train_opt['restore']
+        model_opt['pretrain_cnn'] = None
     else:
         if train_opt['model_id']:
             model_id = train_opt['model_id']
         else:
             model_id = trainer.get_model_id('ris_box')
+        model_opt = model_opt_read
         step = 0
         exp_folder = os.path.join(train_opt['results'], model_id)
         saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
 
     if not train_opt['save_ckpt']:
         log.warning(
-            'Checkpoints saving is turned off. Use -save_ckpt flag to save.')
+            'Checkpoints saving is turned off. Use --save_ckpt flag to save.')
 
     # Logger
     if train_opt['logs']:
@@ -308,12 +217,12 @@ if __name__ == '__main__':
     # Create time series loggers
     if train_opt['logs']:
         log_manager = LogManager(logs_folder)
-        loggers = _get_ts_loggers(model_opt, restore_step=step)
+        loggers = get_ts_loggers(model_opt, restore_step=step)
         trainer.register_raw_logs(log_manager, log, model_opt, saver)
-        samples = _get_plot_loggers(model_opt, train_opt)
-        _log_url = 'http://{}/deep-dashboard?id={}'.format(
+        samples = get_plot_loggers(model_opt, train_opt)
+        log_url = 'http://{}/deep-dashboard?id={}'.format(
             train_opt['localhost'], model_id)
-        log.info('Visualization can be viewed at: {}'.format(_log_url))
+        log.info('Visualization can be viewed at: {}'.format(log_url))
 
     # Restore/intialize weights
     if args.restore:
@@ -437,12 +346,19 @@ if __name__ == '__main__':
 
     def train_step(step, x, y, s):
         """Train step"""
+        def check_nan(var):
+            # Check NaN.
+            if np.isnan(var):
+                log.error('NaN occurred.')
+                raise Exception('NaN')
+
         _outputs = ['loss', 'train_step']
         _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y,
                       m['s_gt']: s}
         _start_time = time.time()
         r = trainer.run_model(sess, m, _outputs, _feed_dict)
         _step_time = (time.time() - _start_time) * 1000
+        check_nan(r['loss'])
 
         # Print statistics
         if step % train_opt['steps_per_log'] == 0:
@@ -450,16 +366,6 @@ if __name__ == '__main__':
                                                           _step_time))
             loggers['loss'].add(step, [r['loss'], ''])
             loggers['step_time'].add(step, _step_time)
-
-        # Check NaN.
-        if np.isnan(r['loss']):
-            log.error('NaN occurred. Saving last step.')
-            saver.save(sess, global_step=step)
-            input_file = h5py.File(os.path.join(exp_folder, 'nan_input.h5'))
-            input_file['x'] = x
-            input_file['y'] = y
-            input_file['s'] = s
-            raise Exception('NaN')
 
         pass
 
