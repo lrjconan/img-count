@@ -147,7 +147,7 @@ def coverage(y_out, y_gt, num_obj, weighted=False):
     for ii in xrange(y_out.shape[0]):
         cov_mean[ii] = cov[ii, :num_obj[ii]].sum()
         pass
-        
+
     return cov_mean
 
 
@@ -170,9 +170,6 @@ def run_eval(y_out, y_gt, s_out, s_gt):
     for idx in xrange(y_out.shape[1]):
         y_out_hard[:, idx] = (y_out_max == idx).astype(
             'float') * (y_out[:, idx] > 0.5).astype('float')
-
-    y_out_hard = (y_out == y_out_max).astype('float')
-    y_out_hard = (y_out_hard > 0.5).astype('float')
     count_out = (s_out > 0.5).astype('float').sum(axis=1)
     count_gt = s_gt.sum(axis=1)
     num_obj = np.maximum(count_gt, 1)
