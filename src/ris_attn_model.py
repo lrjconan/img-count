@@ -947,7 +947,7 @@ def get_model(opt, device='/cpu:0'):
         model['learn_rate'] = learn_rate
         eps = 1e-7
 
-        temp = set(tf.variables.all_variables())
+        temp = set(tf.all_variables())
         train_step = GradientClipOptimizer(
             tf.train.AdamOptimizer(learn_rate, epsilon=eps),
             clip=clip_gradient).minimize(total_loss, global_step=global_step)
