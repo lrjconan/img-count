@@ -366,8 +366,6 @@ def _add_training_args(parser):
     parser.add_argument('-debug_weights', action='store_true',
                         help='Plot the weights')
     parser.add_argument('-debug_nan', action='store_true', help='Debug NaN')
-    parser.add_argument('-finetune', action='store_true',
-                        help='Finetune the network.')
 
     pass
 
@@ -821,6 +819,8 @@ if __name__ == '__main__':
         exp_folder = train_opt['restore']
         model_opt['pretrain_attn_net'] = None
         model_opt['pretrain_ctrl_net'] = None
+        model_opt['freeze_attn_net'] = model_opt_read['freeze_attn_net']
+        model_opt['freeze_ctrl_net'] = model_opt_read['freeze_ctrl_net']
     else:
         model_id = trainer.get_model_id('rec_ins_segm')
         step = 0
