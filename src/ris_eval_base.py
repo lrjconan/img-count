@@ -82,12 +82,15 @@ def run_inference(sess, m, dataset, phase_train):
             y_gt = np.zeros(y_out.shape)
             s_out = np.zeros([num_ex, _y_out.shape[1]])
             s_gt = np.zeros(s_out.shape)
+            pass
+        
         y_gt[count: count + bat_sz] = y
         s_gt[count: count + bat_sz] = s
         y_out[count: count + bat_sz] = _y_out
         s_out[count: count + bat_sz] = _s_out
-
         count += bat_sz
+
+        pass
 
     return {
         'y_gt': y_gt,
@@ -99,7 +102,6 @@ def run_inference(sess, m, dataset, phase_train):
 
 def best_dice(a, b, num_obj):
     bd = np.zeros([a.shape[0], a.shape[1]])
-
     for ii in xrange(a.shape[1]):
         a_ = a[:, ii: ii + 1, :, :]
         card_a = a_.sum(axis=3).sum(axis=2)
@@ -107,8 +109,13 @@ def best_dice(a, b, num_obj):
         card_ab = (a_ * b).sum(axis=3).sum(axis=2)
         dice = 2 * card_ab / (card_a + card_b + 1e-5)
         bd[:, ii] = dice.max(axis=1)
+        pass
+    bd_mean = np.zeros([a.shape[0]])
+    for ii in xrange(a.shape[0]):
+        bd_mean[ii] = bd[ii, :num_obj[ii]].mean()
+        pass
 
-    return bd.sum(axis=1) / num_obj
+    return bd_mean
 
 
 def symmetric_best_dice(y_out, y_gt, num_obj):
@@ -116,9 +123,6 @@ def symmetric_best_dice(y_out, y_gt, num_obj):
     num_obj = y_gt.shape[1]
     bd1 = best_dice(y_out, y_gt, num_obj)
     bd2 = best_dice(y_gt, y_out, num_obj)
-    print 'bd1', bd1
-    print 'bd2', bd2
-
     return np.minimum(bd1, bd2)
 
 
@@ -128,21 +132,28 @@ def coverage(y_out, y_gt, num_obj, weighted=False):
         y_gt_ = y_gt[:, ii: ii + 1, :, :]
         iou_ii = iou(y_out, y_gt_)
         cov[:, ii] = iou_ii.max(axis=1)
+        pass
 
     if weighted:
-        print y_gt.shape
-        print y_gt.sum(axis=3).sum(axis=2).sum(axis=1)
         weights = y_gt.sum(axis=3).sum(axis=2) / \
             y_gt.sum(axis=3).sum(axis=2).sum(axis=1, keepdims=True)
-        cov *= weights
+        pass
+    else:
+        weights = np.reshape(1 / num_obj, [-1, 1])
+        pass
 
-    return cov.sum(axis=1) / num_obj
+    cov *= weights
+    cov_mean = np.zeros([y_out.shape[0]])
+    for ii in xrange(y_out.shape[0]):
+        cov_mean[ii] = cov[ii, :num_obj[ii]].sum()
+        pass
+        
+    return cov_mean
 
 
 def iou(a, b):
     inter = (a * b).sum(axis=3).sum(axis=2)
     union = (a + b).sum(axis=3).sum(axis=2) - inter
-
     return inter / (union + 1e-5)
 
 
@@ -177,9 +188,9 @@ def run_eval(y_out, y_gt, s_out, s_gt):
     #     y_out_hi[ii] = cv2.resize(
     #         y_out[ii], (500, 530), interpolation=cv2.INTER_NEAREST)
 
-    sbd = symmetric_best_dice(y_out, y_gt, num_obj).mean()
-    unwt_cov = coverage(y_out, y_gt, num_obj, weighted=False).mean()
-    wt_cov = coverage(y_out, y_gt, num_obj, weighted=True).mean()
+    sbd = symmetric_best_dice(y_out_hard, y_gt, num_obj).mean()
+    unwt_cov = coverage(y_out_hard, y_gt, num_obj, weighted=False).mean()
+    wt_cov = coverage(y_out_hard, y_gt, num_obj, weighted=True).mean()
 
     count_acc = (count_out == count_gt).astype('float').mean()
     print 'correct', (count_out == count_gt)
