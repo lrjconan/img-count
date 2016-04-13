@@ -53,7 +53,7 @@ def add_data_args(parser):
     parser.add_argument('--width', default=224, type=int)
     parser.add_argument('--radius_upper', default=15, type=int)
     parser.add_argument('--radius_lower', default=45, type=int)
-    parser.add_argument('--border_thickness', default=3)
+    parser.add_argument('--border_thickness', default=3, type=int)
     parser.add_argument('--num_ex', default=1000, type=int)
     parser.add_argument('--max_num_objects', default=6, type=int)
     parser.add_argument('--num_object_types', default=1, type=int)

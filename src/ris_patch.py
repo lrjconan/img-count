@@ -29,8 +29,8 @@ log = logger.get()
 
 def add_model_args(parser):
     parser.add_argument('--weight_decay', default=5e-5, type=float)
-    parser.add_argument('--base_learn_rate', default=1e-3)
-    parser.add_argument('--learn_rate_decay', default=0.96)
+    parser.add_argument('--base_learn_rate', default=1e-3, type=float)
+    parser.add_argument('--learn_rate_decay', default=0.96, type=float)
     parser.add_argument('--steps_per_learn_rate_decay', default=5000, type=int)
     parser.add_argument('--segm_loss_fn', default='iou')
     parser.add_argument('--mlp_dropout', default=None, type=float)
