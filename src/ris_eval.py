@@ -78,6 +78,8 @@ def run_inference(sess, m, dataset, phase_train):
                                progress_bar=phase_train)
     y_out = None
     s_out = None
+    y_gt = None
+    s_gt = None
     count = 0
     for x, y, s in batch_iter:
         r = sess.run(output_list, feed_dict={
@@ -91,11 +93,17 @@ def run_inference(sess, m, dataset, phase_train):
         if y_out is None:
             y_out = np.zeros(
                 [num_ex, _y_out.shape[1], _y_out.shape[2], _y_out.shape[3]])
+            y_gt = np.zeros(y_out.shape)
             s_out = np.zeros([num_ex, _y_out.shape[1]])
+            s_gt = np.zeros(s_gt.shape)
+        y_gt[count: count + bat_sz] = y
+        s_gt[count: count + bat_sz] = s
         y_out[count: count + bat_sz] = _y_out
         s_out[count: count + bat_sz] = _s_out
 
     return {
+        'y_gt': y_gt,
+        's_gt': s_gt,
         'y_out': y_out,
         's_out': s_out
     }
