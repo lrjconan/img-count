@@ -82,18 +82,19 @@ def run_inference(sess, m, dataset, phase_train):
     s_gt = None
     count = 0
 
-    m = None
-    m = {
-        'x': tf.get_variable('x'),
-        'y_gt': tf.get_variable('y_gt'),
-        'phase_train': tf.get_variable('phase_train')
-    }
+    # m = None
+    # m = {
+    #     'x': tf.get_variable('x:0'),
+    #     'y_gt': tf.get_variable('y_gt:0'),
+    #     'phase_train': tf.get_variable('phase_train:0')
+    # }
     for x, y, s in batch_iter:
         r = sess.run(output_list, feed_dict={
                      m['x']: x, 
                      m['y_gt']: y, 
                      # m['s_gt']: s, 
-                     m['phase_train']: phase_train})
+                     m['phase_train']: phase_train}
+        )
         _y_out = r[0]
         _s_out = r[1]
         bat_sz = _y_out.shape[0]
