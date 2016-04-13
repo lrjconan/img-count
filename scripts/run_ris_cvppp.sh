@@ -126,7 +126,7 @@ python src/ris_patch.py \
 --save_ckpt \
 --batch_size $BATCH_SIZE \
 --fixed_order \
---num_iter $NUM_ITER_PATCH \
+--num_steps $NUM_ITER_PATCH \
 --model_id $PATCH_MODEL_ID
 
 ###############################################################################
@@ -163,7 +163,7 @@ python src/ris_box.py \
 --ctrl_rnn_inp_struct $CTRL_RNN_INP_STRUCT \
 --use_bn \
 --save_ckpt \
---num_iter $NUM_ITER_BOX \
+--num_steps $NUM_ITER_BOX \
 --model_id $BOX_MODEL_ID
 
 ###############################################################################
@@ -222,7 +222,7 @@ python src/ris.py \
 --pretrain_attn_net $PATCH_WEIGHTS \
 --batch_size $BATCH_SIZE \
 --save_ckpt \
---num_iter $NUM_ITER_FINETUNE_PATCH \
+--num_steps $NUM_ITER_FINETUNE_PATCH \
 --model_id $FINETUNE_PATCH_MODEL_ID
 
 ###############################################################################
@@ -280,7 +280,7 @@ python src/ris.py \
 --batch_size $BATCH_SIZE \
 --save_ckpt \
 --base_learn_rate $BASE_LEARN_RATE_STAGE4 \
---num_iter $NUM_ITER_FINETUNE_TOTAL \
+--num_steps $NUM_ITER_FINETUNE_TOTAL \
 --model_id $FINETUNE_TOTAL_MODEL_ID
 
 ###############################################################################
