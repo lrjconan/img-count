@@ -160,7 +160,7 @@ python src/ris_box.py \
 --ctrl_cnn_depth $CTRL_CNN_DEPTH \
 --ctrl_cnn_pool $CTRL_CNN_POOL \
 --num_ctrl_mlp_layers $NUM_CTRL_MLP_LAYERS \
---pretrain_cnn $SAVE_FOLDER/$MODEL_ID/weights.h5 \
+--pretrain_cnn $PATCH_WEIGHTS \
 --batch_size $BATCH_SIZE \
 --ctrl_rnn_inp_struct $CTRL_RNN_INP_STRUCT \
 --save_ckpt \
