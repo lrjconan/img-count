@@ -81,21 +81,19 @@ NUM_SAMPLES_PLOT="5"
 # NUM_ITER_BOX="30000"
 # NUM_ITER_FINETUNE_PATCH="30000"
 # NUM_ITER_FINETUNE_TOTAL="30000"
-NUM_ITER_PATCH="20"
-NUM_ITER_BOX="20"
-NUM_ITER_FINETUNE_PATCH="20"
-NUM_ITER_FINETUNE_TOTAL="20"
+NUM_ITER_PATCH="1"
+NUM_ITER_BOX="1"
+NUM_ITER_FINETUNE_PATCH="1"
+NUM_ITER_FINETUNE_TOTAL="1"
 
 # Model IDs
 MODEL_ID=$(python src/assign_model_id.py)
 PATCH_MODEL_ID="ris_patch-"$MODEL_ID
 BOX_MODEL_ID="ris_box-"$MODEL_ID
-FINETUNE_PATCH_MODEL_ID="ris_ft0-"$MODEL_ID
-FINETUNE_TOTAL_MODEL_ID="ris_ft1-"$MODEL_ID
+FINETUNE_MODEL_ID="ris-"$MODEL_ID
 echo $PATCH_MODEL_ID
 echo $BOX_MODEL_ID
-echo $FINETUNE_PATCH_MODEL_ID
-echo $FINETUNE_TOTAL_MODEL_ID
+echo $FINETUNE_MODEL_ID
 
 ###############################################################################
 # Stage 1
@@ -225,17 +223,7 @@ python src/ris.py \
 --batch_size $BATCH_SIZE \
 --save_ckpt \
 --num_steps $NUM_ITER_FINETUNE_PATCH \
---model_id $FINETUNE_PATCH_MODEL_ID
-
-###############################################################################
-# Stage 3
-###############################################################################
-echo "Reading weights from stage 3"
-FINETUNE_PATCH_WEIGHTS=$SAVE_FOLDER/$FINETUNE_PATCH_MODEL_ID/weights.h5
-python src/ris_reader.py \
---model_id $FINETUNE_PATCH_MODEL_ID \
---results $SAVE_FOLDER \
---output $FINETUNE_PATCH_WEIGHTS
+--model_id $FINETUNE_MODEL_ID
 
 ###############################################################################
 # Stage 4
@@ -277,23 +265,12 @@ python src/ris.py \
 --filter_height $FILTER_HEIGHT \
 --filter_width $FILTER_WIDTH \
 --fixed_gamma \
---freeze_ctrl_cnn \
---pretrain_net $FINETUNE_PATCH_WEIGHTS \
+--restore $SAVE_FOLDER/$FINETUNE_MODEL_ID \
 --batch_size $BATCH_SIZE \
 --save_ckpt \
 --base_learn_rate $BASE_LEARN_RATE_STAGE4 \
 --num_steps $NUM_ITER_FINETUNE_TOTAL \
---model_id $FINETUNE_TOTAL_MODEL_ID
-
-###############################################################################
-# Stage 4.5
-###############################################################################
-echo "Reading weights from stage 4"
-FINETUNE_TOTAL_WEIGHTS=$SAVE_FOLDER/$FINETUNE_TOTAL_MODEL_ID/weights.h5
-python src/ris_reader.py \
---model_id $FINETUNE_TOTAL_MODEL_ID \
---results $SAVE_FOLDER \
---output $FINETUNE_TOTAL_WEIGHTS
+--model_id $FINETUNE_MODEL_ID
 
 ###############################################################################
 # Stage 5
@@ -301,5 +278,5 @@ python src/ris_reader.py \
 echo "Running evaluation"
 python src/ris_eval.py \
 --dataset $DATASET \
---model_id $FINETUNE_TOTAL_MODEL_ID \
+--model_id $FINETUNE_MODEL_ID \
 --results $SAVE_FOLDER
