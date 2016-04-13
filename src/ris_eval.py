@@ -118,10 +118,10 @@ def best_dice(a, b, num_obj):
     bd = np.zeros([a.shape[0], a.shape[1]])
 
     for ii in xrange(a.shape[1]):
-        segm = a[:, ii: ii + 1, :, :]
-        card_a = a.sum(axis=3).sum(axis=2)
+        a_ = a[:, ii: ii + 1, :, :]
+        card_a = a_.sum(axis=3).sum(axis=2)
         card_b = b.sum(axis=3).sum(axis=2)
-        card_ab = (a * b).sum(axis=3).sum(axis=2)
+        card_ab = (a_ * b).sum(axis=3).sum(axis=2)
         dice = 2 * card_ab / (card_a + card_b + 1e-5)
         bd[:, ii] = dice.max(axis=1)
 
@@ -191,6 +191,7 @@ def run_eval(y_out, y_gt, s_out, s_gt):
     wt_cov = coverage(y_out, y_gt, num_obj, weighted=True).mean()
 
     count_acc = (count_out == count_gt).astype('float').mean()
+    print (count_out == count_gt)
     dic = (count_out - count_gt).mean()
     dic_abs = np.abs(count_out - count_gt).mean()
 
