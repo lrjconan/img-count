@@ -30,7 +30,6 @@ log = logger.get()
 
 
 def _add_dataset_args(parser):
-    # Default dataset options
     kDataset = 'synth_shape'
     kHeight = 224
     kWidth = 224
@@ -143,7 +142,6 @@ def _add_model_args(parser):
 
 
 def _add_training_args(parser):
-    # Training options
     parser.add_argument('--model_id', default=None)
     parser.add_argument('--num_steps', default=500000, type=int)
     parser.add_argument('--steps_per_ckpt', default=1000, type=int)
@@ -163,6 +161,7 @@ def _add_training_args(parser):
     parser.add_argument('--debug_act', action='store_true')
     parser.add_argument('--no_valid', action='store_true')
     parser.add_argument('--debug_weights', action='store_true')
+    parser.add_argument('--model_id', default=None)
 
     pass
 
@@ -299,7 +298,8 @@ def _make_train_opt(args):
         'logs': args.logs,
         'gpu': args.gpu,
         'localhost': args.localhost,
-        'debug_weights': args.debug_weights
+        'debug_weights': args.debug_weights,
+        'model_id': args.model_id
     }
 
     return train_opt

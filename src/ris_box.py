@@ -28,12 +28,7 @@ log = logger.get()
 
 
 def _add_dataset_args(parser):
-    # Default dataset options
-    kDataset = 'kitti'
-
-    # Dataset options
-    parser.add_argument('-dataset', default=kDataset,
-                        help='Name of the dataset')
+    parser.add_argument('-dataset', default='kitti')
 
     pass
 
@@ -56,90 +51,51 @@ def _add_model_args(parser):
     kNumGlimpseMlpLayers = 2
     kPadding = 16
 
-    parser.add_argument('-padding', default=kPadding, type=int,
-                        help='Apply additional padding for random cropping')
-    parser.add_argument('-filter_height', default=kFilterHeight, type=int,
-                        help='Attention filter width')
-    parser.add_argument('-filter_width', default=kFilterWidth, type=int,
-                        help='Attention filter size')
-    parser.add_argument('-ctrl_cnn_filter_size', default=kCtrlCnnFilterSize,
-                        help='Comma delimited integers')
-    parser.add_argument('-ctrl_cnn_depth', default=kCtrlCnnDepth,
-                        help='Comma delimited integers')
-    parser.add_argument('-ctrl_cnn_pool', default=kCtrlCnnPool,
-                        help='Comma delimited integers')
-    parser.add_argument('-box_loss_fn', default=kBoxLossFn,
-                        help='Loss function for box regressor')
-    parser.add_argument('-fixed_order', action='store_true',
-                        help='Train with fixed order labels')
-    parser.add_argument('-pretrain_cnn', default=None,
-                        help='Pretrained CNN weights')
-    parser.add_argument('-ctrl_rnn_hid_dim', default=kCtrlRnnHiddenDim,
-                        type=int, help='RNN hidden dimension')
-    parser.add_argument('-num_ctrl_mlp_layers', default=kNumCtrlMlpLayers,
-                        type=int, help='Number of controller MLP layers')
-    parser.add_argument('-ctrl_mlp_dim', default=kCtrlMlpDim,
-                        type=int, help='Controller MLP dimension')
-    parser.add_argument('-use_iou_box', action='store_true',
-                        help='Use hard box IOU')
-    parser.add_argument('-learn_rate_decay', default=kLearnRateDecay,
-                        type=float, help='Model learning rate decay')
-    parser.add_argument('-steps_per_learn_rate_decay',
-                        default=kStepsPerLearnRateDecay, type=int,
-                        help='Steps every learning rate decay')
-    parser.add_argument('-squash_ctrl_params', action='store_true',
-                        help='Whether to squash control parameters.')
-    parser.add_argument('-ctrl_rnn_inp_struct', default=kCtrlRnnInpStruct,
-                        help='Dense or attn')
-    parser.add_argument('-num_ctrl_rnn_iter', default=kNumCtrlRNNIter,
-                        type=int, help='Number of control RNN iterations')
-    parser.add_argument('-num_glimpse_mlp_layers', default=kNumGlimpseMlpLayers,
-                        type=int, help='Number of glimpse MLP layers')
+    parser.add_argument('--padding', default=kPadding, type=int)
+    parser.add_argument('--filter_height', default=kFilterHeight, type=int)
+    parser.add_argument('--filter_width', default=kFilterWidth, type=int)
+    parser.add_argument('--ctrl_cnn_filter_size', default=kCtrlCnnFilterSize)
+    parser.add_argument('--ctrl_cnn_depth', default=kCtrlCnnDepth)
+    parser.add_argument('--ctrl_cnn_pool', default=kCtrlCnnPool)
+    parser.add_argument('--box_loss_fn', default=kBoxLossFn)
+    parser.add_argument('--fixed_order', action='store_true')
+    parser.add_argument('--pretrain_cnn', default=None)
+    parser.add_argument('--ctrl_rnn_hid_dim',
+                        default=kCtrlRnnHiddenDim, type=int)
+    parser.add_argument('--num_ctrl_mlp_layers',
+                        default=kNumCtrlMlpLayers, type=int)
+    parser.add_argument('--ctrl_mlp_dim', default=kCtrlMlpDim, type=int)
+    parser.add_argument('--use_iou_box', action='store_true')
+    parser.add_argument('--learn_rate_decay',
+                        default=kLearnRateDecay, type=float)
+    parser.add_argument('--steps_per_learn_rate_decay',
+                        default=kStepsPerLearnRateDecay, type=int)
+    parser.add_argument('--squash_ctrl_params', action='store_true')
+    parser.add_argument('--ctrl_rnn_inp_struct', default=kCtrlRnnInpStruct)
+    parser.add_argument('--num_ctrl_rnn_iter',
+                        default=kNumCtrlRNNIter, type=int)
+    parser.add_argument('--num_glimpse_mlp_layers',
+                        default=kNumGlimpseMlpLayers, type=int)
 
     pass
 
 
 def _add_training_args(parser):
-    # Default training options
-    kNumSteps = 500000
-    kStepsPerCkpt = 1000
-    kStepsPerValid = 250
-    kStepsPerTrainval = 100
-    kStepsPerPlot = 50
-    kStepsPerLog = 20
-    kBatchSize = 32
-
-    # Training options
-    parser.add_argument('-num_steps', default=kNumSteps,
-                        type=int, help='Number of steps to train')
-    parser.add_argument('-steps_per_ckpt', default=kStepsPerCkpt,
-                        type=int, help='Number of steps per checkpoint')
-    parser.add_argument('-steps_per_valid', default=kStepsPerValid,
-                        type=int, help='Number of steps per validation')
-    parser.add_argument('-steps_per_trainval', default=kStepsPerTrainval,
-                        type=int, help='Number of steps per train validation')
-    parser.add_argument('-steps_per_plot', default=kStepsPerPlot,
-                        type=int, help='Number of steps per plot samples')
-    parser.add_argument('-steps_per_log', default=kStepsPerLog,
-                        type=int, help='Number of steps per log')
-    parser.add_argument('-batch_size', default=kBatchSize,
-                        type=int, help='Size of a mini-batch')
-    parser.add_argument('-results', default='../results',
-                        help='Model results folder')
-    parser.add_argument('-logs', default='../results',
-                        help='Training curve logs folder')
-    parser.add_argument('-localhost', default='localhost',
-                        help='Local domain name')
-    parser.add_argument('-restore', default=None,
-                        help='Model save folder to restore from')
-    parser.add_argument('-gpu', default=-1, type=int,
-                        help='GPU ID, default CPU')
-    parser.add_argument('-num_samples_plot', default=10, type=int,
-                        help='Number of samples to plot')
-    parser.add_argument('-save_ckpt', action='store_true',
-                        help='Whether to store checkpoints')
-    parser.add_argument('-no_valid', action='store_true',
-                        help='Use the whole training set.')
+    parser.add_argument('--num_steps', default=500000, type=int)
+    parser.add_argument('--steps_per_ckpt', default=1000, type=int)
+    parser.add_argument('--steps_per_valid', default=250, type=int)
+    parser.add_argument('--steps_per_trainval', default=100, type=int)
+    parser.add_argument('--steps_per_plot', default=50, type=int)
+    parser.add_argument('--steps_per_log', default=20, type=int)
+    parser.add_argument('--batch_size', default=32, type=int)
+    parser.add_argument('--results', default='../results')
+    parser.add_argument('--logs', default='../results')
+    parser.add_argument('--localhost', default='localhost')
+    parser.add_argument('--restore', default=None)
+    parser.add_argument('--gpu', default=-1, type=int)
+    parser.add_argument('--num_samples_plot', default=10, type=int)
+    parser.add_argument('--save_ckpt', action='store_true')
+    parser.add_argument('--no_valid', action='store_true')
 
     pass
 
@@ -147,8 +103,7 @@ def _add_training_args(parser):
 def _parse_args():
     """Parse input arguments."""
 
-    parser = argparse.ArgumentParser(
-        description='Train a box proposal network')
+    parser = argparse.ArgumentParser(description='Train box net')
 
     _add_training_args(parser)
     _add_model_args(parser)
@@ -190,7 +145,6 @@ def _make_model_opt(args):
         'base_learn_rate': 1e-3,
         'learn_rate_decay': args.learn_rate_decay,
         'steps_per_learn_rate_decay': args.steps_per_learn_rate_decay,
-        # 'gt_selector': 'greedy_match',
         'gt_selector': 'greedy',
         'fixed_order': args.fixed_order,
         'pretrain_cnn': args.pretrain_cnn,
@@ -306,7 +260,10 @@ if __name__ == '__main__':
         model_id = ckpt_info['model_id']
         exp_folder = train_opt['restore']
     else:
-        model_id = trainer.get_model_id('ris_box')
+        if train_opt['model_id']:
+            model_id = train_opt['model_id']
+        else:
+            model_id = trainer.get_model_id('ris_box')
         step = 0
         exp_folder = os.path.join(train_opt['results'], model_id)
         saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
@@ -388,17 +345,17 @@ if __name__ == '__main__':
                           m['y_gt']: y, m['s_gt']: s}
             _r = trainer.run_model(sess, m, _outputs, _feed_dict)
 
-            _x = np.expand_dims(_r['x_trans'], 1)
-            _x = np.tile(_x, [1, y.shape[1], 1, 1, 1])
+            _x_tile = np.expand_dims(_r['x_trans'], 1)
+            _x_tile = np.tile(_x_tile, [1, y.shape[1], 1, 1, 1])
 
-            trainer.plot_output(fname_input, _x,
+            trainer.plot_output(fname_input, y_out=_x_tile,
                                 s_out=s,
                                 match=_r['match_box'],
                                 attn=(_r['attn_top_left_gt'],
                                       _r['attn_bot_right_gt']),
                                 max_items_per_row=_max_items)
 
-            trainer.plot_output(fname_output, _x,
+            trainer.plot_output(fname_output, y_out=_x_tile,
                                 s_out=_r['s_out'],
                                 match=_r['match_box'],
                                 attn=(_r['attn_top_left'],

@@ -43,45 +43,18 @@ def get_model(opt, device='/cpu:0'):
 
 
 def _add_dataset_args(parser):
-    # Default dataset options
-    kDataset = 'synth_shape'
-    kHeight = 224
-    kWidth = 224
-
-    # (Below are only valid options for synth_shape dataset)
-    kRadiusLower = 15
-    kRadiusUpper = 45
-    kBorderThickness = 3
-    kNumExamples = 1000
-    kMaxNumObjects = 6
-    kNumObjectTypes = 1
-    kSizeVar = 20
-    kCenterVar = 20
-
     # Dataset options
-    parser.add_argument('-dataset', default=kDataset,
-                        help='Name of the dataset')
-    parser.add_argument('-height', default=kHeight, type=int,
-                        help='Image height')
-    parser.add_argument('-width', default=kWidth, type=int,
-                        help='Image width')
-
-    parser.add_argument('-radius_upper', default=kRadiusUpper, type=int,
-                        help='Radius upper bound')
-    parser.add_argument('-radius_lower', default=kRadiusLower, type=int,
-                        help='Radius lower bound')
-    parser.add_argument('-border_thickness', default=kBorderThickness,
-                        type=int, help='Object border thickness')
-    parser.add_argument('-num_ex', default=kNumExamples, type=int,
-                        help='Number of examples')
-    parser.add_argument('-max_num_objects', default=kMaxNumObjects, type=int,
-                        help='Maximum number of objects')
-    parser.add_argument('-num_object_types', default=kNumObjectTypes, type=int,
-                        help='Number of object types')
-    parser.add_argument('-center_var', default=kCenterVar, type=float,
-                        help='Image patch center variance')
-    parser.add_argument('-size_var', default=kSizeVar, type=float,
-                        help='Image patch size variance')
+    parser.add_argument('-dataset', default='synth_shape')
+    parser.add_argument('-height', default=224, type=int)
+    parser.add_argument('-width', default=224, type=int)
+    parser.add_argument('-radius_upper', default=45, type=int)
+    parser.add_argument('-radius_lower', default=15, type=int)
+    parser.add_argument('-border_thickness', default=3, type=int)
+    parser.add_argument('-num_ex', default=1000, type=int)
+    parser.add_argument('-max_num_objects', default=6, type=int)
+    parser.add_argument('-num_object_types', default=1, type=int)
+    parser.add_argument('-center_var', default=20, type=float)
+    parser.add_argument('-size_var', default=20, type=float)
 
     pass
 
@@ -103,7 +76,6 @@ def _add_model_args(parser):
     kLearnRateDecay = 0.96
     kStepsPerLearnRateDecay = 5000
     kLossMixRatio = 1.0
-    kMlpDropout = 0.5
 
     kNumMlpLayers = 2
     kMlpDepth = 6
@@ -151,223 +123,127 @@ def _add_model_args(parser):
     kNumGlimpseMlpLayers = 2
 
     # Model type
-    parser.add_argument('-model', default='attention',
-                        help='Which model to train')
+    parser.add_argument('--model', default='attention')
 
     # Original model options
-    parser.add_argument('-cnn_filter_size', default=kCnnFilterSize,
-                        help='Comma delimited integers')
-    parser.add_argument('-cnn_depth', default=kCnnDepth,
-                        help='Comma delimited integers')
-    parser.add_argument('-cnn_pool', default=kCnnPool,
-                        help='Comma delimited integers')
-    parser.add_argument('-dcnn_filter_size', default=kDcnnFilterSize,
-                        help='Comma delimited integers')
-    parser.add_argument('-dcnn_depth', default=kDcnnDepth,
-                        help='Comma delimited integers')
-    parser.add_argument('-dcnn_pool', default=kDcnnPool,
-                        help='Comma delimited integers')
-    parser.add_argument('-rnn_type', default=kRnnType, help='RNN type')
-    parser.add_argument('-conv_lstm_filter_size', default=kConvLstmFilterSize,
-                        type=int, help='Conv LSTM filter size')
-    parser.add_argument('-conv_lstm_hid_depth', default=kConvLstmHiddenDepth,
-                        type=int, help='Conv LSTM hidden depth')
-    parser.add_argument('-rnn_hid_dim', default=kRnnHiddenDim,
-                        type=int, help='RNN hidden dimension')
-    parser.add_argument('-score_maxpool', default=kScoreMaxpool, type=int,
-                        help='Max pooling ratio in the scoring function.')
-    parser.add_argument('-num_mlp_layers', default=kNumMlpLayers,
-                        type=int, help='Number of MLP layers')
-    parser.add_argument('-mlp_depth', default=kMlpDepth,
-                        type=int, help='MLP depth')
-    parser.add_argument('-use_deconv', action='store_true',
-                        help='Whether to use deconvolution layer to upsample.')
-    parser.add_argument('-segm_dense_conn', action='store_true',
-                        help='Whether to use dense connection to segment.')
-    parser.add_argument('-add_skip_conn', action='store_true',
-                        help='Whether to add skip connection in the DCNN.')
-    parser.add_argument('-score_use_core', action='store_true',
-                        help='Use core MLP network to predict score.')
+    parser.add_argument('--cnn_filter_size', default=kCnnFilterSize)
+    parser.add_argument('--cnn_depth', default=kCnnDepth)
+    parser.add_argument('--cnn_pool', default=kCnnPool)
+    parser.add_argument('--dcnn_filter_size', default=kDcnnFilterSize)
+    parser.add_argument('--dcnn_depth', default=kDcnnDepth)
+    parser.add_argument('--dcnn_pool', default=kDcnnPool)
+    parser.add_argument('--rnn_type', default=kRnnType)
+    parser.add_argument('--conv_lstm_filter_size', default=kConvLstmFilterSize)
+    parser.add_argument('--conv_lstm_hid_depth', default=kConvLstmHiddenDepth)
+    parser.add_argument('--rnn_hid_dim', default=kRnnHiddenDim)
+    parser.add_argument('--score_maxpool', default=kScoreMaxpool, type=int)
+    parser.add_argument('--num_mlp_layers', default=kNumMlpLayers, type=int)
+    parser.add_argument('--mlp_depth', default=kMlpDepth, type=int)
+    parser.add_argument('--use_deconv', action='store_true')
+    parser.add_argument('--segm_dense_conn', action='store_true')
+    parser.add_argument('--add_skip_conn', action='store_true')
+    parser.add_argument('--score_use_core', action='store_true')
 
     # Shared options
-    parser.add_argument('-padding', default=kPadding, type=int,
+    parser.add_argument('--padding', default=kPadding, type=int,
                         help='Apply additional padding for random cropping')
-    parser.add_argument('-weight_decay', default=kWeightDecay, type=float,
-                        help='Weight L2 regularization')
-    parser.add_argument('-base_learn_rate', default=kBaseLearnRate,
-                        type=float, help='Model learning rate')
-    parser.add_argument('-learn_rate_decay', default=kLearnRateDecay,
-                        type=float, help='Model learning rate decay')
-    parser.add_argument('-steps_per_learn_rate_decay',
-                        default=kStepsPerLearnRateDecay, type=int,
-                        help='Steps every learning rate decay')
-    parser.add_argument('-loss_mix_ratio', default=kLossMixRatio, type=float,
-                        help='Mix ratio between segmentation and score loss')
-    parser.add_argument('-segm_loss_fn', default='iou',
-                        help=('Segmentation loss function, "iou", "wt_iou", '
-                              '"wt_cov", or "bce"'))
-    parser.add_argument('-mlp_dropout', default=kMlpDropout,
-                        type=float, help='MLP dropout')
-    parser.add_argument('-use_bn', action='store_true',
-                        help='Whether to use batch normalization.')
-    parser.add_argument('-no_cum_min', action='store_true',
-                        help='Whether cumulative minimum. Default yes.')
-    parser.add_argument('-fixed_order', action='store_true',
-                        help='Fix the groundtruth order.')
+    parser.add_argument('--weight_decay', default=kWeightDecay, type=float)
+    parser.add_argument('--base_learn_rate', default=kBaseLearnRate)
+    parser.add_argument('--learn_rate_decay',
+                        default=kLearnRateDecay, type=float)
+    parser.add_argument('--steps_per_learn_rate_decay',
+                        default=kStepsPerLearnRateDecay, type=int)
+    parser.add_argument('--loss_mix_ratio', default=kLossMixRatio, type=float)
+    parser.add_argument('--segm_loss_fn', default='iou')
+    parser.add_argument('--mlp_dropout', default=None, type=float)
+    parser.add_argument('--use_bn', action='store_true')
+    parser.add_argument('--no_cum_min', action='store_true')
+    parser.add_argument('--fixed_order', action='store_true')
 
     # Attention-based model options
-    parser.add_argument('-filter_height', default=kFilterHeight, type=int,
-                        help='Attention filter width')
-    parser.add_argument('-filter_width', default=kFilterWidth, type=int,
-                        help='Attention filter size')
-    parser.add_argument('-ctrl_cnn_filter_size', default=kCtrlCnnFilterSize,
-                        help='Comma delimited integers')
-    parser.add_argument('-ctrl_cnn_depth', default=kCtrlCnnDepth,
-                        help='Comma delimited integers')
-    parser.add_argument('-ctrl_cnn_pool', default=kCtrlCnnPool,
-                        help='Comma delimited integers')
-    parser.add_argument('-attn_cnn_filter_size', default=kAttnCnnFilterSize,
-                        help='Comma delimited integers')
-    parser.add_argument('-attn_cnn_depth', default=kAttnCnnDepth,
-                        help='Comma delimited integers')
-    parser.add_argument('-attn_cnn_pool', default=kAttnCnnPool,
-                        help='Comma delimited integers')
-    parser.add_argument('-attn_dcnn_filter_size', default=kAttnDcnnFilterSize,
-                        help='Comma delimited integers')
-    parser.add_argument('-attn_dcnn_depth', default=kAttnDcnnDepth,
-                        help='Comma delimited integers')
-    parser.add_argument('-attn_dcnn_pool', default=kAttnDcnnPool,
-                        help='Comma delimited integers')
-    parser.add_argument('-ctrl_rnn_hid_dim', default=kCtrlRnnHiddenDim,
-                        type=int, help='RNN hidden dimension')
-    parser.add_argument('-attn_rnn_hid_dim', default=kAttnRnnHiddenDim,
-                        type=int, help='RNN hidden dimension')
-    parser.add_argument('-num_ctrl_mlp_layers', default=kNumCtrlMlpLayers,
-                        type=int, help='Number of controller MLP layers')
-    parser.add_argument('-ctrl_mlp_dim', default=kCtrlMlpDim,
-                        type=int, help='Controller MLP dimension')
-    parser.add_argument('-num_attn_mlp_layers', default=kNumAttnMlpLayers,
-                        type=int, help='Number of attention MLP layers')
-    parser.add_argument('-attn_mlp_depth', default=kAttnMlpDepth,
-                        type=int, help='Attention MLP depth')
-    parser.add_argument('-box_loss_fn', default='iou',
-                        help='Box loss function, "iou" or "bce"')
-    parser.add_argument('-use_gt_attn', action='store_true',
-                        help='Whether to use ground truth attention.')
-    parser.add_argument('-attn_box_padding_ratio',
-                        default=kAttnBoxPaddingRatio, type=float,
-                        help='Padding ratio of attention box')
-    parser.add_argument('-use_attn_rnn', action='store_true',
-                        help='Whether to use an inner RNN.')
-    parser.add_argument('-use_canvas', action='store_true',
-                        help='Whether to use a canvas to store.')
-    parser.add_argument('-use_knob', action='store_true',
-                        help='Whether to use a knob.')
-    parser.add_argument('-knob_decay', default=kKnobDecay, type=float,
-                        help='Knob decay factor.')
-    parser.add_argument('-steps_per_knob_decay', default=kStepsPerKnobDecay,
-                        type=int, help='Number of steps to decay knob.')
-    parser.add_argument('-knob_base', default=kKnobBase, type=float,
-                        help='Knob start rate.')
-    parser.add_argument('-knob_box_offset', default=kKnobBoxOffset, type=int,
-                        help='Number of steps when it starts to decay.')
-    parser.add_argument('-knob_segm_offset', default=kKnobSegmOffset, type=int,
-                        help='Number of steps when it starts to decay.')
-    parser.add_argument('-knob_use_timescale', action='store_true',
-                        help='Use time scale curriculum.')
-    parser.add_argument('-gt_selector', default=kGtSelector,
-                        help='greedy_match or argmax')
-    parser.add_argument('-gt_box_ctr_noise', default=kGtBoxCtrNoise,
-                        type=float, help='Groundtruth box center noise')
-    parser.add_argument('-gt_box_pad_noise', default=kGtBoxPadNoise,
-                        type=float, help='Groundtruth box padding noise')
-    parser.add_argument('-gt_segm_noise', default=kGtSegmNoise,
-                        type=float, help='Groundtruth segmentation noise')
-    parser.add_argument('-downsample_canvas', action='store_true',
-                        help='Whether downsample canvas to feed to Ctrl RNN')
-    # parser.add_argument('-pretrain_cnn', default=None,
-    #                     help='Use pre-trained segmentation CNN')
-    parser.add_argument('-cnn_share_weights', action='store_true',
-                        help='Whether to share weights between CCNN and ACNN')
-    parser.add_argument('-use_iou_box', action='store_true',
-                        help='Whether to use box to calculate IoU')
-    parser.add_argument('-clip_gradient', default=kClipGradient, type=float,
-                        help='Largest gradient norm size')
-    parser.add_argument('-squash_ctrl_params', action='store_true',
-                        help='Whether to squash control parameters.')
-    parser.add_argument('-fixed_gamma', action='store_true',
-                        help='Fix the value of gamma.')
-    parser.add_argument('-pretrain_ctrl_net', default=None,
-                        help='Use pre-trained controller network')
-    parser.add_argument('-pretrain_attn_net', default=None,
-                        help='Use pre-trained attention network')
-    parser.add_argument('-pretrain_net', default=None,
-                        help='Use pre-trained entire network')
-    # parser.add_argument('-freeze_pretrain_net', action='store_true',
-    #                     help='Freeze the pretrained part of the network')
-    parser.add_argument('-freeze_ctrl_net', action='store_true',
-                        help='Freeze the pretrained part of the network')
-    parser.add_argument('-freeze_attn_net', action='store_true',
-                        help='Freeze the pretrained part of the network')
+    parser.add_argument('--filter_height', default=kFilterHeight, type=int)
+    parser.add_argument('--filter_width', default=kFilterWidth, type=int)
+    parser.add_argument('--ctrl_cnn_filter_size', default=kCtrlCnnFilterSize)
+    parser.add_argument('--ctrl_cnn_depth', default=kCtrlCnnDepth)
+    parser.add_argument('--ctrl_cnn_pool', default=kCtrlCnnPool)
+    parser.add_argument('--attn_cnn_filter_size', default=kAttnCnnFilterSize)
+    parser.add_argument('--attn_cnn_depth', default=kAttnCnnDepth)
+    parser.add_argument('--attn_cnn_pool', default=kAttnCnnPool)
+    parser.add_argument('--attn_dcnn_filter_size', default=kAttnDcnnFilterSize)
+    parser.add_argument('--attn_dcnn_depth', default=kAttnDcnnDepth)
+    parser.add_argument('--attn_dcnn_pool', default=kAttnDcnnPool)
+    parser.add_argument('--ctrl_rnn_hid_dim',
+                        default=kCtrlRnnHiddenDim, type=int)
+    parser.add_argument('--attn_rnn_hid_dim',
+                        default=kAttnRnnHiddenDim, type=int)
+    parser.add_argument('--num_ctrl_mlp_layers',
+                        default=kNumCtrlMlpLayers, type=int)
+    parser.add_argument('--ctrl_mlp_dim', default=kCtrlMlpDim, type=int)
+    parser.add_argument('--num_attn_mlp_layers',
+                        default=kNumAttnMlpLayers, type=int)
+    parser.add_argument('--attn_mlp_depth', default=kAttnMlpDepth, type=int)
+    parser.add_argument('--box_loss_fn', default='iou')
+    parser.add_argument('--use_gt_attn', action='store_true')
+    parser.add_argument('--attn_box_padding_ratio',
+                        default=kAttnBoxPaddingRatio, type=float)
+    parser.add_argument('--use_attn_rnn', action='store_true')
+    parser.add_argument('--use_canvas', action='store_true')
+    parser.add_argument('--use_knob', action='store_true')
+    parser.add_argument('--knob_decay', default=kKnobDecay, type=float)
+    parser.add_argument('--steps_per_knob_decay', default=kStepsPerKnobDecay)
+    parser.add_argument('--knob_base', default=kKnobBase, type=float)
+    parser.add_argument('--knob_box_offset', default=kKnobBoxOffset, type=int)
+    parser.add_argument('--knob_segm_offset',
+                        default=kKnobSegmOffset, type=int)
+    parser.add_argument('--knob_use_timescale', action='store_true')
+    parser.add_argument('--gt_selector', default=kGtSelector)
+    parser.add_argument('--gt_box_ctr_noise', default=kGtBoxCtrNoise)
+    parser.add_argument('--gt_box_pad_noise', default=kGtBoxPadNoise)
+    parser.add_argument('--gt_segm_noise', default=kGtSegmNoise)
+    parser.add_argument('--downsample_canvas', action='store_true')
+    parser.add_argument('--cnn_share_weights', action='store_true')
+    parser.add_argument('--use_iou_box', action='store_true')
+    parser.add_argument('--clip_gradient', default=kClipGradient, type=float)
+    parser.add_argument('--squash_ctrl_params', action='store_true')
+    parser.add_argument('--fixed_gamma', action='store_true')
+    parser.add_argument('--pretrain_ctrl_net', default=None)
+    parser.add_argument('--pretrain_attn_net', default=None)
+    parser.add_argument('--pretrain_net', default=None)
+    parser.add_argument('--freeze_ctrl_net', action='store_true')
+    parser.add_argument('--freeze_attn_net', action='store_true')
 
     # Double attention arguments
-    parser.add_argument('-ctrl_rnn_inp_struct', default=kCtrlRnnInpStruct,
-                        help='Dense or attn')
-    parser.add_argument('-num_ctrl_rnn_iter', default=kNumCtrlRNNIter,
-                        type=int, help='Number of control RNN iterations')
-    parser.add_argument('-num_glimpse_mlp_layers', default=kNumGlimpseMlpLayers,
-                        type=int, help='Number of glimpse MLP layers')
+    parser.add_argument('--ctrl_rnn_inp_struct', default=kCtrlRnnInpStruct)
+    parser.add_argument('--num_ctrl_rnn_iter',
+                        default=kNumCtrlRNNIter, type=int)
+    parser.add_argument('--num_glimpse_mlp_layers',
+                        default=kNumGlimpseMlpLayers, type=int)
+
     pass
 
 
 def _add_training_args(parser):
-    # Default training options
-    kNumSteps = 500000
-    kStepsPerCkpt = 1000
-    kStepsPerValid = 250
-    kStepsPerTrainval = 100
-    kStepsPerPlot = 50
-    kStepsPerLog = 20
-    kBatchSize = 32
-
     # Training options
-    parser.add_argument('-num_steps', default=kNumSteps,
-                        type=int, help='Number of steps to train')
-    parser.add_argument('-steps_per_ckpt', default=kStepsPerCkpt,
-                        type=int, help='Number of steps per checkpoint')
-    parser.add_argument('-steps_per_valid', default=kStepsPerValid,
-                        type=int, help='Number of steps per validation')
-    parser.add_argument('-steps_per_trainval', default=kStepsPerTrainval,
-                        type=int, help='Number of steps per train validation')
-    parser.add_argument('-steps_per_plot', default=kStepsPerPlot,
-                        type=int, help='Number of steps per plot samples')
-    parser.add_argument('-steps_per_log', default=kStepsPerLog,
-                        type=int, help='Number of steps per log')
-    parser.add_argument('-batch_size', default=kBatchSize,
-                        type=int, help='Size of a mini-batch')
-    parser.add_argument('-results', default='../results',
-                        help='Model results folder')
-    parser.add_argument('-logs', default='../results',
-                        help='Training curve logs folder')
-    parser.add_argument('-localhost', default='localhost',
-                        help='Local domain name')
-    parser.add_argument('-restore', default=None,
-                        help='Model save folder to restore from')
-    parser.add_argument('-gpu', default=-1, type=int,
-                        help='GPU ID, default CPU')
-    parser.add_argument('-num_samples_plot', default=10, type=int,
-                        help='Number of samples to plot')
-    parser.add_argument('-save_ckpt', action='store_true',
-                        help='Whether to store checkpoints')
-    parser.add_argument('-debug_bn', action='store_true',
-                        help='Write out logs on batch normalization')
-    parser.add_argument('-debug_act', action='store_true',
-                        help='Write out logs on conv layer activation')
-    parser.add_argument('-no_valid', action='store_true',
-                        help='Use the whole training set.')
-    parser.add_argument('-debug_weights', action='store_true',
-                        help='Plot the weights')
-    parser.add_argument('-debug_nan', action='store_true', help='Debug NaN')
+    parser.add_argument('--num_steps', default=500000, type=int)
+    parser.add_argument('--steps_per_ckpt', default=1000, type=int)
+    parser.add_argument('--steps_per_valid', default=250, type=int)
+    parser.add_argument('--steps_per_trainval', default=100, type=int)
+    parser.add_argument('--steps_per_plot', default=50, type=int)
+    parser.add_argument('--steps_per_log', default=20, type=int)
+    parser.add_argument('--batch_size', default=32, type=int)
+    parser.add_argument('--results', default='../results')
+    parser.add_argument('--logs', default='../results')
+    parser.add_argument('--localhost', default='localhost')
+    parser.add_argument('--restore', default=None)
+    parser.add_argument('--gpu', default=-1, type=int)
+    parser.add_argument('--num_samples_plot', default=10, type=int)
+    parser.add_argument('--save_ckpt', action='store_true')
+    parser.add_argument('--debug_bn', action='store_true')
+    parser.add_argument('--debug_act', action='store_true')
+    parser.add_argument('--no_valid', action='store_true')
+    parser.add_argument('--debug_weights', action='store_true')
+    parser.add_argument('--debug_nan', action='store_true')
+    parser.add_argument('--model_id', default=None)
 
     pass
 
@@ -614,7 +490,8 @@ def _make_train_opt(args):
         'gpu': args.gpu,
         'localhost': args.localhost,
         'debug_weights': args.debug_weights,
-        'debug_nan': args.debug_nan
+        'debug_nan': args.debug_nan,
+        'model_id': args.model_id
     }
 
     return train_opt
@@ -819,7 +696,10 @@ if __name__ == '__main__':
         model_opt['freeze_attn_net'] = model_opt_read['freeze_attn_net']
         model_opt['freeze_ctrl_net'] = model_opt_read['freeze_ctrl_net']
     else:
-        model_id = trainer.get_model_id('rec_ins_segm')
+        if train_opt['model_id']:
+            model_id = train_opt['model_id']
+        else:
+            model_id = trainer.get_model_id('ris')
         model_opt = model_opt_read
         step = 0
         exp_folder = os.path.join(train_opt['results'], model_id)
@@ -938,6 +818,9 @@ if __name__ == '__main__':
                                y_gt=_r['y_gt_trans'], s_gt=s,
                                max_items_per_row=_max_items)
 
+            _x_tile = np.expand_dims(_r['x_trans'], 1)
+            _x_tile = np.tile(_x_tile, [1, y.shape[1], 1, 1, 1])
+
             if attn:
                 trainer.plot_output(fname_output, y_out=_r['y_out'],
                                     s_out=_r['s_out'],
@@ -957,7 +840,8 @@ if __name__ == '__main__':
                                              max_items_per_row=_max_items)
 
             if fname_box:
-                trainer.plot_output(fname_box, y_out=_r['attn_box'], s_out=_r['s_out'],
+                trainer.plot_output(fname_box, y_out=_x_tile,
+                                    s_out=_r['s_out'],
                                     match=_r['match_box'],
                                     attn=(_r['attn_top_left'],
                                           _r['attn_bot_right']),
@@ -988,7 +872,7 @@ if __name__ == '__main__':
                                        max_items_per_row=8)
 
             if fname_attn:
-                trainer.plot_double_attention(fname_attn, _x,
+                trainer.plot_double_attention(fname_attn, _r['x_trans'],
                                               _r['ctrl_rnn_glimpse_map'],
                                               max_items_per_row=_max_items)
             pass
