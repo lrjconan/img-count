@@ -84,11 +84,11 @@ def run_inference(sess, m, dataset, phase_train):
 
     for x, y, s in batch_iter:
         r = sess.run(output_list, feed_dict={
-                     m['x']: x, 
-                     m['y_gt']: y, 
-                     # m['s_gt']: s, 
+                     m['x']: x,
+                     m['y_gt']: y,
+                     # m['s_gt']: s,
                      m['phase_train']: phase_train}
-        )
+                     )
         _y_out = r[0]
         _s_out = r[1]
         bat_sz = _y_out.shape[0]
@@ -111,9 +111,27 @@ def run_inference(sess, m, dataset, phase_train):
     }
 
 
+def best_dice(a, b):
+    bd = np.zeros(a.shape[0], a.shape[1])
+
+    for ii in xrange(a.shape[1]):
+        segm = a[:, ii: ii + 1, :, :]
+        card_a = a.sum(axis=3).sum(axis=2)
+        card_b = b.sum(axis=3).sum(axis=2)
+        card_ab = (a * b).sum(axis=3).sum(axis=2)
+        dice = card_ab / (card_a + card_b)
+        bd[:, ii] = dice.max(axis=1)
+
+    return bd.mean(axis=1)
+
+
 def symmetric_best_dice(y_out, y_gt):
-    
-    pass
+    # num_ex = y_out.shape[0]
+    num_obj = y_gt.shape[1]
+    bd1 = best_dice(y_out, y_gt)
+    bd2 = best_dice(y_gt, y_out)
+
+    return np.minimum(bd1, bd2)
 
 
 def coverage(y_out, y_gt, weights=None):
@@ -131,7 +149,7 @@ def build_matching():
 def run_eval(y_out, y_gt, s_out, s_gt):
     s_mask = np.reshape(s_out, [-1, s_out.shape[1], 1, 1])
     y_out = y_out * s_mask
-    y_out_max = y_out.max(axis=1, keep_dims=True)
+    y_out_max = y_out.amax(axis=1, keep_dims=True)
     y_out_hard = (y_out == y_out_max).astype('float')
     count_out = s_out.sum(axis=1)
     count_gt = s_gt.sum(axis=1)
@@ -139,6 +157,8 @@ def run_eval(y_out, y_gt, s_out, s_gt):
     count_acc = (count_out == count_gt).astype('float').mean()
     dic = (count - count_gt).mean()
     dic_abs = np.abs(count - count_gt).mean()
+    sbd = symmetric_best_dice(y_out, y_gt).mean()
+    log.info('{:10s}{:.4f}'.format('SBD', sbd))
     log.info('{:10s}{:.4f}'.format('Count Acc', count_acc))
     log.info('{:10s}{:.4f}'.format('DiC', dic))
     log.info('{:10s}{:.4f}'.format('|DiC|', dic_abs))
