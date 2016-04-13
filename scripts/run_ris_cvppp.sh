@@ -90,10 +90,12 @@ NUM_ITER_FINETUNE_TOTAL="1"
 MODEL_ID=$(python src/assign_model_id.py)
 PATCH_MODEL_ID="ris_patch-"$MODEL_ID
 BOX_MODEL_ID="ris_box-"$MODEL_ID
-FINETUNE_MODEL_ID="ris-"$MODEL_ID
+FINETUNE_PATCH_MODEL_ID="ris_ft0-"$MODEL_ID
+FINETUNE_TOTAL_MODEL_ID="ris_ft1-"$MODEL_ID
 echo $PATCH_MODEL_ID
 echo $BOX_MODEL_ID
-echo $FINETUNE_MODEL_ID
+echo $FINETUNE_PATCH_MODEL_ID
+echo $FINETUNE_TOTAL_MODEL_ID
 
 ###############################################################################
 # Stage 1
@@ -124,6 +126,7 @@ python src/ris_patch.py \
 --filter_width $FILTER_WIDTH \
 --segm_loss_fn $SEGM_LOSS_FN \
 --save_ckpt \
+--base_learn_rate $BASE_LEARN_RATE_STAGE1 \
 --batch_size $BATCH_SIZE \
 --fixed_order \
 --num_steps $NUM_ITER_PATCH \
@@ -163,6 +166,7 @@ python src/ris_box.py \
 --batch_size $BATCH_SIZE \
 --ctrl_rnn_inp_struct $CTRL_RNN_INP_STRUCT \
 --save_ckpt \
+--base_learn_rate $BASE_LEARN_RATE_STAGE2 \
 --num_steps $NUM_ITER_BOX \
 --model_id $BOX_MODEL_ID
 
@@ -222,8 +226,19 @@ python src/ris.py \
 --pretrain_attn_net $PATCH_WEIGHTS \
 --batch_size $BATCH_SIZE \
 --save_ckpt \
+--base_learn_rate $BASE_LEARN_RATE_STAGE3 \
 --num_steps $NUM_ITER_FINETUNE_PATCH \
---model_id $FINETUNE_MODEL_ID
+--model_id $FINETUNE_PATCH_MODEL_ID
+
+###############################################################################
+# Stage 3.5
+###############################################################################
+echo "Reading weights from stage 3"
+FINETUNE_PATCH_WEIGHTS=$SAVE_FOLDER/$FINETUNE_PATCH_MODEL_ID/weights.h5
+python src/ris_box_reader.py \
+--model_id $FINETUNE_PATCH_MODEL_ID \
+--results $SAVE_FOLDER \
+--output $FINETUNE_PATCH_WEIGHTS
 
 ###############################################################################
 # Stage 4
@@ -265,12 +280,13 @@ python src/ris.py \
 --filter_height $FILTER_HEIGHT \
 --filter_width $FILTER_WIDTH \
 --fixed_gamma \
---restore $SAVE_FOLDER/$FINETUNE_MODEL_ID \
+--pretrain_net $FINETUNE_PATCH_WEIGHTS \
+--freeze_ctrl_cnn \
 --batch_size $BATCH_SIZE \
 --save_ckpt \
 --base_learn_rate $BASE_LEARN_RATE_STAGE4 \
 --num_steps $NUM_ITER_FINETUNE_TOTAL \
---model_id $FINETUNE_MODEL_ID
+--model_id $FINETUNE_TOTAL_MODEL_ID
 
 ###############################################################################
 # Stage 5
@@ -278,5 +294,5 @@ python src/ris.py \
 echo "Running evaluation"
 python src/ris_eval.py \
 --dataset $DATASET \
---model_id $FINETUNE_MODEL_ID \
+--model_id $FINETUNE_TOTAL_MODEL_ID \
 --results $SAVE_FOLDER
