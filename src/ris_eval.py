@@ -84,7 +84,6 @@ def run_inference(sess, m, dataset, phase_train):
     count = 0
 
     for x, y, s in batch_iter:
-        print range(count, count + bat_sz)
         r = sess.run(output_list, feed_dict={
                      m['x']: x,
                      m['y_gt']: y,
@@ -104,6 +103,8 @@ def run_inference(sess, m, dataset, phase_train):
         s_gt[count: count + bat_sz] = s
         y_out[count: count + bat_sz] = _y_out
         s_out[count: count + bat_sz] = _s_out
+
+        count += bat_sz
 
     return {
         'y_gt': y_gt,
