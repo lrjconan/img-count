@@ -38,7 +38,6 @@ def add_model_args(parser):
     parser.add_argument('--ctrl_rnn_hid_dim', default=256, type=int)
     parser.add_argument('--num_ctrl_mlp_layers', default=2, type=int)
     parser.add_argument('--ctrl_mlp_dim', default=256, type=int)
-    parser.add_argument('--use_iou_box', action='store_true')
     parser.add_argument('--base_learn_rate', default=0.001, type=float)
     parser.add_argument('--learn_rate_decay', default=0.96, type=float)
     parser.add_argument('--steps_per_learn_rate_decay', default=5000, type=int)
@@ -81,10 +80,8 @@ def make_model_opt(args):
         'base_learn_rate': args.base_learn_rate,
         'learn_rate_decay': args.learn_rate_decay,
         'steps_per_learn_rate_decay': args.steps_per_learn_rate_decay,
-        'gt_selector': 'greedy',
         'fixed_order': args.fixed_order,
         'pretrain_cnn': args.pretrain_cnn,
-        'use_iou_box': args.use_iou_box,
         'squash_ctrl_params': args.squash_ctrl_params,
         'ctrl_rnn_inp_struct': args.ctrl_rnn_inp_struct,
         'num_ctrl_rnn_iter': args.num_ctrl_rnn_iter,

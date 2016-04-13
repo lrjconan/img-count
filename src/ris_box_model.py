@@ -42,9 +42,7 @@ def get_model(opt, device='/cpu:0'):
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
     steps_per_learn_rate_decay = opt['steps_per_learn_rate_decay']
-    gt_selector = opt['gt_selector']
     pretrain_cnn = opt['pretrain_cnn']
-    use_iou_box = opt['use_iou_box']
     squash_ctrl_params = opt['squash_ctrl_params']
     fixed_order = opt['fixed_order']
 
