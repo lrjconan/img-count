@@ -83,8 +83,6 @@ def batch_norm(x, n_out, phase_train, scope='bn', scope2='bn', affine=True, init
             [n_out], init_val=init_beta, name='beta', trainable=trainable)
         gamma = weight_variable(
             [n_out], init_val=init_gamma, name='gamma', trainable=trainable)
-        print beta.name
-        print gamma.name
 
         batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2], name='moments')
         # batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2])
@@ -238,8 +236,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                     b[ii] = weight_variable([ch[ii + 1]], init_val=init_val_b,
                                             name='b',
                                             trainable=trainable)
-
-                    print w[ii].name
+                    
                 log.info('Filter: {}, Trainable: {}'.format(
                     [f[ii], f[ii], ch[ii], ch[ii + 1]], trainable))
 
@@ -292,7 +289,6 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                             init_beta=init_beta,
                             init_gamma=init_gamma,
                             model=model)
-                        print bm.name
 
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \

@@ -84,6 +84,7 @@ def run_inference(sess, m, dataset, phase_train):
     count = 0
 
     for x, y, s in batch_iter:
+        print arange(count, count + bat_sz)
         r = sess.run(output_list, feed_dict={
                      m['x']: x,
                      m['y_gt']: y,
@@ -120,7 +121,7 @@ def best_dice(a, b, num_obj):
         card_a = a.sum(axis=3).sum(axis=2)
         card_b = b.sum(axis=3).sum(axis=2)
         card_ab = (a * b).sum(axis=3).sum(axis=2)
-        dice = card_ab / (card_a + card_b + 1e-5)
+        dice = 2 * card_ab / (card_a + card_b + 1e-5)
         bd[:, ii] = dice.max(axis=1)
 
     return bd.sum(axis=1) / num_obj
@@ -131,6 +132,8 @@ def symmetric_best_dice(y_out, y_gt, num_obj):
     num_obj = y_gt.shape[1]
     bd1 = best_dice(y_out, y_gt, num_obj)
     bd2 = best_dice(y_gt, y_out, num_obj)
+    print 'bd1', bd1
+    print 'bd2', bd2
 
     return np.minimum(bd1, bd2)
 
@@ -143,6 +146,7 @@ def coverage(y_out, y_gt, num_obj, weighted=False):
         cov[:, ii] = iou_ii.max(axis=1)
 
     if weighted:
+        print y_gt.shape
         print y_gt.sum(axis=3).sum(axis=2).sum(axis=1)
         weights = y_gt.sum(axis=3).sum(axis=2) / \
             y_gt.sum(axis=3).sum(axis=2).sum(axis=1, keepdims=True)
@@ -241,8 +245,8 @@ if __name__ == '__main__':
     res = run_inference(sess, model, dataset['train'], False)
     run_eval(res['y_out'], res['y_gt'], res['s_out'], res['s_gt'])
 
-    log.info('Running validation set')
-    res = run_inference(sess, model, dataset['valid'], False)
-    run_eval(res['y_out'], res['y_gt'], res['s_out'], res['s_gt'])
+    # log.info('Running validation set')
+    # res = run_inference(sess, model, dataset['valid'], False)
+    # run_eval(res['y_out'], res['y_gt'], res['s_out'], res['s_gt'])
 
     pass
