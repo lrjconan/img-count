@@ -81,7 +81,7 @@ def run_inference(sess, m, dataset, phase_train):
     y_gt = None
     s_gt = None
     count = 0
-    
+
     m = None
     m = {
         'x': tf.get_variable('x'),
@@ -102,7 +102,7 @@ def run_inference(sess, m, dataset, phase_train):
                 [num_ex, _y_out.shape[1], _y_out.shape[2], _y_out.shape[3]])
             y_gt = np.zeros(y_out.shape)
             s_out = np.zeros([num_ex, _y_out.shape[1]])
-            s_gt = np.zeros(s_gt.shape)
+            s_gt = np.zeros(s_out.shape)
         y_gt[count: count + bat_sz] = y
         s_gt[count: count + bat_sz] = s
         y_out[count: count + bat_sz] = _y_out
