@@ -85,7 +85,6 @@ def batch_norm(x, n_out, phase_train, scope='bn', scope2='bn', affine=True, init
             [n_out], init_val=init_gamma, name='gamma', trainable=trainable)
 
         batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2], name='moments')
-        # batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2])
         batch_mean.set_shape([n_out])
         batch_var.set_shape([n_out])
 

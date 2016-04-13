@@ -1,5 +1,6 @@
 import cslab_environ
 
+import argparse
 import tensorflow as tf
 
 from utils import logger
@@ -80,7 +81,27 @@ def save(fname, folder):
 
     pass
 
+
+def parse_args():
+    """Parse input arguments."""
+    parser = argparse.ArgumentParser(
+        description='Recurrent Instance Segmentation + Attention')
+
+    parser.add_argument('--model_id', default=None)
+    parser.add_argument(
+        '--results', default='/ais/gobi3/u/mren/results/img-count')
+    parser.add_argument(
+        '--output', default=None)
+
+    args = parser.parse_args()
+
+    return args
+
 if __name__ == '__main__':
-    model_id = sys.argv[1]
-    save('/ais/gobi3/u/mren/results/img-count/{}/weights.h5'.format(model_id),
-         '/ais/gobi3/u/mren/results/img-count/{}'.format(model_id))
+    args = parse_args()
+    exp_folder = os.path.join(args.results, args.model_id)
+    if args.output is None:
+        output = os.path.join(exp_folder, 'weights.h5')
+    else:
+        output = args.output
+    save(output, exp_folder)

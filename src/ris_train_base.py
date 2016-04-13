@@ -21,6 +21,8 @@ from data_api import synth_shape
 from utils import logger
 from utils import plot_utils as pu
 
+import assign_model_id
+
 log = logger.get()
 
 
@@ -209,7 +211,7 @@ def plot_output(fname, y_out, s_out, match, attn=None, max_items_per_row=9):
                     attn_bot_right_x[ii, jj] - attn_top_left_x[ii, jj],
                     attn_bot_right_y[ii, jj] - attn_top_left_y[ii, jj],
                     fill=False,
-                    color='g'))
+                    color='r'))
 
     plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=150)
@@ -404,12 +406,7 @@ def get_num_batch_valid(dataset_name):
 
 
 def get_model_id(task_name):
-    time_obj = datetime.datetime.now()
-    model_id = timestr = '{}-{:04d}{:02d}{:02d}{:02d}{:02d}{:02d}'.format(
-        task_name, time_obj.year, time_obj.month, time_obj.day,
-        time_obj.hour, time_obj.minute, time_obj.second)
-
-    return model_id
+    return '{}-{}'.format(task_name, assign_model_id.get_id())
 
 
 def sort_by_segm_size(y):

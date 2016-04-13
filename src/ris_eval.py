@@ -35,7 +35,7 @@ def parse_args():
         description='Recurrent Instance Segmentation + Attention')
 
     parser.add_argument('--dataset', default='cvppp')
-    parser.add_argument('--model', default=None)
+    parser.add_argument('--model_id', default=None)
     parser.add_argument(
         '--results', default='/ais/gobi3/u/mren/results/img-count')
 
@@ -49,7 +49,7 @@ if __name__ == '__main__':
     tf.set_random_seed(1234)
     saver = None
 
-    model_folder = os.path.join(args.results, args.model)
+    model_folder = os.path.join(args.results, args.model_id)
 
     log.info('Folder: {}'.format(model_folder))
 

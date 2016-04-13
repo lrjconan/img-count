@@ -34,7 +34,6 @@ def _add_dataset_args(parser):
     kDataset = 'synth_shape'
     kHeight = 224
     kWidth = 224
-    kPadding = 16
 
     # (Below are only valid options for synth_shape dataset)
     kRadiusLower = 15
@@ -47,31 +46,19 @@ def _add_dataset_args(parser):
     kCenterVar = 20
 
     # Dataset options
-    parser.add_argument('-dataset', default=kDataset,
-                        help='Name of the dataset')
-    parser.add_argument('-height', default=kHeight, type=int,
-                        help='Image height')
-    parser.add_argument('-width', default=kWidth, type=int,
-                        help='Image width')
-    parser.add_argument('-padding', default=kPadding, type=int,
-                        help='Apply additional padding for random cropping')
+    parser.add_argument('--dataset', default=kDataset)
+    parser.add_argument('--height', default=kHeight, type=int)
+    parser.add_argument('--width', default=kWidth, type=int)
 
-    parser.add_argument('-radius_upper', default=kRadiusUpper, type=int,
-                        help='Radius upper bound')
-    parser.add_argument('-radius_lower', default=kRadiusLower, type=int,
-                        help='Radius lower bound')
-    parser.add_argument('-border_thickness', default=kBorderThickness,
-                        type=int, help='Object border thickness')
-    parser.add_argument('-num_ex', default=kNumExamples, type=int,
-                        help='Number of examples')
-    parser.add_argument('-max_num_objects', default=kMaxNumObjects, type=int,
-                        help='Maximum number of objects')
-    parser.add_argument('-num_object_types', default=kNumObjectTypes, type=int,
-                        help='Number of object types')
-    parser.add_argument('-center_var', default=kCenterVar, type=float,
-                        help='Image patch center variance')
-    parser.add_argument('-size_var', default=kSizeVar, type=float,
-                        help='Image patch size variance')
+    parser.add_argument('--radius_upper', default=kRadiusUpper, type=int)
+    parser.add_argument('--radius_lower', default=kRadiusLower, type=int)
+    parser.add_argument('--border_thickness', default=kBorderThickness)
+    parser.add_argument('--num_ex', default=kNumExamples, type=int)
+    parser.add_argument('--max_num_objects', default=kMaxNumObjects, type=int)
+    parser.add_argument('--num_object_types',
+                        default=kNumObjectTypes, type=int)
+    parser.add_argument('--center_var', default=kCenterVar, type=float)
+    parser.add_argument('--size_var', default=kSizeVar, type=float)
 
     pass
 
@@ -83,6 +70,7 @@ def _add_model_args(parser):
     kStepsPerLearnRateDecay = 5000
     kLossMixRatio = 1.0
     kMlpDropout = 0.5
+    kPadding = 16
 
     kFilterHeight = 48
     kFilterWidth = 48
@@ -113,115 +101,68 @@ def _add_model_args(parser):
     kClipGradient = 1.0
 
     # Model type
-    parser.add_argument('-model', default='attention',
+    parser.add_argument('--model', default='attention',
                         help='Which model to train')
 
     # Shared options
-    parser.add_argument('-weight_decay', default=kWeightDecay, type=float,
-                        help='Weight L2 regularization')
-    parser.add_argument('-base_learn_rate', default=kBaseLearnRate,
-                        type=float, help='Model learning rate')
-    parser.add_argument('-learn_rate_decay', default=kLearnRateDecay,
-                        type=float, help='Model learning rate decay')
-    parser.add_argument('-steps_per_learn_rate_decay',
-                        default=kStepsPerLearnRateDecay, type=int,
-                        help='Steps every learning rate decay')
-    parser.add_argument('-segm_loss_fn', default='iou',
-                        help=('Segmentation loss function, "iou", "wt_iou", '
-                              '"wt_cov", or "bce"'))
-    parser.add_argument('-mlp_dropout', default=kMlpDropout,
-                        type=float, help='MLP dropout')
-    parser.add_argument('-use_bn', action='store_true',
-                        help='Whether to use batch normalization.')
-    parser.add_argument('-no_cum_min', action='store_true',
-                        help='Whether cumulative minimum. Default yes.')
-    parser.add_argument('-fixed_order', action='store_true',
-                        help='Whether to train in fixed order.')
+    parser.add_argument('--weight_decay', default=kWeightDecay, type=float)
+    parser.add_argument('--base_learn_rate', default=kBaseLearnRate)
+    parser.add_argument('--learn_rate_decay', default=kLearnRateDecay)
+    parser.add_argument('--steps_per_learn_rate_decay',
+                        default=kStepsPerLearnRateDecay, type=int)
+    parser.add_argument('--segm_loss_fn', default='iou')
+    parser.add_argument('--mlp_dropout', default=kMlpDropout,
+                        type=float)
+    parser.add_argument('--use_bn', action='store_true')
+    parser.add_argument('--no_cum_min', action='store_true')
+    parser.add_argument('--fixed_order', action='store_true')
+    parser.add_argument('--padding', default=kPadding, type=int)
 
     # Attention-based model options
-    parser.add_argument('-filter_height', default=kFilterHeight, type=int,
-                        help='Attention filter height')
-    parser.add_argument('-filter_width', default=kFilterWidth, type=int,
-                        help='Attention filter width')
-    parser.add_argument('-attn_cnn_filter_size', default=kAttnCnnFilterSize,
-                        help='Comma delimited integers')
-    parser.add_argument('-attn_cnn_depth', default=kAttnCnnDepth,
-                        help='Comma delimited integers')
-    parser.add_argument('-attn_cnn_pool', default=kAttnCnnPool,
-                        help='Comma delimited integers')
-    parser.add_argument('-attn_dcnn_filter_size', default=kAttnDcnnFilterSize,
-                        help='Comma delimited integers')
-    parser.add_argument('-attn_dcnn_depth', default=kAttnDcnnDepth,
-                        help='Comma delimited integers')
-    parser.add_argument('-attn_dcnn_pool', default=kAttnDcnnPool,
-                        help='Comma delimited integers')
-    parser.add_argument('-num_attn_mlp_layers', default=kNumAttnMlpLayers,
-                        type=int, help='Number of attention MLP layers')
-    parser.add_argument('-attn_mlp_depth', default=kAttnMlpDepth,
-                        type=int, help='Attention MLP depth')
-    parser.add_argument('-attn_box_padding_ratio',
-                        default=kAttnBoxPaddingRatio, type=float,
-                        help='Padding ratio of attention box')
-    parser.add_argument('-gt_box_ctr_noise', default=kGtBoxCtrNoise,
-                        type=float, help='Groundtruth box center noise')
-    parser.add_argument('-gt_box_pad_noise', default=kGtBoxPadNoise,
-                        type=float, help='Groundtruth box padding noise')
-    parser.add_argument('-gt_segm_noise', default=kGtSegmNoise,
-                        type=float, help='Groundtruth segmentation noise')
-    parser.add_argument('-clip_gradient', default=kClipGradient, type=float,
-                        help='Largest gradient norm size')
-    parser.add_argument('-add_skip_conn', action='store_true',
-                        help='Add skip connection')
+    parser.add_argument('--filter_height', default=kFilterHeight, type=int)
+    parser.add_argument('--filter_width', default=kFilterWidth, type=int)
+    parser.add_argument('--attn_cnn_filter_size', default=kAttnCnnFilterSize)
+    parser.add_argument('--attn_cnn_depth', default=kAttnCnnDepth)
+    parser.add_argument('--attn_cnn_pool', default=kAttnCnnPool)
+    parser.add_argument('--attn_dcnn_filter_size', default=kAttnDcnnFilterSize)
+    parser.add_argument('--attn_dcnn_depth', default=kAttnDcnnDepth)
+    parser.add_argument('--attn_dcnn_pool', default=kAttnDcnnPool)
+    parser.add_argument('--num_attn_mlp_layers',
+                        default=kNumAttnMlpLayers, type=int)
+    parser.add_argument('--attn_mlp_depth', default=kAttnMlpDepth, type=int)
+    parser.add_argument('--attn_box_padding_ratio',
+                        default=kAttnBoxPaddingRatio, type=float)
+    parser.add_argument('--gt_box_ctr_noise',
+                        default=kGtBoxCtrNoise, type=float)
+    parser.add_argument('--gt_box_pad_noise',
+                        default=kGtBoxPadNoise, type=float)
+    parser.add_argument('--gt_segm_noise', default=kGtSegmNoise, type=float)
+    parser.add_argument('--clip_gradient', default=kClipGradient, type=float)
+    parser.add_argument('--add_skip_conn', action='store_true')
     pass
 
 
 def _add_training_args(parser):
-    # Default training options
-    kNumSteps = 500000
-    kStepsPerCkpt = 1000
-    kStepsPerValid = 250
-    kStepsPerTrainval = 100
-    kStepsPerPlot = 50
-    kStepsPerLog = 20
-    kBatchSize = 32
-
     # Training options
-    parser.add_argument('-num_steps', default=kNumSteps,
-                        type=int, help='Number of steps to train')
-    parser.add_argument('-steps_per_ckpt', default=kStepsPerCkpt,
-                        type=int, help='Number of steps per checkpoint')
-    parser.add_argument('-steps_per_valid', default=kStepsPerValid,
-                        type=int, help='Number of steps per validation')
-    parser.add_argument('-steps_per_trainval', default=kStepsPerTrainval,
-                        type=int, help='Number of steps per train validation')
-    parser.add_argument('-steps_per_plot', default=kStepsPerPlot,
-                        type=int, help='Number of steps per plot samples')
-    parser.add_argument('-steps_per_log', default=kStepsPerLog,
-                        type=int, help='Number of steps per log')
-    parser.add_argument('-batch_size', default=kBatchSize,
-                        type=int, help='Size of a mini-batch')
-    parser.add_argument('-results', default='../results',
-                        help='Model results folder')
-    parser.add_argument('-logs', default='../results',
-                        help='Training curve logs folder')
-    parser.add_argument('-localhost', default='localhost',
-                        help='Local domain name')
-    parser.add_argument('-restore', default=None,
-                        help='Model save folder to restore from')
-    parser.add_argument('-gpu', default=-1, type=int,
-                        help='GPU ID, default CPU')
-    parser.add_argument('-num_samples_plot', default=10, type=int,
-                        help='Number of samples to plot')
-    parser.add_argument('-save_ckpt', action='store_true',
-                        help='Whether to store checkpoints')
-    parser.add_argument('-debug_bn', action='store_true',
-                        help='Write out logs on batch normalization')
-    parser.add_argument('-debug_act', action='store_true',
-                        help='Write out logs on conv layer activation')
-    parser.add_argument('-no_valid', action='store_true',
-                        help='Use the whole training set.')
-    parser.add_argument('-debug_weights', action='store_true',
-                        help='Plot the weights')
+    parser.add_argument('--model_id', default=None)
+    parser.add_argument('--num_steps', default=500000, type=int)
+    parser.add_argument('--steps_per_ckpt', default=1000, type=int)
+    parser.add_argument('--steps_per_valid', default=250, type=int)
+    parser.add_argument('--steps_per_trainval', default=100, type=int)
+    parser.add_argument('--steps_per_plot', default=50, type=int)
+    parser.add_argument('--steps_per_log', default=20, type=int)
+    parser.add_argument('--batch_size', default=32, type=int)
+    parser.add_argument('--results', default='../results')
+    parser.add_argument('--logs', default='../results')
+    parser.add_argument('--localhost', default='localhost')
+    parser.add_argument('--restore', default=None)
+    parser.add_argument('--gpu', default=-1, type=int)
+    parser.add_argument('--num_samples_plot', default=10, type=int)
+    parser.add_argument('--save_ckpt', action='store_true')
+    parser.add_argument('--debug_bn', action='store_true')
+    parser.add_argument('--debug_act', action='store_true')
+    parser.add_argument('--no_valid', action='store_true')
+    parser.add_argument('--debug_weights', action='store_true')
 
     pass
 
@@ -453,7 +394,10 @@ if __name__ == '__main__':
         model_id = ckpt_info['model_id']
         exp_folder = train_opt['restore']
     else:
-        model_id = trainer.get_model_id('rec_ins_segm_patch')
+        if train_opt['model_id']:
+            model_id = train_opt['model_id']
+        else:
+            model_id = trainer.get_model_id('ris_patch')
         step = 0
         exp_folder = os.path.join(train_opt['results'], model_id)
         saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
@@ -615,7 +559,7 @@ if __name__ == '__main__':
             _x, _y, _s = batch_iter.next()
             _order = get_permuted_order(_s)
             _feed_dict = {model['x']: _x, model['phase_train']: phase_train,
-                          model['y_gt']: _y, model['s_gt']: _s, 
+                          model['y_gt']: _y, model['s_gt']: _s,
                           model['order']: _order}
             _r = trainer.run_model(sess, model, outputs, _feed_dict)
             bat_sz = _x.shape[0]
