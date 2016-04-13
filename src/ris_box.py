@@ -39,6 +39,7 @@ def add_model_args(parser):
     parser.add_argument('--num_ctrl_mlp_layers', default=2, type=int)
     parser.add_argument('--ctrl_mlp_dim', default=256, type=int)
     parser.add_argument('--use_iou_box', action='store_true')
+    parser.add_argument('--base_learn_rate', default=0.001, type=float)
     parser.add_argument('--learn_rate_decay', default=0.96, type=float)
     parser.add_argument('--steps_per_learn_rate_decay', default=5000, type=int)
     parser.add_argument('--squash_ctrl_params', action='store_true')
@@ -77,7 +78,7 @@ def make_model_opt(args):
         'weight_decay': 5e-5,
         'use_bn': True,
         'box_loss_fn': args.box_loss_fn,
-        'base_learn_rate': 1e-3,
+        'base_learn_rate': args.base_learn_rate,
         'learn_rate_decay': args.learn_rate_decay,
         'steps_per_learn_rate_decay': args.steps_per_learn_rate_decay,
         'gt_selector': 'greedy',
