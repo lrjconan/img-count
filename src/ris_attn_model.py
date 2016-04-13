@@ -101,9 +101,11 @@ def get_model(opt, device='/cpu:0'):
     if 'pretrain_ctrl_net' in opt:
         pretrain_ctrl_net = opt['pretrain_ctrl_net']
         pretrain_attn_net = opt['pretrain_attn_net']
+        pretrain_net = opt['pretrain_net']
     else:
         pretrain_ctrl_net = None
         pretrain_attn_net = None
+        pretrain_net = None
 
     if 'freeze_ctrl_net' in opt:
         freeze_ctrl_net = opt['freeze_ctrl_net']
@@ -178,10 +180,11 @@ def get_model(opt, device='/cpu:0'):
         ccnn_act = [tf.nn.relu] * ccnn_nlayers
         ccnn_use_bn = [use_bn] * ccnn_nlayers
 
-        if pretrain_ctrl_net:
+        pt = pretrain_net or pretrain_ctrl_net
+        if pt:
             log.info('Loading pretrained controller CNN weights from {}'.format(
-                pretrain_ctrl_net))
-            h5f = h5py.File(pretrain_ctrl_net, 'r')
+                pt))
+            h5f = h5py.File(pt, 'r')
             ccnn_init_w = [{'w': h5f['ctrl_cnn_w_{}'.format(ii)][:],
                             'b': h5f['ctrl_cnn_b_{}'.format(ii)][:]}
                            for ii in xrange(ccnn_nlayers)]
@@ -217,10 +220,11 @@ def get_model(opt, device='/cpu:0'):
         elif ctrl_rnn_inp_struct == 'attn':
             crnn_inp_dim = glimpse_feat_dim
 
-        if pretrain_ctrl_net:
+        pt = pretrain_net or pretrain_ctrl_net
+        if pt:
             log.info('Loading pretrained controller RNN weights from {}'.format(
-                pretrain_ctrl_net))
-            h5f = h5py.File(pretrain_ctrl_net, 'r')
+                pt))
+            h5f = h5py.File(pt, 'r')
             crnn_init_w = {}
             for w in ['w_xi', 'w_hi', 'b_i', 'w_xf', 'w_hf', 'b_f', 'w_xu',
                       'w_hu', 'b_u', 'w_xo', 'w_ho', 'b_o']:
@@ -250,10 +254,11 @@ def get_model(opt, device='/cpu:0'):
             (num_glimpse_mlp_layers - 1) + [tf.nn.softmax]
         gmlp_dropout = None
 
-        if pretrain_ctrl_net:
+        pt = pretrain_net or pretrain_ctrl_net
+        if pt:
             log.info('Loading pretrained glimpse MLP weights from {}'.format(
-                pretrain_ctrl_net))
-            h5f = h5py.File(pretrain_ctrl_net, 'r')
+                pt))
+            h5f = h5py.File(pt, 'r')
             gmlp_init_w = [{'w': h5f['glimpse_mlp_w_{}'.format(ii)][:],
                             'b': h5f['glimpse_mlp_b_{}'.format(ii)][:]}
                            for ii in xrange(num_glimpse_mlp_layers)]
@@ -276,10 +281,11 @@ def get_model(opt, device='/cpu:0'):
         cmlp_act = [tf.nn.relu] * (num_ctrl_mlp_layers - 1) + [None]
         cmlp_dropout = None
 
-        if pretrain_ctrl_net:
+        pt = pretrain_net or pretrain_ctrl_net
+        if pt:
             log.info('Loading pretrained controller MLP weights from {}'.format(
-                pretrain_ctrl_net))
-            h5f = h5py.File(pretrain_ctrl_net, 'r')
+                pt))
+            h5f = h5py.File(pt, 'r')
             cmlp_init_w = [{'w': h5f['ctrl_mlp_w_{}'.format(ii)][:],
                             'b': h5f['ctrl_mlp_b_{}'.format(ii)][:]}
                            for ii in xrange(num_ctrl_mlp_layers)]
@@ -304,10 +310,11 @@ def get_model(opt, device='/cpu:0'):
         acnn_act = [tf.nn.relu] * acnn_nlayers
         acnn_use_bn = [use_bn] * acnn_nlayers
 
-        if pretrain_attn_net:
+        pt = pretrain_net or pretrain_attn_net
+        if pt:
             log.info('Loading pretrained attention CNN weights from {}'.format(
-                pretrain_attn_net))
-            h5f = h5py.File(pretrain_attn_net, 'r')
+                pt))
+            h5f = h5py.File(pt, 'r')
             acnn_init_w = [{'w': h5f['attn_cnn_w_{}'.format(ii)][:],
                             'b': h5f['attn_cnn_b_{}'.format(ii)][:]}
                            for ii in xrange(acnn_nlayers)]
@@ -369,9 +376,10 @@ def get_model(opt, device='/cpu:0'):
         amlp_act = [tf.nn.relu] * num_attn_mlp_layers
         amlp_dropout = None
 
-        if pretrain_attn_net:
+        pt = pretrain_net or pretrain_attn_net
+        if pt:
             log.info('Loading pretrained attention MLP weights from {}'.format(
-                pretrain_attn_net))
+                pt))
             h5f = h5py.File(pretrain_attn_net, 'r')
             amlp_init_w = [{'w': h5f['attn_mlp_w_{}'.format(ii)][:],
                             'b': h5f['attn_mlp_b_{}'.format(ii)][:]}
@@ -390,8 +398,18 @@ def get_model(opt, device='/cpu:0'):
 ##########################
 # Score MLP definition
 ##########################
+        pt = pretrain_net
+        if pt:
+            log.info('Loading score mlp weights from {}'.format(pt))
+            h5f = h5py.File(pt, 'r')
+            smlp_init_w = [{'w': h5f['score_mlp_w_{}'.format(ii)][:],
+                            'b': h5f['score_mlp_b_{}'.format(ii)][:]}
+                           for ii in xrange(1)]
+        else:
+            smlp_init_w = None
         smlp = nn.mlp([crnn_dim + core_dim, 1], [tf.sigmoid], wd=wd,
-                      scope='score_mlp', model=model)
+                      scope='score_mlp', init_weights=smlp_init_w,
+                      model=model)
         s_out = [None] * timespan
 
 #############################
@@ -407,12 +425,13 @@ def get_model(opt, device='/cpu:0'):
         # adcnn_bn_nlayers = adcnn_nlayers - 1
         adcnn_use_bn = [use_bn] * adcnn_bn_nlayers + \
             [False] * (adcnn_nlayers - adcnn_bn_nlayers)
-        adcnn_skip_ch = [0] + acnn_channels[::-1][1:]
+        adcnn_skip_ch = [0] + acnn_channels[:: -1][1:]
 
-        if pretrain_attn_net:
+        pt = pretrain_net or pretrain_attn_net
+        if pt:
             log.info('Loading pretrained attention DCNN weights from {}'.format(
-                pretrain_attn_net))
-            h5f = h5py.File(pretrain_attn_net, 'r')
+                pt))
+            h5f = h5py.File(pt, 'r')
             adcnn_init_w = [{'w': h5f['attn_dcnn_w_{}'.format(ii)][:],
                              'b': h5f['attn_dcnn_b_{}'.format(ii)][:]}
                             for ii in xrange(adcnn_nlayers)]
@@ -547,8 +566,8 @@ def get_model(opt, device='/cpu:0'):
             # Controller RNN [B, R1]
             if ctrl_rnn_inp_struct == 'dense':
                 crnn_inp = tf.reshape(h_ccnn_last, [-1, crnn_inp_dim])
-                crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[tt] = \
-                    crnn_cell(crnn_inp, crnn_state[tt - 1])
+                crnn_state[tt], crnn_g_i[tt], crnn_g_f[tt], crnn_g_o[
+                    tt] = crnn_cell(crnn_inp, crnn_state[tt - 1])
                 h_crnn[tt] = tf.slice(
                     crnn_state[tt], [0, crnn_dim], [-1, crnn_dim])
 
@@ -574,8 +593,8 @@ def get_model(opt, device='/cpu:0'):
                     crnn_glimpse = tf.reduce_sum(
                         crnn_inp * crnn_glimpse_map[tt][tt2], [1])
                     crnn_state[tt][tt2], crnn_g_i[tt][tt2], crnn_g_f[tt][tt2], \
-                        crnn_g_o[tt][tt2] = \
-                        crnn_cell(crnn_glimpse, crnn_state[tt][tt2 - 1])
+                        crnn_g_o[tt][tt2] = crnn_cell(
+                            crnn_glimpse, crnn_state[tt][tt2 - 1])
                     h_crnn[tt][tt2] = tf.slice(
                         crnn_state[tt][tt2], [0, crnn_dim], [-1, crnn_dim])
                     h_gmlp = gmlp(h_crnn[tt][tt2])
@@ -715,8 +734,8 @@ def get_model(opt, device='/cpu:0'):
             if use_attn_rnn:
                 # RNN [B, T, R2]
                 arnn_inp = tf.reshape(h_acnn_last[tt], [-1, arnn_inp_dim])
-                arnn_state[tt], arnn_g_i[tt], arnn_g_f[tt], arnn_g_o[tt] = \
-                    arnn_cell(arnn_inp, arnn_state[tt - 1])
+                arnn_state[tt], arnn_g_i[tt], arnn_g_f[tt], arnn_g_o[
+                    tt] = arnn_cell(arnn_inp, arnn_state[tt - 1])
 
             # Dense segmentation network [B, R] => [B, M]
             if use_attn_rnn:
