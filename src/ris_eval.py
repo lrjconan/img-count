@@ -72,7 +72,7 @@ if __name__ == '__main__':
     base.run_eval(res['y_out'], res['y_gt'], res['s_out'], res['s_gt'])
 
     log.info('Running validation set')
-    res = run_inference(sess, model, dataset['valid'], False)
-    run_eval(res['y_out'], res['y_gt'], res['s_out'], res['s_gt'])
+    res = base.run_inference(sess, model, dataset['valid'], False)
+    base.run_eval(res['y_out'], res['y_gt'], res['s_out'], res['s_gt'])
 
     pass
