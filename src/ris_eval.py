@@ -149,7 +149,7 @@ def build_matching():
 def run_eval(y_out, y_gt, s_out, s_gt):
     s_mask = np.reshape(s_out, [-1, s_out.shape[1], 1, 1])
     y_out = y_out * s_mask
-    y_out_max = y_out.amax(axis=1, keep_dims=True)
+    y_out_max = y_out.max(axis=1, keepdims=True)
     y_out_hard = (y_out == y_out_max).astype('float')
     count_out = s_out.sum(axis=1)
     count_gt = s_gt.sum(axis=1)
