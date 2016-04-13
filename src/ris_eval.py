@@ -111,7 +111,7 @@ def run_inference(sess, m, dataset, phase_train):
     }
 
 
-def best_dice(a, b):
+def best_dice(a, b, num_obj):
     bd = np.zeros([a.shape[0], a.shape[1]])
 
     for ii in xrange(a.shape[1]):
@@ -122,19 +122,19 @@ def best_dice(a, b):
         dice = card_ab / (card_a + card_b + 1e-5)
         bd[:, ii] = dice.max(axis=1)
 
-    return bd.mean(axis=1)
+    return bd.sum(axis=1) / num_obj
 
 
-def symmetric_best_dice(y_out, y_gt):
+def symmetric_best_dice(y_out, y_gt, num_obj):
     # num_ex = y_out.shape[0]
     num_obj = y_gt.shape[1]
-    bd1 = best_dice(y_out, y_gt)
-    bd2 = best_dice(y_gt, y_out)
+    bd1 = best_dice(y_out, y_gt, num_obj)
+    bd2 = best_dice(y_gt, y_out, num_obj)
 
     return np.minimum(bd1, bd2)
 
 
-def coverage(y_out, y_gt, weighted=False):
+def coverage(y_out, y_gt, num_obj, weighted=False):
     cov = np.zeros([y_out.shape[0], y_out.shape[1]])
     for ii in xrange(y_gt.shape[1]):
         segm_gt = y_gt[:, ii: ii + 1, :, :]
@@ -146,7 +146,7 @@ def coverage(y_out, y_gt, weighted=False):
             y_gt.sum(axis=3).sum(axis=2).sum(axis=1, keepdims=True)
         cov *= weights
 
-    return cov.mean(axis=1)
+    return cov.sum(axis=1) / num_obj
 
 
 def iou(a, b):
@@ -167,13 +167,16 @@ def run_eval(y_out, y_gt, s_out, s_gt):
     y_out_hard = (y_out == y_out_max).astype('float')
     count_out = s_out.sum(axis=1)
     count_gt = s_gt.sum(axis=1)
+    num_obj = np.maximum(count_gt, 1)
 
-    sbd = symmetric_best_dice(y_out, y_gt).mean()
+    sbd = symmetric_best_dice(y_out, y_gt, num_obj).mean()
+    unwt_cov = coverage(y_out, y_gt, num_obj, weighted=False).mean()
+    wt_cov = coverage(y_out, y_gt, num_obj, weighted=True).mean()
+
     count_acc = (count_out == count_gt).astype('float').mean()
     dic = (count_out - count_gt).mean()
     dic_abs = np.abs(count_out - count_gt).mean()
-    unwt_cov = coverage(y_out, y_gt, weighted=False).mean()
-    wt_cov = coverage(y_out, y_gt, weighted=True).mean()
+
 
     log.info('{:10s}{:.4f}'.format('SBD', sbd))
     log.info('{:10s}{:.4f}'.format('Wt Cov', wt_cov))
