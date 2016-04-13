@@ -82,7 +82,7 @@ def run_inference(sess, m, dataset, phase_train):
     for x, y, s in batch_iter:
         r = sess.run(output_list, feed_dict={
                      m['x']: x, 
-                     # m['y_gt']: y, 
+                     m['y_gt']: y, 
                      # m['s_gt']: s, 
                      m['phase_train']: phase_train})
         _y_out = r[0]
