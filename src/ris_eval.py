@@ -31,14 +31,11 @@ for CVPPP, upsample to 500 x 530.
 
 def parse_args():
     """Parse input arguments."""
-    parser = argparse.ArgumentParser(
-        description='Recurrent Instance Segmentation + Attention')
-
+    parser = argparse.ArgumentParser(description='Run evaluation')
     parser.add_argument('--dataset', default='cvppp')
     parser.add_argument('--model_id', default=None)
     parser.add_argument(
         '--results', default='/ais/gobi3/u/mren/results/img-count')
-
     args = parser.parse_args()
 
     return args
