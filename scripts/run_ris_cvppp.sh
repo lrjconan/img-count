@@ -124,7 +124,6 @@ python src/ris_patch.py \
 --filter_height $FILTER_HEIGHT \
 --filter_width $FILTER_WIDTH \
 --segm_loss_fn $SEGM_LOSS_FN \
---use_bn \
 --save_ckpt \
 --batch_size $BATCH_SIZE \
 --fixed_order \
@@ -164,7 +163,6 @@ python src/ris_box.py \
 --pretrain_cnn $SAVE_FOLDER/$MODEL_ID/weights.h5 \
 --batch_size $BATCH_SIZE \
 --ctrl_rnn_inp_struct $CTRL_RNN_INP_STRUCT \
---use_bn \
 --save_ckpt \
 --num_steps $NUM_ITER_BOX \
 --model_id $BOX_MODEL_ID
@@ -195,8 +193,6 @@ python src/ris.py \
 --steps_per_trainval $STEPS_PER_TRAINVAL \
 --steps_per_log $STEPS_PER_LOG \
 --num_samples_plot $NUM_SAMPLES_PLOT \
---use_bn \
---use_canvas \
 --use_knob \
 --knob_decay $KNOB_DECAY \
 --steps_per_knob_decay $STEPS_PER_KNOB_DECAY \
@@ -255,8 +251,6 @@ python src/ris.py \
 --steps_per_trainval $STEPS_PER_TRAINVAL \
 --steps_per_log $STEPS_PER_LOG \
 --num_samples_plot $NUM_SAMPLES_PLOT \
---use_bn \
---use_canvas \
 --use_knob \
 --knob_decay $KNOB_DECAY \
 --steps_per_knob_decay $STEPS_PER_KNOB_DECAY \
