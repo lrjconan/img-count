@@ -141,9 +141,12 @@ def coverage(y_out, y_gt, weighted=False):
         iou_ii = iou(y_out, segm_gt)
         cov[:, ii] = iou_ii.max(axis=1)
 
-    # if weighted:
-    #     weights = y_gt.sum(axis=3).sum(axis=2) / y_gt.sum(axis=3)
-    return cov.mean()
+    if weighted:
+        weights = y_gt.sum(axis=3).sum(axis=2) / \
+            y_gt.sum(axis=3).sum(axis=2).sum(axis=1, keepdims=True)
+        cov *= weights
+
+    return cov.mean(axis=1)
 
 
 def iou(a, b):
@@ -169,7 +172,13 @@ def run_eval(y_out, y_gt, s_out, s_gt):
     count_acc = (count_out == count_gt).astype('float').mean()
     dic = (count_out - count_gt).mean()
     dic_abs = np.abs(count_out - count_gt).mean()
+    unwt_cov = coverage(y_out, y_gt, weighted=False).mean()
+    wt_cov = coverage(y_out, y_gt, weighted=True).mean()
+
     log.info('{:10s}{:.4f}'.format('SBD', sbd))
+    log.info('{:10s}{:.4f}'.format('Wt Cov', wt_cov))
+    log.info('{:10s}{:.4f}'.format('Unwt Cov', unwt_cov))
+
     log.info('{:10s}{:.4f}'.format('Count Acc', count_acc))
     log.info('{:10s}{:.4f}'.format('DiC', dic))
     log.info('{:10s}{:.4f}'.format('|DiC|', dic_abs))
