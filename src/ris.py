@@ -864,6 +864,7 @@ if __name__ == '__main__':
     sess = tf.Session()
 
     if args.restore:
+        sess.run(tf.initialize_variables(m['adam_var']))
         saver.restore(sess, ckpt_fname)
     else:
         sess.run(tf.initialize_all_variables())
