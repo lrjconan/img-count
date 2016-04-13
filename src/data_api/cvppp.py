@@ -104,9 +104,9 @@ def get_dataset(folder, opt, split=None):
     idx = np.arange(idx_map.size)
     random.shuffle(idx)
     inp = inp[idx]
-    label_segmentation = label_segmentation[idx]
+    label_segm = label_segm[idx]
     label_score = label_score[idx]
-    index_map = index_map[idx]
+    idx_map = idx_map[idx]
 
     return {
         'input': inp,
