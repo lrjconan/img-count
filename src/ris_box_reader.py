@@ -1,13 +1,15 @@
 import cslab_environ
 
 import argparse
+import h5py
+import os
+import sys
 import tensorflow as tf
 
 from utils import logger
 from utils.saver import Saver
+
 import ris_box_model as box_model
-import h5py
-import sys
 
 log = logger.get()
 

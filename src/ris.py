@@ -60,150 +60,73 @@ def _add_dataset_args(parser):
 
 
 def _add_model_args(parser):
-    # Original model default options
-    kCnnFilterSize = '3,3,3,3,3'
-    kCnnDepth = '4,8,8,12,16'
-    kCnnPool = '2,2,2,2,2'
-    kRnnType = 'lstm'
-    kConvLstmFilterSize = 3
-    kConvLstmHiddenDepth = 12
-    kRnnHiddenDim = 512
-
-    # Shared options
-    kPadding = 16
-    kWeightDecay = 5e-5
-    kBaseLearnRate = 1e-3
-    kLearnRateDecay = 0.96
-    kStepsPerLearnRateDecay = 5000
-    kLossMixRatio = 1.0
-
-    kNumMlpLayers = 2
-    kMlpDepth = 6
-    kMlpDropout = 0.5
-    kDcnnFilterSize = '3,3,3,3,3,3'
-    kDcnnDepth = '8,6,4,4,2,1'
-    kDcnnPool = '2,2,2,2,2,1'
-    kScoreMaxpool = 1
-
-    # Attention-based model options
-    kFilterWidth = 48
-    kFilterHeight = 48
-    kAttnBoxPaddingRatio = 0.2
-
-    kCtrlCnnFilterSize = '3,3,3,3,3'
-    kCtrlCnnDepth = '4,8,16,16,32'
-    kCtrlCnnPool = '2,2,2,2,2'
-    kAttnCnnFilterSize = '3,3,3'
-    kAttnCnnDepth = '4,8,16'
-    kAttnCnnPool = '2,2,2'
-    kAttnDcnnFilterSize = '3,3,3,3'
-    kAttnDcnnDepth = '16,8,4,1'
-    kAttnDcnnPool = '2,2,2,1'
-
-    kCtrlMlpDim = 256
-    kNumCtrlMlpLayers = 2
-    kCtrlRnnHiddenDim = 256
-    kAttnRnnHiddenDim = 256
-    kNumAttnMlpLayers = 2
-    kAttnMlpDepth = 6
-    kGtSelector = 'argmax'
-    kKnobDecay = 0.9
-    kStepsPerKnobDecay = 300
-    kKnobBase = 1.0
-    kKnobBoxOffset = 300
-    kKnobSegmOffset = 500
-    kGtBoxCtrNoise = 0.05
-    kGtBoxPadNoise = 0.1
-    kGtSegmNoise = 0.3
-    kClipGradient = 1.0
-
-    # Double attention model options
-    kCtrlRnnInpStruct = 'dense'
-    kNumCtrlRNNIter = 5
-    kNumGlimpseMlpLayers = 2
-
     # Model type
     parser.add_argument('--model', default='attention')
 
     # Original model options
-    parser.add_argument('--cnn_filter_size', default=kCnnFilterSize)
-    parser.add_argument('--cnn_depth', default=kCnnDepth)
-    parser.add_argument('--cnn_pool', default=kCnnPool)
-    parser.add_argument('--dcnn_filter_size', default=kDcnnFilterSize)
-    parser.add_argument('--dcnn_depth', default=kDcnnDepth)
-    parser.add_argument('--dcnn_pool', default=kDcnnPool)
+    parser.add_argument('--cnn_filter_size', default='3,3,3,3,3')
+    parser.add_argument('--cnn_depth', default='4,8,8,12,16')
+    parser.add_argument('--cnn_pool', default='2,2,2,2,2')
+    parser.add_argument('--dcnn_filter_size', default='3,3,3,3,3,3')
+    parser.add_argument('--dcnn_depth', default='8,6,4,4,2,1')
+    parser.add_argument('--dcnn_pool', default='2,2,2,2,2,1')
     parser.add_argument('--rnn_type', default=kRnnType)
-    parser.add_argument('--conv_lstm_filter_size', default=kConvLstmFilterSize)
-    parser.add_argument('--conv_lstm_hid_depth', default=kConvLstmHiddenDepth)
-    parser.add_argument('--rnn_hid_dim', default=kRnnHiddenDim)
-    parser.add_argument('--score_maxpool', default=kScoreMaxpool, type=int)
-    parser.add_argument('--num_mlp_layers', default=kNumMlpLayers, type=int)
-    parser.add_argument('--mlp_depth', default=kMlpDepth, type=int)
+    parser.add_argument('--conv_lstm_filter_size', default=3)
+    parser.add_argument('--conv_lstm_hid_depth', default=12)
+    parser.add_argument('--rnn_hid_dim', default=256)
+    parser.add_argument('--score_maxpool', default=1, type=int)
+    parser.add_argument('--num_mlp_layers', default=2, type=int)
+    parser.add_argument('--mlp_depth', default=6, type=int)
     parser.add_argument('--use_deconv', action='store_true')
-    parser.add_argument('--segm_dense_conn', action='store_true')
-    parser.add_argument('--add_skip_conn', action='store_true')
     parser.add_argument('--score_use_core', action='store_true')
 
     # Shared options
-    parser.add_argument('--padding', default=kPadding, type=int,
-                        help='Apply additional padding for random cropping')
-    parser.add_argument('--weight_decay', default=kWeightDecay, type=float)
-    parser.add_argument('--base_learn_rate', default=kBaseLearnRate)
-    parser.add_argument('--learn_rate_decay',
-                        default=kLearnRateDecay, type=float)
-    parser.add_argument('--steps_per_learn_rate_decay',
-                        default=kStepsPerLearnRateDecay, type=int)
-    parser.add_argument('--loss_mix_ratio', default=kLossMixRatio, type=float)
+    parser.add_argument('--padding', default=16, type=int)
+    parser.add_argument('--weight_decay', default=5e-5, type=float)
+    parser.add_argument('--base_learn_rate', default=0.001)
+    parser.add_argument('--learn_rate_decay', default=0.96, type=float)
+    parser.add_argument('--steps_per_learn_rate_decay', default=5000, type=int)
+    parser.add_argument('--loss_mix_ratio', default=1.0, type=float)
     parser.add_argument('--segm_loss_fn', default='iou')
     parser.add_argument('--mlp_dropout', default=None, type=float)
     parser.add_argument('--use_bn', action='store_true')
-    parser.add_argument('--no_cum_min', action='store_true')
     parser.add_argument('--fixed_order', action='store_true')
 
     # Attention-based model options
-    parser.add_argument('--filter_height', default=kFilterHeight, type=int)
-    parser.add_argument('--filter_width', default=kFilterWidth, type=int)
-    parser.add_argument('--ctrl_cnn_filter_size', default=kCtrlCnnFilterSize)
-    parser.add_argument('--ctrl_cnn_depth', default=kCtrlCnnDepth)
-    parser.add_argument('--ctrl_cnn_pool', default=kCtrlCnnPool)
-    parser.add_argument('--attn_cnn_filter_size', default=kAttnCnnFilterSize)
-    parser.add_argument('--attn_cnn_depth', default=kAttnCnnDepth)
-    parser.add_argument('--attn_cnn_pool', default=kAttnCnnPool)
-    parser.add_argument('--attn_dcnn_filter_size', default=kAttnDcnnFilterSize)
-    parser.add_argument('--attn_dcnn_depth', default=kAttnDcnnDepth)
-    parser.add_argument('--attn_dcnn_pool', default=kAttnDcnnPool)
-    parser.add_argument('--ctrl_rnn_hid_dim',
-                        default=kCtrlRnnHiddenDim, type=int)
-    parser.add_argument('--attn_rnn_hid_dim',
-                        default=kAttnRnnHiddenDim, type=int)
-    parser.add_argument('--num_ctrl_mlp_layers',
-                        default=kNumCtrlMlpLayers, type=int)
+    parser.add_argument('--filter_height', default=48, type=int)
+    parser.add_argument('--filter_width', default=48, type=int)
+    parser.add_argument('--ctrl_cnn_filter_size', default='3,3,3,3,3')
+    parser.add_argument('--ctrl_cnn_depth', default='4,8,16,16,32')
+    parser.add_argument('--ctrl_cnn_pool', default='2,2,2,2,2')
+    parser.add_argument('--attn_cnn_filter_size', default='3,3,3')
+    parser.add_argument('--attn_cnn_depth', default='4,8,16')
+    parser.add_argument('--attn_cnn_pool', default='2,2,2')
+    parser.add_argument('--attn_dcnn_filter_size', default='3,3,3,3')
+    parser.add_argument('--attn_dcnn_depth', default='16,8,4,1')
+    parser.add_argument('--attn_dcnn_pool', default='2,2,2,1')
+    parser.add_argument('--ctrl_rnn_hid_dim', default=256, type=int)
+    parser.add_argument('--attn_rnn_hid_dim', default=256, type=int)
+    parser.add_argument('--num_ctrl_mlp_layers', default=1, type=int)
     parser.add_argument('--ctrl_mlp_dim', default=kCtrlMlpDim, type=int)
-    parser.add_argument('--num_attn_mlp_layers',
-                        default=kNumAttnMlpLayers, type=int)
-    parser.add_argument('--attn_mlp_depth', default=kAttnMlpDepth, type=int)
+    parser.add_argument('--num_attn_mlp_layers', default=1, type=int)
+    parser.add_argument('--attn_mlp_depth', default=6, type=int)
     parser.add_argument('--box_loss_fn', default='iou')
-    parser.add_argument('--use_gt_attn', action='store_true')
-    parser.add_argument('--attn_box_padding_ratio',
-                        default=kAttnBoxPaddingRatio, type=float)
+    parser.add_argument('--attn_box_padding_ratio', default=0.2, type=float)
     parser.add_argument('--use_attn_rnn', action='store_true')
     parser.add_argument('--use_canvas', action='store_true')
     parser.add_argument('--use_knob', action='store_true')
-    parser.add_argument('--knob_decay', default=kKnobDecay, type=float)
-    parser.add_argument('--steps_per_knob_decay', default=kStepsPerKnobDecay)
-    parser.add_argument('--knob_base', default=kKnobBase, type=float)
-    parser.add_argument('--knob_box_offset', default=kKnobBoxOffset, type=int)
-    parser.add_argument('--knob_segm_offset',
-                        default=kKnobSegmOffset, type=int)
+    parser.add_argument('--knob_decay', default=0.9, type=float)
+    parser.add_argument('--steps_per_knob_decay', default=300)
+    parser.add_argument('--knob_base', default=1.0, type=float)
+    parser.add_argument('--knob_box_offset', default=300, type=int)
+    parser.add_argument('--knob_segm_offset', default=500, type=int)
     parser.add_argument('--knob_use_timescale', action='store_true')
-    parser.add_argument('--gt_selector', default=kGtSelector)
-    parser.add_argument('--gt_box_ctr_noise', default=kGtBoxCtrNoise)
-    parser.add_argument('--gt_box_pad_noise', default=kGtBoxPadNoise)
-    parser.add_argument('--gt_segm_noise', default=kGtSegmNoise)
-    parser.add_argument('--downsample_canvas', action='store_true')
+    parser.add_argument('--gt_box_ctr_noise', default=0.05)
+    parser.add_argument('--gt_box_pad_noise', default=0.1)
+    parser.add_argument('--gt_segm_noise', default=0.3)
     parser.add_argument('--cnn_share_weights', action='store_true')
     parser.add_argument('--use_iou_box', action='store_true')
-    parser.add_argument('--clip_gradient', default=kClipGradient, type=float)
+    parser.add_argument('--clip_gradient', default=1.0, type=float)
     parser.add_argument('--squash_ctrl_params', action='store_true')
     parser.add_argument('--fixed_gamma', action='store_true')
     parser.add_argument('--pretrain_ctrl_net', default=None)
@@ -211,13 +134,9 @@ def _add_model_args(parser):
     parser.add_argument('--pretrain_net', default=None)
     parser.add_argument('--freeze_ctrl_net', action='store_true')
     parser.add_argument('--freeze_attn_net', action='store_true')
-
-    # Double attention arguments
-    parser.add_argument('--ctrl_rnn_inp_struct', default=kCtrlRnnInpStruct)
-    parser.add_argument('--num_ctrl_rnn_iter',
-                        default=kNumCtrlRNNIter, type=int)
-    parser.add_argument('--num_glimpse_mlp_layers',
-                        default=kNumGlimpseMlpLayers, type=int)
+    parser.add_argument('--ctrl_rnn_inp_struct', default='dense')
+    parser.add_argument('--num_ctrl_rnn_iter', default=5, type=int)
+    parser.add_argument('--num_glimpse_mlp_layers', default=2, type=int)
 
     pass
 
@@ -316,11 +235,9 @@ def _make_model_opt(args):
             'steps_per_learn_rate_decay': args.steps_per_learn_rate_decay,
             'loss_mix_ratio': args.loss_mix_ratio,
 
-            # Test arguments
             'segm_loss_fn': args.segm_loss_fn,
             'box_loss_fn': args.box_loss_fn,
             'use_bn': args.use_bn,
-            'use_gt_attn': args.use_gt_attn,                      # DEPRECATED
             'attn_box_padding_ratio': args.attn_box_padding_ratio,
             'use_attn_rnn': args.use_attn_rnn,
             'use_canvas': args.use_canvas,
@@ -331,12 +248,9 @@ def _make_model_opt(args):
             'knob_box_offset': args.knob_box_offset,
             'knob_segm_offset': args.knob_segm_offset,
             'knob_use_timescale': args.knob_use_timescale,
-            'gt_selector': args.gt_selector,
             'gt_box_ctr_noise': args.gt_box_ctr_noise,
             'gt_box_pad_noise': args.gt_box_pad_noise,
             'gt_segm_noise': args.gt_segm_noise,
-            'downsample_canvas': args.downsample_canvas,
-            # 'pretrain_cnn': args.pretrain_cnn,
             'cnn_share_weights': args.cnn_share_weights,
             'squash_ctrl_params': args.squash_ctrl_params,
             'use_iou_box': args.use_iou_box,
@@ -344,16 +258,15 @@ def _make_model_opt(args):
             'fixed_order': args.fixed_order,
             'fixed_gamma': args.fixed_gamma,
 
-            'pretrain_ctrl_net': args.pretrain_ctrl_net,
-            'pretrain_attn_net': args.pretrain_attn_net,
-            'pretrain_net': args.pretrain_net,
-            # 'freeze_pretrain_net': args.freeze_pretrain_net,
-            'freeze_ctrl_net': args.freeze_ctrl_net,
-            'freeze_attn_net': args.freeze_attn_net,
-
             'ctrl_rnn_inp_struct': args.ctrl_rnn_inp_struct,
             'num_ctrl_rnn_iter': args.num_ctrl_rnn_iter,
             'num_glimpse_mlp_layers': args.num_glimpse_mlp_layers,
+
+            'pretrain_ctrl_net': args.pretrain_ctrl_net,
+            'pretrain_attn_net': args.pretrain_attn_net,
+            'pretrain_net': args.pretrain_net,
+            'freeze_ctrl_net': args.freeze_ctrl_net,
+            'freeze_attn_net': args.freeze_attn_net,
 
             'rnd_hflip': rnd_hflip,
             'rnd_vflip': rnd_vflip,
@@ -399,20 +312,11 @@ def _make_model_opt(args):
             'score_maxpool': args.score_maxpool,
             'num_mlp_layers': args.num_mlp_layers,
             'mlp_dropout': args.mlp_dropout,
-
-            # Test arguments
-            # 'cum_min': not args.no_cum_min,
-            'cum_min': True,
-            # 'feed_output': args.feed_output,
             'segm_loss_fn': args.segm_loss_fn,
-            # 'use_deconv': args.use_deconv,
             'use_deconv': True,
             'use_bn': args.use_bn,
-            # 'segm_dense_conn': args.segm_dense_conn,
             'segm_dense_conn': True,
-            # 'add_skip_conn': args.add_skip_conn,
             'add_skip_conn': True,
-            # 'score_use_core': args.score_use_core
             'score_use_core': True,
             'clip_gradient': args.clip_gradient,
             'fixed_order': args.fixed_order,
