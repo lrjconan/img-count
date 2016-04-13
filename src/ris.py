@@ -301,6 +301,8 @@ def _add_model_args(parser):
                         help='Use pre-trained controller network')
     parser.add_argument('-pretrain_attn_net', default=None,
                         help='Use pre-trained attention network')
+    parser.add_argument('-pretrain_net', default=None,
+                        help='Use pre-trained entire network')
     # parser.add_argument('-freeze_pretrain_net', action='store_true',
     #                     help='Freeze the pretrained part of the network')
     parser.add_argument('-freeze_ctrl_net', action='store_true',
@@ -469,6 +471,7 @@ def _make_model_opt(args):
 
             'pretrain_ctrl_net': args.pretrain_ctrl_net,
             'pretrain_attn_net': args.pretrain_attn_net,
+            'pretrain_net': args.pretrain_net,
             # 'freeze_pretrain_net': args.freeze_pretrain_net,
             'freeze_ctrl_net': args.freeze_ctrl_net,
             'freeze_attn_net': args.freeze_attn_net,

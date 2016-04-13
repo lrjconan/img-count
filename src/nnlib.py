@@ -233,7 +233,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                     b[ii] = weight_variable([ch[ii + 1]], init_val=init_val_b,
                                             name='b',
                                             trainable=trainable)
-                    
+
                 log.info('Filter: {}, Trainable: {}'.format(
                     [f[ii], f[ii], ch[ii], ch[ii + 1]], trainable))
 
@@ -252,33 +252,36 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
             x: input image, [B, H, W, D]
         """
         h = [None] * nlayers
-        # with tf.variable_scope(net_scope):
-        for ii in xrange(nlayers):
-            out_ch = ch[ii + 1]
-
-            if ii == 0:
-                prev_inp = x
-            else:
-                prev_inp = h[ii - 1]
-
-            h[ii] = conv2d(prev_inp, w[ii]) + b[ii]
-
-            if use_bn[ii]:
-                if frozen is not None and frozen[ii]:
-                    bn_frozen = True
-                else:
-                    bn_frozen = False
-
-                if init_weights is not None and init_weights[ii] is not None:
-                    init_beta = init_weights[ii]['beta_{}'.format(copy[0])]
-                    init_gamma = init_weights[ii][
-                        'gamma_{}'.format(copy[0])]
-                else:
-                    init_beta = None
-                    init_gamma = None
-
+        with tf.variable_scope(scope):
+            for ii in xrange(nlayers):
                 with tf.variable_scope('layer_{}'.format(ii)):
-                    with tf.variable_scope('copy_{}'.format(copy[0])):
+                    out_ch = ch[ii + 1]
+
+                    if ii == 0:
+                        prev_inp = x
+                    else:
+                        prev_inp = h[ii - 1]
+
+                    h[ii] = conv2d(prev_inp, w[ii]) + b[ii]
+
+                    if use_bn[ii]:
+                        if frozen is not None and frozen[ii]:
+                            bn_frozen = True
+                        else:
+                            bn_frozen = False
+
+                        if init_weights is not None and \
+                                init_weights[ii] is not None:
+                            init_beta = init_weights[ii][
+                                'beta_{}'.format(copy[0])]
+                            init_gamma = init_weights[ii][
+                                'gamma_{}'.format(copy[0])]
+                        else:
+                            init_beta = None
+                            init_gamma = None
+
+                        # with tf.variable_scope('layer_{}'.format(ii)):
+                        # with tf.variable_scope('copy_{}'.format(copy[0])):
                         h[ii], bm, bv, em, ev = batch_norm(
                             h[ii], out_ch, phase_train,
                             scope2='{}_{}_{}'.format(scope, ii, copy[0]),
@@ -286,21 +289,21 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                             init_gamma=init_gamma,
                             model=model)
 
-                if model:
-                    model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
-                        tf.reduce_sum(bm) / out_ch
-                    model['{}_{}_bv_{}'.format(scope, ii, copy[0])] = \
-                        tf.reduce_sum(bv) / out_ch
-                    model['{}_{}_em_{}'.format(scope, ii, copy[0])] = \
-                        tf.reduce_sum(em) / out_ch
-                    model['{}_{}_ev_{}'.format(scope, ii, copy[0])] = \
-                        tf.reduce_sum(ev) / out_ch
+                        if model:
+                            model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
+                                tf.reduce_sum(bm) / out_ch
+                            model['{}_{}_bv_{}'.format(scope, ii, copy[0])] = \
+                                tf.reduce_sum(bv) / out_ch
+                            model['{}_{}_em_{}'.format(scope, ii, copy[0])] = \
+                                tf.reduce_sum(em) / out_ch
+                            model['{}_{}_ev_{}'.format(scope, ii, copy[0])] = \
+                                tf.reduce_sum(ev) / out_ch
 
-            if act[ii] is not None:
-                h[ii] = act[ii](h[ii])
+                    if act[ii] is not None:
+                        h[ii] = act[ii](h[ii])
 
-            if pool[ii] > 1:
-                h[ii] = max_pool(h[ii], pool[ii])
+                    if pool[ii] > 1:
+                        h[ii] = max_pool(h[ii], pool[ii])
 
         copy[0] += 1
 
@@ -337,9 +340,8 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
     log.info('Skip channels: {}'.format(skip_ch))
     log.info('BN: {}'.format(use_bn))
 
-    in_ch = ch[0]
-
     with tf.variable_scope(scope):
+        in_ch = ch[0]
         for ii in xrange(nlayers):
             with tf.variable_scope('layer_{}'.format(ii)):
                 out_ch = ch[ii + 1]
@@ -385,50 +387,55 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
             x: input image, [B, H, W, D]
             skip: skip connection activation map, list of 4-D tensor
         """
-        h = [None] * nlayers
-        out_shape = [None] * nlayers
-        batch = tf.shape(x)[0: 1]
-        inp_size = tf.shape(x)[1: 3]
-        cum_pool = 1
+        with tf.variable_scope(scope):
+            h = [None] * nlayers
+            out_shape = [None] * nlayers
+            batch = tf.shape(x)[0: 1]
+            inp_size = tf.shape(x)[1: 3]
+            cum_pool = 1
 
-        for ii in xrange(nlayers):
-            cum_pool *= pool[ii]
-            out_ch = ch[ii + 1]
-
-            if ii == 0:
-                prev_inp = x
-            else:
-                prev_inp = h[ii - 1]
-
-            if skip is not None:
-                if skip[ii] is not None:
-                    if ii == 0:
-                        prev_inp = tf.concat(3, [prev_inp, skip[ii]])
-                    else:
-                        prev_inp = tf.concat(3, [prev_inp, skip[ii]])
-
-            out_shape[ii] = tf.concat(
-                0, [batch, inp_size * cum_pool, tf.constant([out_ch])])
-
-            h[ii] = tf.nn.conv2d_transpose(
-                prev_inp, w[ii], out_shape[ii],
-                strides=[1, pool[ii], pool[ii], 1]) + b[ii]
-
-            if use_bn[ii]:
-                if frozen is not None and frozen[ii]:
-                    bn_frozen = True
-                else:
-                    bn_frozen = False
-
-                if init_weights is not None and init_weights[ii] is not None:
-                    init_beta = init_weights[ii]['beta_{}'.format(copy[0])]
-                    init_gamma = init_weights[ii]['gamma_{}'.format(copy[0])]
-                else:
-                    init_beta = None
-                    init_gamma = None
-
+            for ii in xrange(nlayers):
                 with tf.variable_scope('layer_{}'.format(ii)):
-                    with tf.variable_scope('copy_{}'.format(copy[0])):
+                    cum_pool *= pool[ii]
+                    out_ch = ch[ii + 1]
+
+                    if ii == 0:
+                        prev_inp = x
+                    else:
+                        prev_inp = h[ii - 1]
+
+                    if skip is not None:
+                        if skip[ii] is not None:
+                            if ii == 0:
+                                prev_inp = tf.concat(3, [prev_inp, skip[ii]])
+                            else:
+                                prev_inp = tf.concat(3, [prev_inp, skip[ii]])
+
+                    out_shape[ii] = tf.concat(
+                        0, [batch, inp_size * cum_pool, tf.constant([out_ch])])
+
+                    h[ii] = tf.nn.conv2d_transpose(
+                        prev_inp, w[ii], out_shape[ii],
+                        strides=[1, pool[ii], pool[ii], 1]) + b[ii]
+
+                    if use_bn[ii]:
+                        if frozen is not None and frozen[ii]:
+                            bn_frozen = True
+                        else:
+                            bn_frozen = False
+
+                        if init_weights is not None and \
+                                init_weights[ii] is not None:
+                            init_beta = init_weights[ii][
+                                'beta_{}'.format(copy[0])]
+                            init_gamma = init_weights[ii][
+                                'gamma_{}'.format(copy[0])]
+                        else:
+                            init_beta = None
+                            init_gamma = None
+
+                        # with tf.variable_scope('layer_{}'.format(ii)):
+                        # with tf.variable_scope('copy_{}'.format(copy[0])):
                         h[ii], bm, bv, em, ev = batch_norm(
                             h[ii], out_ch, phase_train,
                             scope2='{}_{}_{}'.format(scope, ii, copy[0]),
@@ -436,18 +443,18 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
                             init_gamma=init_gamma,
                             model=model)
 
-                if model:
-                    model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
-                        tf.reduce_sum(bm) / out_ch
-                    model['{}_{}_bv_{}'.format(scope, ii, copy[0])] = \
-                        tf.reduce_sum(bv) / out_ch
-                    model['{}_{}_em_{}'.format(scope, ii, copy[0])] = \
-                        tf.reduce_sum(em) / out_ch
-                    model['{}_{}_ev_{}'.format(scope, ii, copy[0])] = \
-                        tf.reduce_sum(ev) / out_ch
+                        if model:
+                            model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
+                                tf.reduce_sum(bm) / out_ch
+                            model['{}_{}_bv_{}'.format(scope, ii, copy[0])] = \
+                                tf.reduce_sum(bv) / out_ch
+                            model['{}_{}_em_{}'.format(scope, ii, copy[0])] = \
+                                tf.reduce_sum(em) / out_ch
+                            model['{}_{}_ev_{}'.format(scope, ii, copy[0])] = \
+                                tf.reduce_sum(ev) / out_ch
 
-            if act[ii] is not None:
-                h[ii] = act[ii](h[ii])
+                    if act[ii] is not None:
+                        h[ii] = act[ii](h[ii])
 
         copy[0] += 1
 
@@ -520,23 +527,26 @@ def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, 
 
     def run_mlp(x):
         h = [None] * nlayers
-        for ii in xrange(nlayers):
-            if ii == 0:
-                prev_inp = x
-            else:
-                prev_inp = h[ii - 1]
+        with tf.variable_scope(scope):
+            for ii in xrange(nlayers):
+                with tf.variable_scope('layer_{}'.format(ii)):
+                    if ii == 0:
+                        prev_inp = x
+                    else:
+                        prev_inp = h[ii - 1]
 
-            if dropout_keep is not None:
-                if dropout_keep[ii] is not None:
-                    prev_inp = dropout(prev_inp, dropout_keep[ii], phase_train)
+                    if dropout_keep is not None:
+                        if dropout_keep[ii] is not None:
+                            prev_inp = dropout(
+                                prev_inp, dropout_keep[ii], phase_train)
 
-            h[ii] = tf.matmul(prev_inp, w[ii])
+                    h[ii] = tf.matmul(prev_inp, w[ii])
 
-            if add_bias:
-                h[ii] += b[ii]
+                    if add_bias:
+                        h[ii] += b[ii]
 
-            if act[ii]:
-                h[ii] = act[ii](h[ii])
+                    if act[ii]:
+                        h[ii] = act[ii](h[ii])
 
         return h
 
@@ -587,15 +597,16 @@ def conv_lstm(inp_depth, hid_depth, filter_size, wd=None, scope='conv_lstm'):
         b_o = weight_variable([hid_depth], name='b_o')
 
     def unroll(inp, state):
-        c = tf.slice(state, [0, 0, 0, 0], [-1, -1, -1, hid_depth])
-        h = tf.slice(state, [0, 0, 0, hid_depth], [-1, -1, -1, hid_depth])
-        g_i = tf.sigmoid(conv2d(inp, w_xi) + conv2d(h, w_hi) + b_i)
-        g_f = tf.sigmoid(conv2d(inp, w_xf) + conv2d(h, w_hf) + b_f)
-        g_o = tf.sigmoid(conv2d(inp, w_xo) + conv2d(h, w_ho) + b_o)
-        u = tf.tanh(conv2d(inp, w_xu) + conv2d(h, w_hu) + b_u)
-        c = g_f * c + g_i * u
-        h = g_o * tf.tanh(c)
-        state = tf.concat(3, [c, f])
+        with tf.variable_scope(scope):
+            c = tf.slice(state, [0, 0, 0, 0], [-1, -1, -1, hid_depth])
+            h = tf.slice(state, [0, 0, 0, hid_depth], [-1, -1, -1, hid_depth])
+            g_i = tf.sigmoid(conv2d(inp, w_xi) + conv2d(h, w_hi) + b_i)
+            g_f = tf.sigmoid(conv2d(inp, w_xf) + conv2d(h, w_hf) + b_f)
+            g_o = tf.sigmoid(conv2d(inp, w_xo) + conv2d(h, w_ho) + b_o)
+            u = tf.tanh(conv2d(inp, w_xu) + conv2d(h, w_hu) + b_u)
+            c = g_f * c + g_i * u
+            h = g_o * tf.tanh(c)
+            state = tf.concat(3, [c, f])
 
         return state
 
@@ -701,15 +712,16 @@ def lstm(inp_dim, hid_dim, wd=None, scope='lstm', model=None, init_weights=None,
                 tf.reduce_sum(tf.abs(b_o))) / hid_dim / 4
 
     def unroll(inp, state):
-        c = tf.slice(state, [0, 0], [-1, hid_dim])
-        h = tf.slice(state, [0, hid_dim], [-1, hid_dim])
-        g_i = tf.sigmoid(tf.matmul(inp, w_xi) + tf.matmul(h, w_hi) + b_i)
-        g_f = tf.sigmoid(tf.matmul(inp, w_xf) + tf.matmul(h, w_hf) + b_f)
-        g_o = tf.sigmoid(tf.matmul(inp, w_xo) + tf.matmul(h, w_ho) + b_o)
-        u = tf.tanh(tf.matmul(inp, w_xu) + tf.matmul(h, w_hu) + b_u)
-        c = g_f * c + g_i * u
-        h = g_o * tf.tanh(c)
-        state = tf.concat(1, [c, h])
+        with tf.variable_scope(scope):
+            c = tf.slice(state, [0, 0], [-1, hid_dim])
+            h = tf.slice(state, [0, hid_dim], [-1, hid_dim])
+            g_i = tf.sigmoid(tf.matmul(inp, w_xi) + tf.matmul(h, w_hi) + b_i)
+            g_f = tf.sigmoid(tf.matmul(inp, w_xf) + tf.matmul(h, w_hf) + b_f)
+            g_o = tf.sigmoid(tf.matmul(inp, w_xo) + tf.matmul(h, w_ho) + b_o)
+            u = tf.tanh(tf.matmul(inp, w_xu) + tf.matmul(h, w_hu) + b_u)
+            c = g_f * c + g_i * u
+            h = g_o * tf.tanh(c)
+            state = tf.concat(1, [c, h])
 
         return state, g_i, g_f, g_o
 
