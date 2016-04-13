@@ -186,6 +186,6 @@ if __name__ == '__main__':
 
     log.info('Running validation set')
     res = run_inference(sess, model, dataset['valid'], False)
-    run_eval(res['y_out'], res['s_out'])
+    run_eval(res['y_out'], res['y_gt'], res['s_out'], res['s_gt'])
 
     pass
