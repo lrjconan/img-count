@@ -403,28 +403,28 @@ def get_model(opt, device='/cpu:0'):
         adcnn_act = [tf.nn.relu] * adcnn_nlayers
         adcnn_channels = [attn_mlp_depth] + attn_dcnn_depth
 
-        # adcnn_bn_nlayers = adcnn_nlayers
-        adcnn_bn_nlayers = adcnn_nlayers - 1
+        adcnn_bn_nlayers = adcnn_nlayers
+        # adcnn_bn_nlayers = adcnn_nlayers - 1
         adcnn_use_bn = [use_bn] * adcnn_bn_nlayers + \
             [False] * (adcnn_nlayers - adcnn_bn_nlayers)
         adcnn_skip_ch = [0] + acnn_channels[::-1][1:]
 
-        #if pretrain_attn_net:
-        #    log.info('Loading pretrained attention DCNN weights from {}'.format(
-        #        pretrain_attn_net))
-        #    h5f = h5py.File(pretrain_attn_net, 'r')
-        #    adcnn_init_w = [{'w': h5f['attn_dcnn_w_{}'.format(ii)][:],
-        #                     'b': h5f['attn_dcnn_b_{}'.format(ii)][:]}
-        #                    for ii in xrange(adcnn_nlayers)]
-        #    for ii in xrange(adcnn_bn_nlayers):
-        #        for tt in xrange(timespan):
-        #            for w in ['beta', 'gamma']:
-        #                key = 'attn_dcnn_{}_{}_{}'.format(ii, tt, w)
-        #                adcnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[key][:]
-        #    adcnn_frozen = [freeze_attn_net] * adcnn_nlayers
-        #else:
-        #    adcnn_init_w = None
-        #    adcnn_frozen = None
+        if pretrain_attn_net:
+            log.info('Loading pretrained attention DCNN weights from {}'.format(
+                pretrain_attn_net))
+            h5f = h5py.File(pretrain_attn_net, 'r')
+            adcnn_init_w = [{'w': h5f['attn_dcnn_w_{}'.format(ii)][:],
+                             'b': h5f['attn_dcnn_b_{}'.format(ii)][:]}
+                            for ii in xrange(adcnn_nlayers)]
+            for ii in xrange(adcnn_bn_nlayers):
+                for tt in xrange(timespan):
+                    for w in ['beta', 'gamma']:
+                        key = 'attn_dcnn_{}_{}_{}'.format(ii, tt, w)
+                        adcnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[key][:]
+            adcnn_frozen = [freeze_attn_net] * adcnn_nlayers
+        else:
+            adcnn_init_w = None
+            adcnn_frozen = None
         adcnn_init_w = None
         adcnn_frozen = None
 

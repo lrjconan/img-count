@@ -9,8 +9,10 @@ import tensorflow as tf
 
 from data_api import cvppp
 
+from utils import logger
 from utils.batch_iter import BatchIterator
 
+log = logger.get()
 
 def get_dataset(dataset_name, opt):
     if dataset_name == 'cvppp':
@@ -119,8 +121,6 @@ def best_dice(a, b, num_obj):
 
 
 def symmetric_best_dice(y_out, y_gt, num_obj):
-    # num_ex = y_out.shape[0]
-    num_obj = y_gt.shape[1]
     bd1 = best_dice(y_out, y_gt, num_obj)
     bd2 = best_dice(y_gt, y_out, num_obj)
     return np.minimum(bd1, bd2)
@@ -173,7 +173,6 @@ def run_eval(y_out, y_gt, s_out, s_gt):
     count_out = (s_out > 0.5).astype('float').sum(axis=1)
     count_gt = s_gt.sum(axis=1)
     num_obj = np.maximum(count_gt, 1)
-    print 'num obj', num_obj
 
     # # Upsample the results
     # height = y_out.shape[2]
@@ -190,7 +189,6 @@ def run_eval(y_out, y_gt, s_out, s_gt):
     wt_cov = coverage(y_out_hard, y_gt, num_obj, weighted=True).mean()
 
     count_acc = (count_out == count_gt).astype('float').mean()
-    print 'correct', (count_out == count_gt)
     dic = (count_out - count_gt).mean()
     dic_abs = np.abs(count_out - count_gt).mean()
 

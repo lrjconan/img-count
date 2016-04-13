@@ -51,7 +51,6 @@ if __name__ == '__main__':
 
     model_folder = os.path.join(args.results, args.model)
 
-    model_folder = '/ais/gobi3/u/mren/results/img-count/rec_ins_segm-20160411232909'
     log.info('Folder: {}'.format(model_folder))
 
     saver = Saver(model_folder)
@@ -72,8 +71,8 @@ if __name__ == '__main__':
     res = base.run_inference(sess, model, dataset['train'], False)
     base.run_eval(res['y_out'], res['y_gt'], res['s_out'], res['s_gt'])
 
-    # log.info('Running validation set')
-    # res = run_inference(sess, model, dataset['valid'], False)
-    # run_eval(res['y_out'], res['y_gt'], res['s_out'], res['s_gt'])
+    log.info('Running validation set')
+    res = run_inference(sess, model, dataset['valid'], False)
+    run_eval(res['y_out'], res['y_gt'], res['s_out'], res['s_gt'])
 
     pass
