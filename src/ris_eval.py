@@ -82,12 +82,6 @@ def run_inference(sess, m, dataset, phase_train):
     s_gt = None
     count = 0
 
-    # m = None
-    # m = {
-    #     'x': tf.get_variable('x:0'),
-    #     'y_gt': tf.get_variable('y_gt:0'),
-    #     'phase_train': tf.get_variable('phase_train:0')
-    # }
     for x, y, s in batch_iter:
         r = sess.run(output_list, feed_dict={
                      m['x']: x, 
@@ -118,6 +112,7 @@ def run_inference(sess, m, dataset, phase_train):
 
 
 def symmetric_best_dice(y_out, y_gt):
+    
     pass
 
 
@@ -190,7 +185,7 @@ if __name__ == '__main__':
 
     log.info('Running training set')
     res = run_inference(sess, model, dataset['train'], False)
-    run_eval(res['y_out'], res['s_out'])
+    run_eval(res['y_out'], res['y_gt'], res['s_out'], res['s_gt'])
 
     log.info('Running validation set')
     res = run_inference(sess, model, dataset['valid'], False)
