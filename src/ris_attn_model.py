@@ -952,8 +952,9 @@ def get_model(opt, device='/cpu:0'):
             tf.train.AdamOptimizer(learn_rate, epsilon=eps),
             clip=clip_gradient).minimize(total_loss, global_step=global_step)
         model['train_step'] = train_step
-        adam_var = set(tf.variables.all_variables()) - temp
+        adam_var = set(tf.all_variables()) - temp
         model['adam_var'] = adam_var
+
 ####################
 # Statistics
 ####################
