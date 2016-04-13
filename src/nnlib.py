@@ -57,7 +57,10 @@ def weight_variable(shape, initializer=None, init_val=None, wd=None, name=None, 
     
     log.info(var.name)
     if init_val is not None:
-        log.info('Initialized with shape {}'.format(init_val.shape))
+        if hasattr(init_val, 'shape'):
+            log.info('Initialized with array shape {}'.format(init_val.shape))
+        else:
+            log.info('Initialized with {}'.format(init_val))
 
     if wd:
         weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
