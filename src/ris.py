@@ -708,12 +708,6 @@ def _get_ts_loggers(model_opt, restore_step=0, debug_bn=False, debug_weights=Fal
             name='GT mix',
             buffer_size=1,
             restore_step=restore_step)
-        loggers['attn_params'] = TimeSeriesLogger(
-            os.path.join(logs_folder, 'attn_params.csv'),
-            ['attn log gamma', 'box log gamma', 'out log gamma'],
-            name='Attn params',
-            buffer_size=1,
-            restore_step=restore_step)
 
     if debug_weights:
         for layer_name, nlayers in zip(['glimpse_mlp', 'ctrl_mlp'],
@@ -1164,12 +1158,9 @@ if __name__ == '__main__':
             loggers['count_acc'].add(step, [r['count_acc'], ''])
             loggers['dic'].add(step, [r['dic'], ''])
             loggers['dic_abs'].add(step, [r['dic_abs'], ''])
-            if 'gt_knob' in r:
+            if 'gt_knob_prob_box' in r:
                 loggers['gt_knob'].add(step, [r['gt_knob_prob_box'],
                                               r['gt_knob_prob_segm']])
-                loggers['attn_params'].add(step, [r['attn_lg_gamma_mean'],
-                                                  r['attn_box_lg_gamma_mean'],
-                                                  r['y_out_lg_gamma_mean']])
             loggers['learn_rate'].add(step, r['learn_rate'])
 
             if 'ctrl_lstm_b_mean' in r:
