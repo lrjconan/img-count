@@ -99,6 +99,15 @@ def get_dataset(folder, opt, split=None):
                 label_segm[ii, jj] = label_dict[imgid][jj]
             label_score[ii, :num_obj] = 1
 
+    # Shuffle the indices.
+    random = np.random.RandomState(2)
+    idx = np.arange(idx_map.size)
+    random.shuffle(idx)
+    inp = inp[idx]
+    label_segmentation = label_segmentation[idx]
+    label_score = label_score[idx]
+    index_map = index_map[idx]
+
     return {
         'input': inp,
         'label_segmentation': label_segm,

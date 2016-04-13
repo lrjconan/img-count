@@ -193,7 +193,7 @@ def get_model(opt, device='/cpu:0'):
             ccnn_frozen = [freeze_ctrl_net] * ccnn_nlayers
         else:
             ccnn_init_w = None
-            ccnn_frozen = None
+            ccnn_frozen = [freeze_ctrl_net] * ccnn_nlayers
 
         ccnn = nn.cnn(ccnn_filters, ccnn_channels, ccnn_pool, ccnn_act,
                       ccnn_use_bn, phase_train=phase_train, wd=wd,
@@ -229,7 +229,7 @@ def get_model(opt, device='/cpu:0'):
             crnn_frozen = freeze_ctrl_net
         else:
             crnn_init_w = None
-            crnn_frozen = False
+            crnn_frozen = freeze_ctrl_net
 
         crnn_state = [None] * (timespan + 1)
         crnn_glimpse_map = [None] * timespan
@@ -260,7 +260,7 @@ def get_model(opt, device='/cpu:0'):
             gmlp_frozen = [freeze_ctrl_net] * num_glimpse_mlp_layers
         else:
             gmlp_init_w = None
-            gmlp_frozen = None
+            gmlp_frozen = [freeze_ctrl_net] * num_glimpse_mlp_layers
 
         gmlp = nn.mlp(gmlp_dims, gmlp_act, add_bias=True,
                       dropout_keep=gmlp_dropout,
@@ -286,7 +286,7 @@ def get_model(opt, device='/cpu:0'):
             cmlp_frozen = [freeze_ctrl_net] * num_ctrl_mlp_layers
         else:
             cmlp_init_w = None
-            cmlp_frozen = None
+            cmlp_frozen = [freeze_ctrl_net] * num_ctrl_mlp_layers
 
         cmlp = nn.mlp(cmlp_dims, cmlp_act, add_bias=True,
                       dropout_keep=cmlp_dropout,
@@ -319,7 +319,7 @@ def get_model(opt, device='/cpu:0'):
             acnn_frozen = [freeze_attn_net] * acnn_nlayers
         else:
             acnn_init_w = None
-            acnn_frozen = None
+            acnn_frozen = [freeze_attn_net] * acnn_nlayers
 
         # if cnn_share_weights:
         #     ccnn_shared_weights = []
@@ -379,7 +379,7 @@ def get_model(opt, device='/cpu:0'):
             amlp_frozen = [freeze_attn_net] * num_attn_mlp_layers
         else:
             amlp_init_w = None
-            amlp_frozen = None
+            amlp_frozen = [freeze_attn_net] * num_attn_mlp_layers
 
         amlp = nn.mlp(amlp_dims, amlp_act, dropout_keep=amlp_dropout,
                       phase_train=phase_train, wd=wd, scope='attn_mlp',
@@ -424,7 +424,7 @@ def get_model(opt, device='/cpu:0'):
             adcnn_frozen = [freeze_attn_net] * adcnn_nlayers
         else:
             adcnn_init_w = None
-            adcnn_frozen = None
+            adcnn_frozen = [freeze_attn_net] * adcnn_nlayers
         adcnn_init_w = None
         adcnn_frozen = None
 
