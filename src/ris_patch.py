@@ -251,7 +251,6 @@ if __name__ == '__main__':
 
     log.info('Loading dataset')
     dataset = trainer.get_dataset(args.dataset, data_opt)
-
     if model_opt['fixed_order']:
         dataset['train']['label_segmentation'] = trainer.sort_by_segm_size(
             dataset['train']['label_segmentation'])

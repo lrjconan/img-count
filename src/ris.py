@@ -457,7 +457,6 @@ if __name__ == '__main__':
 
     log.info('Loading dataset')
     dataset = trainer.get_dataset(args.dataset, data_opt)
-
     if model_opt['fixed_order']:
         dataset['train']['label_segmentation'] = trainer.sort_by_segm_size(
             dataset['train']['label_segmentation'])
@@ -502,8 +501,7 @@ if __name__ == '__main__':
                          fname_total=None, fname_box=None, fname_patch=None,
                          fname_attn=None):
 
-            _outputs = ['x_trans', 'y_gt_trans', 'y_out',
-                        's_out', 'match']
+            _outputs = ['x_trans', 'y_gt_trans', 'y_out', 's_out', 'match']
 
             if attn:
                 _outputs.extend(['attn_top_left', 'attn_bot_right',
