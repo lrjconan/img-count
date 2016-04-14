@@ -123,40 +123,50 @@ def make_model_opt(args):
     return model_opt
 
 
-def get_ts_loggers(model_opt):
+def get_ts_loggers(model_opt, restore_step=0):
     loggers = {}
     loggers['loss'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'loss.csv'), ['train', 'valid'],
         name='Loss',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['segm_loss'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'segm_loss.csv'), ['train', 'valid'],
         name='Segmentation Loss',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['iou'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'iou.csv'),
         ['train soft', 'valid soft', 'train hard', 'valid hard'],
         name='IoU',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['wt_cov'] = TimeSeriesLogger(
-        os.path.join(logs_folder, 'wt_cov.csv'),
-        ['train soft', 'valid soft', 'train hard', 'valid hard'],
+        os.path.join(logs_folder, 'wt_cov.csv'), ['train', 'valid'],
         name='Weighted Coverage',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['unwt_cov'] = TimeSeriesLogger(
-        os.path.join(logs_folder, 'unwt_cov.csv'),
-        ['train soft', 'valid soft', 'train hard', 'valid hard'],
+        os.path.join(logs_folder, 'unwt_cov.csv'), ['train', 'valid'],
         name='Unweighted Coverage',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
+    loggers['dice'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'dice.csv'), ['train', 'valid'],
+        name='Dice',
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['learn_rate'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'learn_rate.csv'),
         'learning rate',
         name='Learning rate',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
     loggers['step_time'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'step_time.csv'), 'step time (ms)',
         name='Step time',
-        buffer_size=1)
+        buffer_size=1,
+        restore_step=restore_step)
 
     return loggers
 
@@ -259,7 +269,7 @@ if __name__ == '__main__':
     loggers = {}
     if train_opt['logs']:
         log_manager = LogManager(logs_folder)
-        loggers = get_ts_loggers(model_opt)
+        loggers = get_ts_loggers(model_opt, restore_step=step)
         trainer.register_raw_logs(log_manager, log, model_opt, saver)
         samples = get_plot_loggers(model_opt, train_opt)
         log_url = 'http://{}/deep-dashboard?id={}'.format(
@@ -337,15 +347,14 @@ if __name__ == '__main__':
         pass
 
     def get_outputs_valid():
-        _outputs = ['loss', 'segm_loss', 'iou_soft', 'iou_hard',
-                    'wt_cov_soft', 'wt_cov_hard', 'unwt_cov_soft',
-                    'unwt_cov_hard']
+        _outputs = ['loss', 'segm_loss', 'iou_soft', 'iou_hard', 'wt_cov_soft',
+                    'wt_cov_hard', 'unwt_cov_soft', 'unwt_cov_hard', 'dice']
 
         return _outputs
 
     def get_outputs_trainval():
         _outputs = ['loss', 'segm_loss', 'iou_soft', 'iou_hard', 'wt_cov_soft',
-                    'wt_cov_hard', 'unwt_cov_soft', 'unwt_cov_hard',
+                    'wt_cov_hard', 'unwt_cov_soft', 'unwt_cov_hard', 'dice',
                     'learn_rate']
 
         return _outputs
@@ -385,10 +394,9 @@ if __name__ == '__main__':
             loggers['loss'].add(step, ['', r['loss']])
             loggers['segm_loss'].add(step, ['', r['segm_loss']])
             loggers['iou'].add(step, ['', r['iou_soft'], '', r['iou_hard']])
-            loggers['wt_cov'].add(step, ['', r['wt_cov_soft'], '',
-                                         r['wt_cov_hard']])
-            loggers['unwt_cov'].add(step, ['', r['unwt_cov_soft'], '',
-                                           r['unwt_cov_hard']])
+            loggers['wt_cov'].add(step, ['', r['wt_cov_hard']])
+            loggers['unwt_cov'].add(step, ['', r['unwt_cov_hard']])
+            loggers['dice'].add(step, ['', r['dice']])
 
             pass
 
@@ -401,10 +409,9 @@ if __name__ == '__main__':
             loggers['segm_loss'].add(step, [r['segm_loss'], ''])
 
             loggers['iou'].add(step, [r['iou_soft'], '', r['iou_hard'], ''])
-            loggers['wt_cov'].add(step, [r['wt_cov_soft'], '',
-                                         r['wt_cov_hard'], ''])
-            loggers['unwt_cov'].add(step, [r['unwt_cov_soft'], '',
-                                           r['unwt_cov_hard'], ''])
+            loggers['wt_cov'].add(step, [r['wt_cov_hard'], ''])
+            loggers['unwt_cov'].add(step, [r['unwt_cov_hard'], ''])
+            loggers['dice'].add(step, [r['dice'], ''])
             loggers['learn_rate'].add(step, r['learn_rate'])
 
             pass

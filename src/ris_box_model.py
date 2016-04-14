@@ -44,18 +44,12 @@ def get_model(opt, device='/cpu:0'):
     steps_per_learn_rate_decay = opt['steps_per_learn_rate_decay']
     pretrain_cnn = opt['pretrain_cnn']
     squash_ctrl_params = opt['squash_ctrl_params']
+    clip_gradient = opt['clip_gradient']
     fixed_order = opt['fixed_order']
-
-    # New parameters for double attention.
-    if 'ctrl_rnn_inp_struct' in opt:
-        ctrl_rnn_inp_struct = opt['ctrl_rnn_inp_struct']  # dense or attn
-        num_ctrl_rnn_iter = opt['num_ctrl_rnn_iter']
-        num_glimpse_mlp_layers = opt['num_glimpse_mlp_layers']
-    else:
-        ctrl_rnn_inp_struct = 'dense'
-        num_ctrl_rnn_iter = 5
-        num_glimpse_mlp_layers = 1
-
+    ctrl_rnn_inp_struct = opt['ctrl_rnn_inp_struct']  # dense or attn
+    num_ctrl_rnn_iter = opt['num_ctrl_rnn_iter']
+    num_glimpse_mlp_layers = opt['num_glimpse_mlp_layers']
+    
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
     rnd_transpose = opt['rnd_transpose']
@@ -66,18 +60,20 @@ def get_model(opt, device='/cpu:0'):
 ############################
     with tf.device(base.get_device_fn(device)):
         # Input image, [B, H, W, D]
-        x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth])
+        x = tf.placeholder('float', [None, inp_height, inp_width, inp_depth],
+                           name='x')
         x_shape = tf.shape(x)
         num_ex = x_shape[0]
 
         # Groundtruth segmentation, [B, T, H, W]
-        y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width])
+        y_gt = tf.placeholder('float', [None, timespan, inp_height, inp_width],
+                              name='y_gt')
 
         # Groundtruth confidence score, [B, T]
-        s_gt = tf.placeholder('float', [None, timespan])
+        s_gt = tf.placeholder('float', [None, timespan], name='s_gt')
 
         # Whether in training stage.
-        phase_train = tf.placeholder('bool')
+        phase_train = tf.placeholder('bool', name='phase_train')
         phase_train_f = tf.to_float(phase_train)
         model['x'] = x
         model['y_gt'] = y_gt
@@ -85,7 +81,7 @@ def get_model(opt, device='/cpu:0'):
         model['phase_train'] = phase_train
 
         # Global step
-        global_step = tf.Variable(0.0)
+        global_step = tf.Variable(0.0, name='global_step')
 
 ###############################
 # Random input transformation
@@ -420,7 +416,7 @@ def get_model(opt, device='/cpu:0'):
 
         if box_loss_fn == 'mse':
             box_loss = base.f_match_loss(
-                attn_params, attn_params_gt, match_box, timespan, 
+                attn_params, attn_params_gt, match_box, timespan,
                 base.f_squared_err, model=model)
         elif box_loss_fn == 'huber':
             box_loss = base.f_match_loss(
@@ -467,7 +463,7 @@ def get_model(opt, device='/cpu:0'):
         eps = 1e-7
         train_step = GradientClipOptimizer(
             tf.train.AdamOptimizer(learn_rate, epsilon=eps),
-            clip=1.0).minimize(total_loss, global_step=global_step)
+            clip=clip_gradient).minimize(total_loss, global_step=global_step)
         model['train_step'] = train_step
 
 ####################

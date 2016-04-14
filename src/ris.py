@@ -476,7 +476,7 @@ if __name__ == '__main__':
     loggers = {}
     if train_opt['logs']:
         log_manager = LogManager(logs_folder)
-        loggers = get_ts_loggers(model_opt)
+        loggers = get_ts_loggers(model_opt, restore_step=step)
         trainer.register_raw_logs(log_manager, log, model_opt, saver)
         samples = get_plot_loggers(model_opt, train_opt)
         _log_url = 'http://{}/deep-dashboard?id={}'.format(

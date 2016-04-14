@@ -99,19 +99,19 @@ def get_model(opt, device='/cpu:0'):
                               name='y_gt')
 
         # Groundtruth confidence score, [B, T]
-        s_gt = tf.placeholder('float', [None, timespan],
-                              name='s_gt')
+        s_gt = tf.placeholder('float', [None, timespan], name='s_gt')
 
         # Whether in training stage.
         phase_train = tf.placeholder('bool', name='phase_train')
         phase_train_f = tf.to_float(phase_train)
+        
         model['x'] = x
         model['y_gt'] = y_gt
         model['s_gt'] = s_gt
         model['phase_train'] = phase_train
 
         # Global step
-        global_step = tf.Variable(0.0)
+        global_step = tf.Variable(0.0, name='global_step')
 
 ###############################
 # Random input transformation
@@ -896,22 +896,6 @@ def get_model(opt, device='/cpu:0'):
         model['attn_lg_gamma_mean'] = attn_lg_gamma_mean
         model['attn_box_lg_gamma_mean'] = attn_box_lg_gamma_mean
         model['y_out_lg_gamma_mean'] = y_out_lg_gamma_mean
-
-##################################
-# Controller RNN gate statistics
-##################################
-        # crnn_g_i = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_i])
-        # crnn_g_f = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_f])
-        # crnn_g_o = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in crnn_g_o])
-        # crnn_g_i_avg = tf.reduce_sum(
-        #     crnn_g_i) / num_ex_f / timespan / ctrl_rnn_hid_dim
-        # crnn_g_f_avg = tf.reduce_sum(
-        #     crnn_g_f) / num_ex_f / timespan / ctrl_rnn_hid_dim
-        # crnn_g_o_avg = tf.reduce_sum(
-        #     crnn_g_o) / num_ex_f / timespan / ctrl_rnn_hid_dim
-        # model['crnn_g_i_avg'] = crnn_g_i_avg
-        # model['crnn_g_f_avg'] = crnn_g_f_avg
-        # model['crnn_g_o_avg'] = crnn_g_o_avg
 
 ####################
 # Debug gradients
