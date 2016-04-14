@@ -40,6 +40,7 @@ def add_model_args(parser):
     parser.add_argument('--ctrl_mlp_dim', default=256, type=int)
     parser.add_argument('--base_learn_rate', default=0.001, type=float)
     parser.add_argument('--learn_rate_decay', default=0.96, type=float)
+    parser.add_argument('--clip_gradient', default=1.0, type=float)
     parser.add_argument('--steps_per_learn_rate_decay', default=5000, type=int)
     parser.add_argument('--squash_ctrl_params', action='store_true')
     parser.add_argument('--ctrl_rnn_inp_struct', default='dense')
@@ -85,9 +86,10 @@ def make_model_opt(args):
         'base_learn_rate': args.base_learn_rate,
         'learn_rate_decay': args.learn_rate_decay,
         'steps_per_learn_rate_decay': args.steps_per_learn_rate_decay,
-        'fixed_order': args.fixed_order,
         'pretrain_cnn': args.pretrain_cnn,
         'squash_ctrl_params': args.squash_ctrl_params,
+        'clip_gradient': args.clip_gradient,
+        'fixed_order': args.fixed_order,
         'ctrl_rnn_inp_struct': args.ctrl_rnn_inp_struct,
         'num_ctrl_rnn_iter': args.num_ctrl_rnn_iter,
         'num_glimpse_mlp_layers': args.num_glimpse_mlp_layers,
