@@ -315,7 +315,7 @@ def run_eval(sess, m, dataset, batch_size=10, fname=None):
     # _run_eval(sess, m, batch_iter, analyzers)
 
 
-def _run_eval(sess, m, output_list, batch_iter, analyzers):
+def _run_eval(sess, m, batch_iter, analyzers):
     output_list = [m['y_out'], m['s_out']]
     for x, y_gt, s_gt, idx in batch_iter:
         feed_dict = {m['x']: x, m['y_gt']: y_gt, m['phase_train']: False}
