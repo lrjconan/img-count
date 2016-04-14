@@ -100,6 +100,7 @@ def get_model(opt, device='/cpu:0'):
 
         # Global step
         global_step = tf.Variable(0.0, name='global_step')
+        global_step = tf.Variable(0.0)
 
 ###############################
 # Random input transformation
