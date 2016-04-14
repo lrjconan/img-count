@@ -58,7 +58,12 @@ def make_model_opt(args):
     ccnn_pool_list = [int(pool) for pool in ccnn_pool_list]
 
     inp_height, inp_width, timespan = trainer.get_inp_dim(args.dataset)
-
+    rnd_hflip, rnd_vflip, rnd_transpose, rnd_colour = \
+        trainer.get_inp_transform(args.dataset)
+    
+    if args.dataset == 'synth_shape':
+        timespan = args.max_num_objects + 1
+    
     model_opt = {
         'timespan': timespan,
         'inp_height': inp_height,
@@ -86,10 +91,11 @@ def make_model_opt(args):
         'ctrl_rnn_inp_struct': args.ctrl_rnn_inp_struct,
         'num_ctrl_rnn_iter': args.num_ctrl_rnn_iter,
         'num_glimpse_mlp_layers': args.num_glimpse_mlp_layers,
-        'rnd_hflip': True,
-        'rnd_vflip': False,
-        'rnd_transpose': False,
-        'rnd_colour': False
+        'pretrain_cnn': args.pretrain_cnn,
+        'rnd_hflip': rnd_hflip,
+        'rnd_vflip': rnd_vflip,
+        'rnd_transpose': rnd_transpose,
+        'rnd_colour': rnd_colour
     }
 
     return model_opt

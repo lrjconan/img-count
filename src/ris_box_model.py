@@ -316,51 +316,21 @@ def get_model(opt, device='/cpu:0'):
             filter_x_inv = tf.transpose(filter_x, [0, 2, 1])
 
             # Attention box
-            if use_iou_box:
-                _idx_map = base.get_idx_map(
-                    tf.pack([num_ex, inp_height, inp_width]))
-                attn_box[tt] = base.get_filled_box_idx(
-                    _idx_map, attn_top_left[tt], attn_bot_right[tt])
-                attn_box[tt] = tf.reshape(attn_box[tt],
-                                          [-1, 1, inp_height, inp_width])
-            else:
-                attn_box[tt] = base.extract_patch(
-                    const_ones * attn_box_gamma[tt],
-                    filter_y_inv, filter_x_inv, 1)
-                attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
-                attn_box[tt] = tf.reshape(attn_box[tt],
-                                          [-1, 1, inp_height, inp_width])
-
-            # IOU [B, 1, T]
-            if use_iou_box:
-                _top_left = tf.expand_dims(attn_top_left[tt], 1)
-                _bot_right = tf.expand_dims(attn_bot_right[tt], 1)
-
-                if fixed_order:
-                    # [B]
-                    iou_soft_box[tt] = base.f_iou_box(
-                        attn_top_left[tt], attn_bot_right[tt],
-                        attn_top_left_gt[:, tt],
-                        attn_bot_right_gt[:, tt])
-                else:
-                    # [B, T]
-                    iou_soft_box[tt] = base.f_iou_box(
-                        _top_left, _bot_right, attn_top_left_gt,
-                        attn_bot_right_gt)
-            else:
-                if not fixed_order:
-                    iou_soft_box[tt] = base.f_inter(
-                        attn_box[tt], attn_box_gt) / \
-                        base.f_union(attn_box[tt], attn_box_gt, eps=1e-5)
+            attn_box[tt] = base.extract_patch(
+                const_ones * attn_box_gamma[tt],
+                filter_y_inv, filter_x_inv, 1)
+            attn_box[tt] = tf.sigmoid(attn_box[tt] + attn_box_beta)
+            attn_box[tt] = tf.reshape(attn_box[tt],
+                                      [-1, 1, inp_height, inp_width])
 
             if fixed_order:
                 _y_out = tf.expand_dims(y_gt[:, tt, :, :], 3)
             else:
+                iou_soft_box[tt] = base.f_inter(
+                    attn_box[tt], attn_box_gt) / \
+                    base.f_union(attn_box[tt], attn_box_gt, eps=1e-5)
                 grd_match = base.f_greedy_match(
                     iou_soft_box[tt], grd_match_cum)
-                # if gt_selector == 'greedy_match':
-                #     # Add in the cumulative matching to not double count.
-                #     grd_match_cum += grd_match
                 grd_match = tf.expand_dims(tf.expand_dims(grd_match, 2), 3)
                 _y_out = tf.expand_dims(tf.reduce_sum(grd_match * y_gt, 1), 3)
 
@@ -419,7 +389,7 @@ def get_model(opt, device='/cpu:0'):
 ############################
 # Box loss
 ############################
-        if not use_iou_box and fixed_order:
+        if fixed_order:
             # [B, T] for fixed order.
             iou_soft_box = base.f_iou(attn_box, attn_box_gt, pairwise=False)
         else:
