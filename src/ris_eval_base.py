@@ -83,14 +83,14 @@ def _f_iou(a, b):
     """IOU between two segmentations.
 
     Args:
-        a: [B, H, W]
-        b: [B, H, W]
+        a: [..., H, W], binary mask
+        b: [..., H, W], binary mask
 
     Returns:
-        iou: [B]
+        dice: [...]
     """
-    inter = (a * b).sum(axis=3).sum(axis=2)
-    union = (a + b).sum(axis=3).sum(axis=2) - inter
+    inter = (a * b).sum(axis=-1).sum(axis=-2)
+    union = (a + b).sum(axis=-1).sum(axis=-2) - inter
     return inter / (union + 1e-5)
 
 
@@ -98,14 +98,14 @@ def _f_dice(a, b):
     """DICE between two segmentations.
 
     Args:
-        a: [B, H, W], binary mask
-        b: [B, H, W], binary mask
+        a: [..., H, W], binary mask
+        b: [..., H, W], binary mask
 
     Returns:
-        dice: [B]
+        dice: [...]
     """
-    card_a = a.sum(axis=3).sum(axis=2)
-    card_b = b.sum(axis=3).sum(axis=2)
+    card_a = a.sum(axis=-1).sum(axis=-2)
+    card_b = b.sum(axis=-1).sum(axis=-2)
     card_ab = (a * b).sum(axis=3).sum(axis=2)
     dice = 2 * card_ab / (card_a + card_b + 1e-5)
     return dice
@@ -129,11 +129,35 @@ def _f_best_dice(a, b):
         pass
     return bd
 
-def _f_match(iou_pairwise):
-    for ii in xrange(iou_pairwise.shape[0]):
-        pass
-    pass
 
+def _f_match(iou_pairwise):
+    match = np.zeros(iou_pairwise.shape)
+    for ii in xrange(iou_pairwise.shape[0]):
+        c0, c1, _match = hungarian.min_weighted_bp_cover(iou_pairwise[ii])
+        match[ii] = _match
+        pass
+    return match
+
+
+def f_ins_iou(y_out, y_gt, s_out, s_gt):
+    """Calculates average instance-level IOU..
+
+    Args:
+        a: [B, T, H, W], binary mask
+        b: [B, T, H, W], binary mask
+
+    Returns:
+        iou: [B]
+    """
+    count_out, count_gt, num_obj = _f_count(s_out, s_gt)
+    y_out_ = np.expand_dims(y_out, 2)
+    y_gt_ = np.expand_dims(y_gt, 1)
+    iou_pairwise = _f_iou(y_out_, y_gt_)
+    iou_pairwise = np.maximum(1e-5, iou_pairwise)
+    match = f_match(iou_pairwise)
+    match[:, num_obj:, :] = 0.0
+    match[:, :, num_obj:] = 0.0
+    return (iou_pairwise * match).sum(axis=-1).sum(axis=-2) / num_obj
 
 
 def f_symmetric_best_dice(y_out, y_gt, s_out, s_gt):
@@ -263,7 +287,8 @@ class StageAnalyzer(object):
 
 
 def run_eval(sess, m, dataset, batch_size=10, fname=None):
-    analyzers = [StageAnalyzer('SBD', f_symmetric_best_dice, fname=fname),
+    analyzers = [StageAnalyzer('IOU', f_ins_iou, fname=fname),
+                 StageAnalyzer('SBD', f_symmetric_best_dice, fname=fname),
                  StageAnalyzer('WT COV', f_wt_coverage, fname=fname),
                  StageAnalyzer('UNWT COV', f_unwt_coverage, fname=fname),
                  StageAnalyzer('FG DICE', f_fg_dice, fname=fname),
