@@ -83,19 +83,35 @@ NUM_ITER_FINETUNE_PATCH="30000"
 NUM_ITER_FINETUNE_TOTAL="20000"
 
 # Model IDs
-MODEL_ID=$(python src/assign_model_id.py)
+MODEL_ID="20160414011021"
+#MODEL_ID=$(python src/assign_model_id.py)
 PATCH_MODEL_ID="ris_patch_"$DATASET"-"$MODEL_ID
 BOX_MODEL_ID="ris_box_"$DATASET"-"$MODEL_ID
 FINETUNE_PATCH_MODEL_ID="ris_ft0_"$DATASET"-"$MODEL_ID
 FINETUNE_TOTAL_MODEL_ID="ris_ft1_"$DATASET"-"$MODEL_ID
+
+PATCH_WEIGHTS=$SAVE_FOLDER/$PATCH_MODEL_ID/weights.h5
+BOX_WEIGHTS=$SAVE_FOLDER/$BOX_MODEL_ID/weights.h5
+FINETUNE_PATCH_WEIGHTS=$SAVE_FOLDER/$FINETUNE_PATCH_MODEL_ID/weights.h5
+
 echo $PATCH_MODEL_ID
 echo $BOX_MODEL_ID
 echo $FINETUNE_PATCH_MODEL_ID
 echo $FINETUNE_TOTAL_MODEL_ID
 
+RUN_STAGE10=false
+RUN_STAGE15=false
+RUN_STAGE20=true
+RUN_STAGE25=true
+RUN_STAGE30=true
+RUN_STAGE35=true
+RUN_STAGE40=true
+RUN_STAGE50=true
+
 ###############################################################################
 # Stage 1
 ###############################################################################
+if $RUN_STAGE10 ; then
 echo "Stage 1: training patch net"
 python src/ris_patch.py \
 --gpu $GPU \
@@ -127,20 +143,23 @@ python src/ris_patch.py \
 --fixed_order \
 --num_steps $NUM_ITER_PATCH \
 --model_id $PATCH_MODEL_ID
+fi
 
 ###############################################################################
 # Stage 1.5
 ###############################################################################
+if $RUN_STAGE15 ; then
 echo "Reading weights from stage 1"
-PATCH_WEIGHTS=$SAVE_FOLDER/$PATCH_MODEL_ID/weights.h5
 python src/ris_patch_reader.py \
 --model_id $PATCH_MODEL_ID \
 --results $SAVE_FOLDER \
---output $PATCH_WEIGHTS
+-output $PATCH_WEIGHTS
+fi
 
 ###############################################################################
 # Stage 2
 ###############################################################################
+if $RUN_STAGE20 ; then
 echo "Stage 2: training box net"
 python src/ris_box.py \
 --gpu $GPU \
@@ -165,20 +184,23 @@ python src/ris_box.py \
 --base_learn_rate $BASE_LEARN_RATE_STAGE2 \
 --num_steps $NUM_ITER_BOX \
 --model_id $BOX_MODEL_ID
+fi
 
 ###############################################################################
 # Stage 2.5
 ###############################################################################
+if $RUN_STAGE25 ; then
 echo "Reading weights from stage 2"
-BOX_WEIGHTS=$SAVE_FOLDER/$BOX_MODEL_ID/weights.h5
 python src/ris_box_reader.py \
 --model_id $BOX_MODEL_ID \
 --results $SAVE_FOLDER \
 --output $BOX_WEIGHTS
+fi
 
 ###############################################################################
 # Stage 3
 ###############################################################################
+if $RUN_STAGE30 ; then
 echo "Stage 3: training entire network, with box net fixed"
 python src/ris.py \
 --gpu $GPU \
@@ -225,20 +247,23 @@ python src/ris.py \
 --base_learn_rate $BASE_LEARN_RATE_STAGE3 \
 --num_steps $NUM_ITER_FINETUNE_PATCH \
 --model_id $FINETUNE_PATCH_MODEL_ID
+fi
 
 ###############################################################################
 # Stage 3.5
 ###############################################################################
+if $RUN_STAGE35 ; then
 echo "Reading weights from stage 3"
-FINETUNE_PATCH_WEIGHTS=$SAVE_FOLDER/$FINETUNE_PATCH_MODEL_ID/weights.h5
 python src/ris_reader.py \
 --model_id $FINETUNE_PATCH_MODEL_ID \
 --results $SAVE_FOLDER \
 --output $FINETUNE_PATCH_WEIGHTS
+fi
 
 ###############################################################################
 # Stage 4
 ###############################################################################
+if $RUN_STAGE40 ; then
 echo "Stage 4: training entire network, finetune"
 python src/ris.py \
 --gpu $GPU \
@@ -283,12 +308,15 @@ python src/ris.py \
 --base_learn_rate $BASE_LEARN_RATE_STAGE4 \
 --num_steps $NUM_ITER_FINETUNE_TOTAL \
 --model_id $FINETUNE_TOTAL_MODEL_ID
+fi
 
 ###############################################################################
 # Stage 5
 ###############################################################################
+if $RUN_STAGE5 ; then
 echo "Running evaluation"
 python src/ris_eval.py \
 --dataset $DATASET \
 --model_id $FINETUNE_TOTAL_MODEL_ID \
 --results $SAVE_FOLDER
+fi

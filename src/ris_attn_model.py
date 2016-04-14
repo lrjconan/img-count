@@ -75,6 +75,10 @@ def get_model(opt, device='/cpu:0'):
     pretrain_ctrl_net = opt['pretrain_ctrl_net']
     pretrain_attn_net = opt['pretrain_attn_net']
     pretrain_net = opt['pretrain_net']
+    
+    #freeze_ctrl_cnn = True
+    #freeze_ctrl_rnn = True
+    #freeze_attn_net = True
     freeze_ctrl_cnn = opt['freeze_ctrl_cnn']
     freeze_ctrl_rnn = opt['freeze_ctrl_rnn']
     freeze_attn_net = opt['freeze_attn_net']
@@ -112,6 +116,7 @@ def get_model(opt, device='/cpu:0'):
 
         # Global step
         global_step = tf.Variable(0.0, name='global_step')
+        # global_step = tf.Variable(0.0)
 
 ###############################
 # Random input transformation
