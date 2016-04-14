@@ -68,8 +68,9 @@ def get_batch_fn(dataset):
         x_bat = dataset['input'][idx]
         y_bat = dataset['label_segmentation'][idx]
         s_bat = dataset['label_score'][idx]
+        idx_bat = dataset['index_map'][idx]
         x_bat, y_bat, s_bat = preprocess(x_bat, y_bat, s_bat)
-        return x_bat, y_bat, s_bat
+        return x_bat, y_bat, s_bat, idx_bat
     return get_batch
 
 
@@ -77,12 +78,30 @@ def get_batch_fn(dataset):
 # Analysis helper functions
 ###############################
 def _f_iou(a, b):
+    """IOU between two segmentations.
+
+    Args:
+        a: [B, H, W]
+        b: [B, H, W]
+
+    Returns:
+        iou: [B]
+    """
     inter = (a * b).sum(axis=3).sum(axis=2)
     union = (a + b).sum(axis=3).sum(axis=2) - inter
     return inter / (union + 1e-5)
 
 
 def _f_dice(a, b):
+    """DICE between two segmentations.
+
+    Args:
+        a: [B, H, W], binary mask
+        b: [B, H, W], binary mask
+
+    Returns:
+        dice: [B]
+    """
     card_a = a.sum(axis=3).sum(axis=2)
     card_b = b.sum(axis=3).sum(axis=2)
     card_ab = (a * b).sum(axis=3).sum(axis=2)
@@ -90,28 +109,59 @@ def _f_dice(a, b):
     return dice
 
 
-def _f_best_dice(a, b, num_obj):
+def _f_best_dice(a, b):
+    """For each a, look for the best DICE of all b.
+
+    Args:
+        a: [B, T, H, W], binary mask
+        b: [B, T, H, W], binary mask
+
+    Returns:
+        best_dice: [B, T]
+    """
     bd = np.zeros([a.shape[0], a.shape[1]])
     for ii in xrange(a.shape[1]):
         a_ = a[:, ii: ii + 1, :, :]
         dice = _f_dice(a_, b)
         bd[:, ii] = dice.max(axis=1)
         pass
-    bd_mean = np.zeros([a.shape[0]])
-    for ii in xrange(a.shape[0]):
-        bd_mean[ii] = bd[ii, :num_obj[ii]].mean()
-        pass
-    return bd_mean
+    return bd
 
 
 def f_symmetric_best_dice(y_out, y_gt, s_out, s_gt):
+    """Calculates symmetric best DICE. min(BestDICE(a, b), BestDICE(b, a)).
+
+    Args:
+        a: [B, T, H, W], binary mask
+        b: [B, T, H, W], binary mask
+
+    Returns:
+        sbd: [B]
+    """
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
-    bd1 = _f_best_dice(y_out, y_gt, num_obj).mean()
+    bd1 = _f_best_dice(y_out, y_gt, num_obj)
+    bd1_mean = np.zeros([a.shape[0]])
+    for ii in xrange(a.shape[0]):
+        bd1_mean[ii] = bd1[ii, :num_obj[ii]].mean()
+        pass
     bd2 = _f_best_dice(y_gt, y_out, num_obj).mean()
-    return min(bd1, bd2)
+    bd2_mean = np.zeros([a.shape[0]])
+    for ii in xrange(a.shape[0]):
+        bd2_mean[ii] = bd1[ii, :num_obj[ii]].mean()
+        pass
+    return np.minimum(bd1_mean, bd2_mean)
 
 
 def f_coverage(y_out, y_gt, s_out, s_gt, weighted=False):
+    """Calculates coverage score.
+
+    Args:
+        a: [B, T, H, W], binary mask
+        b: [B, T, H, W], binary mask
+
+    Returns:
+        cov: [B]
+    """
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
     cov = np.zeros([y_out.shape[0], y_out.shape[1]])
     for ii in xrange(y_gt.shape[1]):
@@ -134,42 +184,50 @@ def f_coverage(y_out, y_gt, s_out, s_gt, weighted=False):
         cov_mean[ii] = cov[ii, :num_obj[ii]].sum()
         pass
 
-    return cov_mean.mean()
+    return cov_mean
 
 
 def f_wt_coverage(y_out, y_gt, s_out, s_gt):
+    """Calculates weighted coverage score."""
     return f_coverage(y_out, y_gt, s_out, s_gt, weighted=True)
 
 
 def f_unwt_coverage(y_out, y_gt, s_out, s_gt):
+    """Calculates unweighted coverage score."""
     return f_coverage(y_out, y_gt, s_out, s_gt, weighted=False)
 
 
 def f_fg_iou(y_out, y_gt, s_out, s_gt):
+    """Calculates foreground IOU score."""
     return _f_iou(y_out.sum(axis=1), y_gt.sum(axis=1))
 
 
 def f_fg_dice(y_out, y_gt, s_out, s_gt):
+    """Calculates foreground DICE score."""
     return _f_dice(y_out.sum(axis=1), y_gt.sum(axis=1))
 
 
 def f_count_acc(y_out, y_gt, s_out, s_gt):
+    """Calculates count accuracy."""
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
-    return (count_out == count_gt).astype('float').mean()
+    return (count_out == count_gt).astype('float')
 
 
 def f_dic(y_out, y_gt, s_out, s_gt):
+    """Calculates difference in count."""
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
-    return (count_out - count_gt).mean()
+    return (count_out - count_gt)
 
 
 def f_dic_abs(y_out, y_gt, s_out, s_gt):
+    """Calculates absolute difference in count."""
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
-    return np.abs(count_out - count_gt).mean()
+    return np.abs(count_out - count_gt)
 
 
 def _f_count(s_out, s_gt):
-    count_out = .sum(axis=1)
+    """Convert to count."""
+    count_out = s_out.sum(axis=1)
     count_gt = s_gt.sum(axis=1)
     num_obj = np.maximum(count_gt, 1)
     return count_out, count_gt, num_obj
@@ -184,10 +242,10 @@ class StageAnalyzer(object):
         self.func = func
 
     def stage(self, y_out, y_gt, s_out, s_gt):
-        _tmp = self.func(y_out, y_gt, s_out, s_gt)
+        _tmp = self.func(y_out, y_gt, s_out, s_gt).sum()
         _num = y_out.shape[0]
         self.num_ex += _num
-        self.avg += _tmp * _num
+        self.avg += _tmp
         pass
 
     def finalize():
@@ -222,10 +280,12 @@ def run_eval(sess, m, dataset, batch_size=10, fname=None):
 
 
 def _run_eval(sess, output_list, batch_iter, analyzers):
-    for x, y_gt, s_gt in batch_iter:
+    for x, y_gt, s_gt, idx in batch_iter:
         feed_dict = {m['x']: x, m['y_gt']: y_gt, m['phase_train']: False}
         r = sess.run(output_list, feed_dict)
         y_out, s_out = postprocess(r[0], r[1])
+        # y_gt = dataset.get_label(idx)
+        # y_out = upsample(y_out, y_gt)
         [analyzer.stage(y_out, y_gt, s_out, s_gt) for analyzer in analyzers]
         pass
     [analyzer.finalize() for analyzer in analyzers]
