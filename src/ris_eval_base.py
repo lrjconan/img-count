@@ -14,6 +14,8 @@ from data_api import kitti
 from utils import logger
 from utils.batch_iter import BatchIterator
 
+import hungarian
+
 log = logger.get()
 
 
@@ -126,6 +128,10 @@ def _f_best_dice(a, b):
         bd[:, ii] = dice.max(axis=1)
         pass
     return bd
+
+def _f_match(iou_pairwise):
+    for ii in xrange(iou_pairwise.shape[0]):
+
 
 
 def f_symmetric_best_dice(y_out, y_gt, s_out, s_gt):
@@ -254,16 +260,12 @@ class StageAnalyzer(object):
         pass
 
 
-def build_matching():
-    pass
-
-
 def run_eval(sess, m, dataset, batch_size=10, fname=None):
     analyzers = [StageAnalyzer('SBD', f_symmetric_best_dice, fname=fname),
-                 StageAnalyzer('FG DICE', f_fg_dice, fname=fname),
-                 StageAnalyzer('FG IOU', f_fg_iou, fname=fname),
                  StageAnalyzer('WT COV', f_wt_coverage, fname=fname),
                  StageAnalyzer('UNWT COV', f_unwt_coverage, fname=fname),
+                 StageAnalyzer('FG DICE', f_fg_dice, fname=fname),
+                 StageAnalyzer('FG IOU', f_fg_iou, fname=fname),
                  StageAnalyzer('COUNT ACC', f_count_acc, fname=fname),
                  StageAnalyzer('DIC', f_dic, fname=fname),
                  StageAnalyzer('|DIC|', f_dic_abs, fname=fname)]
@@ -276,7 +278,7 @@ def run_eval(sess, m, dataset, batch_size=10, fname=None):
                                get_fn=get_batch_fn(dataset),
                                cycle=False,
                                progress_bar=True)
-    _run_eval(sess, output_list, batch_iter, phase_train, analyzers)
+    _run_eval(sess, output_list, batch_iter, analyzers)
 
 
 def _run_eval(sess, output_list, batch_iter, analyzers):
