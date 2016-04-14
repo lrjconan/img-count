@@ -1,19 +1,15 @@
+from __future__ import division
+
 import cslab_environ
 
 import argparse
-import cv2
-import numpy as np
 import os
-import sys
 import tensorflow as tf
-
-from data_api import cvppp
 
 from utils import logger
 from utils.saver import Saver
 
 import ris_attn_model as attn_model
-import ris_train_base as trainer
 import ris_eval_base as base
 
 log = logger.get()
@@ -44,12 +40,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     tf.set_random_seed(1234)
-    saver = None
-
     model_folder = os.path.join(args.results, args.model_id)
-
-    log.info('Folder: {}'.format(model_folder))
-
     saver = Saver(model_folder)
     ckpt_info = saver.get_ckpt_info()
     model_opt = ckpt_info['model_opt']
@@ -64,17 +55,12 @@ if __name__ == '__main__':
     sess = tf.Session()
     saver.restore(sess, ckpt_fname)
 
-    log.info('Running training set')
-    base.run_eval(sess, model, dataset['train'], False)
-    
-    log.info('Running validation set')
-    base.run_eval(sess, model, dataset['valid'], False)
-    
+    for key in dataset:
+        log.info('Running {} set'.format(key))
+        base.run_eval(sess, model, dataset[key])
 
     # Still need:
     # run eval in batch (not in total)
     # up sample images
     # output image labels
-    # calculate fg dice
-    # calculate fg iou
     pass

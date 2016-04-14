@@ -6,10 +6,10 @@ import argparse
 import cv2
 import numpy as np
 import os
-import sys
 import tensorflow as tf
 
 from data_api import cvppp
+from data_api import kitti
 
 from utils import logger
 from utils.batch_iter import BatchIterator
@@ -29,6 +29,16 @@ def get_dataset(dataset_name, opt):
                 train_dataset_folder, opt, split='valid')
             dataset['test'] = cvppp.get_dataset(
                 test_dataset_folder, opt, split=None)
+    elif dataset_name == 'kitti':
+        dataset_folder = '/ais/gobi3/u/mren/data/kitti/object'
+        dataset['train'] = kitti.get_dataset(
+            dataset_folder, opt, split='train')
+        dataset['valid'] = kitti.get_dataset(
+            dataset_folder, opt, split='valid')
+        dataset['valid_man'] = kitti.get_dataset(
+            dataset_folder, opt, split='valid_man')
+        dataset['test_man'] = kitti.get_dataset(
+            dataset_folder, opt, split='test_man')
     else:
         raise Exception('Not supported')
 
@@ -190,7 +200,7 @@ def build_matching():
     pass
 
 
-def run_eval(sess, m, dataset, phase_train, batch_size=10, fname=None):
+def run_eval(sess, m, dataset, batch_size=10, fname=None):
     analyzers = [StageAnalyzer('SBD', f_symmetric_best_dice, fname=fname),
                  StageAnalyzer('FG DICE', f_fg_dice, fname=fname),
                  StageAnalyzer('FG IOU', f_fg_iou, fname=fname),
@@ -211,9 +221,9 @@ def run_eval(sess, m, dataset, phase_train, batch_size=10, fname=None):
     _run_eval(sess, output_list, batch_iter, phase_train, analyzers)
 
 
-def _run_eval(sess, output_list, batch_iter, phase_train, analyzers):
+def _run_eval(sess, output_list, batch_iter, analyzers):
     for x, y_gt, s_gt in batch_iter:
-        feed_dict = {m['x']: x, m['y_gt']: y_gt, m['phase_train']: phase_train}
+        feed_dict = {m['x']: x, m['y_gt']: y_gt, m['phase_train']: False}
         r = sess.run(output_list, feed_dict)
         y_out, s_out = postprocess(r[0], r[1])
         [analyzer.stage(y_out, y_gt, s_out, s_gt) for analyzer in analyzers]

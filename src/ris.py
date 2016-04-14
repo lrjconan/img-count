@@ -742,7 +742,7 @@ if __name__ == '__main__':
                 pass
 
             # Plot samples
-            if step % train_opt['steps_per_plot'] == 0:
+            if step % train_opt['steps_per_plot'] == 0 and step > 0:
                 run_samples()
                 pass
 
