@@ -65,13 +65,11 @@ if __name__ == '__main__':
     saver.restore(sess, ckpt_fname)
 
     log.info('Running training set')
-    res = base.run_inference(sess, model, dataset['train'], False)
-    base.run_eval(res['y_out'], res['y_gt'], res['s_out'], res['s_gt'])
-
+    base.run_eval(sess, model, dataset['train'], False)
+    
     log.info('Running validation set')
-    res = base.run_inference(sess, model, dataset['valid'], False)
-    base.run_eval(res['y_out'], res['y_gt'], res['s_out'], res['s_gt'])
-
+    base.run_eval(sess, model, dataset['valid'], False)
+    
 
     # Still need:
     # run eval in batch (not in total)

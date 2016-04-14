@@ -1,3 +1,5 @@
+from __future__ import division
+
 import cslab_environ
 
 import argparse
@@ -13,6 +15,7 @@ from utils import logger
 from utils.batch_iter import BatchIterator
 
 log = logger.get()
+
 
 def get_dataset(dataset_name, opt):
     if dataset_name == 'cvppp':
@@ -36,101 +39,74 @@ def preprocess(x, y, s):
     return (x.astype('float32') / 255, y.astype('float32'), s.astype('float32'))
 
 
+def postprocess(y_out, s_out):
+    """Convert soft prediction to hard prediction."""
+    s_mask = np.reshape(s_out, [-1, s_out.shape[1], 1, 1])
+    y_out = y_out * s_mask
+    y_out_max = np.argmax(y_out, axis=1)
+    y_out_hard = np.zeros(y_out.shape)
+    for idx in xrange(y_out.shape[1]):
+        y_out_hard[:, idx] = (y_out_max == idx).astype(
+            'float') * (y_out[:, idx] > 0.5).astype('float')
+    s_out_hard = (s_out > 0.5).astype('float')
+    return y_out_hard, s_out_hard
+
+
 def get_batch_fn(dataset):
-    """
-    Preprocess mini-batch data given start and end indices.
-    """
+    """Preprocess mini-batch data given start and end indices."""
     def get_batch(idx):
         x_bat = dataset['input'][idx]
         y_bat = dataset['label_segmentation'][idx]
         s_bat = dataset['label_score'][idx]
         x_bat, y_bat, s_bat = preprocess(x_bat, y_bat, s_bat)
-
         return x_bat, y_bat, s_bat
-
     return get_batch
 
 
-def run_inference(sess, m, dataset, phase_train):
-    output_list = [m['y_out'], m['s_out']]
-
-    num_ex = dataset['input'].shape[0]
-    batch_size = 10
-
-    batch_iter = BatchIterator(num_ex,
-                               batch_size=batch_size,
-                               get_fn=get_batch_fn(dataset),
-                               cycle=False,
-                               progress_bar=True)
-    y_out = None
-    s_out = None
-    y_gt = None
-    s_gt = None
-    count = 0
-
-    for x, y, s in batch_iter:
-        r = sess.run(output_list, feed_dict={
-                     m['x']: x,
-                     m['y_gt']: y,
-                     # m['s_gt']: s,
-                     m['phase_train']: phase_train}
-                     )
-        _y_out = r[0]
-        _s_out = r[1]
-        bat_sz = _y_out.shape[0]
-        if y_out is None:
-            y_out = np.zeros(
-                [num_ex, _y_out.shape[1], _y_out.shape[2], _y_out.shape[3]])
-            y_gt = np.zeros(y_out.shape)
-            s_out = np.zeros([num_ex, _y_out.shape[1]])
-            s_gt = np.zeros(s_out.shape)
-            pass
-        
-        y_gt[count: count + bat_sz] = y
-        s_gt[count: count + bat_sz] = s
-        y_out[count: count + bat_sz] = _y_out
-        s_out[count: count + bat_sz] = _s_out
-        count += bat_sz
-
-        pass
-
-    return {
-        'y_gt': y_gt,
-        's_gt': s_gt,
-        'y_out': y_out,
-        's_out': s_out
-    }
+###############################
+# Analysis helper functions
+###############################
+def _f_iou(a, b):
+    inter = (a * b).sum(axis=3).sum(axis=2)
+    union = (a + b).sum(axis=3).sum(axis=2) - inter
+    return inter / (union + 1e-5)
 
 
-def best_dice(a, b, num_obj):
+def _f_dice(a, b):
+    card_a = a.sum(axis=3).sum(axis=2)
+    card_b = b.sum(axis=3).sum(axis=2)
+    card_ab = (a * b).sum(axis=3).sum(axis=2)
+    dice = 2 * card_ab / (card_a + card_b + 1e-5)
+    return dice
+
+
+def _f_best_dice(a, b, num_obj):
     bd = np.zeros([a.shape[0], a.shape[1]])
     for ii in xrange(a.shape[1]):
         a_ = a[:, ii: ii + 1, :, :]
-        card_a = a_.sum(axis=3).sum(axis=2)
-        card_b = b.sum(axis=3).sum(axis=2)
-        card_ab = (a_ * b).sum(axis=3).sum(axis=2)
-        dice = 2 * card_ab / (card_a + card_b + 1e-5)
+        dice = _f_dice(a_, b)
         bd[:, ii] = dice.max(axis=1)
         pass
     bd_mean = np.zeros([a.shape[0]])
     for ii in xrange(a.shape[0]):
         bd_mean[ii] = bd[ii, :num_obj[ii]].mean()
         pass
-
     return bd_mean
 
 
-def symmetric_best_dice(y_out, y_gt, num_obj):
-    bd1 = best_dice(y_out, y_gt, num_obj).mean()
-    bd2 = best_dice(y_gt, y_out, num_obj).mean()
-    return np.minimum(bd1, bd2)
+def f_symmetric_best_dice(y_out, y_gt, s_out, s_gt):
+    count_out, count_gt, num_obj = _f_count(s_out, s_gt)
+    bd1 = _f_best_dice(y_out, y_gt, num_obj).mean()
+    bd2 = _f_best_dice(y_gt, y_out, num_obj).mean()
+    return min(bd1, bd2)
 
 
-def coverage(y_out, y_gt, num_obj, weighted=False):
+def f_coverage(y_out, y_gt, s_out, s_gt, weighted=False):
+    count_out, count_gt, num_obj = _f_count(s_out, s_gt)
     cov = np.zeros([y_out.shape[0], y_out.shape[1]])
     for ii in xrange(y_gt.shape[1]):
         y_gt_ = y_gt[:, ii: ii + 1, :, :]
-        iou_ii = iou(y_out, y_gt_)
+        iou_ii = _f_iou(y_out, y_gt_)
         cov[:, ii] = iou_ii.max(axis=1)
         pass
 
@@ -148,56 +124,99 @@ def coverage(y_out, y_gt, num_obj, weighted=False):
         cov_mean[ii] = cov[ii, :num_obj[ii]].sum()
         pass
 
-    return cov_mean
+    return cov_mean.mean()
 
 
-def iou(a, b):
-    inter = (a * b).sum(axis=3).sum(axis=2)
-    union = (a + b).sum(axis=3).sum(axis=2) - inter
-    return inter / (union + 1e-5)
+def f_wt_coverage(y_out, y_gt, s_out, s_gt):
+    return f_coverage(y_out, y_gt, s_out, s_gt, weighted=True)
+
+
+def f_unwt_coverage(y_out, y_gt, s_out, s_gt):
+    return f_coverage(y_out, y_gt, s_out, s_gt, weighted=False)
+
+
+def f_fg_iou(y_out, y_gt, s_out, s_gt):
+    return _f_iou(y_out.sum(axis=1), y_gt.sum(axis=1))
+
+
+def f_fg_dice(y_out, y_gt, s_out, s_gt):
+    return _f_dice(y_out.sum(axis=1), y_gt.sum(axis=1))
+
+
+def f_count_acc(y_out, y_gt, s_out, s_gt):
+    count_out, count_gt, num_obj = _f_count(s_out, s_gt)
+    return (count_out == count_gt).astype('float').mean()
+
+
+def f_dic(y_out, y_gt, s_out, s_gt):
+    count_out, count_gt, num_obj = _f_count(s_out, s_gt)
+    return (count_out - count_gt).mean()
+
+
+def f_dic_abs(y_out, y_gt, s_out, s_gt):
+    count_out, count_gt, num_obj = _f_count(s_out, s_gt)
+    return np.abs(count_out - count_gt).mean()
+
+
+def _f_count(s_out, s_gt):
+    count_out = .sum(axis=1)
+    count_gt = s_gt.sum(axis=1)
+    num_obj = np.maximum(count_gt, 1)
+    return count_out, count_gt, num_obj
+
+
+class StageAnalyzer(object):
+
+    def __init__(self, name, func, fname=None):
+        self.avg = 0.0
+        self.num_ex = 0
+        self.name = name
+        self.func = func
+
+    def stage(self, y_out, y_gt, s_out, s_gt):
+        _tmp = self.func(y_out, y_gt, s_out, s_gt)
+        _num = y_out.shape[0]
+        self.num_ex += _num
+        self.avg += _tmp * _num
+        pass
+
+    def finalize():
+        self.avg /= self.num_ex
+        log.info('{:20s}{:.4f}'.format(self.name, self.avg))
+        pass
 
 
 def build_matching():
     pass
 
 
-def run_eval(y_out, y_gt, s_out, s_gt):
-    s_mask = np.reshape(s_out, [-1, s_out.shape[1], 1, 1])
-    y_out = y_out * s_mask
-    y_out_max = np.argmax(y_out, axis=1)
+def run_eval(sess, m, dataset, phase_train, batch_size=10, fname=None):
+    analyzers = [StageAnalyzer('SBD', f_symmetric_best_dice, fname=fname),
+                 StageAnalyzer('FG DICE', f_fg_dice, fname=fname),
+                 StageAnalyzer('FG IOU', f_fg_iou, fname=fname),
+                 StageAnalyzer('WT COV', f_wt_coverage, fname=fname),
+                 StageAnalyzer('UNWT COV', f_unwt_coverage, fname=fname),
+                 StageAnalyzer('COUNT ACC', f_count_acc, fname=fname),
+                 StageAnalyzer('DIC', f_dic, fname=fname),
+                 StageAnalyzer('|DIC|', f_dic_abs, fname=fname)]
 
-    y_out_hard = np.zeros(y_out.shape)
-    for idx in xrange(y_out.shape[1]):
-        y_out_hard[:, idx] = (y_out_max == idx).astype(
-            'float') * (y_out[:, idx] > 0.5).astype('float')
-    count_out = (s_out > 0.5).astype('float').sum(axis=1)
-    count_gt = s_gt.sum(axis=1)
-    num_obj = np.maximum(count_gt, 1)
+    output_list = [m['y_out'], m['s_out']]
+    num_ex = dataset['input'].shape[0]
+    batch_size = 10
+    batch_iter = BatchIterator(num_ex,
+                               batch_size=batch_size,
+                               get_fn=get_batch_fn(dataset),
+                               cycle=False,
+                               progress_bar=True)
+    _run_eval(sess, output_list, batch_iter, phase_train, analyzers)
 
-    # # Upsample the results
-    # height = y_out.shape[2]
-    # width = y_out.shape[3]
-    # y_out = y_out.reshape([-1, height, width])
-    # y_out_hi = np.zeros([y_out.shape[0], height, width])
 
-    # for ii in xrange(y_out.shape[0]):
-    #     y_out_hi[ii] = cv2.resize(
-    #         y_out[ii], (500, 530), interpolation=cv2.INTER_NEAREST)
-
-    sbd = symmetric_best_dice(y_out_hard, y_gt, num_obj).mean()
-    unwt_cov = coverage(y_out_hard, y_gt, num_obj, weighted=False).mean()
-    wt_cov = coverage(y_out_hard, y_gt, num_obj, weighted=True).mean()
-
-    count_acc = (count_out == count_gt).astype('float').mean()
-    dic = (count_out - count_gt).mean()
-    dic_abs = np.abs(count_out - count_gt).mean()
-
-    log.info('{:10s}{:.4f}'.format('SBD', sbd))
-    log.info('{:10s}{:.4f}'.format('Wt Cov', wt_cov))
-    log.info('{:10s}{:.4f}'.format('Unwt Cov', unwt_cov))
-
-    log.info('{:10s}{:.4f}'.format('Count Acc', count_acc))
-    log.info('{:10s}{:.4f}'.format('DiC', dic))
-    log.info('{:10s}{:.4f}'.format('|DiC|', dic_abs))
-
+def _run_eval(sess, output_list, batch_iter, phase_train, analyzers):
+    for x, y_gt, s_gt in batch_iter:
+        feed_dict = {m['x']: x, m['y_gt']: y_gt, m['phase_train']: phase_train}
+        r = sess.run(output_list, feed_dict)
+        y_out, s_out = postprocess(r[0], r[1])
+        [analyzer.stage(y_out, y_gt, s_out, s_gt) for analyzer in analyzers]
+        pass
+    [analyzer.finalize() for analyzer in analyzers]
     pass
