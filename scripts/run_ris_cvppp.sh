@@ -235,7 +235,7 @@ python src/ris.py \
 ###############################################################################
 echo "Reading weights from stage 3"
 FINETUNE_PATCH_WEIGHTS=$SAVE_FOLDER/$FINETUNE_PATCH_MODEL_ID/weights.h5
-python src/ris_box_reader.py \
+python src/ris_reader.py \
 --model_id $FINETUNE_PATCH_MODEL_ID \
 --results $SAVE_FOLDER \
 --output $FINETUNE_PATCH_WEIGHTS

@@ -91,7 +91,6 @@ def make_model_opt(args):
         'ctrl_rnn_inp_struct': args.ctrl_rnn_inp_struct,
         'num_ctrl_rnn_iter': args.num_ctrl_rnn_iter,
         'num_glimpse_mlp_layers': args.num_glimpse_mlp_layers,
-        'pretrain_cnn': args.pretrain_cnn,
         'rnd_hflip': rnd_hflip,
         'rnd_vflip': rnd_vflip,
         'rnd_transpose': rnd_transpose,
