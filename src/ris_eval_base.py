@@ -121,8 +121,8 @@ def best_dice(a, b, num_obj):
 
 
 def symmetric_best_dice(y_out, y_gt, num_obj):
-    bd1 = best_dice(y_out, y_gt, num_obj)
-    bd2 = best_dice(y_gt, y_out, num_obj)
+    bd1 = best_dice(y_out, y_gt, num_obj).mean()
+    bd2 = best_dice(y_gt, y_out, num_obj).mean()
     return np.minimum(bd1, bd2)
 
 
