@@ -18,8 +18,8 @@ GPU=$1
 # Folder
 ###############################################################################
 ROOT_FOLDER="/u/mren/code/img-count"
-LOG_FOLDER="/u/mren/public_html/results"
-SAVE_FOLDER="/ais/gobi3/u/mren/results/img-count-pipeline"
+LOG_FOLDER="/u/mren/code/img-count/debug"
+SAVE_FOLDER="/u/mren/code/img-count/debug"
 LOCALHOST="www.cs.toronto.edu/~mren"
 
 ###############################################################################
@@ -83,10 +83,10 @@ STEPS_PER_TRAINVAL="50"
 STEPS_PER_LOG="10"
 NUM_SAMPLES_PLOT="5"
 
-NUM_ITER_PATCH="5000"
-NUM_ITER_BOX="20000"
-NUM_ITER_FINETUNE_PATCH="20000"
-NUM_ITER_FINETUNE_TOTAL="20000"
+NUM_ITER_PATCH="1"
+NUM_ITER_BOX="1"
+NUM_ITER_FINETUNE_PATCH="1"
+NUM_ITER_FINETUNE_TOTAL="1"
 
 RUN_STAGE10=true
 RUN_STAGE15=true
