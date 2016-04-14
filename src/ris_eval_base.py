@@ -297,7 +297,6 @@ def run_eval(sess, m, dataset, batch_size=10, fname=None):
                  StageAnalyzer('DIC', f_dic, fname=fname),
                  StageAnalyzer('|DIC|', f_dic_abs, fname=fname)]
 
-    output_list = [m['y_out'], m['s_out']]
     num_ex = dataset['input'].shape[0]
     batch_size = 10
     batch_iter = BatchIterator(num_ex,
@@ -305,7 +304,7 @@ def run_eval(sess, m, dataset, batch_size=10, fname=None):
                                get_fn=get_batch_fn(dataset),
                                cycle=False,
                                progress_bar=True)
-    _run_eval(sess, m, output_list, batch_iter, analyzers)
+    _run_eval(sess, m, batch_iter, analyzers)
 
     # output_list = None
     # y_gt = [(np.random.rand(5, 5, 10, 10) > 0.5).astype('float')]
@@ -313,10 +312,11 @@ def run_eval(sess, m, dataset, batch_size=10, fname=None):
     # s_gt = [(np.random.rand(5, 5) > 0.5).astype('float')]
     # idx = [None]
     # batch_iter = zip(x, y_gt, s_gt, idx)
-    # _run_eval(sess, output_list, batch_iter, analyzers)
+    # _run_eval(sess, m, batch_iter, analyzers)
 
 
 def _run_eval(sess, m, output_list, batch_iter, analyzers):
+    output_list = [m['y_out'], m['s_out']]
     for x, y_gt, s_gt, idx in batch_iter:
         feed_dict = {m['x']: x, m['y_gt']: y_gt, m['phase_train']: False}
         r = sess.run(output_list, feed_dict)
