@@ -304,9 +304,9 @@ def run_eval(sess, m, dataset, batch_size=10, fname=None):
                                batch_size=batch_size,
                                get_fn=get_batch_fn(dataset),
                                cycle=False,
-                               progress_bar=True
+                               progress_bar=True)
     _run_eval(sess, output_list, batch_iter, analyzers)
-    
+
     # output_list = None
     # y_gt = [(np.random.rand(5, 5, 10, 10) > 0.5).astype('float')]
     # x = [None]
