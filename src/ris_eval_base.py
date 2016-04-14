@@ -89,8 +89,8 @@ def _f_iou(a, b):
     Returns:
         dice: [...]
     """
-    inter = (a * b).sum(axis=-1).sum(axis=-2)
-    union = (a + b).sum(axis=-1).sum(axis=-2) - inter
+    inter = (a * b).sum(axis=-1).sum(axis=-1)
+    union = (a + b).sum(axis=-1).sum(axis=-1) - inter
     return inter / (union + 1e-5)
 
 
@@ -104,9 +104,9 @@ def _f_dice(a, b):
     Returns:
         dice: [...]
     """
-    card_a = a.sum(axis=-1).sum(axis=-2)
-    card_b = b.sum(axis=-1).sum(axis=-2)
-    card_ab = (a * b).sum(axis=3).sum(axis=2)
+    card_a = a.sum(axis=-1).sum(axis=-1)
+    card_b = b.sum(axis=-1).sum(axis=-1)
+    card_ab = (a * b).sum(axis=-1).sum(axis=-1)
     dice = 2 * card_ab / (card_a + card_b + 1e-5)
     return dice
 
@@ -131,12 +131,10 @@ def _f_best_dice(a, b):
 
 
 def _f_match(iou_pairwise):
-    match = np.zeros(iou_pairwise.shape)
-    for ii in xrange(iou_pairwise.shape[0]):
-        c0, c1, _match = hungarian.min_weighted_bp_cover(iou_pairwise[ii])
-        match[ii] = _match
-        pass
-    return match
+    sess = tf.Session()
+    tf_match = tf.user_ops.hungarian(
+        tf.constant(iou_pairwise.astype('float32')))[0]
+    return tf_match.eval(session=sess)
 
 
 def f_ins_iou(y_out, y_gt, s_out, s_gt):
@@ -153,10 +151,12 @@ def f_ins_iou(y_out, y_gt, s_out, s_gt):
     y_out_ = np.expand_dims(y_out, 2)
     y_gt_ = np.expand_dims(y_gt, 1)
     iou_pairwise = _f_iou(y_out_, y_gt_)
-    iou_pairwise = np.maximum(1e-5, iou_pairwise)
-    match = f_match(iou_pairwise)
-    match[:, num_obj:, :] = 0.0
-    match[:, :, num_obj:] = 0.0
+    iou_pairwise = np.maximum(1e-4, iou_pairwise)
+    iou_pairwise = np.round(iou_pairwise * 1e4) / 1e4
+    match = _f_match(iou_pairwise)
+    for ii in xrange(y_out.shape[0]):
+        match[:, num_obj[ii]:, :] = 0.0
+        match[:, :, num_obj[ii]:] = 0.0
     return (iou_pairwise * match).sum(axis=-1).sum(axis=-2) / num_obj
 
 
@@ -171,14 +171,14 @@ def f_symmetric_best_dice(y_out, y_gt, s_out, s_gt):
         sbd: [B]
     """
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
-    bd1 = _f_best_dice(y_out, y_gt, num_obj)
-    bd1_mean = np.zeros([a.shape[0]])
-    for ii in xrange(a.shape[0]):
+    bd1 = _f_best_dice(y_out, y_gt)
+    bd1_mean = np.zeros([y_out.shape[0]])
+    for ii in xrange(y_out.shape[0]):
         bd1_mean[ii] = bd1[ii, :num_obj[ii]].mean()
         pass
-    bd2 = _f_best_dice(y_gt, y_out, num_obj).mean()
-    bd2_mean = np.zeros([a.shape[0]])
-    for ii in xrange(a.shape[0]):
+    bd2 = _f_best_dice(y_gt, y_out).mean()
+    bd2_mean = np.zeros([y_out.shape[0]])
+    for ii in xrange(y_out.shape[0]):
         bd2_mean[ii] = bd1[ii, :num_obj[ii]].mean()
         pass
     return np.minimum(bd1_mean, bd2_mean)
@@ -231,12 +231,12 @@ def f_unwt_coverage(y_out, y_gt, s_out, s_gt):
 
 def f_fg_iou(y_out, y_gt, s_out, s_gt):
     """Calculates foreground IOU score."""
-    return _f_iou(y_out.sum(axis=1), y_gt.sum(axis=1))
+    return _f_iou(y_out.max(axis=1), y_gt.max(axis=1))
 
 
 def f_fg_dice(y_out, y_gt, s_out, s_gt):
     """Calculates foreground DICE score."""
-    return _f_dice(y_out.sum(axis=1), y_gt.sum(axis=1))
+    return _f_dice(y_out.max(axis=1), y_gt.max(axis=1))
 
 
 def f_count_acc(y_out, y_gt, s_out, s_gt):
@@ -280,7 +280,7 @@ class StageAnalyzer(object):
         self.avg += _tmp
         pass
 
-    def finalize():
+    def finalize(self):
         self.avg /= self.num_ex
         log.info('{:20s}{:.4f}'.format(self.name, self.avg))
         pass
@@ -304,8 +304,16 @@ def run_eval(sess, m, dataset, batch_size=10, fname=None):
                                batch_size=batch_size,
                                get_fn=get_batch_fn(dataset),
                                cycle=False,
-                               progress_bar=True)
+                               progress_bar=True
     _run_eval(sess, output_list, batch_iter, analyzers)
+    
+    # output_list = None
+    # y_gt = [(np.random.rand(5, 5, 10, 10) > 0.5).astype('float')]
+    # x = [None]
+    # s_gt = [(np.random.rand(5, 5) > 0.5).astype('float')]
+    # idx = [None]
+    # batch_iter = zip(x, y_gt, s_gt, idx)
+    # _run_eval(sess, output_list, batch_iter, analyzers)
 
 
 def _run_eval(sess, output_list, batch_iter, analyzers):
@@ -313,8 +321,13 @@ def _run_eval(sess, output_list, batch_iter, analyzers):
         feed_dict = {m['x']: x, m['y_gt']: y_gt, m['phase_train']: False}
         r = sess.run(output_list, feed_dict)
         y_out, s_out = postprocess(r[0], r[1])
+
+        # y_out = (np.random.rand(5, 5, 10, 10) > 0.5).astype('float')
+        # s_out = (np.random.rand(5, 5) > 0.5).astype('float')
+
         # y_gt = dataset.get_label(idx)
         # y_out = upsample(y_out, y_gt)
+
         [analyzer.stage(y_out, y_gt, s_out, s_gt) for analyzer in analyzers]
         pass
     [analyzer.finalize() for analyzer in analyzers]

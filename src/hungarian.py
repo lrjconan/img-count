@@ -208,6 +208,8 @@ def min_weighted_bp_cover(W):
             log.info('---------------------------------------------')
             log.info('iteration {}'.format(i))
 
+            log.info('input: \n{}'.format(W))
+            
             # Update equality graph.
             E = ((c_0.reshape([-1, 1]) + c_1.reshape([1, -1]) - W)
                  == 0).astype('uint8')

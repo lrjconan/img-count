@@ -59,6 +59,12 @@ if __name__ == '__main__':
         log.info('Running {} set'.format(key))
         base.run_eval(sess, model, dataset[key])
 
+    # Test
+    # sess = None
+    # model = None
+    # dataset = None
+    # base.run_eval(sess, model, dataset)
+
     # Still need:
     # run eval in batch (not in total)
     # up sample images
