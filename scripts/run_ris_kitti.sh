@@ -5,7 +5,7 @@
 # Stage 2: pretrain box detector model
 # Stage 3: train entire network, with box net fixed
 # Stage 4: train entire network, finetune
-# Final stage: evaluate the results
+# Stage 5: evaluate the results
 ###############################################################################
 set -e
 
@@ -102,4 +102,3 @@ RUN_STAGE50=true
 ###############################################################################
 MODEL_ID=$(python src/assign_model_id.py)
 source $ROOT_FOLDER/scripts/run_ris.sh
-

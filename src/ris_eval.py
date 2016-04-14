@@ -72,4 +72,11 @@ if __name__ == '__main__':
     res = base.run_inference(sess, model, dataset['valid'], False)
     base.run_eval(res['y_out'], res['y_gt'], res['s_out'], res['s_gt'])
 
+
+    # Still need:
+    # run eval in batch (not in total)
+    # up sample images
+    # output image labels
+    # calculate fg dice
+    # calculate fg iou
     pass

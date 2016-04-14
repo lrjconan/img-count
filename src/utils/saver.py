@@ -10,6 +10,7 @@ log = logger.get()
 
 kModelOptFilename = 'model_opt.yaml'
 kDatasetOptFilename = 'dataset_opt.yaml'
+kMaxToKeep = 2
 
 
 class Saver():
@@ -37,7 +38,8 @@ class Saver():
             global_step:
         """
         if self.tf_saver is None:
-            self.tf_saver = tf.train.Saver(tf.all_variables())
+            self.tf_saver = tf.train.Saver(
+                tf.all_variables(), max_to_keep=kMaxToKeep)
         ckpt_path = os.path.join(self.folder, 'model.ckpt')
         log.info('Saving checkpoint to {}'.format(ckpt_path))
         self.tf_saver.save(sess, ckpt_path, global_step=global_step)
