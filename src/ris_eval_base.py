@@ -176,8 +176,8 @@ def f_symmetric_best_dice(y_out, y_gt, s_out, s_gt):
         bd = np.zeros([num_ex, timespan])
         for ii in xrange(num_ex):
             bd[ii] = _f_best_dice(a[ii], b[ii])
-        bd_mean = np.zeros([a.shape[0]])
-        for ii in xrange(a.shape[0]):
+        bd_mean = np.zeros([num_ex])
+        for ii in xrange(num_ex):
             bd_mean[ii] = bd[ii, :num_obj[ii]].mean()
         return bd
     return np.minimum(f_bd(y_out, y_gt), f_bd(y_gt, y_out))
