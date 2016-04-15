@@ -200,7 +200,7 @@ class KITTI(object):
             labels_out.append(np.zeros(
                 [self.opt['timespan'], im_height, im_width], dtype='uint8'))
             for jj in xrange(len(labels[ii])):
-                labels_out[ii, jj] = labels[ii][jj]
+                labels_out[ii][jj] = labels[ii][jj]
 
         return labels_out
 
