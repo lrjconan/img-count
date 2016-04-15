@@ -198,8 +198,8 @@ class KITTI(object):
                 im_height = img.shape[0]
                 im_width = img.shape[1]
 
-        labels_out = np.zeros([num_ex, self.max_num_obj, im_height, im_width],
-                              dtype='uint8')
+        labels_out = np.zeros(
+            [num_ex, self.opt['timespan'], im_height, im_width], dtype='uint8')
         for ii in xrange(num_ex):
             for jj in xrange(len(labels[ii])):
                 labels_out[ii, jj] = labels[ii][jj]
@@ -235,12 +235,10 @@ if __name__ == '__main__':
     #             'timespan': 20
     #         },
     #         split=split).get_dataset()
-    print KITTI(folder,
-                opt={
-                    'height': 128,
-                    'width': 448,
-                    'num_ex': -1,
-                    'timespan': 20
-                },
+    print KITTI(folder, opt={'height': 128,
+                             'width': 448,
+                             'num_ex': -1,
+                             'timespan': 20
+                             },
                 split='valid_man').get_labels(np.array([1762, 5467]))
     pass
