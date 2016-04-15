@@ -329,7 +329,7 @@ def _run_eval(sess, m, dataset, batch_iter, analyzers):
         r = sess.run(output_list, feed_dict)
         y_out, s_out = postprocess(r[0], r[1])
         y_gt = dataset.get_labels(idx)
-        y_out_resize = upsample(y_out, shape)
+        y_out_resize = upsample(y_out, y_gt.shape)
         [analyzer.stage(y_out, y_gt, s_out, s_gt) for analyzer in analyzers]
         pass
     [analyzer.finalize() for analyzer in analyzers]
