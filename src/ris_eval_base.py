@@ -31,6 +31,10 @@ def get_dataset(dataset_name, opt):
                 train_dataset_folder, opt, split='valid')
             dataset['test'] = cvppp.get_dataset(
                 test_dataset_folder, opt, split=None)
+            dataset['test']['label_segmentation'] = np.tile(
+                dataset['test']['label_segmentation'], [1, 21, 1, 1])
+            dataset['test']['label_score'] = np.tile(
+                dataset['test']['label_score'], [1, 21])
     elif dataset_name == 'kitti':
         dataset_folder = '/ais/gobi3/u/mren/data/kitti/object'
         dataset['train'] = kitti.get_dataset(
