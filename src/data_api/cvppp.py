@@ -196,6 +196,9 @@ class CVPPP(object):
         for ii in xrange(num_ex):
             img_fname = os.path.join(
                 self.folder, 'plant{:03d}_label.png'.format(idx[ii]))
+            if not os.path.exists(img_fname):
+                img_fname = os.path.join(
+                    self.folder, 'plant{:03d}_fg.png'.format(idx[ii]))
             img = cv2.imread(img_fname)
             labels.append(self.get_separate_labels(img_fname))
             if im_height == -1:
