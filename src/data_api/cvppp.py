@@ -200,7 +200,7 @@ class CVPPP(object):
                 img_fname = os.path.join(
                     self.folder, 'plant{:03d}_fg.png'.format(idx[ii]))
             img = cv2.imread(img_fname)
-            labels.append(self.get_separate_labels(img_fname))
+            labels.append(self.get_separate_labels(img))
             if im_height == -1:
                 im_height = img.shape[0]
                 im_width = img.shape[1]
@@ -238,5 +238,8 @@ if __name__ == '__main__':
     d = CVPPP(os.path.join(test_folder, 'A1'),
               {'height': 224, 'width': 224},
               split=None, manual_max=21).get_dataset()
+    print CVPPP(os.path.join(test_folder, 'A1'),
+              {'height': 224, 'width': 224},
+              split=None, manual_max=21).get_labels(np.array([3, 4])).shape
     print d['input'].shape
     print d['label_segmentation'].shape
