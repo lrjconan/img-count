@@ -191,10 +191,7 @@ class KITTI(object):
 
         for ii in xrange(num_ex):
             img_fname = os.path.join(
-                self.folder, 'plant{:03d}_label.png'.format(idx[ii]))
-            if not os.path.exists(img_fname):
-                img_fname = os.path.join(
-                    self.folder, 'plant{:03d}_fg.png'.format(idx[ii]))
+                self.gt_folder, '{:06d}.png'.format(idx[ii]))
             img = cv2.imread(img_fname)
             labels.append(self.get_separate_labels(img))
             if im_height == -1:
@@ -227,15 +224,23 @@ class KITTI(object):
 
 
 if __name__ == '__main__':
-    folder = '/ais/gobi3/u/mren/data/kitti/object'
-    for split in ['valid_man', 'test_man', 'train', 'valid']:
-        dataset = KITTI(
-            folder,
-            opt={
-                'height': 128,
-                'width': 448,
-                'num_ex': -1,
-                'timespan': 20
-            },
-            split=split).get_dataset()
+    # folder = '/ais/gobi3/u/mren/data/kitti/object'
+    # for split in ['valid_man', 'test_man', 'train', 'valid']:
+    #     dataset = KITTI(
+    #         folder,
+    #         opt={
+    #             'height': 128,
+    #             'width': 448,
+    #             'num_ex': -1,
+    #             'timespan': 20
+    #         },
+    #         split=split).get_dataset()
+    print KITTI(folder,
+                opt={
+                    'height': 128,
+                    'width': 448,
+                    'num_ex': -1,
+                    'timespan': 20
+                },
+                split='valid_man').get_labels(np.array([1762 5467]))
     pass
