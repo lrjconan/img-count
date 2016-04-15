@@ -94,7 +94,7 @@ class CVPPP(object):
             [num_ex, max_num_obj, inp_height, inp_width], dtype='uint8')
         label_score = np.zeros([num_ex, max_num_obj], dtype='uint8')
         log.info('Number of examples: {}'.format(num_ex))
-        log.info('Input height: {} width: {}'.format(inp_height, image_width))
+        log.info('Input height: {} width: {}'.format(inp_height, inp_width))
         log.info('Input shape: {} label shape: {} {}'.format(
             inp.shape, label_segm.shape, label_score.shape))
         log.info('Assemble inputs')
