@@ -21,11 +21,11 @@ log = logger.get()
 
 def get_dataset(dataset_name, opt):
     """Get dataset, including test."""
+    dataset = {}
     if dataset_name == 'cvppp':
         if os.path.exists('/u/mren'):
             train_dataset_folder = '/ais/gobi3/u/mren/data/lsc/A1'
             test_dataset_folder = '/ais/gobi3/u/mren/data/lsc_test/A1'
-            dataset = {}
             dataset['train'] = CVPPP(train_dataset_folder, opt, split='train')
             dataset['valid'] = CVPPP(train_dataset_folder, opt, split='valid')
             dataset['test'] = CVPPP(
