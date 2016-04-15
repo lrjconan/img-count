@@ -57,7 +57,7 @@ if __name__ == '__main__':
     saver.restore(sess, ckpt_fname)
 
     for key in dataset:
-        if args.dataset == 'cvppp' and key == = 'test':
+        if args.dataset == 'cvppp' and key == 'test':
             output_only = True
         else:
             output_only = False
