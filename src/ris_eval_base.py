@@ -149,7 +149,7 @@ def f_ins_iou(y_out, y_gt, s_out, s_gt):
     num_ex = len(y_gt)
     timespan = y_gt[ii].shape[0]
     ins_iou = np.zeros([num_ex])
-    for ii in xrange(num_ex)
+    for ii in xrange(num_ex):
         y_out_ = np.expand_dims(y_out[ii], 1)
         y_gt_ = np.expand_dims(y_gt[ii], 0)
         iou_pairwise = _f_iou(y_out_, y_gt_)
