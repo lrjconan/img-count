@@ -50,14 +50,19 @@ if __name__ == '__main__':
     model_id = ckpt_info['model_id']
 
     dataset = base.get_dataset(args.dataset, data_opt)
+
     log.info('Building model')
     model = attn_model.get_model(model_opt)
     sess = tf.Session()
     saver.restore(sess, ckpt_fname)
 
     for key in dataset:
+        if args.dataset == 'cvppp' and key == = 'test':
+            output_only = True
+        else:
+            output_only = False
         log.info('Running {} set'.format(key))
-        base.run_eval(sess, model, dataset[key])
+        base.run_eval(sess, model, dataset[key], output_only=output_only)
 
     # # Test
     # sess = None

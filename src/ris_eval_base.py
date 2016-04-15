@@ -8,7 +8,7 @@ import numpy as np
 import os
 import tensorflow as tf
 
-from data_api import cvppp
+from data_api.cvppp import CVPPP
 from data_api import kitti
 
 from utils import logger
@@ -25,16 +25,9 @@ def get_dataset(dataset_name, opt):
             train_dataset_folder = '/ais/gobi3/u/mren/data/lsc/A1'
             test_dataset_folder = '/ais/gobi3/u/mren/data/lsc_test/A1'
             dataset = {}
-            dataset['train'] = cvppp.get_dataset(
-                train_dataset_folder, opt, split='train')
-            dataset['valid'] = cvppp.get_dataset(
-                train_dataset_folder, opt, split='valid')
-            dataset['test'] = cvppp.get_dataset(
-                test_dataset_folder, opt, split=None)
-            dataset['test']['label_segmentation'] = np.tile(
-                dataset['test']['label_segmentation'], [1, 21, 1, 1])
-            dataset['test']['label_score'] = np.tile(
-                dataset['test']['label_score'], [1, 21])
+            dataset['train'] = CVPPP(train_dataset_folder, opt, split='train')
+            dataset['valid'] = CVPPP(train_dataset_folder, opt, split='valid')
+            # dataset['test'] = CVPPP(test_dataset_folder, opt, split=None)
             # log.error(dataset['test']['label_score'].shape)
             # log.fatal(dataset['test']['label_segmentation'].shape)
     elif dataset_name == 'kitti':
@@ -210,7 +203,7 @@ def f_coverage(y_out, y_gt, s_out, s_gt, weighted=False):
 
     if weighted:
         weights = y_gt.sum(axis=3).sum(axis=2) / \
-            y_gt.sum(axis=3).sum(axis=2).sum(axis=1, keepdims=True)
+            (y_gt.sum(axis=3).sum(axis=2).sum(axis=1, keepdims=True) + 1e-5)
         pass
     else:
         weights = np.reshape(1 / num_obj, [-1, 1])
@@ -292,47 +285,39 @@ class StageAnalyzer(object):
         pass
 
 
-def run_eval(sess, m, dataset, batch_size=10, fname=None):
-    analyzers = [StageAnalyzer('IOU', f_ins_iou, fname=fname),
-                 StageAnalyzer('SBD', f_symmetric_best_dice, fname=fname),
-                 StageAnalyzer('WT COV', f_wt_coverage, fname=fname),
-                 StageAnalyzer('UNWT COV', f_unwt_coverage, fname=fname),
-                 StageAnalyzer('FG DICE', f_fg_dice, fname=fname),
-                 StageAnalyzer('FG IOU', f_fg_iou, fname=fname),
-                 StageAnalyzer('COUNT ACC', f_count_acc, fname=fname),
-                 StageAnalyzer('DIC', f_dic, fname=fname),
-                 StageAnalyzer('|DIC|', f_dic_abs, fname=fname)]
+def run_eval(sess, m, dataset, batch_size=10, fname=None, output_only=False):
+    analyzers = []
+    if not output_only:
+        analyzers.extend(
+            [StageAnalyzer('IOU', f_ins_iou, fname=fname),
+             StageAnalyzer('SBD', f_symmetric_best_dice, fname=fname),
+             StageAnalyzer('WT COV', f_wt_coverage, fname=fname),
+             StageAnalyzer('UNWT COV', f_unwt_coverage, fname=fname),
+             StageAnalyzer('FG DICE', f_fg_dice, fname=fname),
+             StageAnalyzer('FG IOU', f_fg_iou, fname=fname),
+             StageAnalyzer('COUNT ACC', f_count_acc, fname=fname),
+             StageAnalyzer('DIC', f_dic, fname=fname),
+             StageAnalyzer('|DIC|', f_dic_abs, fname=fname)])
 
-    num_ex = dataset['input'].shape[0]
+    data = dataset.get_dataset()
+    num_ex = data['input'].shape[0]
     batch_size = 10
     batch_iter = BatchIterator(num_ex,
                                batch_size=batch_size,
-                               get_fn=get_batch_fn(dataset),
+                               get_fn=get_batch_fn(data),
                                cycle=False,
                                progress_bar=True)
-    _run_eval(sess, m, batch_iter, analyzers)
-
-    # y_gt = [(np.random.rand(5, 5, 10, 10) > 0.5).astype('float')]
-    # x = [None]
-    # s_gt = [(np.random.rand(5, 5) > 0.5).astype('float')]
-    # idx = [None]
-    # batch_iter = zip(x, y_gt, s_gt, idx)
-    # _run_eval(sess, m, batch_iter, analyzers)
+    _run_eval(sess, m, dataset, batch_iter, analyzers)
 
 
-def _run_eval(sess, m, batch_iter, analyzers):
+def _run_eval(sess, m, dataset, batch_iter, analyzers):
     output_list = [m['y_out'], m['s_out']]
     for x, y_gt, s_gt, idx in batch_iter:
         feed_dict = {m['x']: x, m['y_gt']: y_gt, m['phase_train']: False}
         r = sess.run(output_list, feed_dict)
         y_out, s_out = postprocess(r[0], r[1])
-
-        # y_out = (np.random.rand(5, 5, 10, 10) > 0.5).astype('float')
-        # s_out = (np.random.rand(5, 5) > 0.5).astype('float')
-
-        # y_gt = dataset.get_label(idx)
-        # y_out = upsample(y_out, y_gt)
-
+        y_gt = dataset.get_label(idx)
+        y_out = cv2.resize(y_out, (y_gt.shape[2], y_gt, shape[3]))
         [analyzer.stage(y_out, y_gt, s_out, s_gt) for analyzer in analyzers]
         pass
     [analyzer.finalize() for analyzer in analyzers]

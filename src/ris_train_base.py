@@ -13,7 +13,7 @@ import numpy as np
 import os
 import sys
 
-from data_api import cvppp
+from data_api.cvppp import CVPPP
 from data_api import kitti
 from data_api import synth_shape
 
@@ -198,12 +198,12 @@ def get_dataset(dataset_name, opt):
                 dataset_folder = '/home/mren/data/LSCData/A1'
 
         if opt['has_valid']:
-            dataset['train'] = cvppp.get_dataset(
-                dataset_folder, opt, split='train')
-            dataset['valid'] = cvppp.get_dataset(
-                dataset_folder, opt, split='valid')
+            dataset['train'] = CVPPP(
+                dataset_folder, opt, split='train').get_dataset()
+            dataset['valid'] = CVPPP(
+                dataset_folder, opt, split='valid').get_dataset()
         else:
-            _all_data = cvppp.get_dataset(dataset_folder, opt, split=None)
+            _all_data = CVPPP(dataset_folder, opt, split=None).get_dataset()
             random = np.random.RandomState(2)
             idx = np.arange(_all_data['input'].shape[0])
             random.shuffle(idx)
