@@ -30,6 +30,18 @@ class KITTI(object):
         self.opt = opt
         self.split = split
         self.dataset = None
+        inp_height = self.opt['height']
+        inp_width = self.opt['width']
+        self.h5_fname = os.path.join(self.folder, '{}_{}x{}.h5'.format(
+            self.split, inp_height, inp_width))
+
+        if self.split == 'train' or self.split == 'valid':
+            self.gt_folder = os.path.join(self.folder, 'gt')
+        elif self.split == 'valid_man' or self.split == 'test_man':
+            self.gt_folder = os.path.join(self.folder, 'gt_man')
+        self.image_folder = os.path.join(self.folder, 'images')
+
+        pass
 
     def get_dataset(self):
         """
@@ -38,25 +50,16 @@ class KITTI(object):
         if self.dataset is not None:
             return self.dataset
 
-        inp_height = self.opt['height']
-        inp_width = self.opt['width']
-        h5_fname = os.path.join(
-            self.folder, '{}_{}x{}.h5'.format(
-                self.split, inp_height, inp_width))
-        cache = read_h5_data(h5_fname)
+        cache = self.read_h5_data()
         if cache:
             self.dataset = cache
             return self.dataset
 
+        inp_height = self.opt['height']
+        inp_width = self.opt['width']
         num_ex = self.opt['num_examples'] if 'num_examples' in self.opt else -1
         timespan = self.opt['timespan'] if 'timespan' in self.opt else -1
         inp_shape = (inp_width, inp_height)
-        image_folder = os.path.join(self.folder, 'images')
-
-        if self.split == 'train' or self.split == 'valid':
-            gt_folder = os.path.join(self.folder, 'gt')
-        elif self.split == 'valid_man' or self.split == 'test_man':
-            gt_folder = os.path.join(self.folder, 'gt_man')
 
         ids_fname = os.path.join(self.folder, '{}.txt'.format(self.split))
         inp_list = []
@@ -84,15 +87,15 @@ class KITTI(object):
             img_id = img_ids[shuffle[idx]]
             idx_map[idx] = int(img_id)
             fname = '{}.png'.format(img_id)
-            img_fname = os.path.join(image_folder, fname)
-            gt_fname = os.path.join(gt_folder, fname)
+            img_fname = os.path.join(self.image_folder, fname)
+            gt_fname = os.path.join(self.gt_folder, fname)
 
             img = cv2.imread(img_fname)
             img = cv2.resize(img, inp_shape, interpolation=cv2.INTER_NEAREST)
 
             gt = cv2.imread(gt_fname)
             gt = gt.astype('float')
-            segm = get_separate_labels(gt)
+            segm = self.get_separate_labels(gt)
             max_num_obj = max(max_num_obj, len(segm))
             segm_reshape = []
             for jj, ss in enumerate(segm):
@@ -137,170 +140,90 @@ class KITTI(object):
             'label_score': label_score,
             'index_map': idx_map
         }
-
-        write_h5_data(h5_fname, self.dataset)
+        self.write_h5_data()
 
         return self.dataset
 
+    def read_h5_data(self):
+        """Read a dataset stored in H5."""
+        if os.path.exists(self.h5_fname):
+            log.info('Reading dataset from {}'.format(self.h5_fname))
+            h5f = h5py.File(self.h5_fname, 'r')
+            dataset = {}
+            for key in h5f.keys():
+                dataset[key] = h5f[key][:]
+                pass
 
-def read_h5_data(h5_fname):
-    """Read a dataset stored in H5."""
-    if os.path.exists(h5_fname):
-        log.info('Reading dataset from {}'.format(h5_fname))
-        h5f = h5py.File(h5_fname, 'r')
-        dataset = {}
-        for key in h5f.keys():
-            dataset[key] = h5f[key][:]
+            return dataset
+
+        else:
+            return None
+
+    def write_h5_data(self):
+        log.info('Writing dataset to {}'.format(self.h5_fname))
+        h5f = h5py.File(self.h5_fname, 'w')
+        for key in dataset.iterkeys():
+            h5f[key] = self.dataset[key]
             pass
 
-        return dataset
+    @staticmethod
+    def get_separate_labels(label_img):
+        # 64-bit encoding
+        l64 = label_img.astype('uint64')
+        # Single channel mapping
+        l64i = ((l64[:, :, 0] << 16) + (l64[:, :, 1] << 8) + l64[:, :, 2])
+        colors = np.unique(l64i)
+        segmentations = []
+        for c in colors:
+            if c != 0:
+                segmentation = (l64i == c).astype('uint8')
+                # cv2.imshow('{}'.format(c), segmentation * 255)
+                segmentations.append(segmentation)
+        # cv2.waitKey()
 
-    else:
-        return None
+        return segmentations
 
+    def get_labels(self, idx):
+        im_height = -1
+        im_width = -1
+        num_ex = idx.shape[0]
+        labels = []
 
-def write_h5_data(h5_fname, dataset):
-    log.info('Writing dataset to {}'.format(h5_fname))
-    h5f = h5py.File(h5_fname, 'w')
-    for key in dataset.iterkeys():
-        h5f[key] = dataset[key]
-        pass
+        for ii in xrange(num_ex):
+            img_fname = os.path.join(
+                self.folder, 'plant{:03d}_label.png'.format(idx[ii]))
+            if not os.path.exists(img_fname):
+                img_fname = os.path.join(
+                    self.folder, 'plant{:03d}_fg.png'.format(idx[ii]))
+            img = cv2.imread(img_fname)
+            labels.append(self.get_separate_labels(img))
+            if im_height == -1:
+                im_height = img.shape[0]
+                im_width = img.shape[1]
 
+        labels_out = np.zeros([num_ex, self.max_num_obj, im_height, im_width],
+                              dtype='uint8')
+        for ii in xrange(num_ex):
+            for jj in xrange(len(labels[ii])):
+                labels_out[ii, jj] = labels[ii][jj]
 
-def get_foreground_dataset(folder, opt, split='train'):
-    h5_fname = os.path.join(folder, 'fg_' + split + '.h5')
-    cache = read_h5_data(h5_fname)
-    if cache:
-        return cache
-
-    ins_segm_data = get_dataset(folder, opt, split)
-    dataset = {
-        'input': ins_segm_data['input'],
-        'label': np.sum(ins_segm_data['label_segmentation'], axis=1)
-    }
-    write_h5_data(h5_fname, dataset)
-
-    return dataset
-
-
-def get_dataset(folder, opt, split='train'):
-    """
-    Recommended settings: 128 x 448.
-    """
-    inp_height = opt['height']
-    inp_width = opt['width']
-    h5_fname = os.path.join(
-        folder, '{}_{}x{}.h5'.format(split, inp_height, inp_width))
-    cache = read_h5_data(h5_fname)
-    if cache:
-        return cache
-
-    num_ex = opt['num_examples'] if 'num_examples' in opt else -1
-    timespan = opt['timespan'] if 'timespan' in opt else -1
-    inp_shape = (inp_width, inp_height)
-    image_folder = os.path.join(folder, 'images')
-
-    if split == 'train' or split == 'valid':
-        gt_folder = os.path.join(folder, 'gt')
-    elif split == 'valid_man' or split == 'test_man':
-        gt_folder = os.path.join(folder, 'gt_man')
-
-    ids_fname = os.path.join(folder, '{}.txt'.format(split))
-    inp_list = []
-    segm_list = []
-    max_num_obj = 0
-    img_ids = []
-
-    log.info('Reading image IDs')
-    with open(ids_fname) as f_ids:
-        for ii in f_ids:
-            img_ids.append(ii.strip('\n'))
-
-    if num_ex == -1:
-        num_ex = len(img_ids)
-
-    # Shuffle sequence.
-    random = np.random.RandomState(2)
-    shuffle = np.arange(len(img_ids))
-    random.shuffle(shuffle)
-
-    # Read images.
-    log.info('Reading {} images'.format(num_ex))
-    for idx in pb.get(num_ex):
-        img_id = img_ids[shuffle[idx]]
-        fname = '{}.png'.format(img_id)
-        img_fname = os.path.join(image_folder, fname)
-        gt_fname = os.path.join(gt_folder, fname)
-
-        img = cv2.imread(img_fname)
-        img = cv2.resize(img, inp_shape, interpolation=cv2.INTER_NEAREST)
-
-        gt = cv2.imread(gt_fname)
-        gt = gt.astype('float')
-        segm = get_separate_labels(gt)
-        max_num_obj = max(max_num_obj, len(segm))
-        segm_reshape = []
-        for jj, ss in enumerate(segm):
-            segm_reshape.append(cv2.resize(
-                ss, inp_shape, interpolation=cv2.INTER_NEAREST))
-
-        inp_list.append(img)
-        segm_list.append(segm_reshape)
-
-    # Include one more
-    max_num_obj += 1
-
-    if timespan == -1:
-        timespan = max_num_obj
-    else:
-        timespan = max(timespan, max_num_obj)
-
-    log.info('Assemble images')
-    num_ex = len(inp_list)
-    inp = np.zeros([num_ex, inp_height, inp_width, 3], dtype='uint8')
-    label_segm = np.zeros(
-        [num_ex, timespan, inp_height, inp_width], dtype='uint8')
-    label_score = np.zeros([num_ex, timespan], dtype='uint8')
-    log.info('Number of examples: {}'.format(num_ex))
-    log.info('Input height: {} width: {}'.format(inp_height, inp_width))
-    log.info('Input shape: {} label shape: {} {}'.format(
-        inp.shape, label_segm.shape, label_score.shape))
-
-    for ii, data in enumerate(zip(inp_list, segm_list)):
-        img = data[0]
-        segm = data[1]
-        inp[ii] = img
-        num_obj = len(segm)
-        for jj in xrange(num_obj):
-            label_segm[ii, jj] = segm[jj]
-        label_score[ii, :num_obj] = 1
-
-    dataset = {
-        'input': inp,
-        'label_segmentation': label_segm,
-        'label_score': label_score
-    }
-
-    write_h5_data(h5_fname, dataset)
-
-    return dataset
+        return labels_out
 
 
-def get_separate_labels(label_img):
-    # 64-bit encoding
-    l64 = label_img.astype('uint64')
-    # Single channel mapping
-    l64i = ((l64[:, :, 0] << 16) + (l64[:, :, 1] << 8) + l64[:, :, 2])
-    colors = np.unique(l64i)
-    segmentations = []
-    for c in colors:
-        if c != 0:
-            segmentation = (l64i == c).astype('uint8')
-            # cv2.imshow('{}'.format(c), segmentation * 255)
-            segmentations.append(segmentation)
-    # cv2.waitKey()
+# def get_foreground_dataset(folder, opt, split='train'):
+#     h5_fname = os.path.join(folder, 'fg_' + split + '.h5')
+#     cache = read_h5_data(h5_fname)
+#     if cache:
+#         return cache
 
-    return segmentations
+#     ins_segm_data = get_dataset(folder, opt, split)
+#     dataset = {
+#         'input': ins_segm_data['input'],
+#         'label': np.sum(ins_segm_data['label_segmentation'], axis=1)
+#     }
+#     write_h5_data(h5_fname, dataset)
+
+#     return dataset
 
 
 if __name__ == '__main__':
@@ -315,5 +238,4 @@ if __name__ == '__main__':
                 'timespan': 20
             },
             split=split).get_dataset()
-        h5_fname = os.path.join(folder, split + '.h5')
     pass

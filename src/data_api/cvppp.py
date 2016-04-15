@@ -188,8 +188,6 @@ class CVPPP(object):
         return segmentations
 
     def get_labels(self, idx):
-        im_height = -1
-        im_width = -1
         num_ex = idx.shape[0]
         labels = []
 
@@ -201,15 +199,16 @@ class CVPPP(object):
                     self.folder, 'plant{:03d}_fg.png'.format(idx[ii]))
             img = cv2.imread(img_fname)
             labels.append(self.get_separate_labels(img))
-            if im_height == -1:
-                im_height = img.shape[0]
-                im_width = img.shape[1]
 
-        labels_out = np.zeros([num_ex, self.max_num_obj, im_height, im_width],
-                              dtype='uint8')
+        labels_out = []
         for ii in xrange(num_ex):
+            im_height = labels[ii][0].shape[0]
+            im_width = labels[ii][0].shape[1]
+            labels_out.append(
+                np.zeros([self.max_num_obj, im_height, im_width],
+                         dtype='uint8'))
             for jj in xrange(len(labels[ii])):
-                labels_out[ii, jj] = labels[ii][jj]
+                labels_out[ii][jj] = labels[ii][jj]
 
         return labels_out
 
@@ -239,7 +238,7 @@ if __name__ == '__main__':
               {'height': 224, 'width': 224},
               split=None, manual_max=21).get_dataset()
     print CVPPP(os.path.join(test_folder, 'A1'),
-              {'height': 224, 'width': 224},
-              split=None, manual_max=21).get_labels(np.array([3, 4])).shape
+                {'height': 224, 'width': 224},
+                split=None, manual_max=21).get_labels(np.array([3, 4])).shape
     print d['input'].shape
     print d['label_segmentation'].shape

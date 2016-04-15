@@ -113,17 +113,17 @@ def _f_best_dice(a, b):
     """For each a, look for the best DICE of all b.
 
     Args:
-        a: [B, T, H, W], binary mask
-        b: [B, T, H, W], binary mask
+        a: [T, H, W], binary mask
+        b: [T, H, W], binary mask
 
     Returns:
-        best_dice: [B, T]
+        best_dice: [T]
     """
-    bd = np.zeros([a.shape[0], a.shape[1]])
-    for ii in xrange(a.shape[1]):
-        a_ = a[:, ii: ii + 1, :, :]
+    bd = np.zeros([a.shape[0]])
+    for ii in xrange(a.shape[0]):
+        a_ = a[ii: ii + 1, :, :]
         dice = _f_dice(a_, b)
-        bd[:, ii] = dice.max(axis=1)
+        bd[ii] = dice.max(axis=0)
         pass
     return bd
 
@@ -139,46 +139,55 @@ def f_ins_iou(y_out, y_gt, s_out, s_gt):
     """Calculates average instance-level IOU..
 
     Args:
-        a: [B, T, H, W], binary mask
-        b: [B, T, H, W], binary mask
+        a: list of [T, H, W], binary mask
+        b: list of [T, H, W], binary mask
 
     Returns:
-        iou: [B]
+        ins_iou: [B]
     """
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
-    y_out_ = np.expand_dims(y_out, 2)
-    y_gt_ = np.expand_dims(y_gt, 1)
-    iou_pairwise = _f_iou(y_out_, y_gt_)
-    iou_pairwise = np.maximum(1e-4, iou_pairwise)
-    iou_pairwise = np.round(iou_pairwise * 1e4) / 1e4
-    match = _f_match(iou_pairwise)
-    for ii in xrange(y_out.shape[0]):
-        match[:, num_obj[ii]:, :] = 0.0
-        match[:, :, num_obj[ii]:] = 0.0
-    return (iou_pairwise * match).sum(axis=-1).sum(axis=-1) / num_obj
+    num_ex = len(y_gt)
+    timespan = y_gt[ii].shape[0]
+    ins_iou = np.zeros([num_ex])
+    for ii in xrange(num_ex)
+        y_out_ = np.expand_dims(y_out[ii], 1)
+        y_gt_ = np.expand_dims(y_gt[ii], 0)
+        iou_pairwise = _f_iou(y_out_, y_gt_)
+        iou_pairwise = np.maximum(1e-4, iou_pairwise)
+        iou_pairwise = np.round(iou_pairwise * 1e4) / 1e4
+        match = _f_match(iou_pairwise)
+        match[num_obj[ii]:, :] = 0.0
+        match[:, num_obj[ii]:] = 0.0
+        ins_iou[ii] = (iou_pairwise * match).sum(
+            axis=-1).sum(axis=-1) / num_obj[ii]
+    return ins_iou
 
 
 def f_symmetric_best_dice(y_out, y_gt, s_out, s_gt):
     """Calculates symmetric best DICE. min(BestDICE(a, b), BestDICE(b, a)).
 
     Args:
-        a: [B, T, H, W], binary mask
-        b: [B, T, H, W], binary mask
+        a: list of [T, H, W], binary mask
+        b: list of [T, H, W], binary mask
 
     Returns:
         sbd: [B]
     """
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
-    bd1 = _f_best_dice(y_out, y_gt)
+    num_ex = len(y_gt)
+    timespan = y_gt[ii].shape[0]
+    bd1 = np.zeros([num_ex, timespan])
+    for ii in xrange(num_ex):
+        bd1[ii] = _f_best_dice(y_out[ii], y_gt[ii])
     bd1_mean = np.zeros([y_out.shape[0]])
     for ii in xrange(y_out.shape[0]):
         bd1_mean[ii] = bd1[ii, :num_obj[ii]].mean()
-        pass
-    bd2 = _f_best_dice(y_gt, y_out).mean()
+    bd2 = np.zeros([num_ex, timespan])
+    for ii in xrange(num_ex):
+        bd2[ii] = _f_best_dice(y_gt[ii], y_out[ii])
     bd2_mean = np.zeros([y_out.shape[0]])
     for ii in xrange(y_out.shape[0]):
-        bd2_mean[ii] = bd1[ii, :num_obj[ii]].mean()
-        pass
+        bd2_mean[ii] = bd2[ii, :num_obj[ii]].mean()
     return np.minimum(bd1_mean, bd2_mean)
 
 
@@ -186,27 +195,32 @@ def f_coverage(y_out, y_gt, s_out, s_gt, weighted=False):
     """Calculates coverage score.
 
     Args:
-        a: [B, T, H, W], binary mask
-        b: [B, T, H, W], binary mask
+        a: list of [T, H, W], binary mask
+        b: list of [T, H, W], binary mask
 
     Returns:
         cov: [B]
     """
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
-    cov = np.zeros([y_out.shape[0], y_out.shape[1]])
-    for ii in xrange(y_gt.shape[1]):
-        y_gt_ = y_gt[:, ii: ii + 1, :, :]
-        iou_ii = _f_iou(y_out, y_gt_)
-        cov[:, ii] = iou_ii.max(axis=1)
-        pass
+    num_ex = len(y_gt)
+    timespan = y_gt[ii].shape[0]
+    cov = np.zeros([num_ex, timespan])
 
-    if weighted:
-        weights = y_gt.sum(axis=3).sum(axis=2) / \
-            (y_gt.sum(axis=3).sum(axis=2).sum(axis=1, keepdims=True) + 1e-5)
-        pass
-    else:
-        weights = np.reshape(1 / num_obj, [-1, 1])
-        pass
+    for ii in xrange(num_ex):
+        for jj in xrange(timespan):
+            # [1, H, W]
+            y_gt_ = y_gt[ii][jj: jj + 1, :, :]
+            iou_jj = _f_iou(y_out[ii], y_gt_)
+            cov[ii, jj] = iou_jj.max(axis=0)
+            pass
+
+    weights = np.zeros([num_ex, timespan])
+    for ii in xrange(num_ex):
+        if weighted:
+            weights[ii] = y_gt[ii].sum(axis=-1).sum(axis=-1) / \
+                (y_gt[ii].sum() + 1e-5)
+        else:
+            weights[ii] = 1 / num_obj[ii]
 
     cov *= weights
     cov_mean = np.zeros([y_out.shape[0]])
@@ -229,12 +243,22 @@ def f_unwt_coverage(y_out, y_gt, s_out, s_gt):
 
 def f_fg_iou(y_out, y_gt, s_out, s_gt):
     """Calculates foreground IOU score."""
-    return _f_iou(y_out.max(axis=1), y_gt.max(axis=1))
+    num_ex = len(y_gt)
+    timespan = y_gt[ii].shape[0]
+    fg_iou = np.zeros([num_ex])
+    for ii in xrange(num_ex):
+        fg_iou[ii] = _f_iou(y_out.max(axis=0), y_gt.max(axis=0))
+    return fg_iou
 
 
 def f_fg_dice(y_out, y_gt, s_out, s_gt):
     """Calculates foreground DICE score."""
-    return _f_dice(y_out.max(axis=1), y_gt.max(axis=1))
+    num_ex = len(y_gt)
+    timespan = y_gt[ii].shape[0]
+    fg_dice = np.zeros([num_ex])
+    for ii in xrange(num_ex):
+        fg_dice[ii] = _f_dice(y_out.max(axis=0), y_gt.max(axis=0))
+    return fg_dice
 
 
 def f_count_acc(y_out, y_gt, s_out, s_gt):
@@ -311,12 +335,13 @@ def run_eval(sess, m, dataset, batch_size=10, fname=None, cvppp_test=False):
     _run_eval(sess, m, dataset, batch_iter, analyzers)
 
 
-def upsample(y_out, shape):
-    y_out_resize = np.zeros(shape)
+def upsample(y_out, y_gt):
+    y_out_resize = []
     for ii in xrange(shape[0]):
+        y_out_resize.append(y_gt[ii].shape)
         for jj in xrange(shape[1]):
-            y_out_resize[ii, jj] = cv2.resize(
-                y_out[ii, jj], (shape[3], shape[2]),
+            y_out_resize[ii][jj] = cv2.resize(
+                y_out[ii, jj], (y_gt[ii].shape[2], y_gt[ii].shape[1]),
                 interpolation=cv2.INTER_NEAREST)
     return y_out_resize
 
@@ -327,8 +352,8 @@ def _run_eval(sess, m, dataset, batch_iter, analyzers):
         feed_dict = {m['x']: x, m['y_gt']: y_gt, m['phase_train']: False}
         r = sess.run(output_list, feed_dict)
         y_out, s_out = postprocess(r[0], r[1])
-        y_gt = dataset.get_labels(idx)
-        y_out = upsample(y_out, y_gt.shape)
+        y_gt = dataset.get_labels(idx).astype('float32')
+        y_out = upsample(y_out, y_gt)
         [analyzer.stage(y_out, y_gt, s_out, s_gt) for analyzer in analyzers]
         pass
     [analyzer.finalize() for analyzer in analyzers]
