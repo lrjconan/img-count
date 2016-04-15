@@ -232,10 +232,12 @@ if __name__ == '__main__':
     #             'timespan': 20
     #         },
     #         split=split).get_dataset()
-    print KITTI(folder, opt={'height': 128,
+    d = KITTI(folder, opt={'height': 128,
                              'width': 448,
                              'num_ex': -1,
                              'timespan': 20
                              },
                 split='valid_man').get_labels(np.array([1762, 5467]))
+
+    print [e.shape for e in d]
     pass
