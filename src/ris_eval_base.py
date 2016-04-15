@@ -263,7 +263,7 @@ def f_fg_iou(y_out, y_gt, s_out, s_gt):
     timespan = y_gt[0].shape[0]
     fg_iou = np.zeros([num_ex])
     for ii in xrange(num_ex):
-        fg_iou[ii] = _f_iou(y_out.max(axis=0), y_gt.max(axis=0))
+        fg_iou[ii] = _f_iou(y_out[ii].max(axis=0), y_gt[ii].max(axis=0))
     return fg_iou
 
 
@@ -281,7 +281,7 @@ def f_fg_dice(y_out, y_gt, s_out, s_gt):
     timespan = y_gt[0].shape[0]
     fg_dice = np.zeros([num_ex])
     for ii in xrange(num_ex):
-        fg_dice[ii] = _f_dice(y_out.max(axis=0), y_gt.max(axis=0))
+        fg_dice[ii] = _f_dice(y_out[ii].max(axis=0), y_gt[ii].max(axis=0))
     return fg_dice
 
 
