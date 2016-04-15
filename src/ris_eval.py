@@ -49,9 +49,9 @@ if __name__ == '__main__':
     step = ckpt_info['step']
     model_id = ckpt_info['model_id']
 
+    dataset = base.get_dataset(args.dataset, data_opt)
     log.info('Building model')
     model = attn_model.get_model(model_opt)
-    dataset = base.get_dataset(args.dataset, data_opt)
     sess = tf.Session()
     saver.restore(sess, ckpt_fname)
 
