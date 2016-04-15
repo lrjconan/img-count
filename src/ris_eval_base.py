@@ -32,8 +32,8 @@ def get_dataset(dataset_name, opt):
                 test_dataset_folder, opt, split=None, manual_max=21)
     elif dataset_name == 'kitti':
         dataset_folder = '/ais/gobi3/u/mren/data/kitti/object'
-        dataset['train'] = KITTI(dataset_folder, opt, split='train')
-        dataset['valid'] = KITTI(dataset_folder, opt, split='valid')
+        # dataset['train'] = KITTI(dataset_folder, opt, split='train')
+        # dataset['valid'] = KITTI(dataset_folder, opt, split='valid')
         dataset['valid_man'] = KITTI(dataset_folder, opt, split='valid_man')
         dataset['test_man'] = KITTI(dataset_folder, opt, split='test_man')
     else:
