@@ -163,7 +163,7 @@ def f_ins_iou(y_out, y_gt, s_out, s_gt):
     for ii in xrange(y_out.shape[0]):
         match[:, num_obj[ii]:, :] = 0.0
         match[:, :, num_obj[ii]:] = 0.0
-    return (iou_pairwise * match).sum(axis=-1).sum(axis=-2) / num_obj
+    return (iou_pairwise * match).sum(axis=-1).sum(axis=-1) / num_obj
 
 
 def f_symmetric_best_dice(y_out, y_gt, s_out, s_gt):
