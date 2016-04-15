@@ -242,5 +242,5 @@ if __name__ == '__main__':
                     'num_ex': -1,
                     'timespan': 20
                 },
-                split='valid_man').get_labels(np.array([1762 5467]))
+                split='valid_man').get_labels(np.array([1762, 5467]))
     pass
