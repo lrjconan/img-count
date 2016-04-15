@@ -14,7 +14,7 @@ import os
 import sys
 
 from data_api.cvppp import CVPPP
-from data_api import kitti
+from data_api.kitti import KITTI
 from data_api import synth_shape
 
 from utils import logger
@@ -214,10 +214,10 @@ def get_dataset(dataset_name, opt):
                 dataset_folder = '/home/mren/data/kitti'
         opt['timespan'] = 20
         opt['num_examples'] = -1
-        dataset['train'] = kitti.get_dataset(
-            dataset_folder, opt, split='train')
-        dataset['valid'] = kitti.get_dataset(
-            dataset_folder, opt, split='valid')
+        dataset['train'] = KITTI(
+            dataset_folder, opt, split='train').get_dataset()
+        dataset['valid'] = KITTI(
+            dataset_folder, opt, split='valid').get_dataset()
     else:
         raise Exception('Unknown dataset name')
 
