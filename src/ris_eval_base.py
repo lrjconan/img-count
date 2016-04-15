@@ -35,7 +35,7 @@ def get_dataset(dataset_name, opt):
                 dataset['test']['label_segmentation'], [1, 21, 1, 1])
             dataset['test']['label_score'] = np.tile(
                 dataset['test']['label_score'], [1, 21])
-            log.fatal(dataset['test']['label_score'].shape)
+            log.error(dataset['test']['label_score'].shape)
             log.fatal(dataset['test']['label_segmentation'].shape)
     elif dataset_name == 'kitti':
         dataset_folder = '/ais/gobi3/u/mren/data/kitti/object'
