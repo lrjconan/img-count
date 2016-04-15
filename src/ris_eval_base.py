@@ -169,6 +169,7 @@ def f_symmetric_best_dice(y_out, y_gt, s_out, s_gt):
         sbd: [B]
     """
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
+
     def f_bd(a, b):
         num_ex = len(a)
         timespan = a[0].shape[0]
@@ -223,17 +224,41 @@ def f_coverage(y_out, y_gt, s_out, s_gt, weighted=False):
 
 
 def f_wt_coverage(y_out, y_gt, s_out, s_gt):
-    """Calculates weighted coverage score."""
+    """Calculates weighted coverage score.
+
+    Args:
+        a: list of [T, H, W], binary mask
+        b: list of [T, H, W], binary mask
+
+    Returns:
+        cov: [B]
+    """
     return f_coverage(y_out, y_gt, s_out, s_gt, weighted=True)
 
 
 def f_unwt_coverage(y_out, y_gt, s_out, s_gt):
-    """Calculates unweighted coverage score."""
+    """Calculates unweighted coverage score.
+
+    Args:
+        a: list of [T, H, W], binary mask
+        b: list of [T, H, W], binary mask
+
+    Returns:
+        cov: [B]
+    """
     return f_coverage(y_out, y_gt, s_out, s_gt, weighted=False)
 
 
 def f_fg_iou(y_out, y_gt, s_out, s_gt):
-    """Calculates foreground IOU score."""
+    """Calculates foreground IOU score.
+
+    Args:
+        a: list of [T, H, W], binary mask
+        b: list of [T, H, W], binary mask
+
+    Returns:
+        fg_iou: [B]
+    """
     num_ex = len(y_gt)
     timespan = y_gt[0].shape[0]
     fg_iou = np.zeros([num_ex])
@@ -243,7 +268,15 @@ def f_fg_iou(y_out, y_gt, s_out, s_gt):
 
 
 def f_fg_dice(y_out, y_gt, s_out, s_gt):
-    """Calculates foreground DICE score."""
+    """Calculates foreground DICE score.
+
+    Args:
+        a: list of [T, H, W], binary mask
+        b: list of [T, H, W], binary mask
+
+    Returns:
+        fg_dice: [B]
+    """
     num_ex = len(y_gt)
     timespan = y_gt[0].shape[0]
     fg_dice = np.zeros([num_ex])
@@ -253,33 +286,89 @@ def f_fg_dice(y_out, y_gt, s_out, s_gt):
 
 
 def f_count_acc(y_out, y_gt, s_out, s_gt):
-    """Calculates count accuracy."""
+    """Calculates count accuracy.
+
+    Args:
+        s_out: [B, T], binary mask
+        s_gt: [B, T], binary mask
+
+    Returns:
+        count_acc: [B]
+    """
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
     return (count_out == count_gt).astype('float')
 
 
 def f_dic(y_out, y_gt, s_out, s_gt):
-    """Calculates difference in count."""
+    """Calculates difference in count.
+
+    Args:
+        s_out: [B, T], binary mask
+        s_gt: [B, T], binary mask
+
+    Returns:
+        dic: [B]
+    """
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
     return (count_out - count_gt)
 
 
 def f_dic_abs(y_out, y_gt, s_out, s_gt):
-    """Calculates absolute difference in count."""
+    """Calculates absolute difference in count.
+
+    Args:
+        s_out: [B, T], binary mask
+        s_gt: [B, T], binary mask
+
+    Returns:
+        dic_abs: [B]
+    """
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
     return np.abs(count_out - count_gt)
 
 
 def _f_count(s_out, s_gt):
-    """Convert to count."""
+    """Convert to count.
+
+    Args:
+        s_out: [B, T], binary mask
+        s_gt: [B, T], binary mask
+
+    Returns:
+        count_out: [B]
+        count_gt: [B]
+        num_obj: [B]
+    """
     count_out = s_out.sum(axis=1)
     count_gt = s_gt.sum(axis=1)
     num_obj = np.maximum(count_gt, 1)
     return count_out, count_gt, num_obj
 
 
-class StageAnalyzer(object):
+def upsample(y_out, y_gt):
+    """Upsample y_out into size of y_gt.
 
+    Args:
+        y_out: list of [T, H', W']
+        y_gt: list of [T, H, W]
+
+    Returns:
+        y_out_resize: list of [T, H, W]
+    """
+    y_out_resize = []
+    num_ex = len(y_gt)
+    timespan = y_gt[0].shape[0]
+    for ii in xrange(num_ex):
+        y_out_resize.append(y_gt[ii].shape)
+        for jj in xrange(timespan):
+            y_out_resize[ii][jj] = cv2.resize(
+                y_out[ii][jj], (y_gt[ii].shape[2], y_gt[ii].shape[1]),
+                interpolation=cv2.INTER_NEAREST)
+    return y_out_resize
+
+
+class StageAnalyzer(object):
+    """Record average statistics."""
     def __init__(self, name, func, fname=None):
         self.avg = 0.0
         self.num_ex = 0
@@ -287,19 +376,31 @@ class StageAnalyzer(object):
         self.func = func
 
     def stage(self, y_out, y_gt, s_out, s_gt):
+        """Record one batch."""
         _tmp = self.func(y_out, y_gt, s_out, s_gt).sum()
-        _num = y_out.shape[0]
+        _num = len(y_out)
         self.num_ex += _num
         self.avg += _tmp
         pass
 
     def finalize(self):
+        """Finalize statistics."""
         self.avg /= self.num_ex
         log.info('{:20s}{:.4f}'.format(self.name, self.avg))
         pass
 
 
 def run_eval(sess, m, dataset, batch_size=10, fname=None, cvppp_test=False):
+    """Run evaluation
+
+    Args:
+        sess: tensorflow session
+        m: model
+        dataset: dataset object
+        batch_size: mini-batch to run
+        fname: output report filename
+        cvppp_test: whether in test mode of CVPPP dataset
+    """
     analyzers = []
     if not cvppp_test:
         analyzers = [StageAnalyzer('IOU', f_ins_iou, fname=fname),
@@ -325,19 +426,6 @@ def run_eval(sess, m, dataset, batch_size=10, fname=None, cvppp_test=False):
                                progress_bar=True)
     _run_eval(sess, m, dataset, batch_iter, analyzers)
     pass
-
-
-def upsample(y_out, y_gt):
-    y_out_resize = []
-    num_ex = len(y_gt)
-    timespan = y_gt[0].shape[0]
-    for ii in xrange(num_ex):
-        y_out_resize.append(y_gt[ii].shape)
-        for jj in xrange(timespan):
-            y_out_resize[ii][jj] = cv2.resize(
-                y_out[ii, jj], (y_gt[ii].shape[2], y_gt[ii].shape[1]),
-                interpolation=cv2.INTER_NEAREST)
-    return y_out_resize
 
 
 def _run_eval(sess, m, dataset, batch_iter, analyzers):
