@@ -193,7 +193,7 @@ class KITTI(object):
             img = cv2.imread(img_fname)
             labels.append(self.get_separate_labels(img))
 
-        label_out = []
+        labels_out = []
         for ii in xrange(num_ex):
             im_height = labels[ii][0].shape[0]
             im_width = labels[ii][0].shape[1]
