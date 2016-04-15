@@ -316,9 +316,8 @@ def upsample(y_out, shape):
     for ii in xrange(shape[0]):
         for jj in xrange(shape[1]):
             y_out_resize[ii, jj] = cv2.resize(
-                y_out[ii, jj], (shape[2], shape[3]),
+                y_out[ii, jj], (shape[3], shape[2]),
                 interpolation=cv2.INTER_NEAREST)
-
     return y_out_resize
 
 

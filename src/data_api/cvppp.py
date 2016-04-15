@@ -222,19 +222,19 @@ if __name__ == '__main__':
         train_folder = '/home/mren/data/LSCData'
         test_folder = '/home/mren/data/LSCDataTest'
 
-    # for subset in ['A1', 'A2', 'A3']:
-    #     CVPPP(os.path.join(train_folder, subset), None).write_split()
+    for subset in ['A1', 'A2', 'A3']:
+        CVPPP(os.path.join(train_folder, subset), None).write_split()
 
-    # d = CVPPP(os.path.join(train_folder, 'A1'),
-    #           {'height': 224, 'width': 224},
-    #           split='train').get_dataset()
-    # print d['input'].shape
-    # print d['label_segmentation'].shape
-    # d = CVPPP(os.path.join(train_folder, 'A1'),
-    #           {'height': 224, 'width': 224},
-    #           split='valid').get_dataset()
-    # print d['input'].shape
-    # print d['label_segmentation'].shape
+    d = CVPPP(os.path.join(train_folder, 'A1'),
+              {'height': 224, 'width': 224},
+              split='train').get_dataset()
+    print d['input'].shape
+    print d['label_segmentation'].shape
+    d = CVPPP(os.path.join(train_folder, 'A1'),
+              {'height': 224, 'width': 224},
+              split='valid').get_dataset()
+    print d['input'].shape
+    print d['label_segmentation'].shape
     d = CVPPP(os.path.join(test_folder, 'A1'),
               {'height': 224, 'width': 224},
               split=None, manual_max=21).get_dataset()
