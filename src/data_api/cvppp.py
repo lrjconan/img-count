@@ -9,16 +9,18 @@ import re
 
 label_regex = re.compile('plant(?P<imgid>[0-9]{3})_label.png')
 image_regex = re.compile('plant(?P<imgid>[0-9]{3})_rgb.png')
+fg_regex = re.compile('plant(?P<imgid>[0-9]{3})_fg.png')
 log = logger.get()
 
 
 class CVPPP(object):
 
-    def __init__(self, folder, opt, split=None):
+    def __init__(self, folder, opt, split=None, manual_max=0):
         self.folder = folder
         self.opt = opt
         self.split = split
         self.dataset = None
+        self.manual_max = manual_max
         pass
 
     def get_dataset(self, shuffle=True):
@@ -53,12 +55,16 @@ class CVPPP(object):
                 split_ids = set([int(ll.strip('\n')) for ll in f.readlines()])
 
         for fname in pb.get_iter(file_list):
-            match = label_regex.search(fname)
-            is_label = True
+            label_match = label_regex.search(fname)
+            fg_match = fg_regex.search(fname)
             matched = False
-            if match:
-                imgid = int(match.group('imgid'))
+            if label_match or fg_match:
+                if label_match:
+                    imgid = int(label_match.group('imgid'))
+                else:
+                    imgid = int(fg_match.group('imgid'))
                 matched = True
+                is_label = True
             else:
                 match = image_regex.search(fname)
                 if match:
@@ -85,7 +91,7 @@ class CVPPP(object):
 
         # Include one more
         max_num_obj += 1
-
+        max_num_obj = max(max_num_obj, self.manual_max)
         self.max_num_obj = max_num_obj
 
         num_ex = len(image_dict)
@@ -213,21 +219,21 @@ if __name__ == '__main__':
         train_folder = '/home/mren/data/LSCData'
         test_folder = '/home/mren/data/LSCDataTest'
 
-    for subset in ['A1', 'A2', 'A3']:
-        CVPPP(os.path.join(train_folder, subset), None).write_split()
+    # for subset in ['A1', 'A2', 'A3']:
+    #     CVPPP(os.path.join(train_folder, subset), None).write_split()
 
-    d = CVPPP(os.path.join(train_folder, 'A1'),
-              {'height': 224, 'width': 224},
-              split='train').get_dataset()
-    print d['input'].shape
-    print d['label_segmentation'].shape
-    d = CVPPP(os.path.join(train_folder, 'A1'),
-              {'height': 224, 'width': 224},
-              split='valid').get_dataset()
-    print d['input'].shape
-    print d['label_segmentation'].shape
+    # d = CVPPP(os.path.join(train_folder, 'A1'),
+    #           {'height': 224, 'width': 224},
+    #           split='train').get_dataset()
+    # print d['input'].shape
+    # print d['label_segmentation'].shape
+    # d = CVPPP(os.path.join(train_folder, 'A1'),
+    #           {'height': 224, 'width': 224},
+    #           split='valid').get_dataset()
+    # print d['input'].shape
+    # print d['label_segmentation'].shape
     d = CVPPP(os.path.join(test_folder, 'A1'),
               {'height': 224, 'width': 224},
-              split=None).get_dataset()
+              split=None, manual_max=21).get_dataset()
     print d['input'].shape
     print d['label_segmentation'].shape

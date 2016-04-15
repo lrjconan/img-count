@@ -27,7 +27,8 @@ def get_dataset(dataset_name, opt):
             dataset = {}
             dataset['train'] = CVPPP(train_dataset_folder, opt, split='train')
             dataset['valid'] = CVPPP(train_dataset_folder, opt, split='valid')
-            dataset['test'] = CVPPP(test_dataset_folder, opt, split=None)
+            dataset['test'] = CVPPP(
+                test_dataset_folder, opt, split=None, manual_max=21)
     elif dataset_name == 'kitti':
         dataset_folder = '/ais/gobi3/u/mren/data/kitti/object'
         dataset['train'] = kitti.get_dataset(
@@ -283,19 +284,21 @@ class StageAnalyzer(object):
         pass
 
 
-def run_eval(sess, m, dataset, batch_size=10, fname=None, output_only=False):
+def run_eval(sess, m, dataset, batch_size=10, fname=None, cvppp_test=False):
     analyzers = []
-    if not output_only:
-        analyzers.extend(
-            [StageAnalyzer('IOU', f_ins_iou, fname=fname),
-             StageAnalyzer('SBD', f_symmetric_best_dice, fname=fname),
-             StageAnalyzer('WT COV', f_wt_coverage, fname=fname),
-             StageAnalyzer('UNWT COV', f_unwt_coverage, fname=fname),
-             StageAnalyzer('FG DICE', f_fg_dice, fname=fname),
-             StageAnalyzer('FG IOU', f_fg_iou, fname=fname),
-             StageAnalyzer('COUNT ACC', f_count_acc, fname=fname),
-             StageAnalyzer('DIC', f_dic, fname=fname),
-             StageAnalyzer('|DIC|', f_dic_abs, fname=fname)])
+    if not cvppp_test:
+        analyzers = [StageAnalyzer('IOU', f_ins_iou, fname=fname),
+                     StageAnalyzer('SBD', f_symmetric_best_dice, fname=fname),
+                     StageAnalyzer('WT COV', f_wt_coverage, fname=fname),
+                     StageAnalyzer('UNWT COV', f_unwt_coverage, fname=fname),
+                     StageAnalyzer('FG DICE', f_fg_dice, fname=fname),
+                     StageAnalyzer('FG IOU', f_fg_iou, fname=fname),
+                     StageAnalyzer('COUNT ACC', f_count_acc, fname=fname),
+                     StageAnalyzer('DIC', f_dic, fname=fname),
+                     StageAnalyzer('|DIC|', f_dic_abs, fname=fname)]
+    else:
+        analyzers = [StageAnalyzer('FG DICE', f_fg_dice, fname=fname),
+                     StageAnalyzer('FG IOU', f_fg_iou, fname=fname)]
 
     data = dataset.get_dataset()
     num_ex = data['input'].shape[0]

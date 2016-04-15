@@ -58,11 +58,11 @@ if __name__ == '__main__':
 
     for key in dataset:
         if args.dataset == 'cvppp' and key == 'test':
-            output_only = True
+            cvppp_test = True
         else:
-            output_only = False
+            cvppp_test = False
         log.info('Running {} set'.format(key))
-        base.run_eval(sess, model, dataset[key], output_only=output_only)
+        base.run_eval(sess, model, dataset[key], cvppp_test=cvppp_test)
 
     # # Test
     # sess = None
