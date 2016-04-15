@@ -181,7 +181,7 @@ class CVPPP(object):
 
         return segmentations
 
-    def get_labels(idx):
+    def get_labels(self, idx):
         im_height = -1
         im_width = -1
         num_ex = idx.shape[0]
