@@ -59,7 +59,7 @@ if __name__ == '__main__':
         log.info('Running {} set'.format(key))
         base.run_eval(sess, model, dataset[key])
 
-    # Test
+    # # Test
     # sess = None
     # model = None
     # dataset = None

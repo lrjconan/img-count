@@ -306,7 +306,6 @@ def run_eval(sess, m, dataset, batch_size=10, fname=None):
                                progress_bar=True)
     _run_eval(sess, m, batch_iter, analyzers)
 
-    # output_list = None
     # y_gt = [(np.random.rand(5, 5, 10, 10) > 0.5).astype('float')]
     # x = [None]
     # s_gt = [(np.random.rand(5, 5) > 0.5).astype('float')]
