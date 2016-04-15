@@ -27,9 +27,7 @@ def get_dataset(dataset_name, opt):
             dataset = {}
             dataset['train'] = CVPPP(train_dataset_folder, opt, split='train')
             dataset['valid'] = CVPPP(train_dataset_folder, opt, split='valid')
-            # dataset['test'] = CVPPP(test_dataset_folder, opt, split=None)
-            # log.error(dataset['test']['label_score'].shape)
-            # log.fatal(dataset['test']['label_segmentation'].shape)
+            dataset['test'] = CVPPP(test_dataset_folder, opt, split=None)
     elif dataset_name == 'kitti':
         dataset_folder = '/ais/gobi3/u/mren/data/kitti/object'
         dataset['train'] = kitti.get_dataset(
@@ -310,14 +308,25 @@ def run_eval(sess, m, dataset, batch_size=10, fname=None, output_only=False):
     _run_eval(sess, m, dataset, batch_iter, analyzers)
 
 
+def upsample(y_out, shape):
+    y_out_resize = np.zeros(shape)
+    for ii in xrange(shape[0]):
+        for jj in xrange(shape[1]):
+            y_out_resize[ii, jj] = cv2.resize(
+                y_out[ii, jj], (shape[2], shape[3]),
+                interpolation=cv2.INTER_NEAREST)
+
+    return y_out_resize
+
+
 def _run_eval(sess, m, dataset, batch_iter, analyzers):
     output_list = [m['y_out'], m['s_out']]
     for x, y_gt, s_gt, idx in batch_iter:
         feed_dict = {m['x']: x, m['y_gt']: y_gt, m['phase_train']: False}
         r = sess.run(output_list, feed_dict)
         y_out, s_out = postprocess(r[0], r[1])
-        y_gt = dataset.get_label(idx)
-        y_out = cv2.resize(y_out, (y_gt.shape[2], y_gt, shape[3]))
+        y_gt = dataset.get_labels(idx)
+        y_out_resize = upsample(y_out, shape)
         [analyzer.stage(y_out, y_gt, s_out, s_gt) for analyzer in analyzers]
         pass
     [analyzer.finalize() for analyzer in analyzers]

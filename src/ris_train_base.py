@@ -203,15 +203,8 @@ def get_dataset(dataset_name, opt):
             dataset['valid'] = CVPPP(
                 dataset_folder, opt, split='valid').get_dataset()
         else:
-            _all_data = CVPPP(dataset_folder, opt, split=None).get_dataset()
-            random = np.random.RandomState(2)
-            idx = np.arange(_all_data['input'].shape[0])
-            random.shuffle(idx)
-            dataset['train'] = {
-                'input': _all_data['input'][idx],
-                'label_segmentation': _all_data['label_segmentation'][idx],
-                'label_score': _all_data['label_score'][idx]
-            }
+            dataset['train'] = CVPPP(
+                dataset_folder, opt, split=None).get_dataset()
     elif dataset_name == 'kitti':
         dataset_folder = opt['folder']
         if dataset_folder is None:

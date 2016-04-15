@@ -21,7 +21,7 @@ class CVPPP(object):
         self.dataset = None
         pass
 
-    def get_dataset(self):
+    def get_dataset(self, shuffle=True):
         """
         Get CVPPP dataset.
         Args:
@@ -111,13 +111,14 @@ class CVPPP(object):
                 label_score[ii, :num_obj] = 1
 
         # Shuffle the indices.
-        random = np.random.RandomState(2)
-        idx = np.arange(idx_map.size)
-        random.shuffle(idx)
-        inp = inp[idx]
-        label_segm = label_segm[idx]
-        label_score = label_score[idx]
-        idx_map = idx_map[idx]
+        if shuffle:
+            random = np.random.RandomState(2)
+            idx = np.arange(idx_map.size)
+            random.shuffle(idx)
+            inp = inp[idx]
+            label_segm = label_segm[idx]
+            label_score = label_score[idx]
+            idx_map = idx_map[idx]
 
         self.dataset = {
             'input': inp,
@@ -180,12 +181,13 @@ class CVPPP(object):
 
         return segmentations
 
-    def get_label(idx):
+    def get_labels(idx):
         im_height = -1
         im_width = -1
+        num_ex = idx.shape[0]
         labels = []
 
-        for ii in xrange(idx.shape[0]):
+        for ii in xrange(num_ex):
             img_fname = os.path.join(
                 self.folder, 'plant{:03d}_label.png'.format(idx[ii]))
             img = cv2.imread(img_fname)
@@ -194,9 +196,9 @@ class CVPPP(object):
                 im_height = img.shape[0]
                 im_width = img.shape[1]
 
-        labels_out = np.zeros(
-            [idx.shape[0], self.max_num_obj, im_height, im_width], dtype='uint8')
-        for ii in xrange(idx.shape[0]):
+        labels_out = np.zeros([num_ex, self.max_num_obj, im_height, im_width],
+                              dtype='uint8')
+        for ii in xrange(num_ex):
             for jj in xrange(len(labels[ii])):
                 labels_out[ii, jj] = labels[ii][jj]
 
