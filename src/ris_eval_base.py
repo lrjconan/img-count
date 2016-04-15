@@ -147,7 +147,7 @@ def f_ins_iou(y_out, y_gt, s_out, s_gt):
     """
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
     num_ex = len(y_gt)
-    timespan = y_gt[ii].shape[0]
+    timespan = y_gt[0].shape[0]
     ins_iou = np.zeros([num_ex])
     for ii in xrange(num_ex):
         y_out_ = np.expand_dims(y_out[ii], 1)
@@ -174,21 +174,17 @@ def f_symmetric_best_dice(y_out, y_gt, s_out, s_gt):
         sbd: [B]
     """
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
-    num_ex = len(y_gt)
-    timespan = y_gt[ii].shape[0]
-    bd1 = np.zeros([num_ex, timespan])
-    for ii in xrange(num_ex):
-        bd1[ii] = _f_best_dice(y_out[ii], y_gt[ii])
-    bd1_mean = np.zeros([y_out.shape[0]])
-    for ii in xrange(y_out.shape[0]):
-        bd1_mean[ii] = bd1[ii, :num_obj[ii]].mean()
-    bd2 = np.zeros([num_ex, timespan])
-    for ii in xrange(num_ex):
-        bd2[ii] = _f_best_dice(y_gt[ii], y_out[ii])
-    bd2_mean = np.zeros([y_out.shape[0]])
-    for ii in xrange(y_out.shape[0]):
-        bd2_mean[ii] = bd2[ii, :num_obj[ii]].mean()
-    return np.minimum(bd1_mean, bd2_mean)
+    def f_bd(a, b):
+        num_ex = len(a)
+        timespan = a[0].shape[0]
+        bd = np.zeros([num_ex, timespan])
+        for ii in xrange(num_ex):
+            bd[ii] = _f_best_dice(a[ii], b[ii])
+        bd_mean = np.zeros([a.shape[0]])
+        for ii in xrange(a.shape[0]):
+            bd_mean[ii] = bd[ii, :num_obj[ii]].mean()
+        return bd
+    return np.minimum(f_bd(y_out, y_gt), f_bd(y_gt, y_out))
 
 
 def f_coverage(y_out, y_gt, s_out, s_gt, weighted=False):
@@ -203,7 +199,7 @@ def f_coverage(y_out, y_gt, s_out, s_gt, weighted=False):
     """
     count_out, count_gt, num_obj = _f_count(s_out, s_gt)
     num_ex = len(y_gt)
-    timespan = y_gt[ii].shape[0]
+    timespan = y_gt[0].shape[0]
     cov = np.zeros([num_ex, timespan])
 
     for ii in xrange(num_ex):
@@ -244,7 +240,7 @@ def f_unwt_coverage(y_out, y_gt, s_out, s_gt):
 def f_fg_iou(y_out, y_gt, s_out, s_gt):
     """Calculates foreground IOU score."""
     num_ex = len(y_gt)
-    timespan = y_gt[ii].shape[0]
+    timespan = y_gt[0].shape[0]
     fg_iou = np.zeros([num_ex])
     for ii in xrange(num_ex):
         fg_iou[ii] = _f_iou(y_out.max(axis=0), y_gt.max(axis=0))
@@ -254,7 +250,7 @@ def f_fg_iou(y_out, y_gt, s_out, s_gt):
 def f_fg_dice(y_out, y_gt, s_out, s_gt):
     """Calculates foreground DICE score."""
     num_ex = len(y_gt)
-    timespan = y_gt[ii].shape[0]
+    timespan = y_gt[0].shape[0]
     fg_dice = np.zeros([num_ex])
     for ii in xrange(num_ex):
         fg_dice[ii] = _f_dice(y_out.max(axis=0), y_gt.max(axis=0))
