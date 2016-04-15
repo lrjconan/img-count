@@ -9,7 +9,7 @@ import os
 import tensorflow as tf
 
 from data_api.cvppp import CVPPP
-from data_api import kitti
+from data_api.kitti import KITTI
 
 from utils import logger
 from utils.batch_iter import BatchIterator
@@ -31,17 +31,12 @@ def get_dataset(dataset_name, opt):
                 test_dataset_folder, opt, split=None, manual_max=21)
     elif dataset_name == 'kitti':
         dataset_folder = '/ais/gobi3/u/mren/data/kitti/object'
-        dataset['train'] = kitti.get_dataset(
-            dataset_folder, opt, split='train')
-        dataset['valid'] = kitti.get_dataset(
-            dataset_folder, opt, split='valid')
-        dataset['valid_man'] = kitti.get_dataset(
-            dataset_folder, opt, split='valid_man')
-        dataset['test_man'] = kitti.get_dataset(
-            dataset_folder, opt, split='test_man')
+        dataset['train'] = KITTI(dataset_folder, opt, split='train')
+        dataset['valid'] = KITTI(dataset_folder, opt, split='valid')
+        dataset['valid_man'] = KITTI(dataset_folder, opt, split='valid_man')
+        dataset['test_man'] = KITTI(dataset_folder, opt, split='test_man')
     else:
         raise Exception('Not supported')
-
     return dataset
 
 
@@ -329,13 +324,16 @@ def run_eval(sess, m, dataset, batch_size=10, fname=None, cvppp_test=False):
                                cycle=False,
                                progress_bar=True)
     _run_eval(sess, m, dataset, batch_iter, analyzers)
+    pass
 
 
 def upsample(y_out, y_gt):
     y_out_resize = []
-    for ii in xrange(shape[0]):
+    num_ex = len(y_gt)
+    timespan = y_gt[0].shape[0]
+    for ii in xrange(num_ex):
         y_out_resize.append(y_gt[ii].shape)
-        for jj in xrange(shape[1]):
+        for jj in xrange(timespan):
             y_out_resize[ii][jj] = cv2.resize(
                 y_out[ii, jj], (y_gt[ii].shape[2], y_gt[ii].shape[1]),
                 interpolation=cv2.INTER_NEAREST)
