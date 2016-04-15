@@ -215,8 +215,8 @@ def f_coverage(y_out, y_gt, s_out, s_gt, weighted=False):
             weights[ii] = 1 / num_obj[ii]
 
     cov *= weights
-    cov_mean = np.zeros([y_out.shape[0]])
-    for ii in xrange(y_out.shape[0]):
+    cov_mean = np.zeros([num_ex])
+    for ii in xrange(num_ex):
         cov_mean[ii] = cov[ii, :num_obj[ii]].sum()
         pass
 
