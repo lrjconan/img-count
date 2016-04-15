@@ -224,7 +224,7 @@ class KITTI(object):
 
 
 if __name__ == '__main__':
-    # folder = '/ais/gobi3/u/mren/data/kitti/object'
+    folder = '/ais/gobi3/u/mren/data/kitti/object'
     # for split in ['valid_man', 'test_man', 'train', 'valid']:
     #     dataset = KITTI(
     #         folder,
