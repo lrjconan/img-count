@@ -12,7 +12,7 @@ log = logger.get()
 
 """
 Image size are around 375 x 1240.
-We may want to resize it first to 
+We may want to resize it first to
 160 x 480 (32 padding)
 128 x 448
 64 x 224
@@ -184,8 +184,6 @@ class KITTI(object):
         return segmentations
 
     def get_labels(self, idx):
-        im_height = -1
-        im_width = -1
         num_ex = idx.shape[0]
         labels = []
 
@@ -194,18 +192,17 @@ class KITTI(object):
                 self.gt_folder, '{:06d}.png'.format(idx[ii]))
             img = cv2.imread(img_fname)
             labels.append(self.get_separate_labels(img))
-            if im_height == -1:
-                im_height = img.shape[0]
-                im_width = img.shape[1]
 
-        labels_out = np.zeros(
-            [num_ex, self.opt['timespan'], im_height, im_width], dtype='uint8')
+        label_out = []
         for ii in xrange(num_ex):
+            im_height = labels[ii][0].shape[0]
+            im_width = labels[ii][0].shape[1]
+            labels_out.append(np.zeros(
+                [self.opt['timespan'], im_height, im_width], dtype='uint8'))
             for jj in xrange(len(labels[ii])):
                 labels_out[ii, jj] = labels[ii][jj]
 
         return labels_out
-
 
 # def get_foreground_dataset(folder, opt, split='train'):
 #     h5_fname = os.path.join(folder, 'fg_' + split + '.h5')
