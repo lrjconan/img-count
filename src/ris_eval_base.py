@@ -348,7 +348,7 @@ def _run_eval(sess, m, dataset, batch_iter, analyzers):
         feed_dict = {m['x']: x, m['y_gt']: y_gt, m['phase_train']: False}
         r = sess.run(output_list, feed_dict)
         y_out, s_out = postprocess(r[0], r[1])
-        y_gt = dataset.get_labels(idx).astype('float32')
+        y_gt = [_y_gt.astype('float32') for _y_gt in dataset.get_labels(idx)]
         y_out = upsample(y_out, y_gt)
         [analyzer.stage(y_out, y_gt, s_out, s_gt) for analyzer in analyzers]
         pass
