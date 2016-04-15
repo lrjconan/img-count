@@ -26,10 +26,10 @@ def get_dataset(dataset_name, opt):
         if os.path.exists('/u/mren'):
             train_dataset_folder = '/ais/gobi3/u/mren/data/lsc/A1'
             test_dataset_folder = '/ais/gobi3/u/mren/data/lsc_test/A1'
-            dataset['train'] = CVPPP(train_dataset_folder, opt, split='train')
+            # dataset['train'] = CVPPP(train_dataset_folder, opt, split='train')
             dataset['valid'] = CVPPP(train_dataset_folder, opt, split='valid')
-            dataset['test'] = CVPPP(
-                test_dataset_folder, opt, split=None, manual_max=21)
+            # dataset['test'] = CVPPP(
+            #     test_dataset_folder, opt, split=None, manual_max=21)
     elif dataset_name == 'kitti':
         dataset_folder = '/ais/gobi3/u/mren/data/kitti/object'
         # dataset['train'] = KITTI(dataset_folder, opt, split='train')
@@ -179,7 +179,7 @@ def f_symmetric_best_dice(y_out, y_gt, s_out, s_gt):
         bd_mean = np.zeros([num_ex])
         for ii in xrange(num_ex):
             bd_mean[ii] = bd[ii, :num_obj[ii]].mean()
-        return bd
+        return bd_mean
     return np.minimum(f_bd(y_out, y_gt), f_bd(y_gt, y_out))
 
 
