@@ -20,6 +20,7 @@ log = logger.get()
 
 
 def get_dataset(dataset_name, opt):
+    """Get dataset, including test."""
     if dataset_name == 'cvppp':
         if os.path.exists('/u/mren'):
             train_dataset_folder = '/ais/gobi3/u/mren/data/lsc/A1'
@@ -41,7 +42,9 @@ def get_dataset(dataset_name, opt):
 
 
 def preprocess(x, y, s):
-    return (x.astype('float32') / 255, y.astype('float32'), s.astype('float32'))
+    """Preprocess input data."""
+    return (x.astype('float32') / 255,
+            y.astype('float32'), s.astype('float32'))
 
 
 def postprocess(y_out, s_out):
@@ -69,9 +72,6 @@ def get_batch_fn(dataset):
     return get_batch
 
 
-###############################
-# Analysis helper functions
-###############################
 def _f_iou(a, b):
     """IOU between two segmentations.
 
@@ -359,7 +359,7 @@ def upsample(y_out, y_gt):
     num_ex = len(y_gt)
     timespan = y_gt[0].shape[0]
     for ii in xrange(num_ex):
-        y_out_resize.append(y_gt[ii].shape)
+        y_out_resize.append(np.zeros(y_gt[ii].shape, dtype='float32'))
         for jj in xrange(timespan):
             y_out_resize[ii][jj] = cv2.resize(
                 y_out[ii][jj], (y_gt[ii].shape[2], y_gt[ii].shape[1]),
@@ -369,6 +369,7 @@ def upsample(y_out, y_gt):
 
 class StageAnalyzer(object):
     """Record average statistics."""
+
     def __init__(self, name, func, fname=None):
         self.avg = 0.0
         self.num_ex = 0
