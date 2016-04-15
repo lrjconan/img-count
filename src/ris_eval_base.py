@@ -33,7 +33,7 @@ def get_dataset(dataset_name, opt):
                 test_dataset_folder, opt, split=None)
             dataset['test']['label_segmentation'] = np.tile(
                 dataset['test']['label_segmentation'], [1, 21, 1, 1])
-            log.fatal()
+            log.fatal(dataset['test']['label_score'].shape)
             dataset['test']['label_score'] = np.tile(
                 dataset['test']['label_score'], [1, 21])
     elif dataset_name == 'kitti':
