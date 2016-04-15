@@ -76,12 +76,12 @@ def get_model(opt, device='/cpu:0'):
     pretrain_attn_net = opt['pretrain_attn_net']
     pretrain_net = opt['pretrain_net']
     
-    #freeze_ctrl_cnn = True
-    #freeze_ctrl_rnn = True
-    #freeze_attn_net = True
-    freeze_ctrl_cnn = opt['freeze_ctrl_cnn']
-    freeze_ctrl_rnn = opt['freeze_ctrl_rnn']
-    freeze_attn_net = opt['freeze_attn_net']
+    freeze_ctrl_cnn = True
+    freeze_ctrl_rnn = True
+    freeze_attn_net = True
+    # freeze_ctrl_cnn = opt['freeze_ctrl_cnn']
+    # freeze_ctrl_rnn = opt['freeze_ctrl_rnn']
+    # freeze_attn_net = opt['freeze_attn_net']
 
     rnd_hflip = opt['rnd_hflip']
     rnd_vflip = opt['rnd_vflip']
@@ -115,8 +115,8 @@ def get_model(opt, device='/cpu:0'):
         model['phase_train'] = phase_train
 
         # Global step
-        global_step = tf.Variable(0.0, name='global_step')
-        # global_step = tf.Variable(0.0)
+        # global_step = tf.Variable(0.0, name='global_step')
+        global_step = tf.Variable(0.0)
 
 ###############################
 # Random input transformation
